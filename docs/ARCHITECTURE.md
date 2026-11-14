@@ -2,7 +2,7 @@
 
 The engine is a growing portable C90 runtime with a Deceptus game layer and
 separate hardware backends. Its interfaces are not a frozen general-purpose
-engine ABI. GBA is the first complete-game target; the SNES prototype exercises
+engine ABI. GBA is the first complete-game target; the SNES opening exercises
 shared code under a very different compiler and resource budget.
 
 ## Code boundaries
@@ -19,7 +19,7 @@ shared code under a very different compiler and resource budget.
 | `src/game/deceptus.c`, `campaign.c` | Player/game rules and the curated preview campaign |
 | `src/game/weapons/playersword.c` | Source sword timing, hit bounds and supported blob damage |
 | `src/platform/gba/` | Registers, input, DMA, tile residency, OAM, menus, UI and cartridge startup |
-| `src/platform/snes/` | SNES/PVSnesLib video, input and prototype frontend |
+| `src/platform/snes/` | SNES/PVSnesLib world cache, OBJ staging, input and opening frontend |
 | `src/platform/host/` | Native preview bridge |
 | `tools/` | Offline authoritative-content import, conversion, compilation and verification |
 

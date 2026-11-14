@@ -1,4 +1,4 @@
-"""Build the GBA opening and retained SNES prototype concurrently."""
+"""Prepare original imports once, then build both console openings concurrently."""
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,19 +12,26 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def prepare_opening(data):
+    from snes_tutorial_assets import ensure_original_imports
+    ensure_original_imports(data,refresh_metadata=True)
+
+
 def build_target(target, data, sdk, clang, linker, objcopy):
     folder = ROOT / 'build/consoles'
     folder.mkdir(parents=True, exist_ok=True)
     log = folder / f'{target}.log'
     if target == 'gba':
         command = [sys.executable, ROOT / 'tools/build_gba.py', '--scene', 'tutorial',
-                   '--data', data, '--clang', clang, '--linker', linker, '--objcopy', objcopy]
+                   '--data', data, '--clang', clang, '--linker', linker, '--objcopy', objcopy,
+                   '--prepared-room-assets']
         rom = ROOT / 'build/gba/deceptus-tutorial.gba'
         coverage = 'opening adventure; not a complete-game claim'
     elif target == 'snes':
-        command = [sys.executable, ROOT / 'tools/build_snes.py', '--data', data, '--sdk', sdk]
-        rom = ROOT / 'build/snes/deceptus.sfc'
-        coverage = 'single-room prototype; no GBA adventure frontend'
+        command = [sys.executable, ROOT / 'tools/build_snes.py', '--scene', 'tutorial',
+                   '--data', data, '--sdk', sdk]
+        rom = ROOT / 'build/snes/deceptus-tutorial.sfc'
+        coverage = 'opening adventure; not a complete-game claim'
     else:
         raise ValueError(f'unsupported console target: {target}')
     print(f'{target}: building (log: {log})', flush=True)
@@ -55,6 +62,16 @@ def main():
                      'cartridge startup and Mega Drive video/input backend are required; no ROM was built')
     targets = list(dict.fromkeys(args.targets))
     reports = []
+    folder = ROOT / 'build/consoles'
+    folder.mkdir(parents=True, exist_ok=True)
+    try:
+        prepare_opening(args.data.resolve())
+    except Exception as error:
+        reports = [{'target': target, 'returncode': 1, 'phase': 'original-import preflight',
+                    'error': str(error)} for target in targets]
+        (folder / 'build.json').write_text(json.dumps({'full_game': False, 'targets': reports}, indent=2) + '\n')
+        print(f'original-import preflight: FAILED: {error}', flush=True)
+        return 1
     with ThreadPoolExecutor(max_workers=len(targets)) as executor:
         futures = {executor.submit(build_target, target, args.data.resolve(), args.sdk.resolve(),
                                    args.clang, args.linker, args.objcopy): target for target in targets}

@@ -79,7 +79,10 @@ static deceptus_u16 blob_2_contact(deceptus_engine *engine, deceptus_entity *blo
 {
     deceptus_entity *player;
     deceptus_i16 dx, dy;
-    if (blob->state == 3 || !blob->active) {
+    if (blob->state == 3) {
+        return 0;
+    }
+    if (!blob->active) {
         return 0;
     }
     player = &engine->entities[0];

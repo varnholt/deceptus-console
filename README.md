@@ -1,7 +1,7 @@
 # Deceptus C Engine
 
 A portable C game engine and console adaptation of Deceptus. **GBA is the first
-complete-game target.** A working SNES prototype is retained; Mega Drive is a
+complete-game target.** SNES now builds the same 26-room opening; Mega Drive is a
 future backend. The local folder currently keeps the name `deceptus-snes`.
 
 The latest development build is the original prison opening, with twenty-six
@@ -131,14 +131,18 @@ python tools/package_preview.py --build
 The default build scene is now `tutorial`.
 `package_preview.py` packages that curated preview, not the current tutorial.
 
-The separate SNES prototype uses project-local PVSnesLib:
+The SNES opening uses project-local PVSnesLib. Its simulation remains slow;
+see [SNES implementation and measured limits](docs/SNES.md).
 
 ```powershell
 python tools/bootstrap.py --target snes --emulator
 python tools/build_snes.py
 python tools/emulator.py
-python tools/play.py --backend snes
+python run_snes.py
 ```
+
+Use `--scene prototype` with the SNES builder and launcher for the retained
+one-room test. The default launcher selects `deceptus-tutorial.sfc` explicitly.
 
 ## Automated builds
 

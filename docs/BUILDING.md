@@ -123,7 +123,7 @@ Generated resources are scene-specific, so rebuild before switching tests.
 
 ```powershell
 python tools/bootstrap.py --target snes --emulator
-python tools/build_snes.py
+python tools/build_snes.py --scene prototype
 python tools/emulator.py
 ```
 
@@ -131,14 +131,29 @@ This verifies the retained prototype's movement, jump, pause, checkpoint and
 portal route in Snes9x. It does not run the GBA tutorial. GBA, SNES and desktop
 share C engine code, so shared simulation changes need both console checks.
 
+The opening adventure has a separate banked SNES build:
+
+```powershell
+python tools/build_snes.py --scene tutorial --rooms 26 --rom-mib 8
+```
+
+It uses the shared adventure rules and converts the original artwork directly
+to Mode 1 backgrounds and 4bpp sprites at native size. The generated cartridge
+is `build/snes/deceptus-tutorial.sfc`. `--rooms 2 --rom-mib 4` builds the smaller
+initial-room integration case; entering a room without converted graphics fails
+explicitly. `--reuse-assets` requires matching source and converter identities.
+`--assets-dir PATH` selects an isolated tutorial conversion directory. See
+[SNES.md](SNES.md) for the video layout and current verification limits.
+
 ## Parallel console builds
 
 ```powershell
 python tools/build_consoles.py
 ```
 
-This runs the GBA tutorial and SNES prototype builders concurrently against the
-same authoritative data checkout. Logs are separate in `build/consoles/gba.log`
+This prepares the original opening imports once, then runs the GBA and SNES
+tutorial builders concurrently against the same authoritative data checkout.
+Logs are separate in `build/consoles/gba.log`
 and `build/consoles/snes.log`; `build/consoles/build.json` records each result
 and successful cartridge hashes. A failed target makes the command fail even if
 the other target succeeds. Pass `--targets gba` or `--targets snes` to select one,
@@ -147,9 +162,10 @@ and tools. Do not launch another build of either target into the same checkout
 while this command runs.
 
 CMake exposes `console_roms` for the same parallel command and `snes_rom` for
-the retained SNES build. Build success does not replace the emulator checks
+the SNES builder. Build success does not replace the emulator checks
 above. The two cartridges share simulation code but have different frontends
-and content coverage: SNES does not yet run the GBA adventure.
+and content coverage. The parallel command selects the opening tutorial;
+`build_snes.py --scene prototype` retains the smaller standalone regression case.
 
 `--targets smd` fails before building. There is no Mega Drive backend or graphics
 converter in this repository. A working SMD cartridge needs a 68000 toolchain,

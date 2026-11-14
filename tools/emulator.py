@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes as C
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -244,9 +245,34 @@ def verify(core, rom):
         emulator.close()
 
 
+def snes_scene(rom):
+    if not rom:
+        return 'tutorial'
+    for scene in ('tutorial', 'prototype'):
+        if rom.stem.endswith('-' + scene):
+            return scene
+    metadata = rom.parent / 'build.json'
+    if metadata.is_file() and rom.is_file():
+        information = json.loads(metadata.read_text())
+        if information.get('sha256') == hashlib.sha256(rom.read_bytes()).hexdigest():
+            if information.get('scene') in ('tutorial', 'prototype'):
+                return information['scene']
+    return 'prototype' if rom.stem == 'deceptus' else 'tutorial'
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--core", type=Path, default=ROOT / ".tools/snes9x/snes9x_libretro.dll")
-    parser.add_argument("--rom", type=Path, default=ROOT / "build/snes/deceptus.sfc")
+    parser.add_argument('--scene', choices=['auto', 'tutorial', 'prototype'], default='auto')
+    parser.add_argument('--milestone', choices=['boot', 'full'], default='full')
+    parser.add_argument("--rom", type=Path)
     args = parser.parse_args()
-    verify(args.core, args.rom)
+    scene = args.scene
+    if scene == 'auto':
+        scene = snes_scene(args.rom)
+    rom = args.rom or ROOT / f'build/snes/deceptus-{scene}.sfc'
+    if scene == 'tutorial':
+        from verify_snes_opening import verify as verify_opening
+        verify_opening(args.core, rom, milestone=args.milestone)
+    else:
+        verify(args.core, rom)

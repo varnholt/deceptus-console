@@ -139,6 +139,14 @@ static void test_owl_eyes_progression(void)
     deceptus_place_player(&game.campaign.engine, 100, 192);
     deceptus_adventure_tick(&game, DECEPTUS_UP);
     assert(!game.flags && !game.pending_ticks);
+    /* directional portals require both authored overlap and the matching input. */
+    assert(!deceptus_adventure_tick(&game, DECEPTUS_RIGHT));
+    assert(game.campaign.room_index == 0);
+    deceptus_place_player(&game.campaign.engine, 245, 192);
+    assert(!deceptus_adventure_tick(&game, 0));
+    assert(game.campaign.room_index == 0);
+    assert(!deceptus_adventure_tick(&game, DECEPTUS_LEFT));
+    assert(game.campaign.room_index == 0);
     deceptus_place_player(&game.campaign.engine, 245, 192);
     assert(deceptus_adventure_tick(&game, DECEPTUS_RIGHT));
     for (index = 0; index < 12; ++index) {

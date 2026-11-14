@@ -1,3 +1,4 @@
+#ifndef DECEPTUS_SNES_OPENING
 #include "asset_sizes.h"
 #include "deceptus/engine.h"
 #include <snes.h>
@@ -154,3 +155,182 @@ int main(void)
     }
     return 0;
 }
+#else
+#include "deceptus/adventure.h"
+#include "snes_assets.h"
+#include <snes.h>
+
+extern const deceptus_adventure_def snes_tutorial_definition;
+static deceptus_adventure adventure;
+static deceptus_frame frame;
+static const deceptus_video_caps video = {256, 224, DECEPTUS_DRAW_CAPACITY};
+volatile deceptus_u16 deceptus_debug[56];
+
+#include "background.h"
+#include "sprites.h"
+#include "ui.h"
+
+static deceptus_u16 input_read(void)
+{
+    deceptus_u16 pad, buttons;
+    pad = padsCurrent(0);
+    buttons = 0;
+    if (pad & KEY_LEFT) {
+        buttons |= DECEPTUS_LEFT;
+    }
+    if (pad & KEY_RIGHT) {
+        buttons |= DECEPTUS_RIGHT;
+    }
+    if (pad & KEY_A) {
+        buttons |= DECEPTUS_JUMP | DECEPTUS_ACCEPT;
+    }
+    if (pad & KEY_B) {
+        buttons |= DECEPTUS_JUMP | DECEPTUS_BACK;
+    }
+    if (pad & KEY_UP) {
+        buttons |= DECEPTUS_UP;
+    }
+    if (pad & KEY_DOWN) {
+        buttons |= DECEPTUS_DOWN;
+    }
+    if (pad & KEY_START) {
+        buttons |= DECEPTUS_PAUSE;
+    }
+    if (pad & KEY_SELECT) {
+        buttons |= DECEPTUS_RESTART;
+    }
+    if (pad & (KEY_X | KEY_Y)) {
+        buttons |= DECEPTUS_ATTACK;
+    }
+    if (pad & KEY_L) {
+        buttons |= DECEPTUS_ACCEPT;
+    }
+    if (pad & KEY_R) {
+        buttons |= DECEPTUS_BACK;
+    }
+    return buttons;
+}
+
+static void debug_write(void)
+{
+    const deceptus_engine *engine;
+    engine = &adventure.campaign.engine;
+    deceptus_debug[0] = 0xD3CE;
+    deceptus_debug[1] = deceptus_floor(engine->entities[0].x);
+    deceptus_debug[2] = deceptus_floor(engine->entities[0].y);
+    deceptus_debug[3] = engine->camera_x;
+    deceptus_debug[4] = engine->ticks;
+    deceptus_debug[5] = engine->paused;
+    deceptus_debug[6] = engine->health;
+    deceptus_debug[7] = engine->entities[0].grounded;
+    deceptus_debug[8] = engine->door_entries;
+    deceptus_debug[9] = engine->event_count;
+    deceptus_debug[10] = frame.count;
+    deceptus_debug[12] = engine->checkpoint_id;
+    deceptus_debug[13] = engine->checkpoint_x;
+    deceptus_debug[14] = engine->checkpoint_y;
+    deceptus_debug[15] = engine->content_error;
+    deceptus_debug[16] = engine->camera_y;
+    deceptus_debug[17] = snes_background_error;
+    deceptus_debug[18] = snes_background_uploads;
+    deceptus_debug[19] = snes_background_full;
+    deceptus_debug[20] = snes_ui_overflow;
+    deceptus_debug[21] = snes_sprite_overflow;
+    deceptus_debug[22] = snes_sprite_upload_bytes;
+    deceptus_debug[23] = snes_obj_count;
+    deceptus_debug[24] = snes_obj_palette_count;
+    deceptus_debug[25] = snes_sprite_blank;
+    deceptus_debug[26] = engine->previous_buttons;
+    deceptus_debug[27] = padsCurrent(0);
+    deceptus_debug[28] = adventure.campaign.room_index;
+    deceptus_debug[29] = adventure.campaign.mode;
+    deceptus_debug[30] = adventure.campaign.deaths;
+    deceptus_debug[31] = adventure.campaign.seconds;
+    deceptus_debug[32] = engine->projectiles_fired;
+    deceptus_debug[33] = adventure.campaign.restarts;
+    deceptus_debug[36] = adventure.flags;
+    deceptus_debug[37] = adventure.inventory.counts[1];
+    deceptus_debug[38] = adventure.inventory.counts[2];
+    deceptus_debug[39] = adventure.page;
+    deceptus_debug[40] = engine->entities[0].velocity_x;
+    deceptus_debug[41] = engine->entities[0].velocity_y;
+    deceptus_debug[42] = engine->entities[0].x;
+    deceptus_debug[43] = engine->entities[0].y;
+    deceptus_debug[44] = adventure.campaign.previous_buttons;
+    deceptus_debug[46] = adventure.inventory.counts[3];
+    deceptus_debug[47] = adventure.inventory.counts[4];
+    deceptus_debug[48] = adventure.inventory.counts[5];
+    deceptus_debug[49] = adventure.inventory.counts[6];
+    deceptus_debug[50] = adventure.pending_ticks;
+    deceptus_debug[51] = adventure.has_sword;
+    deceptus_debug[52] = adventure.inventory.counts[7];
+    deceptus_debug[53] = engine->player_rope.attached;
+    deceptus_debug[54] = engine->player_rope.rope_index;
+    deceptus_debug[55] = engine->player_rope.node_index;
+}
+
+static void video_load(void)
+{
+    deceptus_debug[11] = 3;
+    setScreenOff();
+    snes_background_load(adventure.campaign.room_index);
+    deceptus_debug[11] = 4;
+    snes_sprites_init();
+    deceptus_debug[11] = 5;
+    snes_ui_init();
+    deceptus_debug[11] = 6;
+}
+
+int main(void)
+{
+    deceptus_u16 scenery_flags;
+    deceptus_i16 cage;
+    deceptus_debug[0] = 0xD3CE;
+    deceptus_debug[11] = 1;
+    deceptus_adventure_init(&adventure, &snes_tutorial_definition, &video);
+    deceptus_debug[11] = 2;
+    video_load();
+    deceptus_debug[11] = 7;
+    while (1) {
+        deceptus_debug[11] = 8;
+        if (deceptus_adventure_tick(&adventure, input_read())) {
+            video_load();
+        }
+        deceptus_debug[11] = 9;
+        /* one simulation update per presentation keeps input edges deterministic. */
+        deceptus_render(&adventure.campaign.engine, &frame);
+        deceptus_debug[11] = 10;
+        scenery_flags = adventure.flags;
+        cage = deceptus_mechanism_find(&adventure.campaign.engine.mechanisms, 1386);
+        if (cage >= 0) {
+            if (adventure.campaign.engine.mechanisms.states[cage].enabled) {
+                scenery_flags |= 8192;
+            }
+        }
+        snes_background_set_flags(scenery_flags);
+        snes_background_prepare(frame.camera_x, frame.camera_y);
+        deceptus_debug[11] = 11;
+        snes_sprites_prepare(&adventure, &frame);
+        deceptus_debug[11] = 12;
+        snes_ui_prepare(&adventure);
+        deceptus_debug[11] = 13;
+        snes_sprites_preload();
+        deceptus_debug[11] = 14;
+        debug_write();
+        if (snes_background_full) {
+            setScreenOff();
+        }
+        WaitForVBlank();
+        deceptus_debug[11] = 15;
+        snes_background_commit();
+        deceptus_debug[11] = 16;
+        snes_sprites_commit();
+        deceptus_debug[11] = 17;
+        snes_ui_commit();
+        deceptus_debug[11] = 18;
+        setScreenOn();
+        deceptus_debug[11] = 19;
+    }
+    return 0;
+}
+#endif

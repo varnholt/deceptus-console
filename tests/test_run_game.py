@@ -44,8 +44,8 @@ class LauncherTests(unittest.TestCase):
         self.assertIn(str(self.core), command)
         self.assertIn('gba', command)
 
-    def test_prepare_fetches_only_core_when_snes_rom_exists(self):
-        rom = self.folder / 'build/snes/deceptus.sfc'
+    def test_prepare_fetches_only_core_when_snes_opening_rom_exists(self):
+        rom = self.folder / 'build/snes/deceptus-tutorial.sfc'
         rom.parent.mkdir(parents=True)
         rom.write_bytes(b'cartridge')
         with patch.object(run_game, 'ROOT', self.folder), \
@@ -57,6 +57,44 @@ class LauncherTests(unittest.TestCase):
         core.assert_called_once_with('snes')
         build.assert_not_called()
         launch.assert_not_called()
+
+    def test_snes_prototype_is_an_explicit_separate_scene(self):
+        rom = self.folder / 'build/snes/deceptus-prototype.sfc'
+        rom.parent.mkdir(parents=True)
+        rom.write_bytes(b'prototype')
+        with patch.object(run_game, 'ROOT', self.folder), \
+             patch.object(run_game, 'ensure_python', return_value=None), \
+             patch.object(bootstrap, 'ensure_emulator', return_value=self.core), \
+             patch.object(run_game, 'run') as build, \
+             patch.object(run_game.subprocess, 'call', return_value=0) as launch:
+            self.assertEqual(run_game.main('snes', ['--scene', 'prototype']), 0)
+        build.assert_not_called()
+        self.assertIn(str(rom), launch.call_args.args[0])
+        self.assertEqual(launch.call_args.args[0][-2:], ['--scene', 'prototype'])
+
+    def test_old_snes_prototype_does_not_satisfy_default_opening(self):
+        old = self.folder / 'build/snes/deceptus.sfc'
+        old.parent.mkdir(parents=True)
+        old.write_bytes(b'old prototype')
+        data = self.folder / 'data'
+        data.mkdir()
+        sdk = self.folder / 'sdk'
+        compiler = sdk / 'devkitsnes/bin' / ('816-tcc.exe' if sys.platform == 'win32' else '816-tcc')
+        compiler.parent.mkdir(parents=True)
+        compiler.write_bytes(b'compiler')
+        opening = old.with_name('deceptus-tutorial.sfc')
+
+        def build(command):
+            self.assertEqual(command[-2:], ['--scene', 'tutorial'])
+            opening.write_bytes(b'opening')
+
+        with patch.object(run_game, 'ROOT', self.folder), \
+             patch.object(run_game, 'ensure_python', return_value=None), \
+             patch.object(bootstrap, 'ensure_emulator', return_value=self.core), \
+             patch.object(run_game, 'run', side_effect=build) as build_command:
+            self.assertEqual(run_game.main('snes', ['--prepare', '--sdk', str(sdk), '--data', str(data)]), 0)
+        build_command.assert_called_once()
+        self.assertEqual(old.read_bytes(), b'old prototype')
 
     def test_missing_gba_rom_builds_the_tutorial_then_prepares(self):
         data = self.folder / 'data'

@@ -237,7 +237,7 @@ deceptus_u8 deceptus_adventure_tick(deceptus_adventure *game, deceptus_u16 butto
     deceptus_u16 pressed, deaths;
     deceptus_i16 x, y;
     deceptus_fixed velocity_x, velocity_y;
-    deceptus_u8 index, changed, direction;
+    deceptus_u8 index, changed;
     campaign = &game->campaign;
     engine = &campaign->engine;
     engine->event_count = 0;
@@ -453,13 +453,35 @@ deceptus_u8 deceptus_adventure_tick(deceptus_adventure *game, deceptus_u16 butto
     changed = 0;
     for (index = 0; index < room->portal_count; ++index) {
         portal = &room->portals[index];
-        direction = (portal->direction == DECEPTUS_PORTAL_LEFT && (buttons & DECEPTUS_LEFT)) ||
-                    (portal->direction == DECEPTUS_PORTAL_RIGHT && (buttons & DECEPTUS_RIGHT)) ||
-                    (portal->direction == DECEPTUS_PORTAL_DOWN && engine->entities[0].velocity_y > 0) ||
-                    portal->direction == DECEPTUS_PORTAL_TOUCH;
-        if (!direction || !overlaps(&portal->bounds, x, y) ||
-            ((portal->direction == DECEPTUS_PORTAL_LEFT || portal->direction == DECEPTUS_PORTAL_RIGHT) &&
-             (y < portal->bounds.y || y > portal->bounds.y + portal->bounds.height))) {
+        /* separate guards preserve short-circuit behavior on the 65816 compiler. */
+        if (portal->direction == DECEPTUS_PORTAL_LEFT) {
+            if (!(buttons & DECEPTUS_LEFT)) {
+                continue;
+            }
+            if (y < portal->bounds.y) {
+                continue;
+            }
+            if (y > portal->bounds.y + portal->bounds.height) {
+                continue;
+            }
+        } else if (portal->direction == DECEPTUS_PORTAL_RIGHT) {
+            if (!(buttons & DECEPTUS_RIGHT)) {
+                continue;
+            }
+            if (y < portal->bounds.y) {
+                continue;
+            }
+            if (y > portal->bounds.y + portal->bounds.height) {
+                continue;
+            }
+        } else if (portal->direction == DECEPTUS_PORTAL_DOWN) {
+            if (engine->entities[0].velocity_y <= 0) {
+                continue;
+            }
+        } else if (portal->direction != DECEPTUS_PORTAL_TOUCH) {
+            continue;
+        }
+        if (!overlaps(&portal->bounds, x, y)) {
             continue;
         }
         if (portal->destination >= game->definition->campaign->room_count) {

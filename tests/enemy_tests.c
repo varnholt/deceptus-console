@@ -496,8 +496,11 @@ static void sealed_enemy_tests(void)
     CHECK(!deceptus_enemies_tick(&engine));
     engine.entities[1].state = 3;
     engine.entities[1].pause_ticks = 0;
+    engine.entities[0].x = engine.entities[1].x;
+    engine.entities[0].y = engine.entities[1].y;
+    engine.entities[0].velocity_y = 0;
     for (tick = 0; tick < 114; ++tick) {
-        deceptus_enemies_tick(&engine);
+        CHECK(!deceptus_enemies_tick(&engine));
     }
     CHECK(!engine.entities[1].active);
 }

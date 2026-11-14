@@ -243,7 +243,11 @@ static void update_player(deceptus_engine *engine, const deceptus_input *input)
 
 static void hurt(deceptus_engine *engine, deceptus_u16 damage)
 {
-    if (engine->hurt_ticks || !damage) {
+    /* keep both rejection branches explicit for the 65816 compiler. */
+    if (engine->hurt_ticks) {
+        return;
+    }
+    if (!damage) {
         return;
     }
     engine->hurt_ticks = 60;
@@ -415,9 +419,18 @@ void deceptus_render(const deceptus_engine *engine, deceptus_frame *frame)
     deceptus_player_water_render(engine, frame);
     for (index = 0; index < DECEPTUS_ENTITY_CAPACITY; ++index) {
         entity = &engine->entities[index];
-        if (entity->kind >= DECEPTUS_RAT || !entity->active ||
-            (index == 0 && engine->hurt_ticks && ((engine->hurt_ticks / 4) & 1))) {
+        if (entity->kind >= DECEPTUS_RAT) {
             continue;
+        }
+        if (!entity->active) {
+            continue;
+        }
+        if (index == 0) {
+            if (engine->hurt_ticks) {
+                if ((engine->hurt_ticks / 4) & 1) {
+                    continue;
+                }
+            }
         }
         screen_x = deceptus_floor(entity->x) - engine->camera_x - 16;
         screen_y = deceptus_floor(entity->y) - engine->camera_y - 48;

@@ -13,12 +13,12 @@ add_custom_target(gba_rom
 add_custom_target(snes_rom
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_snes.py" --data "${DECEPTUS_DATA_DIR}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    COMMENT "building the retained SNES prototype")
+    COMMENT "building the SNES opening; --scene prototype remains available through tools/build_snes.py")
 
 add_custom_target(console_roms
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_consoles.py" --data "${DECEPTUS_DATA_DIR}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    COMMENT "building the GBA opening and SNES prototype in parallel")
+    COMMENT "building the GBA and SNES openings in parallel")
 
 add_custom_target(convert_assets
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/assets.py" --import-data "${DECEPTUS_DATA_DIR}"

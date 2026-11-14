@@ -1,6 +1,6 @@
 # Current status
 
-Updated for local Playtest 09, 14 November 2026.
+Updated for the GBA opening and SNES opening backend, 14 November 2026.
 
 ## Available targets
 
@@ -8,7 +8,7 @@ Updated for local Playtest 09, 14 November 2026.
 | --- | --- |
 | GBA tutorial | Twenty-six imported rooms; prison, headtorch, graveyard rubies, crypt return, owl altar and sword progression |
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
-| SNES | Retained one-room clock/checkpoint/patrol/portal prototype |
+| SNES | Same 26-room opening in an 8 MiB ExHiROM; retained one-room test is explicit `--scene prototype`; performance remains substantially below target |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
 | Mega Drive | Planned; no implementation |
 
@@ -30,7 +30,7 @@ timed cutscene sequence is not reproduced. Cannon Fodder's eleven blocks use
 the original inverse relationship to its lever; its camera/delayed cutscene is
 also simplified to immediate group toggling.
 
-The normal-input native and production-ROM route now completes the key/handle chain, the Loop,
+The normal-input native and GBA production-ROM route now completes the key/handle chain, the Loop,
 Sewers, Cannon Fodder gate, Reading Room solar seal, Fool's Ledge headtorch,
 Sealed Cells, graveyard owl rubies, sinkhole and crypt return, and the return to
 the catacombs altar for sword acquisition and a shoulder-button attack. All 56
@@ -133,3 +133,20 @@ The current water blocker stays enabled.
 
 GitHub Actions successfully built and tested revision e3c67cd and uploaded its
 cartridge artifact; subsequent revisions require their own successful run.
+
+## SNES opening verification
+
+The default SNES builder and launcher now select the opening, independently of
+the retained prototype artifact. Eight controlled ROM fixtures cover the Loop,
+camera movement, altar ring and release, long animation history, headtorch,
+attached rope and the Crypt bridge.
+These pass engine, background, UI and OBJ error checks. The actual background
+cache also passed 157,008 source-water viewport/frame combinations.
+
+The normal-input SNES replay now passes all 56 checkpoints from New Game
+through the graveyard, ruby collection, Crypt return, altar ruby use, sword
+acquisition and attack. It matches native positions, inventory, progression,
+projectile counts and damage, ending with 29 health and zero deaths. The final
+8 MiB ROM hash is `c9be78ad98684a1ad2b217b80fb296668cf58d7c72b4ebb1cf8caeceaac21f24`.
+Warm measurements in the Loop and Crypt are approximately 4.5–5.1 simulation
+updates/s; major optimization remains necessary. See [SNES details](SNES.md).

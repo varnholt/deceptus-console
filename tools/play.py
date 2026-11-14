@@ -48,20 +48,21 @@ class Host:
         return canvas
 
 
-def play(backend, core, library, rom=None):
+def play(backend, core, library, rom=None, scene='tutorial'):
     timer_api = C.WinDLL('winmm') if os.name == 'nt' else None
     if timer_api:
         timer_api.timeBeginPeriod(1)
     window = tk.Tk()
     window.title(f"Deceptus — {rom.stem if rom else backend} | " +
-                 ("arrows move / Z or X jump / C sword / Up interact / Enter menu / Tab inventory" if backend == 'gba'
+               ("arrows move / Z or X jump / C sword / Up interact / Enter menu / Tab inventory"
+                if backend == 'gba' or (backend == 'snes' and scene == 'tutorial')
                   else "arrows move / Z jump / Up interact / Enter pause / R restart"))
     canvas = tk.Label(window, borderwidth=0)
     canvas.pack()
     if backend == 'gba':
         emulator = Emulator(core, rom or ROOT / 'build/gba/deceptus.gba', {'mgba_use_bios': 'OFF', 'mgba_frameskip': '0'})
     elif backend == 'snes':
-        emulator = Emulator(core, rom or ROOT / 'build/snes/deceptus.sfc')
+        emulator = Emulator(core, rom or ROOT / f'build/snes/deceptus-{scene}.sfc')
     else:
         emulator = None
     host = Host(library) if backend == "host" else None
@@ -91,6 +92,8 @@ def play(backend, core, library, rom=None):
             mapping = {"left": 6, "right": 7, "z": 0, "space": 0, "up": 4, "return": 3, "r": 2}
             if backend == 'gba':
                 mapping.update(z=8, space=8, x=0, down=5, tab=2, c=10, q=10, e=11)
+            elif backend == 'snes' and scene == 'tutorial':
+                mapping.update(x=8, down=5, tab=2, c=1, q=10, e=11)
             emulator.run(1, [value for key, value in mapping.items() if key in keys])
             image = emulator.last_image
         else:
@@ -135,6 +138,7 @@ if __name__ == "__main__":
     parser.add_argument("--core", type=Path)
     parser.add_argument("--library", type=Path, default=ROOT / "build/host/Debug/deceptus_preview.dll")
     parser.add_argument("--rom", type=Path, help="open a particular built ROM")
+    parser.add_argument('--scene', choices=['tutorial', 'prototype'], default='tutorial')
     args = parser.parse_args()
     core = args.core or ROOT / ('.tools/mgba/mgba_libretro.dll' if args.backend == 'gba' else '.tools/snes9x/snes9x_libretro.dll')
-    play(args.backend, core, args.library, args.rom)
+    play(args.backend, core, args.library, args.rom, args.scene)

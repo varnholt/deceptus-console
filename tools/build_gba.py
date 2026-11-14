@@ -41,7 +41,7 @@ def fix_header(rom, reference):
     rom.write_bytes(payload)
 
 
-def build(data, clang='clang', linker='ld.lld', objcopy='llvm-objcopy', full_game=False, scene='tutorial', reuse_room_assets=False):
+def build(data, clang='clang', linker='ld.lld', objcopy='llvm-objcopy', full_game=False, scene='tutorial', reuse_room_assets=False, prepared_room_assets=False):
     for executable in (clang, linker, objcopy):
         if not shutil.which(str(executable)):
             raise SystemExit(f'{executable} not found; install LLVM or supply its executable path')
@@ -55,7 +55,15 @@ def build(data, clang='clang', linker='ld.lld', objcopy='llvm-objcopy', full_gam
             raise SystemExit('Full-game content support is incomplete; see build/content/summary.json')
     folder = ROOT / 'build/gba'
     folder.mkdir(parents=True, exist_ok=True)
-    if scene == 'tutorial':
+    if prepared_room_assets:
+        if scene != 'tutorial':
+            raise ValueError('prepared room assets require the tutorial scene')
+        from snes_tutorial_assets import original_imports
+        original_imports(data)
+        header=(ROOT/'assets/generated/gba/gba_assets.h').read_text()
+        if not re.search(r'^#define GBA_TUTORIAL 1$',header,re.MULTILINE):
+            raise ValueError('prepared assets are not the tutorial; run opening preflight first')
+    elif scene == 'tutorial':
         command = [sys.executable, ROOT / 'tools/tutorial_assets.py', '--data', data]
         if reuse_room_assets:
             command.append('--reuse-room-assets')
@@ -105,7 +113,10 @@ if __name__ == '__main__':
     parser.add_argument('--full-game', action='store_true')
     parser.add_argument("--scene", choices=["lever", "platforms", "preview", "cell", "tonight", "water", "tutorial"], default="tutorial")
     parser.add_argument('--reuse-room-assets', action='store_true', help='reuse tutorial room graphics only when source, converter and recipe hashes match')
+    parser.add_argument('--prepared-room-assets', action='store_true', help='validate preflight-prepared tutorial inputs without rewriting shared imports or metadata')
     args = parser.parse_args()
     if args.reuse_room_assets and args.scene != 'tutorial':
         parser.error('--reuse-room-assets is supported only for the tutorial')
-    build(args.data.resolve(), args.clang, args.linker, args.objcopy, args.full_game, args.scene, args.reuse_room_assets)
+    if args.prepared_room_assets and (args.scene != 'tutorial' or args.reuse_room_assets):
+        parser.error('--prepared-room-assets requires tutorial and cannot be combined with --reuse-room-assets')
+    build(args.data.resolve(), args.clang, args.linker, args.objcopy, args.full_game, args.scene, args.reuse_room_assets,args.prepared_room_assets)

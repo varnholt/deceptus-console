@@ -36,6 +36,26 @@ static void run(deceptus_u16 ticks, deceptus_u16 buttons)
     }
 }
 
+static void test_contact_invulnerability(void)
+{
+    static deceptus_room contact_room;
+    static const deceptus_mechanism_def damage = {100, {24, 144, 32, 48}, 0, 0, 4, DECEPTUS_MECH_DAMAGE, 1, 0};
+    reset();
+    contact_room = room;
+    contact_room.patrol_x = -1;
+    contact_room.door_x = -1;
+    contact_room.max_health = 100;
+    contact_room.mechanisms = &damage;
+    contact_room.mechanism_count = 1;
+    deceptus_init(&engine, &contact_room, &video);
+    deceptus_tick(&engine, 0);
+    CHECK(engine.health == 96 && engine.hurt_ticks == 60);
+    run(59, 0);
+    CHECK(engine.health == 96 && engine.hurt_ticks == 1);
+    deceptus_tick(&engine, 0);
+    CHECK(engine.health == 92 && engine.hurt_ticks == 60);
+}
+
 int main(void)
 {
     deceptus_fixed held_height, released_height;
@@ -154,6 +174,7 @@ int main(void)
     CHECK(engine.camera_y == 64);
     deceptus_render(&engine, &frame);
     CHECK(frame.camera_y == 64 && frame.draws[0].y == 80);
+    test_contact_invulnerability();
     printf("engine checks passed; state uses %lu bytes on this host\n", (unsigned long)sizeof(engine));
     return 0;
 }

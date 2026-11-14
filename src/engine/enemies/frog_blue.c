@@ -149,7 +149,10 @@ static deceptus_u16 frog_blue_contact(deceptus_engine *engine, deceptus_entity *
 {
     deceptus_entity *player;
     deceptus_i16 dx, dy;
-    if (frog->state == 3 || !frog->active) {
+    if (frog->state == 3) {
+        return 0;
+    }
+    if (!frog->active) {
         return 0;
     }
     player = &engine->entities[0];

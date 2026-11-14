@@ -4,6 +4,10 @@
 extern const deceptus_adventure_def gba_tutorial_definition;
 static deceptus_adventure opening;
 static deceptus_u16 rope_ticks;
+#ifndef OPENING_VIDEO_WIDTH
+#define OPENING_VIDEO_WIDTH 240
+#define OPENING_VIDEO_HEIGHT 160
+#endif
 
 #ifdef _WIN32
 #define OPENING_API __declspec(dllexport)
@@ -13,7 +17,7 @@ static deceptus_u16 rope_ticks;
 
 OPENING_API void opening_init(void)
 {
-    deceptus_video_caps video = {240, 160, DECEPTUS_DRAW_CAPACITY};
+    deceptus_video_caps video = {OPENING_VIDEO_WIDTH, OPENING_VIDEO_HEIGHT, DECEPTUS_DRAW_CAPACITY};
     rope_ticks = 0;
     deceptus_adventure_init(&opening, &gba_tutorial_definition, &video);
 }
@@ -65,6 +69,10 @@ OPENING_API int opening_state(int field)
         return (int)opening.campaign.elapsed_ticks;
     case 13:
         return rope_ticks;
+    case 14:
+        return engine->hurt_ticks;
+    case 15:
+        return engine->projectiles_fired;
     default:
         return 0;
     }

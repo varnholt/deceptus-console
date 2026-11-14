@@ -44,12 +44,14 @@ def main(backend, arguments=None):
         parser.add_argument('--linker', default='ld.lld')
         parser.add_argument('--objcopy', default='llvm-objcopy')
     else:
+        parser.add_argument('--scene', choices=['tutorial', 'prototype'], default='tutorial')
         parser.add_argument('--sdk', type=Path, help='use an existing PVSnesLib SDK')
     args = parser.parse_args(arguments)
     if args.rom and args.build:
         parser.error('--build rebuilds the default cartridge; omit --rom')
     rom = args.rom.resolve() if args.rom else ROOT / (
-        f'build/gba/deceptus-{args.scene}.gba' if backend == 'gba' else 'build/snes/deceptus.sfc')
+        f'build/gba/deceptus-{args.scene}.gba' if backend == 'gba' else
+        f'build/snes/deceptus-{args.scene}.sfc')
     if args.rom and not rom.is_file():
         parser.error(f'cartridge does not exist: {rom}')
     if args.core and not args.core.is_file():
@@ -75,7 +77,8 @@ def main(backend, arguments=None):
                     if args.sdk or os.environ.get('PVSNESLIB_HOME'):
                         parser.error(f'PVSnesLib compiler not found in {sdk}')
                     bootstrap.bootstrap(target='snes')
-                run([sys.executable, ROOT / 'tools/build_snes.py', '--data', args.data.resolve(), '--sdk', sdk])
+                run([sys.executable, ROOT / 'tools/build_snes.py', '--data', args.data.resolve(), '--sdk', sdk,
+                     '--scene', args.scene])
         if not rom.is_file():
             raise RuntimeError(f'build did not produce the expected cartridge: {rom}')
         print(f'Emulator: {core}\nCartridge: {rom}', flush=True)
@@ -83,10 +86,18 @@ def main(backend, arguments=None):
             return 0
         if importlib.util.find_spec('tkinter') is None:
             raise RuntimeError('the project player requires Python with Tk support (tkinter)')
-        controls = 'Arrows move, Z/X jump, Up interact, Enter pause, Tab inventory, C sword.' if backend == 'gba' else 'Arrows move, Z jump, Up interact, Enter pause, R restart.'
+        if backend == 'gba':
+            controls = 'Arrows move, Z/X jump, Up interact, Enter pause, Tab inventory, C sword.'
+        elif args.scene == 'tutorial':
+            controls = 'Arrows move, Z/X jump, Up interact, Enter pause, Tab inventory, C sword, Q confirm, E back.'
+        else:
+            controls = 'Arrows move, Z jump, Up interact, Enter pause, R restart.'
         print(controls + ' Close the window to exit.', flush=True)
-        return subprocess.call([sys.executable, str(ROOT / 'tools/play.py'), '--backend', backend,
-                                '--rom', str(rom), '--core', str(core)], cwd=ROOT)
+        command = [sys.executable, str(ROOT / 'tools/play.py'), '--backend', backend,
+                   '--rom', str(rom), '--core', str(core)]
+        if backend == 'snes':
+            command += ['--scene', args.scene]
+        return subprocess.call(command, cwd=ROOT)
     except (OSError, RuntimeError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         print(f'Cannot start {backend.upper()}: {error}', file=sys.stderr)
         return 1
