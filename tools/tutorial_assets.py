@@ -10,9 +10,11 @@ from content import map_objects
 from campaign_assets import compile_campaign
 from tutorial_ui import TutorialUI
 from menu_assets import compile_menu
+from tutorial_progression import extend_rooms, extend_actions, extra_portals, room_bindings, validate_source
 
 
-def compile_tutorial(data):
+def compile_tutorial(data, reuse_assets=False):
+    validate_source(data)
     _, objects = map_objects(data / 'level-catacombs/catacombs.tmx')
     by_id = {item['id']: item for item in objects}
     base = json.loads((ROOT / 'assets/rooms/gba-cell.json').read_text())
@@ -33,10 +35,17 @@ def compile_tutorial(data):
     ids = [311,105,312,582,514,324,9,3,4,18,6,7,11]
     names = ['THE CELL','LOWER CELLS','CROSSROADS','UPPER CELLS','THE CELLAR',"GUARDS' OFFICE",'MAIN HALL','ALTAR OF THE BLIND OWL','CLOCKWORK ANTECHAMBER','THE LOOP','THE SEWERS',"FOOL'S LEDGE",'MINES ANTECHAMBER']
     spawns = [[370,312],[100,336],[100,576],[720,288],[680,288],[100,288],[408,32],[128,408],[69,384],[46,264],[47,624],[46,360],[620,312]]
+    room_maps = ['level-catacombs/catacombs.tmx'] * len(ids)
+    extend_rooms(ids, names, spawns, room_maps)
+    object_sets = {}
+    for map_name in set(room_maps):
+        object_sets[map_name] = map_objects(data / map_name)[1]
     stages = []
     for index, source_id in enumerate(ids):
-        room = by_id[source_id]
+        room_objects = object_sets[room_maps[index]]
+        room = next(item for item in room_objects if item['id'] == source_id)
         recipe = dict(base)
+        recipe['map'] = room_maps[index]
         recipe.update(crop_pixels=[int(room[key]) for key in ('x','y','width','height')], spawn=spawns[index],
                       title=names[index],skills=1)
         if index == 1:
@@ -58,6 +67,8 @@ def compile_tutorial(data):
                 recipe['visual_layers'] = list(recipe['visual_layers']) + [name]
         # source foam tiles are entry splashes, never an ambient looping layer.
         recipe['visual_layers']=[name for name in recipe['visual_layers'] if name!='water-foam']
+        from tutorial_progression import configure_room
+        configure_room(index, recipe, data)
         if index == 7:
             recipe['tile_animations']=[dict(name='shrine_column',layers=['bg4'],source_bounds=[3000,2952,24,96])]
         if index == 8:
@@ -68,7 +79,7 @@ def compile_tutorial(data):
             and layer.get('name') not in ('water-base-1',)
             and any(field.get('name')=='z' and int(field.get('value'))>20 for field in layer.findall('properties/property'))]
         stages.append(dict(room_recipe=recipe,title=names[index],instruction='',hint1='',hint2='',goal=[0,0,1,1]))
-    compile_campaign(data,dict(stages=stages),scene='tutorial')
+    compile_campaign(data,dict(stages=stages),scene='tutorial',reuse_assets=reuse_assets)
     output = ROOT / 'assets/generated/gba'
     header = (output/'gba_assets.h').read_text().replace('#endif', '#include "deceptus/adventure.h"\nextern const deceptus_adventure_def gba_tutorial_definition;\n#endif')
     (output/'gba_assets.h').write_text(header)
@@ -88,17 +99,22 @@ def compile_tutorial(data):
          dict(id=1357,bounds_id=1432,forbidden_flags=1),dict(id=1433,bounds_id=1432,required_flags=1)],
         [dict(id=1569,bounds_id=945,automatic=60,effect=128,set_flags=64,forbidden_flags=64)],[],[],[dict(id=113)],[],[],[]
     ]
+    extend_actions(interactions)
     report = []
     for room_index, actions in enumerate(interactions):
+        objects = object_sets[room_maps[room_index]]
+        by_id = {item['id']: item for item in objects}
         serialized = []
         origin = stages[room_index]['room_recipe']['crop_pixels'][:2]
         for index, action in enumerate(actions):
             obj = by_id[action['id']]
             bounds_obj = by_id[action.get('bounds_id',action['id'])]
+            if 'bounds' in action:
+                bounds_obj = dict(bounds_obj, **dict(zip(('x','y','width','height'),action['bounds'])))
             texts = action.get('text') or [value for key,value in sorted(obj['properties'].items()) if re.fullmatch(r'\d\d',key)]
             pages = []
             for text in texts:
-                text = re.sub(r'\[/?color[^\]]*\]', '', text).replace('<br>', ' ').replace('<player>','prisoner')
+                text = re.sub(r'\[/?color[^\]]*\]', '', text).replace('<br>', ' ').replace('[br]', ' ').replace('<player>','prisoner')
                 pages += ui.wrap_pages(' '.join(text.split()))
             label = f'tutorial_pages_{room_index}_{index}'
             first_page=len(ui.resources)
@@ -121,7 +137,8 @@ def compile_tutorial(data):
             # generous interaction reach around the authored object, without changing artwork.
             bounds[0] -= 12; bounds[1] -= 8; bounds[2] += 24; bounds[3] += 16
             serialized.append('    {'+str(obj['id'])+', {'+','.join(map(str,bounds))+'}, '+label+', '+','.join(str(action.get(key,0)) for key in ('required_flags','forbidden_flags','set_flags','mechanism_id'))+', '+str(len(pages))+', '+','.join(str(action.get(key,0)) for key in ('cost_item','grant_item','effect','automatic'))+'},')
-            report.append(dict(room=room_index,source_id=obj['id'],bounds_source=bounds_obj['id'],pages=len(pages)))
+            report.append(dict(room=room_index,source_map=room_maps[room_index],source_id=obj['id'],bounds_source=bounds_obj['id'],pages=len(pages),
+                               **{key: action[key] for key in ('required_flags','forbidden_flags','set_flags','mechanism_id','cost_item','grant_item','effect','automatic') if key in action}))
         if serialized:
             lines += [f'static const deceptus_interaction tutorial_actions_{room_index}[] = {{',*serialized,'};']
     # portals are automatic at the real shared room edges. intervals are world coordinates.
@@ -131,6 +148,7 @@ def compile_tutorial(data):
              (6,7,2,3048,3168),(7,6,1,3048,3168),(7,8,2,3048,3168),(8,7,1,3048,3168),
              (8,9,2,2880,3000),(9,8,1,2880,3000),(9,10,2,2880,3000),(10,9,1,2880,3000),(2,11,2,2496,2616),(11,2,1,2496,2616),(6,12,1,3048,3168),(12,6,2,3048,3168)]
     arrival_ids = [528,527,521,522,515,516,588,587,517,518,None,525,526,531,532,533,534,535,536,520,519,1677,1678]
+    by_id = {item['id']: item for item in object_sets['level-catacombs/catacombs.tmx']}
     counts = []
     for index, source_id in enumerate(ids):
         origin = stages[index]['room_recipe']['crop_pixels']
@@ -147,25 +165,39 @@ def compile_tutorial(data):
             arrival = by_id[arrival_ids[link_index]]['properties'] if arrival_ids[link_index] else None
             spawn = [int(arrival['start_position_x_px'])-target[0], (int(arrival['start_position_y_px'])+9)//8*8-target[1],1] if arrival else [0,0,0]
             portals.append('    {{'+','.join(map(str,bounds))+'}, '+','.join(map(str,[origin[0]-target[0],origin[1]-target[1],destination,direction]+spawn))+'},')
+        portals += extra_portals(index, stages, object_sets)
         if portals:
             lines += [f'static const deceptus_portal tutorial_portals_{index}[] = {{',*portals,'};']
         counts.append(len(portals))
+    bindings = room_bindings()
+    for room_index, values in bindings.items():
+        lines += [f'static const deceptus_adventure_binding tutorial_bindings_{room_index}[] = {{',
+                  *['    {'+','.join(map(str,value))+'},' for value in values], '};']
     lines += ['static const deceptus_adventure_room tutorial_rooms[] = {']
     for index,actions in enumerate(interactions):
-        lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}'+'},')
-    lines += ['};','static const char *const tutorial_items[] = {"", "Locker Key", "Iron Lever"};',
-              'const deceptus_adventure_def gba_tutorial_definition = {&gba_campaign_definition,tutorial_rooms,tutorial_items,2};']
+        lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}, '+(f'tutorial_bindings_{index}' if index in bindings else '0')+f', {len(bindings.get(index, []))}'+'},')
+    source_items=json.loads((data/'sprites/inventory_items.json').read_text())
+    item_names=['']+[source_items[key]['title'] for key in ('locker_key','handle','gems','solar_seal','headtorch','sword')]+['Red Key']
+    lines += ['};','static const char *const tutorial_items[] = {'+','.join(json.dumps(name) for name in item_names)+'};',
+              'const deceptus_adventure_def gba_tutorial_definition = {&gba_campaign_definition,tutorial_rooms,tutorial_items,7};']
     with (output/'room.c').open('a') as handle:
         handle.write('\n'.join(lines)+'\n'+ui.finish(output))
     compile_menu(data,output)
-    (output/'tutorial.json').write_text(json.dumps(dict(source_rooms=ids,interactions=report,portals=links,
-        limitations=['crossroads lever toggles groups immediately; camera cutscene not ported',
+    (output/'tutorial.json').write_text(json.dumps(dict(source_rooms=ids,source_maps=room_maps,interactions=report,portals=links,
+        extra_portals={index:extra_portals(index,stages,object_sets) for index in range(len(stages))},
+        unsupported_objects={index:json.loads((ROOT/'assets/source/campaign'/f'area{index}'/'gba/mechanisms.json').read_text())['unsupported_objects'] for index in range(len(stages))},
+        limitations=['crossroads and cannon levers toggle source groups immediately; camera cutscenes not ported',
                      'monk uses the source idle pose; appear/kneel cutscene not ported',
-                     'complete water/progression fidelity, unported enemy variants and later scripts remain unsupported']),indent=2)+'\n')
+                     'complete water/progression fidelity, unported enemy variants and later scripts remain unsupported',
+                     'headtorch switches on when acquired; inventory equipment toggling not ported',
+                     'graveyard image backgrounds are baked at an authored static phase; parallax, storm and sound remain unsupported',
+                     'sinkhole collision and return shaft are ported; quake, debris and hard landing cutscene remain unsupported',
+                     'ruby pickup dialogue appears immediately; original thunder/message presentation delay not ported']),indent=2)+'\n')
 
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data',type=Path,default=ROOT.parent/'deceptus_engine/data')
+    parser.add_argument('--reuse-room-assets',action='store_true',help='reuse only rooms with matching source, converter and recipe digests')
     args=parser.parse_args()
-    compile_tutorial(args.data)
+    compile_tutorial(args.data,reuse_assets=args.reuse_room_assets)

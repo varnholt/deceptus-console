@@ -20,6 +20,21 @@ def variants(data, recipe, background):
             layer = next(item for item in root.iter('imagelayer') if item.get('name') == name)
             image = Image.open(map_path.parent / layer.find('image').get('source')).convert('RGBA')
             overlays.append((round(float(layer.get('offsetx', 0))), round(float(layer.get('offsety', 0))), image))
+        if variant.get('tile_layers'):
+            from tiled import TiledMap
+            image = TiledMap(map_path).render(recipe['crop_pixels'],variant['tile_layers'])
+            bounds = image.getbbox()
+            if not bounds:
+                raise ValueError('conditional tile layers have no artwork in the room')
+            overlays.append((recipe['crop_pixels'][0]+bounds[0],recipe['crop_pixels'][1]+bounds[1],image.crop(bounds)))
+        for entry in variant.get('chests', []):
+            obj = next(item for item in objects if item['group'] == 'treasure_chests' and item['name'] == entry['name'])
+            definitions = json.loads((data / 'sprites/treasure_chest_animations.json').read_text())
+            animation = definitions[obj['properties'][entry['animation']]]
+            x,y = animation['frame_offset']; width,height = animation['frame_size']
+            image = Image.open(data.parent / animation['texture']).convert('RGBA').crop((x,y,x+width,y+height))
+            overlays.append((round(obj['x']+obj['width']/2-animation['origin'][0]),
+                             round(obj['y']+obj['height']/2-animation['origin'][1]),image))
         for name in variant.get('extras', []):
             obj = next(item for item in objects if item['group'] == 'extras' and item['name'] == name)
             animation = animations[obj['properties']['animation_main_0']]
@@ -69,3 +84,23 @@ def variants(data, recipe, background):
                           required_flags=variant.get('required_flags',0), forbidden_flags=variant.get('forbidden_flags',0),
                           frames=frames, frame_count=len(frames), frame_ticks=1, frame_durations=durations))
     return clips
+
+
+def static_layers(data, recipe, canvas):
+    """Bake selected source image layers at native pixel size before tile conversion."""
+    data = Path(data)
+    map_path = data / recipe['map']
+    root = ET.parse(map_path).getroot()
+    crop = recipe['crop_pixels']
+    by_name = {layer.get('name'): layer for layer in root.iter('imagelayer')}
+    for name in recipe.get('static_image_layers', []):
+        layer = by_name[name]
+        image = Image.open(map_path.parent / layer.find('image').get('source')).convert('RGBA')
+        x,y = round(float(layer.get('offsetx',0))),round(float(layer.get('offsety',0)))
+        if recipe.get('repeat_static_images'):
+            # repeated strips retain the original image's exact pixel grid.
+            x += ((crop[0]-x)//image.width)*image.width
+            for left in range(x,crop[0]+crop[2],image.width):
+                canvas.alpha_composite(image,(left-crop[0],y-crop[1]))
+        else:
+            canvas.alpha_composite(image,(x-crop[0],y-crop[1]))

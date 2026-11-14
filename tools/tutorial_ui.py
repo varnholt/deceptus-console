@@ -125,16 +125,21 @@ class TutorialUI:
         elif kind=='exit':
             for row,text in enumerate(['You can turn off the system.','B: Back']):self.text(image,((240-self.text_width(text,self.font))/2,70+row*24),text,self.font,'white')
         elif kind=='controls':
-            for row,text in enumerate(['D-pad: Move','A / B: Jump','Down: Bend down','Down + A: Drop through','Select: Inventory','Start: Pause','B: Back']):self.text(image,(12,42+row*16),text,self.font,'white')
+            for row,text in enumerate(['D-pad: Move','A/B: Jump  L/R: Sword','Down: Bend down','Down + A: Drop through','Select: Inventory','Start: Pause','B: Back']):self.text(image,(12,42+row*16),text,self.font,'white')
         elif kind=='inventory':
-            if not selection:self.text(image,(100,78),'Empty',self.font,'white')
-            animations=json.loads((self.data/'sprites/extra_animations.json').read_text())
-            for bit,key,name in [(1,'locker_key_regular','Locker Key'),(2,'handle_regular','Iron Lever')]:
-                if not selection&bit:continue
-                spec=animations[key];x,y=spec['frame_offset'];w,h=spec['frame_size']
-                icon=Image.open(self.data.parent/spec['texture']).convert('RGBA').crop((x,y,x+w,y+h))
-                image.alpha_composite(icon,(16,48 if bit==1 else 96));self.text(image,(76,58 if bit==1 else 108),name,self.font,'white')
-            self.text(image,((240-self.text_width('B / Select: Back',self.font))/2,142),'B / Select: Back',self.font,'white')
+            if not selection:
+                self.text(image,(100,78),'Empty',self.font,'white')
+            else:
+                keys = ['locker_key','handle','gems','solar_seal','headtorch','sword','key']
+                descriptions=json.loads((self.data/'sprites/inventory_items.json').read_text())
+                spec=descriptions[keys[selection-1]]
+                x,y,w,h=(spec[field] for field in ('x_px','y_px','width_px','height_px'))
+                icon=Image.open(self.data/'sprites/inventory_items.png').convert('RGBA').crop((x,y,x+w,y+h))
+                name='Red Key' if selection==7 else spec['title']
+                image.alpha_composite(icon,((240-icon.width)//2,48))
+                self.text(image,((240-self.text_width(name,self.font))//2,104),name,self.font,'white')
+            for y,text in [(126,'Up / Down: Select'),(142,'B / Select: Back')]:
+                self.text(image,((240-self.text_width(text,self.font))//2,y),text,self.font,'white')
         for row,text in enumerate(labels):
             y=(80 if kind=='pause' else 68)+row*24
             width=self.text_width(text,self.font);colour=(127,171,253,255) if row==selection else (67,69,91,255)
@@ -146,7 +151,7 @@ class TutorialUI:
         return self.encode(image)
 
     def finish(self, output):
-        for kind,count in [('main',3),('pause',3),('options',2),('confirm',2),('controls',1),('exit',1),('inventory',4)]:
+        for kind,count in [('main',3),('pause',3),('options',2),('confirm',2),('controls',1),('exit',1),('inventory',8)]:
             self.menu_ids[kind]=[self.menu(kind,index) for index in range(count)]
         (output/'ui.bin').write_bytes(self.blob)
         with (output/'data.s').open('a') as handle:

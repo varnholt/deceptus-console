@@ -33,17 +33,22 @@ static deceptus_u8 lever_interact(deceptus_mechanism_set *set, deceptus_u16 inde
 {
     deceptus_u16 target;
     deceptus_i16 slot;
+    deceptus_u8 target_enabled;
     deceptus_mechanism_state *state;
     const deceptus_mechanism_def *definition;
     state = &set->states[index];
     definition = &set->definitions[index];
     if (inside && interact_pressed && !state->cooldown && state->handle_available) {
+        target_enabled = !state->enabled;
+        if (definition->flags & DECEPTUS_MECH_INVERT_TARGETS) {
+            target_enabled = !target_enabled;
+        }
         for (target = 0; target < definition->target_count; ++target) {
             slot = deceptus_mechanism_find(set, set->targets[definition->target_first + target]);
             if (set->timings && (set->timings[slot].flags & DECEPTUS_TIMED_ANIMATION) &&
                 (set->definitions[slot].kind == DECEPTUS_MECH_BLOCK ||
                  set->definitions[slot].kind == DECEPTUS_MECH_SPIKES) &&
-                set->states[slot].enabled == state->enabled && set->states[slot].pending_count >= 8) {
+                set->states[slot].enabled != target_enabled && set->states[slot].pending_count >= 8) {
                 break;
             }
         }
@@ -56,7 +61,7 @@ static deceptus_u8 lever_interact(deceptus_mechanism_set *set, deceptus_u16 inde
             state->cooldown = 60;
         }
         for (target = 0; target < definition->target_count; ++target) {
-            deceptus_mechanism_enable(set, set->targets[definition->target_first + target], state->enabled);
+            deceptus_mechanism_enable(set, set->targets[definition->target_first + target], target_enabled);
         }
     }
     return 1;

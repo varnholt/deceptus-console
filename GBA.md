@@ -1,11 +1,11 @@
 # GBA backend
 
-For the current thirteen-room opening, build `--scene tutorial`. See
+The default build is the twenty-six-room opening, `--scene tutorial`. See
 [building](docs/BUILDING.md), [architecture](docs/ARCHITECTURE.md) and
 [status](docs/STATUS.md). The four-area preview described below is a separate,
-retained verification route and remains the build script default.
+retained verification route selected with `--scene tonight`.
 
-The default build is a short, four-area playable preview. It has a title,
+The curated preview is a short, four-area playable route. It has a title,
 briefings, original rat and arrow-trap placements, checkpoints, wall jumps,
 linked spike traps, collapsing platforms, room transitions, and finish/replay.
 It is not the complete original game. Full progression, narrative, combat,
@@ -17,19 +17,19 @@ Install the Python requirements and LLVM (`clang`, `ld.lld`, `llvm-objcopy`):
 
 ```powershell
 python tools/bootstrap.py --target gba --emulator
-python tools/build_gba.py
-python tools/gba_emulator.py
+python tools/build_gba.py --scene tonight
+python tools/gba_emulator.py --scene tonight
 python tools/play.py
 python tools/package_preview.py --build
 ```
 
-`--scene tonight` is the default. The self-contained cartridge is
+For `--scene tonight`, the self-contained cartridge is
 `build/gba/deceptus-tonight.gba`; the latest build is also `deceptus.gba`.
 The package script runs native tests and the real-ROM playthrough, checks the
 packaged ROM hash, and creates a dated ZIP under `build/release/`. No emulator,
 BIOS, development tools or source artwork folders are bundled.
 
-The preview is currently 2MiB. The builder pads to at least 512KiB, fixes the
+The builder pads to at least 512KiB, fixes the
 header/checksum and retains ELF symbols. The current mGBA core misidentifies
 256KiB images as multiboot; the minimum padding avoids that path. ROMs can grow
 up to the 32MiB cartridge limit.
@@ -88,13 +88,34 @@ to 1,534 usable VRAM slots and updates a wrapping 64x32 map on both axes. The
 clockwork room has 3,366 unique patterns, so it is not preloaded into VRAM.
 Room loads clear cache mappings before switching the palette and source tables.
 
-Actor and mechanism sprites use 8bpp OBJ graphics with disjoint palette ranges
-where required by the loaded scene. All opaque source RGB555 sprite colours are
-preserved. The shared ROM library contains 494 source frames: lever, spike,
+Actor and mechanism sprites use 8bpp OBJ graphics. All opaque source RGB555 sprite colours are
+preserved for the original 494 mechanism/enemy resources. The shared ROM library
+contains 1,039 resources: lever, spike,
 on/off block, collapsing-platform, rat, trap-body/muzzle, rotated arrow,
-directional player swim, ground-blob and water-entry splash frames. Visible resources share uploads by id, within 32KiB OBJ VRAM and 128 OAM
-entries. Incompatible overlapping animated palettes or excess resources fail
-explicitly; general palette allocation for arbitrary scenes remains unfinished.
+directional player swim, ground-blob, water-entry splash, equipped sword,
+cannon/cannonball, iron door, wooden barrier, helmet/light, orb, blue frog and
+its projectile, plus native rope strips and directional hanging-player frames.
+The 144 sword frames retain native dimensions and directional origins, with a
+32-colour palette reduction into OBJ indices 2–33. These replace the unarmed
+player palette and remain disjoint from mechanism palettes. See [sword support](docs/SWORD.md).
+Visible resources share uploads by id, within 32KiB OBJ VRAM and 128 OAM
+entries. Each frame allocates larger palettes first, retaining original colour
+indices where compatible. Conflicts move into an even-aligned compatible range
+above the base actors' reserved indices 0–51. Only those sprites' nonzero indices
+are rebased in a fixed 32KiB EWRAM buffer; pixel positions and RGB555 colours stay
+unchanged. Comparisons include the effective underwater swim tint. Allocation
+and rebasing run from ROM with bounded queues and loops. An exhausted palette,
+OBJ VRAM, upload queue or OAM budget remains an explicit content error.
+Unchanged resource/offset/palette assignments reuse their rebased pixels. A
+bounded 8KiB cache retains four costly 1–2KiB rebases across upload-layout changes;
+EWRAM-to-EWRAM DMA restores them without repeating per-pixel conversion.
+
+The headtorch uses original helmet pixels and a bounded warm light sprite.
+Grab ropes share native strip uploads and 32 rotation matrices across visible
+segments. Transparent padding permits rotation without scaling; the original
+strand is tiled along the chain. Room labels use fixed screen-position sprites
+so interaction-cue scrolling cannot move them. Their small OBJ allocation and
+white palette entry remain reserved while the label is visible.
 
 | Region | Use |
 | --- | --- |
@@ -111,6 +132,16 @@ Hot renderer and simulation code is copied into IWRAM; renderer code uses ARM
 instructions and portable engine code uses Thumb. Linker limits protect ROM,
 EWRAM and the 28KiB code region below the reserved IWRAM stacks. The runtime has
 no heap, floating point, host C library, interrupts, audio or save backend.
+Sword pose selection and diagnostic mailbox writes run from ROM to retain
+IWRAM space for collision, simulation and tile streaming.
+Enemy draw-list construction, UI preparation, input and video commit run from
+ROM, reserving fast memory for collision, rope physics and rope OAM preparation.
+Room-title glyphs are cached, and an empty HUD map is neither rebuilt nor sent
+again until its content changes. Timer 2 supplies diagnostic phase timings in
+64-cycle units; it does not drive gameplay. Startup
+enables the [standard cartridge waitstates and prefetch](https://gbadev.net/libtonc/group__grpMiscWS.htm),
+and the compiler's signed integer division calls the console's
+[BIOS division service](https://gbadev.net/tonc/swi.html).
 
 ## Tutorial renderer and UI
 

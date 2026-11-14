@@ -25,6 +25,8 @@ static void emit(deceptus_mechanism_set *set, deceptus_u16 source_id, deceptus_u
 #include "checkpoint.c"
 #include "collapsingplatform.c"
 #include "damagerect.c"
+#include "destructibleblockingrect.c"
+#include "door.c"
 #include "lever.c"
 #include "onoffblock.c"
 #include "sensorrect.c"
@@ -81,6 +83,13 @@ deceptus_u8 deceptus_mechanisms_init(deceptus_mechanism_set *set, const deceptus
         set->states[index].visible = 1;
         set->states[index].active = set->states[index].enabled;
         set->states[index].handle_available = !(definitions[index].flags & DECEPTUS_MECH_MISSING_HANDLE);
+        if (definitions[index].kind == DECEPTUS_MECH_DOOR) {
+            door_configure(&set->states[index]);
+        } else if (definitions[index].kind == DECEPTUS_MECH_DESTRUCTIBLE) {
+            destructible_blocking_rect_configure(&definitions[index], &set->states[index]);
+        } else if (definitions[index].kind == DECEPTUS_MECH_CANNON_BODY) {
+            set->states[index].visible = 0;
+        }
     }
     return 1;
 }
@@ -112,6 +121,11 @@ deceptus_u8 deceptus_mechanism_enable(deceptus_mechanism_set *set, deceptus_u16 
     }
     enabled = enabled != 0;
     if (set->states[index].enabled != enabled) {
+        if (set->definitions[index].kind == DECEPTUS_MECH_DOOR) {
+            door_enable(&set->states[index], enabled);
+            emit(set, source_id, DECEPTUS_MECH_ENABLED, enabled);
+            return 1;
+        }
         if (set->timings && (set->timings[index].flags & DECEPTUS_TIMED_ANIMATION) &&
             (set->definitions[index].kind == DECEPTUS_MECH_BLOCK ||
              set->definitions[index].kind == DECEPTUS_MECH_SPIKES)) {
@@ -143,6 +157,11 @@ void deceptus_mechanisms_tick(deceptus_mechanism_set *set, const deceptus_rect *
         state = &set->states[index];
         inside = overlaps(player, &definition->bounds);
         entering = inside && !state->inside;
+        if (definition->kind == DECEPTUS_MECH_DOOR) {
+            door_tick(state);
+        } else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE) {
+            destructible_blocking_rect_tick(state);
+        }
         if (set->timings) {
             if (set->timings[index].flags & DECEPTUS_TIMED_INTERVAL) {
                 if (++state->timer >= (state->enabled ? set->timings[index].on_ticks : set->timings[index].off_ticks)) {

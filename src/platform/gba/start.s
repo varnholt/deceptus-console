@@ -18,6 +18,11 @@ reset:
     msr cpsr_c, r0
     ldr sp, =0x03007f00
 
+    @ standard cartridge waitstates and instruction prefetch.
+    ldr r0, =0x04000204
+    ldr r1, =0x4317
+    strh r1, [r0]
+
     ldr r0, =__iwram_load
     ldr r1, =__iwram_start
     ldr r2, =__iwram_end
@@ -44,4 +49,32 @@ reset:
     bl main
 3:
     b 3b
+.ltorg
+
+@ compiler signed division uses the console BIOS integer service.
+.section .text.__aeabi_idiv,"ax",%progbits
+.thumb
+.balign 4
+.global __aeabi_idiv
+.thumb_func
+__aeabi_idiv:
+    swi 0x06
+    bx lr
+
+.section .text.__aeabi_uidiv,"ax",%progbits
+.thumb
+.balign 4
+.global __aeabi_uidiv
+.thumb_func
+__aeabi_uidiv:
+    cmp r1, #0
+    beq 5f
+    movs r2, r0
+    orrs r2, r1
+    bmi 5f
+    swi 0x06
+    bx lr
+5:
+    ldr r2, =deceptus_gba_unsigned_divide
+    bx r2
 .ltorg

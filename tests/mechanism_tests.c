@@ -14,10 +14,10 @@
     } while (0)
 
 static const deceptus_mechanism_def definitions[] = {{10, {24, 144, 32, 48}, 0, 1, 0, DECEPTUS_MECH_LEVER, 1, 0},
-                                                  {20, {80, 144, 8, 48}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0},
-                                                  {30, {120, 144, 32, 48}, 0, 0, 1, DECEPTUS_MECH_CHECKPOINT, 1, 0},
-                                                  {40, {0, 0, 16, 16}, 0, 0, 0, DECEPTUS_MECH_SENSOR, 1, 0},
-                                                  {50, {176, 144, 8, 48}, 0, 0, 1, DECEPTUS_MECH_DAMAGE, 1, 0}};
+                                                     {20, {80, 144, 8, 48}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0},
+                                                     {30, {120, 144, 32, 48}, 0, 0, 1, DECEPTUS_MECH_CHECKPOINT, 1, 0},
+                                                     {40, {0, 0, 16, 16}, 0, 0, 0, DECEPTUS_MECH_SENSOR, 1, 0},
+                                                     {50, {176, 144, 8, 48}, 0, 0, 1, DECEPTUS_MECH_DAMAGE, 1, 0}};
 static const deceptus_u16 targets[] = {20};
 
 int main(void)
@@ -127,6 +127,64 @@ int main(void)
         deceptus_mechanisms_tick(&mechanisms, &player, 0);
         CHECK(mechanisms.event_count == 0);
     }
-    puts("mechanism, dynamic collision, checkpoint and bounded logic checks passed");
+    {
+        static const deceptus_mechanism_def inverted[] = {
+            {1585, {24, 144, 32, 48}, 0, 1, 0, DECEPTUS_MECH_LEVER, 0, DECEPTUS_MECH_INVERT_TARGETS},
+            {1586, {80, 144, 8, 48}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0}};
+        static const deceptus_u16 inverted_targets[] = {1586};
+        CHECK(deceptus_mechanisms_init(&mechanisms, inverted, 2, inverted_targets, 1));
+        CHECK(!mechanisms.states[0].enabled && mechanisms.states[1].enabled);
+        player.x = 32;
+        player.y = 160;
+        deceptus_mechanisms_tick(&mechanisms, &player, 1);
+        CHECK(mechanisms.states[0].enabled && !mechanisms.states[1].enabled);
+        deceptus_mechanisms_tick(&mechanisms, &player, 0);
+        deceptus_mechanisms_tick(&mechanisms, &player, 1);
+        CHECK(!mechanisms.states[0].enabled && mechanisms.states[1].enabled);
+    }
+    {
+        static const deceptus_mechanism_def gates[] = {
+            {425, {0, 24, 24, 72}, 0, 0, 7, DECEPTUS_MECH_DOOR, 0, 0},
+            {1439, {80, 24, 48, 96}, 0, 0, 30, DECEPTUS_MECH_DESTRUCTIBLE, 1, DECEPTUS_MECH_RIGHT_ALIGNED},
+            {493, {160, 24, 48, 36}, 0, 0, 0, DECEPTUS_MECH_CANNON_BODY, 1, 0}};
+        CHECK(deceptus_mechanisms_init(&mechanisms, gates, 3, 0, 0));
+        player.x = 160;
+        player.y = 24;
+        CHECK(deceptus_mechanism_solid(&mechanisms, &player));
+        CHECK(!deceptus_mechanism_projectile_solid(&mechanisms, &player));
+        CHECK(!mechanisms.states[2].visible);
+        player.x = 0;
+        player.y = 24;
+        CHECK(deceptus_mechanism_solid(&mechanisms, &player));
+        deceptus_mechanism_enable(&mechanisms, 425, 1);
+        for (index = 0; index < 68; ++index) {
+            deceptus_mechanisms_tick(&mechanisms, &player, 0);
+        }
+        CHECK(mechanisms.states[0].frame == 56 && mechanisms.states[0].active);
+        deceptus_mechanisms_tick(&mechanisms, &player, 0);
+        CHECK(!deceptus_mechanism_solid(&mechanisms, &player) && !mechanisms.states[0].visible);
+        deceptus_mechanism_enable(&mechanisms, 425, 0);
+        for (index = 0; index < 68; ++index) {
+            deceptus_mechanisms_tick(&mechanisms, &player, 0);
+        }
+        CHECK(mechanisms.states[0].frame == 113 && !mechanisms.states[0].active);
+        deceptus_mechanisms_tick(&mechanisms, &player, 0);
+        CHECK(deceptus_mechanism_solid(&mechanisms, &player) && mechanisms.states[0].frame == 0);
+        player.x = 80;
+        CHECK(deceptus_mechanism_solid(&mechanisms, &player));
+        CHECK(deceptus_mechanism_projectile_solid(&mechanisms, &player));
+        CHECK(!deceptus_mechanism_hit(&mechanisms, 425, 100));
+        CHECK(deceptus_mechanism_hit(&mechanisms, 1439, 10));
+        CHECK(deceptus_mechanism_hit(&mechanisms, 1439, 10));
+        CHECK(mechanisms.states[1].cooldown == 10 && deceptus_mechanism_solid(&mechanisms, &player));
+        CHECK(deceptus_mechanism_hit(&mechanisms, 1439, 10));
+        CHECK(!deceptus_mechanism_solid(&mechanisms, &player));
+        CHECK(!deceptus_mechanism_hit(&mechanisms, 1439, 10));
+        for (index = 0; index < 74; ++index) {
+            deceptus_mechanisms_tick(&mechanisms, &player, 0);
+        }
+        CHECK(mechanisms.states[1].frame == 49 && mechanisms.states[1].triggered);
+    }
+    puts("mechanism, original gates, dynamic collision, checkpoint and bounded logic checks passed");
     return 0;
 }

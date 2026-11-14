@@ -1,9 +1,12 @@
 #if GBA_CAMPAIGN
 static deceptus_u16 hud_map[1024] __attribute__((aligned(4)));
+static deceptus_u8 hud_map_nonempty, hud_map_dirty;
 
 static void hud_text(deceptus_u16 row, deceptus_u16 column, const char *text)
 {
     deceptus_u8 character;
+    hud_map_nonempty = 1;
+    hud_map_dirty = 1;
     while (*text && column < 30 && row < 20) {
         character = (deceptus_u8)*text++;
         if (character >= 'a' && character <= 'z') {
@@ -40,17 +43,27 @@ static deceptus_u16 hud_cue_resource = 65535, hud_cue_x, hud_cue_y, hud_cue_byte
 static deceptus_u8 hud_cue_dirty;
 static deceptus_u8 hud_title_pixels[32 * 32] __attribute__((aligned(4)));
 static deceptus_u16 hud_title_bytes;
+static deceptus_u16 hud_title_cached_bytes;
+static const char *hud_title_cached;
+static deceptus_u8 hud_title_active(void)
+{
+    return adventure.room_label_ticks && campaign.mode == DECEPTUS_CAMPAIGN_PLAYING;
+}
 static void hud_reset(void)
 {
     hud_ui_loaded = 65535;
     hud_ui_selected = 65535;
     hud_prompt_action = 0;
+    hud_title_cached = 0;
+    hud_map_nonempty = 1;
 }
 static void hud_image(deceptus_u16 resource, deceptus_i16 x, deceptus_i16 y)
 {
     const gba_ui_resource *image;
     const deceptus_u16 *cells;
     deceptus_u16 row, column;
+    hud_map_nonempty = 1;
+    hud_map_dirty = 1;
     image = &gba_ui_resources[resource];
     if (x < 0) {
         x = 0;
@@ -81,6 +94,8 @@ static void hud_cue(deceptus_u16 resource, deceptus_i16 x, deceptus_i16 y)
     deceptus_u16 row, column, px, py, shift_x, shift_y, columns, rows, source_tile, destination;
     deceptus_i16 label_x, label_y;
     deceptus_u8 packed, value;
+    hud_map_nonempty = 1;
+    hud_map_dirty = 1;
     image = &gba_ui_resources[resource];
     cells = (const deceptus_u16 *)(gba_ui_blob + image->map);
     if (x < 0) {
@@ -141,53 +156,56 @@ static void hud_cue(deceptus_u16 resource, deceptus_i16 x, deceptus_i16 y)
         }
     }
 }
-static void hud_room_title(void)
+static void __attribute__((section(".romtext"), noinline)) hud_room_title(void)
 {
-    const gba_ui_resource *image;
-    const deceptus_u16 *palette;
     const char *text;
-    deceptus_u16 index, pixel, colour, brightest, score, best;
+    gba_object *object;
+    deceptus_u16 index, pixel, glyphs;
     deceptus_u8 character, packed, low, high;
-    if (!adventure.room_label_ticks) {
+    if (!hud_title_active()) {
         return;
-    }
-    if (hud_ui_selected == 65535) {
-        hud_text(2, 1, active_stage->title);
-        return;
-    }
-    image = &gba_ui_resources[hud_ui_selected];
-    if (image->patterns > 96) {
-        return;
-    }
-    palette = (const deceptus_u16 *)(gba_ui_blob + image->palette);
-    brightest = 1;
-    best = 0;
-    for (index = 1; index < 16; ++index) {
-        colour = palette[index];
-        score = (colour & 31) + ((colour >> 5) & 31) + ((colour >> 10) & 31);
-        if (score > best) {
-            best = score;
-            brightest = index;
-        }
     }
     text = active_stage->title;
-    for (index = 0; index < 28 && text[index]; ++index) {
-        character = (deceptus_u8)text[index];
-        if (character >= 'a' && character <= 'z') {
-            character -= 'a' - 'A';
+    if (text != hud_title_cached) {
+        for (index = 0; index < 28 && text[index]; ++index) {
+            character = (deceptus_u8)text[index];
+            if (character >= 'a' && character <= 'z') {
+                character -= 'a' - 'A';
+            }
+            if (character < 32 || character > 127) {
+                character = 32;
+            }
+            for (pixel = 0; pixel < 32; ++pixel) {
+                packed = gba_font[(character - 31) * 32 + pixel];
+                low = (packed & 15) ? 15 : 0;
+                high = (packed & 240) ? 15 : 0;
+                hud_title_pixels[index * 32 + pixel] = low | (high << 4);
+            }
         }
-        if (character < 32 || character > 127) {
-            character = 32;
+        glyphs = (index + 1) & 0xfffe;
+        if (glyphs != index) {
+            for (pixel = 0; pixel < 32; ++pixel) {
+                hud_title_pixels[index * 32 + pixel] = 0;
+            }
         }
-        for (pixel = 0; pixel < 32; ++pixel) {
-            packed = gba_font[(character - 31) * 32 + pixel];
-            low = (packed & 15) ? brightest : 0;
-            high = (packed & 240) ? brightest : 0;
-            hud_title_pixels[index * 32 + pixel] = low | (high << 4);
-        }
-        hud_map[2 * 32 + 1 + index] = (96 + index) | (15 << 12);
+        hud_title_bytes = glyphs * 32;
+        hud_title_cached_bytes = hud_title_bytes;
+        hud_title_cached = text;
+    } else {
+        hud_title_bytes = hud_title_cached_bytes;
+        glyphs = hud_title_bytes / 32;
     }
-    hud_title_bytes = index * 32;
+    /* fixed screen-space objects are independent of the moving cue's BG2 scroll. */
+    for (index = 0; index < glyphs; index += 2) {
+        if (object_count >= 128) {
+            engine.content_error = 4;
+            return;
+        }
+        object = &objects[object_count++];
+        object->attribute0 = 16 | (1 << 14);
+        object->attribute1 = 8 + index * 8;
+        object->attribute2 = (3 * GBA_ACTOR_FRAME_BYTES / 32 + index) | (15 << 12);
+    }
 }
 static void hud_lines(deceptus_u16 row, const char *text)
 {
@@ -205,7 +223,7 @@ static void hud_lines(deceptus_u16 row, const char *text)
         }
     }
 }
-static void hud_prepare(void)
+static void __attribute__((section(".romtext"), noinline)) hud_prepare(void)
 {
     deceptus_u16 index;
     deceptus_i16 x, y, column;
@@ -213,8 +231,13 @@ static void hud_prepare(void)
     const deceptus_interaction *action;
     const deceptus_adventure_room *room;
     const gba_ui_presentation *presentation;
-    for (index = 0; index < 1024; ++index) {
-        hud_map[index] = 0;
+    hud_map_dirty = 0;
+    if (hud_map_nonempty) {
+        for (index = 0; index < 1024; ++index) {
+            hud_map[index] = 0;
+        }
+        hud_map_nonempty = 0;
+        hud_map_dirty = 1;
     }
     hud_ui_selected = 65535;
     hud_scroll_x = 0;
@@ -247,8 +270,7 @@ static void hud_prepare(void)
         return;
     }
     if (campaign.mode == DECEPTUS_MENU_INVENTORY) {
-        index = (adventure.inventory.counts[1] ? 1 : 0) | (adventure.inventory.counts[2] ? 2 : 0);
-        hud_image(gba_menu_inventory[index], 0, 0);
+        hud_image(gba_menu_inventory[adventure.selection], 0, 0);
         return;
     }
     if (campaign.mode == DECEPTUS_MENU_CONTROLS) {
@@ -401,10 +423,17 @@ static void hud_commit(void)
         dma_copy(hud_cue_pixels, (void *)0x0600d800, hud_cue_bytes);
     }
     if (hud_title_bytes) {
-        dma_copy(hud_title_pixels, (void *)0x0600cc00, hud_title_bytes);
+        dma_copy(hud_title_pixels, (void *)(0x06010000 + 3 * GBA_ACTOR_FRAME_BYTES), hud_title_bytes);
+        REG16(0x050003fe) = 0x7fff;
     }
 #endif
+#if GBA_TUTORIAL
+    if (hud_map_dirty) {
+        dma_copy(hud_map, (void *)0x0600d000, sizeof(hud_map));
+    }
+#else
     dma_copy(hud_map, (void *)0x0600d000, sizeof(hud_map));
+#endif
 }
 #else
 static void hud_prepare(void) {}

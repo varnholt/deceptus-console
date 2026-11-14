@@ -15,6 +15,9 @@ static deceptus_fixed approach(deceptus_fixed current, deceptus_fixed target, de
 }
 
 #include "enemies/blob_2.c"
+#include "enemies/cannon_2.c"
+#include "enemies/frog_blue.c"
+#include "enemies/orb.c"
 
 void deceptus_enemies_init(deceptus_engine *engine)
 {
@@ -32,8 +35,12 @@ void deceptus_enemies_init(deceptus_engine *engine)
             definition->path_count > engine->room->enemy_path_count - definition->path_first ||
             (definition->path_count && !engine->room->enemy_paths) || definition->alignment > 3 ||
             (definition->kind != DECEPTUS_RAT && definition->kind != DECEPTUS_ARROW_TRAP &&
-             definition->kind != DECEPTUS_BLOB_2) ||
-            definition->animation_fps != 20 || definition->speed <= 0 || definition->speed >= DECEPTUS_FIXED(8)) {
+             definition->kind != DECEPTUS_BLOB_2 && definition->kind != DECEPTUS_CANNON_2 &&
+             definition->kind != DECEPTUS_ORB && definition->kind != DECEPTUS_FROG_BLUE) ||
+            ((definition->kind == DECEPTUS_ORB || definition->kind == DECEPTUS_FROG_BLUE)
+                 ? (!definition->animation_fps || definition->animation_fps > 60)
+                 : definition->animation_fps != (definition->kind == DECEPTUS_CANNON_2 ? 16 : 20)) ||
+            definition->speed <= 0 || definition->speed >= DECEPTUS_FIXED(8)) {
             engine->content_error = 6;
             return;
         }
@@ -53,7 +60,35 @@ void deceptus_enemies_init(deceptus_engine *engine)
                 engine->content_error = 6;
                 return;
             }
-        } else if (!definition->period || definition->period >= 65000) {
+        } else if (definition->kind == DECEPTUS_ORB) {
+            if (definition->path_count < 2 || definition->path_count > 8 || definition->acceleration < 0 ||
+                definition->acceleration > 255) {
+                engine->content_error = 6;
+                return;
+            }
+            for (point = 0; point < definition->path_count; ++point) {
+                const deceptus_path_point *a, *b;
+                a = &engine->room->enemy_paths[definition->path_first + point];
+                b = &engine->room
+                         ->enemy_paths[definition->path_first + (point + 1 == definition->path_count ? 0 : point + 1)];
+                if ((a->x != b->x && a->y != b->y) || (a->x == b->x && a->y == b->y)) {
+                    engine->content_error = 6;
+                    return;
+                }
+                row = a->x != b->x ? a->x - b->x : a->y - b->y;
+                if (row > -8 && row < 8) {
+                    engine->content_error = 6;
+                    return;
+                }
+            }
+        } else if (definition->kind == DECEPTUS_FROG_BLUE &&
+                   (!definition->period || definition->period >= 65000 || definition->alignment > 1 ||
+                    !definition->delays[0] || definition->delays[0] > 1000 || definition->delays[1] >= 32768 ||
+                    definition->delays[2] > 1024 || !definition->cycles[0] || definition->cycles[0] > 64)) {
+            engine->content_error = 6;
+            return;
+        } else if (!definition->period || definition->period >= 65000 ||
+                   (definition->kind == DECEPTUS_CANNON_2 && (definition->period > 900 || definition->alignment > 1))) {
             engine->content_error = 6;
             return;
         }
@@ -65,6 +100,19 @@ void deceptus_enemies_init(deceptus_engine *engine)
         entity->definition = (deceptus_u8)index;
         entity->random_seed = definition->source_id;
         entity->timer = definition->time_offset;
+        if (definition->kind == DECEPTUS_CANNON_2) {
+            entity->jump_buffer_ticks = 60;
+        }
+        if (definition->kind == DECEPTUS_ORB) {
+            entity->x = DECEPTUS_FIXED(engine->room->enemy_paths[definition->path_first].x);
+            entity->y = DECEPTUS_FIXED(engine->room->enemy_paths[definition->path_first].y);
+            entity->target = 1;
+        }
+        if (definition->kind == DECEPTUS_FROG_BLUE) {
+            entity->state = 1;
+            entity->y += DECEPTUS_FIXED(14);
+            entity->frame = definition->alignment * 22;
+        }
         if (definition->kind == DECEPTUS_BLOB_2) {
             entity->target = definition->path_count > 1 ? 1 : 0;
             entity->y += DECEPTUS_FIXED(12);
@@ -159,6 +207,9 @@ static void fire_arrow(deceptus_engine *engine, const deceptus_entity *trap, con
             continue;
         }
         arrow->active = 1;
+        arrow->kind = DECEPTUS_ARROW;
+        arrow->owner = 0;
+        arrow->phase = 0;
         arrow->alignment = definition->alignment;
         arrow->age = 0;
         arrow->gravity = 0;
@@ -181,6 +232,46 @@ static void fire_arrow(deceptus_engine *engine, const deceptus_entity *trap, con
     }
 }
 
+static deceptus_u8 projectile_move(deceptus_engine *engine, deceptus_projectile *arrow)
+{
+    deceptus_fixed start_x, start_y, next_x, next_y;
+    deceptus_i16 step, row, column;
+    deceptus_u8 radius;
+    deceptus_rect point;
+    start_x = arrow->x;
+    start_y = arrow->y;
+    radius = arrow->kind == DECEPTUS_CANNONBALL ? 10 : 0;
+    point.width = radius ? radius * 2 : 1;
+    point.height = point.width;
+    /* each step is less than a pixel under the shared <8px/tick limit. this
+     * also catches thin dynamic floors without adding a projectile body pool. */
+    for (step = 1; step <= 8; ++step) {
+        next_x = start_x + arrow->velocity_x * step / 8;
+        next_y = start_y + arrow->velocity_y * step / 8;
+        point.x = deceptus_floor(next_x) - radius;
+        point.y = deceptus_floor(next_y) - radius;
+        if (point.x < 0 || point.y < 0 || point.x + point.width > engine->room->columns * 8 ||
+            point.y + point.height > engine->room->rows * 8 ||
+            deceptus_mechanism_projectile_solid(&engine->mechanisms, &point)) {
+            arrow->active = 0;
+            return 0;
+        }
+        for (row = point.y / 8; row <= (point.y + point.height - 1) / 8; ++row) {
+            for (column = point.x / 8; column <= (point.x + point.width - 1) / 8; ++column) {
+                /* source level.cpp builds closed chain loops for one-way tiles.
+                 * gamecontactlistener.cpp exempts only players, not projectiles. */
+                if (deceptus_cell(engine->room, column, row) & (DECEPTUS_SOLID | DECEPTUS_ONE_WAY)) {
+                    arrow->active = 0;
+                    return 0;
+                }
+            }
+        }
+        arrow->x = next_x;
+        arrow->y = next_y;
+    }
+    return 1;
+}
+
 deceptus_u16 deceptus_enemies_tick(deceptus_engine *engine)
 {
     deceptus_u16 index, muzzle, damage;
@@ -192,7 +283,8 @@ deceptus_u16 deceptus_enemies_tick(deceptus_engine *engine)
     for (index = 1; index < DECEPTUS_ENTITY_CAPACITY; ++index) {
         enemy = &engine->entities[index];
         if (!enemy->active ||
-            (enemy->kind != DECEPTUS_RAT && enemy->kind != DECEPTUS_ARROW_TRAP && enemy->kind != DECEPTUS_BLOB_2)) {
+            (enemy->kind != DECEPTUS_RAT && enemy->kind != DECEPTUS_ARROW_TRAP && enemy->kind != DECEPTUS_BLOB_2 &&
+             enemy->kind != DECEPTUS_CANNON_2 && enemy->kind != DECEPTUS_ORB && enemy->kind != DECEPTUS_FROG_BLUE)) {
             continue;
         }
         definition = &engine->room->enemy_definitions[enemy->definition];
@@ -211,6 +303,22 @@ deceptus_u16 deceptus_enemies_tick(deceptus_engine *engine)
                 definition->damage > damage) {
                 damage = definition->damage;
             }
+        } else if (enemy->kind == DECEPTUS_ORB) {
+            deceptus_u16 contact;
+            orb_tick(engine, enemy, definition);
+            contact = orb_contact(engine, enemy, definition);
+            if (contact > damage) {
+                damage = contact;
+            }
+        } else if (enemy->kind == DECEPTUS_FROG_BLUE) {
+            deceptus_u16 contact;
+            frog_blue_tick(engine, enemy, definition, (deceptus_u8)index);
+            contact = frog_blue_contact(engine, enemy, definition);
+            if (contact > damage) {
+                damage = contact;
+            }
+        } else if (enemy->kind == DECEPTUS_CANNON_2) {
+            cannon_2_tick(engine, enemy, definition);
         } else {
             if (++enemy->timer > definition->period) {
                 enemy->timer = 0;
@@ -230,11 +338,21 @@ deceptus_u16 deceptus_enemies_tick(deceptus_engine *engine)
         if (!arrow->active) {
             continue;
         }
+        if (arrow->kind == DECEPTUS_BLUE_FIREBALL) {
+            deceptus_u16 contact;
+            contact = frog_blue_orb_tick(engine, arrow);
+            if (contact > damage) {
+                damage = contact;
+            }
+            continue;
+        }
         if (++arrow->age > 180) {
             arrow->active = 0;
             continue;
         }
-        if (arrow->gravity > 202) {
+        if (arrow->kind == DECEPTUS_CANNONBALL) {
+            arrow->gravity = 0;
+        } else if (arrow->gravity > 202) {
             arrow->gravity -= 203;
             ++arrow->velocity_y;
         } else {
@@ -243,18 +361,17 @@ deceptus_u16 deceptus_enemies_tick(deceptus_engine *engine)
         if (arrow->velocity_y >= DECEPTUS_FIXED(8)) {
             arrow->velocity_y = DECEPTUS_FIXED(8) - 1;
         }
-        arrow->x += arrow->velocity_x;
-        arrow->y += arrow->velocity_y;
-        x = deceptus_floor(arrow->x);
-        y = deceptus_floor(arrow->y);
-        if (x < 0 || y < 0 || x >= engine->room->columns * 8 || y >= engine->room->rows * 8 ||
-            (deceptus_cell(engine->room, deceptus_position_cell(arrow->x), deceptus_position_cell(arrow->y)) & DECEPTUS_SOLID)) {
-            arrow->active = 0;
+        if (!projectile_move(engine, arrow)) {
             continue;
         }
+        x = deceptus_floor(arrow->x);
+        y = deceptus_floor(arrow->y);
         dx = x - deceptus_floor(engine->entities[0].x);
         dy = y - deceptus_floor(engine->entities[0].y);
-        if (dx >= -9 && dx <= 9 && dy >= -DECEPTUS_PLAYER_HEIGHT(&engine->entities[0]) && dy <= 0) {
+        if (dx >= -(arrow->kind == DECEPTUS_CANNONBALL ? 19 : 9) &&
+            dx <= (arrow->kind == DECEPTUS_CANNONBALL ? 19 : 9) &&
+            dy >= -DECEPTUS_PLAYER_HEIGHT(&engine->entities[0]) - (arrow->kind == DECEPTUS_CANNONBALL ? 10 : 0) &&
+            dy <= (arrow->kind == DECEPTUS_CANNONBALL ? 10 : 0)) {
             if (arrow->damage > damage) {
                 damage = arrow->damage;
             }
@@ -264,8 +381,8 @@ deceptus_u16 deceptus_enemies_tick(deceptus_engine *engine)
     return damage;
 }
 
-static void draw_enemy(const deceptus_engine *engine, deceptus_frame *frame, deceptus_u8 kind, deceptus_u8 image, deceptus_i16 x,
-                       deceptus_i16 y, deceptus_i16 width, deceptus_i16 height)
+static void draw_enemy(const deceptus_engine *engine, deceptus_frame *frame, deceptus_u8 kind, deceptus_u8 image,
+                       deceptus_i16 x, deceptus_i16 y, deceptus_i16 width, deceptus_i16 height)
 {
     deceptus_draw *draw;
     x -= engine->camera_x;
@@ -293,8 +410,19 @@ void deceptus_enemies_render(const deceptus_engine *engine, deceptus_frame *fram
     for (index = 0; index < DECEPTUS_PROJECTILE_CAPACITY; ++index) {
         arrow = &engine->projectiles[index];
         if (arrow->active) {
-            draw_enemy(engine, frame, DECEPTUS_ARROW, (deceptus_u8)(arrow->alignment * 4 + (arrow->age / 5) % 4),
-                       deceptus_floor(arrow->x) - 12, deceptus_floor(arrow->y) - 12, 32, 32);
+            if (arrow->kind == DECEPTUS_BLUE_FIREBALL) {
+                if (arrow->owner && arrow->owner < DECEPTUS_ENTITY_CAPACITY) {
+                    draw_enemy(engine, frame, DECEPTUS_BLUE_FIREBALL,
+                               (deceptus_u8)(((engine->entities[arrow->owner].drop_ticks * 3) / 10) & 7),
+                               deceptus_floor(arrow->x) - 36, deceptus_floor(arrow->y) - 60, 120, 120);
+                }
+            } else if (arrow->kind == DECEPTUS_CANNONBALL) {
+                draw_enemy(engine, frame, DECEPTUS_CANNONBALL, (deceptus_u8)((arrow->age / 3) % 4),
+                           deceptus_floor(arrow->x) - 36, deceptus_floor(arrow->y) - 36, 72, 72);
+            } else {
+                draw_enemy(engine, frame, DECEPTUS_ARROW, (deceptus_u8)(arrow->alignment * 4 + (arrow->age / 5) % 4),
+                           deceptus_floor(arrow->x) - 12, deceptus_floor(arrow->y) - 12, 32, 32);
+            }
         }
     }
     for (index = 1; index < DECEPTUS_ENTITY_CAPACITY; ++index) {
@@ -308,6 +436,16 @@ void deceptus_enemies_render(const deceptus_engine *engine, deceptus_frame *fram
             draw_enemy(engine, frame, DECEPTUS_BLOB_2, enemy->frame, x - 36, y - 48, 80, 80);
         } else if (enemy->kind == DECEPTUS_RAT) {
             draw_enemy(engine, frame, DECEPTUS_RAT, enemy->frame, x - 12, y - 26, 32, 32);
+        } else if (enemy->kind == DECEPTUS_CANNON_2) {
+            draw_enemy(engine, frame, DECEPTUS_CANNON_2, enemy->frame, x - 48, y - 24, 144, 72);
+        } else if (enemy->kind == DECEPTUS_ORB) {
+            draw_enemy(engine, frame, DECEPTUS_ORB, enemy->frame, x - 60, y - 60, 120, 120);
+        } else if (enemy->kind == DECEPTUS_FROG_BLUE) {
+            if (enemy->state == 3) {
+                draw_enemy(engine, frame, DECEPTUS_FROG_BLUE, enemy->frame, x - 36, y - 50, 72, 72);
+            } else {
+                draw_enemy(engine, frame, DECEPTUS_FROG_BLUE, enemy->frame, x - 24, y - 38, 48, 48);
+            }
         } else if (enemy->kind == DECEPTUS_ARROW_TRAP) {
             definition = &engine->room->enemy_definitions[enemy->definition];
             draw_enemy(engine, frame, DECEPTUS_ARROW_TRAP, definition->alignment, x - 24, y - 24, 80, 80);

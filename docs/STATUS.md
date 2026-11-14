@@ -1,12 +1,12 @@
 # Current status
 
-Updated for local Playtest 07, 13 November 2026.
+Updated for local Playtest 09, 14 November 2026.
 
 ## Available targets
 
 | Target | Current scope |
 | --- | --- |
-| GBA tutorial | Thirteen imported opening rooms; source UI, inventory/flags, selected interactions, menus and automatic connections |
+| GBA tutorial | Twenty-six imported rooms; prison, headtorch, graveyard rubies, crypt return, owl altar and sword progression |
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
 | SNES | Retained one-room clock/checkpoint/patrol/portal prototype |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
@@ -17,18 +17,27 @@ Updated for local Playtest 07, 13 November 2026.
 The tutorial imports The Cell, Lower Cells, Crossroads, Upper Cells, The Cellar,
 Guards' Office, Main Hall, Altar of the Blind Owl, Clockwork Antechamber, The
 Loop, The Sewers, Fool's Ledge and Mines Antechamber. Source room ids are retained in generated
-reports. Original asset ownership and artwork remain in the main engine repo.
+reports. It also includes Sealed Cells, Flooded Chamber, Rift Engine, Syphon,
+Scriptorium, Reading Room, Skull Room, Cannon Fodder, Graveyard, Mausoleum,
+Old Graves, Owl Shrine and Crypt. Original asset ownership and artwork remain
+in the main engine repo.
 
 Implemented opening rules include source cellmate/bed text, the key and locker,
 taking the lever handle, installing it, operating supported linked mechanisms,
 room-state persistence, and the original darkness warning. The monk currently
 uses an idle pose. Crossroads links toggle immediately; the original camera and
-timed cutscene sequence is not reproduced.
+timed cutscene sequence is not reproduced. Cannon Fodder's eleven blocks use
+the original inverse relationship to its lever; its camera/delayed cutscene is
+also simplified to immediate group toggling.
 
-The key/handle chain was exercised during earlier tuning. The entire opening
-through the named Sewers has **not** been verified end to end with the current
-movement settings. Room imports and isolated interactions are not completion
-claims. Guards' Office and Fool's Ledge use authored arrival positions rather
+The normal-input native and production-ROM route now completes the key/handle chain, the Loop,
+Sewers, Cannon Fodder gate, Reading Room solar seal, Fool's Ledge headtorch,
+Sealed Cells, graveyard owl rubies, sinkhole and crypt return, and the return to
+the catacombs altar for sword acquisition and a shoulder-button attack. All 56
+checkpoints pass across 23 rooms, with 18,058 input ticks and 17,884 simulation
+ticks, zero deaths and 29 health remaining. The route includes live cannon/enemy
+damage and 66 native simulation ticks attached to the original Mausoleum rope.
+Guards' Office and Fool's Ledge use authored arrival positions rather
 than assuming every adjacent room's walkways have identical heights.
 
 ## Latest presentation fixes
@@ -43,14 +52,24 @@ than assuming every adjacent room's walkways have identical heights.
 - Original bitmap font at 13px; title headings use exact 2x copies of those pixels.
 - Smooth affine title rotation, changing on 59 of 60 sampled display frames.
 - Whole wooden one-way floor artwork, with original foreground occlusion.
-- Separate room-title tile storage while world interaction cues are active.
+- Fixed screen-position room-title sprites while interaction cues and the camera move.
 - Pause header lowered two pixels, functional options/controls and confirmation.
 - Lower Crossroads/Fool's Ledge connection and western cellar darkness warning.
+- Persistent headtorch tunnel, emptied graveyard owl and released sword cage.
+- Source 27-tick ruby-insertion delay and automatic crypt return rectangle.
+- Source inventory icons with paged browsing, plus equipped sword poses and
+  basic source-timed attacks against the supported ground blob.
 - Player visible underwater, with water-body artwork behind the baked surface.
+- Source-derived animated sword ward, visible equipped helmet and warm light sprite.
+- Reusable-key iron door and source wooden barrier with three-hit sword destruction.
+- Source cannon firing, cannonballs and arrows that collide with one-way floors.
+- Source orb contour and blue frog with owned sine projectile and sword/stomp death.
+- Automatic rope grab, directional swing, jump release and source regrab/grace timers.
+- Player collision excludes the source movable-box-only boundaries; artwork is unchanged.
 
 ## Evidence
 
-The local build passes nine native C test groups and forty-five Python conversion
+The local build passes twelve native C test groups and 91 Python conversion
 checks, including an exact comparison of large text against a nearest-neighbour
 2x copy of the original glyph rendering. SNES rebuild and Snes9x integration
 checks pass for the retained prototype.
@@ -65,21 +84,40 @@ reuses its display image buffer. This timing result covers the tested scene;
 it is not a whole-game performance guarantee. The delayed wetsuit warning
 keeps the simulation running while the original upward wind applies. Their reports
 and screenshots are generated locally by `tools/verify_tutorial.py`. These are
-fixture checks, not a full tutorial input route. No physical hardware testing or
+fixture checks, distinct from the normal-input route. No physical hardware testing or
 complete-game performance guarantee is claimed.
+
+Thirty-five controlled-start fixtures cover ruby pickup, consumption, the exact
+cage delay, sword acquisition/inventory/shoulder input, the equipped player next
+to a lever, the Cannon Fodder inverse gate, headtorch passage, sinkhole and the
+automatic crypt return, source enemies, doors, cannon fire, the sword ward,
+headtorch poses, rope swing/release and corrected grave-cap collision. Both rope
+checks, including sword/headtorch and title expiry, advance 90 simulation ticks
+over 90 display frames. Fresh assets and both console builds pass; strict room
+reuse produces the same 16 MiB GBA ROM byte for byte. The content cache checks
+source bytes, converter code, image-library versions and room recipes.
+
+The full mGBA replay uses ordinary inputs from New Game without changing player
+positions, inventory, flags or emulator memory. Reports and screenshots are in
+`artifacts/opening-check/`. It records 345 additional display frames for loading
+and rendering across the route. This is distinct from a hardware or all-scenes
+60fps guarantee. A renderer regression also exercises simultaneous rat/block
+palettes; conflicting OBJ indices relocate without changing source colours.
 
 ## Remaining work
 
-1. Finish and repeatedly play the original opening route under final movement
-   tuning, including the Loop and descent to the Sewers. Resolve every required
-   gate and source callback instead of adding progression shortcuts.
+1. Close remaining opening presentation and behavior differences: timed lever
+   camera sequences, monk encounter, graveyard weather/ghosts and sinkhole effects.
+   The headtorch currently turns on automatically when acquired.
 2. Refine swimming/entry/exit fidelity and add remaining traversal abilities;
    refine collision fidelity and profile demanding rooms.
 3. Complete cutscenes, dialogue presentation and original menu/inventory behavior.
 4. Port additional enemies and mechanisms to reusable C services, retaining
    source settings and differential checks where possible. Rat, arrow trap and
    normal ground blob are implemented; blob jump/drop variants and other enemy
-   families remain unsupported.
+   families remain unsupported. Cannon, generated-contour orb and blue frog are
+   also implemented. Three authored orb placements have no matching source
+   physics contour and remain explicitly reported; see `SEALED_ENEMIES.md`.
 5. Convert source music/SFX offline and add platform playback. Event ids have
    begun to be exposed, but no sound currently plays in the ROM or project player.
 6. Add persistent save storage and versioned progression serialization.
@@ -89,8 +127,9 @@ The first commercial-quality target remains GBA. The reusable C engine can grow
 alongside that work; SNES is a secondary compatibility/performance effort and
 Mega Drive remains future work.
 
-The Mines entrance is connected. Its farther locked iron door and actual wetsuit
-acquisition remain unsupported. The current water blocker stays enabled.
+The Mines entrance is connected. Its farther iron door supports its reusable
+source red-key requirement; red-key and wetsuit acquisition are not yet connected.
+The current water blocker stays enabled.
 
 GitHub Actions successfully built and tested revision e3c67cd and uploaded its
 cartridge artifact; subsequent revisions require their own successful run.

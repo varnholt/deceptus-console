@@ -20,7 +20,7 @@ def package():
     metadata['content_revision'] = subprocess.check_output(['git','rev-parse','HEAD'],cwd=source,text=True).strip()
     shutil.copyfile(rom,output/'Deceptus.gba')
     (output/'BUILD.json').write_text(json.dumps(metadata,indent=2)+'\n')
-    (output/'README.txt').write_text('Deceptus GBA development build\n\nOpen Deceptus.gba in a GBA emulator.\nD-pad: move, Up: interact, A/B: jump, Down: bend, Start: pause, Select: inventory.\nSwimming: hold A after entering water to rise.\n\nThis is an unfinished opening playtest. Audio and persistent saves are not implemented.\nBUILD.json identifies both source revisions and the cartridge hash.\n')
+    (output/'README.txt').write_text('Deceptus GBA development build\n\nOpen Deceptus.gba in a GBA emulator.\nD-pad: move, Up: interact/use an item, A/B: jump, Down: bend, Start: pause, Select: inventory.\nL/R: swing the acquired sword. Up/Down: browse owned inventory items.\nSwimming: hold A after entering water to rise.\n\nThis is an unfinished opening playtest. Audio and persistent saves are not implemented.\nBUILD.json identifies both source revisions and the cartridge hash.\n')
     (output/'LICENSES').mkdir(exist_ok=True)
     shutil.copyfile(ROOT/'LICENSE',output/'LICENSES/ENGINE-CODE.txt')
     shutil.copyfile(source/'data/LICENSE.md',output/'LICENSES/DECEPTUS-DATA.md')

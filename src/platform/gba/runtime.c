@@ -1,4 +1,29 @@
 #include <string.h>
+#include "deceptus/types.h"
+
+/* full-width unsigned fallback; small positive operands use BIOS division. */
+deceptus_u32 deceptus_gba_unsigned_divide(deceptus_u32 numerator, deceptus_u32 denominator)
+{
+    deceptus_u32 quotient, bit;
+    if (!denominator) {
+        return 0;
+    }
+    quotient = 0;
+    bit = 1;
+    while (denominator < numerator && !(denominator & ((deceptus_u32)1 << 31))) {
+        denominator <<= 1;
+        bit <<= 1;
+    }
+    while (bit) {
+        if (numerator >= denominator) {
+            numerator -= denominator;
+            quotient |= bit;
+        }
+        denominator >>= 1;
+        bit >>= 1;
+    }
+    return quotient;
+}
 
 /* platform-local freestanding memory routines; shared code needs no host libc. */
 void *memset(void *destination, int value, size_t count)

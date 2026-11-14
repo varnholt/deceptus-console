@@ -98,5 +98,90 @@ by a replacement effect. The existing spring-based water-surface bake is kept.
 
 Normal ground blobs are imported from the original placement and `blob_2.lua`
 constants. Jump/drop properties are explicitly rejected for this native subset.
-The current shared GBA resource library has 494 frames, including full swim
-poses, the blob's original idle, movement and death artwork, and entry splashes.
+The current shared GBA resource library has 638 frames, including full swim
+poses, the blob's original idle, movement and death artwork, entry splashes and
+native sword poses and attacks.
+
+## Opening progression bindings
+
+`tools/tutorial_progression.py` maps the additional opening rooms and the
+Scriptorium drawer, solar seal, headtorch chest, graveyard owl, sinkhole and
+catacombs sword cage to their source object identities. The catacombs and
+graveyard keep separate object namespaces. Persistent flags retain the taken
+rubies after the shrine consumes them. Source validation rejects changes to the
+translated item rules, cage ids or shrine release delay instead of silently
+building a different puzzle.
+
+Conditional scenery uses the original chest, drawer, sword and owl images.
+Graveyard background strips are baked at one static phase at their native size;
+parallax, storm visuals, ghosts, audio and the sinkhole cutscene remain separate
+unsupported work. The native sinkhole keeps its source delay and opens the
+crypt passage. The headtorch is enabled immediately on acquisition.
+
+For interaction and portal development after a full tutorial conversion:
+
+```powershell
+python tools/build_gba.py --scene tutorial --reuse-room-assets
+```
+
+Reuse is explicit and fails unless each room recipe, original map/artwork/script
+inputs, image-library versions and converter sources match the SHA256 identity
+recorded during a successful full conversion. Missing room outputs also fail.
+A change to source content, room graphics or conversion code requires another
+full conversion. Runtime interaction/portal metadata and UI are rebuilt every
+time. Do not edit source data while a conversion or reuse run is in progress.
+
+## Sword ward shader
+
+`ringshader.py` translates the powered, untouched `ring.frag` equations offline,
+using the original repeated and bilinearly sampled `grainy.png` noise texture.
+The authored object 1339 center, ring scale, Gaussian double heartbeat and
+heartbeat-driven turbulence produce a 128×128 clip at 1:1 pixels, sampled into
+24 frames over the original two-second heartbeat. The clip occupies the fourth
+animation slot in the Altar room and preserves original foreground occlusion.
+A derived renderer flag follows the existing sword-cage state, so the visible
+ward remains through the 27-tick insertion delay and disappears on release.
+
+This is a bounded console approximation: the finite animation loop resets on
+room entry, the foreground alpha threshold and target palette replace shader
+blending, and the faint outer glow is cropped. The visible band is not cropped
+or resampled, and dithering remains disabled. Player-dependent dents/recoil,
+hit flashes and the expanding 1.2-second power-down dissolve remain unsupported.
+An unreviewed fragment or heartbeat-equation change fails conversion explicitly.
+
+## Headtorch attachment and light sprite
+
+`headtorch_assets.py` reads original player eye positions and animation origins
+for every displayed normal, swim and sword frame. The helmet uses its original
+24×24 player-atlas rectangles at 1:1 size, follows the head's authored bob and
+uses the original left/right lamp attachment points. Missing eye metadata or
+unreviewed source attachment equations fail conversion.
+
+The light effect is deliberately bounded for console sprite memory: the source
+spotlight mask becomes a 64×32 sprite with 16 warm intensity levels using the
+authored 255/200/100 color. This reduction applies only to the requested light
+effect, with no dithering; world and character art keep their native pixel grid.
+It does not reproduce source shadow casting, dust, landing tilt/jitter or
+physical illumination of background palettes. Original headtorch configuration,
+light textures and source C++ are included in the room reuse identity.
+
+The Mines iron door retains source `item_required=red`. Native inventory item 7
+represents that requirement without consuming the key; its page uses the source
+generic key icon and the label “Red Key” because the upstream inventory atlas
+has no separate `red` description. It is not granted as a progression shortcut.
+
+## Grab rope artwork
+
+`rope_assets.py` keeps the original rope's 7px width and single knot. The knot
+uses the first 16 source rows; native 8px plain-strand slices and 1–8px tail
+slices cover the remaining length exactly. The source engine stretches its
+141px texture over the chain; this console adaptation tiles untouched plain
+strand pixels instead, so the artwork is neither resized nor resampled. Each
+slice receives only transparent 16×16 rotation padding. The backend can rotate
+those tiles without scaling and render them directly from the bounded chain
+point query, preserving the gameplay render queue.
+
+The hanging player uses the source `player_jump_midair_r/l` animation: three
+72×48 frames per side, origin 36/48 and cumulative 60Hz timing 4/4/3 ticks. The
+existing armed midair cycle remains the sword equivalent. Helmet attachments
+use the same original eye-position samples while hanging.

@@ -21,6 +21,21 @@ GENERATED = ROOT / "assets" / "generated"
 ACTOR_FRAME_COUNT = 26
 
 
+def collision_masks(tiled, crop, recipe):
+    """Preserve the source collision roles instead of flattening box-only walls.
+
+    BoxCollider uses CategoryMoveableBox|CategoryBoundary as its mask; the
+    CategoryFriendly player is excluded. Keep those vectors for future box
+    simulation without turning them into invisible player platforms.
+    """
+    player_layers = [name for name in recipe['collision_layers'] if name != 'box_colliders']
+    return {
+        'player': tiled.render(crop, player_layers, collision=True),
+        'one_way': tiled.render(crop, recipe['one_way_layers'], collision=True),
+        'box_only': tiled.render(crop, ['box_colliders'], collision=True),
+    }
+
+
 def import_deceptus(data, recipe_path=None, source=SOURCE):
     data = Path(data)
     source.mkdir(parents=True, exist_ok=True)
@@ -29,16 +44,19 @@ def import_deceptus(data, recipe_path=None, source=SOURCE):
     crop = recipe["crop_pixels"]
     names = recipe["visual_layers"]
     room = Image.new("RGBA", crop[2:], (10, 10, 20, 255))
+    if recipe.get('static_image_layers'):
+        from scenery import static_layers
+        static_layers(data,recipe,room)
     foreground_names = recipe.get('foreground_layers', [])
     room.alpha_composite(tiled.render(crop, [name for name in names if name not in foreground_names]))
     if foreground_names:
         tiled.render(crop, foreground_names).save(source / 'foreground.png')
     room.convert("RGB").save(source / "catacombs.png")
     # tile collision vectors, not artwork alpha; dynamic blockers stay dynamic.
-    collision = tiled.render(crop, recipe["collision_layers"], collision=True)
-    one_way = tiled.render(crop, recipe["one_way_layers"], collision=True)
-    collision.save(source / "collision.png")
-    one_way.save(source / "one_way.png")
+    masks = collision_masks(tiled, crop, recipe)
+    masks['player'].save(source / "collision.png")
+    masks['one_way'].save(source / "one_way.png")
+    masks['box_only'].save(source / "box_only_collision.png")
     water = Image.new('L', tuple(crop[2:]))
     if recipe.get('import_water'):
         for layer, offset, _ in tiled.layers():
@@ -89,15 +107,19 @@ def import_deceptus(data, recipe_path=None, source=SOURCE):
     else:
         (source / 'enemies.json').write_text('{"definitions": [], "paths": [], "unsupported": []}\n')
     manifest = {
-        "source_map": "deceptus_engine/data/level-catacombs/catacombs.tmx",
+        "source_map": "deceptus_engine/data/" + recipe["map"],
         "crop_pixels": crop,
         "visual_layers": names,
-        "collision_layers": ["level", "box_colliders"],
-        "one_way_layers": ["level_solid_onesided"],
+        "source_collision_layers": recipe['collision_layers'],
+        "collision_layers": [name for name in recipe['collision_layers'] if name != 'box_colliders'],
+        "box_only_collision_layers": ['box_colliders'],
+        "collision_roles": {"player": "collision.png", "box_only": "box_only_collision.png"},
+        "one_way_layers": recipe['one_way_layers'],
         "collision_cell": 8,
         "coverage_threshold": 0.5,
         "limitations": ["slopes become 8px steps", "layer effects and parallax are flattened",
-                        "only the selected crop is imported", "mechanism visuals and behavior depend on the target adapter"],
+                        "only the selected crop is imported", "mechanism visuals and behavior depend on the target adapter",
+                        "box-only collision is retained separately; movable-box simulation remains unsupported"],
         "frames": [{"animation": name, "source_frame": index} for name, index in selections],
         "artwork_owner": "dstar",
     }

@@ -4,11 +4,12 @@ A portable C game engine and console adaptation of Deceptus. **GBA is the first
 complete-game target.** A working SNES prototype is retained; Mega Drive is a
 future backend. The local folder currently keeps the name `deceptus-snes`.
 
-The latest development build is the original prison opening, with thirteen
+The latest development build is the original prison opening, with twenty-six
 imported rooms, source dialogue, inventory and lever interactions, automatic
 room changes, native player artwork, foreground occlusion and menus. This is
-an intermediate playtest: the complete game and opening progression are not
-finished.
+an opening playtest; later game content, audio and persistent saves remain unfinished.
+The normal-input verification route reaches the graveyard, takes the rubies,
+returns through the crypt, uses them at the altar, acquires the sword and attacks.
 
 `deceptus_engine` remains the authoritative repository for maps, artwork,
 animation definitions, Lua scripts, music and sound effects. Build tools read
@@ -17,6 +18,20 @@ twice, resized to fit a console screen, or taken from an already reduced console
 version.
 
 ## Quick start
+
+To play an existing build, run from the repository root:
+
+```powershell
+python run_gba.py
+python run_snes.py
+```
+
+Each launcher downloads its missing emulator core into `.tools/`, builds a
+missing cartridge, and opens the project player. Existing cores and cartridges
+are reused. `--build` rebuilds first; `--prepare` performs setup without opening
+a window. Missing Python packages are installed in a project-local `.venv`.
+Automatic emulator downloads support Windows x64; other hosts can supply
+`--core PATH`. Building GBA still requires LLVM; SNES fetches its missing local SDK.
 
 Keep both checkouts beside one another:
 
@@ -54,6 +69,10 @@ The bootstrap downloads optional emulator cores and build references into
 | Down + Z | Down + A | Drop through a one-way floor |
 | Enter | Start | Open pause menu; confirm a menu selection |
 | Tab / R | Select | Inventory |
+| C / Q / E | L / R | Swing the acquired sword |
+
+Use Up/Down to browse owned inventory items. Up at the matching object uses a
+key, seal or the rubies. Sword attacks require a fresh shoulder-button press.
 
 The older four-area preview and SNES prototype use Select to restart instead
 of opening inventory. A wall jump needs a fresh jump press while touching a wall.
@@ -62,7 +81,7 @@ audio playback are not implemented yet.
 
 ## Current development build
 
-Playtest 07 uses the original Deceptum bitmap font at its authored 13px size.
+The tutorial uses the original Deceptum bitmap font at its authored 13px size.
 Large headings are exact 2x pixel copies, not newly rasterized 24px glyphs.
 The opening also includes:
 
@@ -74,6 +93,9 @@ The opening also includes:
 - Native-size dialogue windows, paged source text and animated interaction cues.
 - The key, locker, lever handle and missing-handle rules, plus persistent flags
   and mechanism state when returning to a room.
+- The Reading Room solar seal, Fool's Ledge headtorch chest, dark Sealed Cells,
+  graveyard owl rubies, sinkhole/crypt return and delayed sword-cage release.
+- Equipped sword artwork and basic source-timed attacks against supported blobs.
 - Original room entrance rectangles, including Crossroads to Fool's Ledge and Main Hall to Mines Antechamber.
 - Original one-way floor decoration and player occlusion by foreground artwork.
 - Streamed room graphics and offline baked water surfaces; the player remains
@@ -92,7 +114,8 @@ python tools/verify_tutorial.py
 ```
 
 The tutorial verifier checks controlled scene starts, selected room connections,
-UI and rendering. It is not an end-to-end tutorial playthrough. See
+UI, item rules, sword input and rendering. `tools/gba_emulator.py --scene tutorial`
+replays the separate normal-input opening route. See
 [building and testing](docs/BUILDING.md) for the LLVM path arguments and test
 prerequisites.
 
@@ -105,7 +128,7 @@ python tools/package_preview.py --build
 ```
 
 `tonight` is a historical build-scene name; it does not appear in the game menu.
-It remains the build script's default, so use `--scene tutorial` explicitly.
+The default build scene is now `tutorial`.
 `package_preview.py` packages that curated preview, not the current tutorial.
 
 The separate SNES prototype uses project-local PVSnesLib:

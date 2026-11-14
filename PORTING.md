@@ -3,9 +3,16 @@
 The objective is the playable game described by the current `deceptus_engine`
 checkout, with its original pixel grid, upstream artwork and gameplay data.
 GBA is the first complete-game target, with SNES retained as a secondary backend.
-GBA now has a thirteen-room opening under development and a separate four-area
+GBA now has a twenty-six-room opening under development and a separate four-area
 curated playable preview. SNES retains its one-room prototype. The complete
 game is not ported. See [current status](docs/STATUS.md) for verified scope.
+
+The intended scope includes every original mechanism, with configured game
+placements driving the implementation order. Menus, music and sound should
+also expose reusable portable services backed by target-specific resource and
+playback code. Preserve source behavior, timing, progression and artwork;
+document any fixed-point physics, palette, shader or audio adaptations rather
+than treating prototype support as complete parity.
 
 ## Source inventory
 
@@ -28,9 +35,9 @@ copies of the game. Unused script files are not mistaken for placed enemies.
 | Original system | Port implementation | Current state |
 | --- | --- | --- |
 | Tiled placements/properties | Build-time object catalog and compact C definitions | Full catalog; supported objects in the prototype crop are imported |
-| C++ mechanisms | Reusable C components with source ids and event queues | Checkpoints, sensors, levers, blocks, damage, timed spikes and collapsing platforms; four linked GBA preview areas playable |
+| C++ mechanisms | Reusable C components with source ids and event queues | Checkpoints, sensors, levers, blocks, damage, timed spikes, collapsing platforms, door, wooden barrier and grab rope; opening subset playable |
 | Lua mechanism callbacks | Parse source, resolve selectors, compile bounded action programs | Two original callbacks verified; complete scripts unsupported |
-| Lua enemies | Native C state machines plus shared movement/animation/weapon services | Rat, arrow trap and normal ground blob implemented; blob variants and 13 placed script types remain |
+| Lua enemies | Native C state machines plus shared movement/animation/weapon services | Rat, arrow trap, normal ground blob, cannon, generated-contour orb and blue frog; unsupported variants/placements remain explicit |
 | Box2D | Fixed-point character/world collision and specific analytical mechanisms | Grid collision, dynamic rectangles and preview wall jumping; slopes/joints and full water fidelity incomplete |
 | Level/cutscene logic | Persistent flags, dialogue, inventory, authored room arrivals and selected interactions | Opening subset implemented; full progression and cutscenes incomplete |
 | Graphics | Lossless import followed by target-specific palette/tile packing | GBA and SNES prototypes; original artwork remains 1:1 |
@@ -56,10 +63,13 @@ source placement counts for these families are:
 | Checkpoints | 6 | Source identity and respawn activation |
 | Levers | 6 | Two-state links, missing-handle restriction, travel/idle frames and interaction cooldown |
 | Damage rectangles | 3 | Configured contact damage |
+| Doors | 1 | Source iron-door timing, reusable red key, collision and open/close cooldown |
+| Destructible blocking rectangles | 2 | Supported wooden barrier durability, source break animation and persistent destruction |
+| Grab ropes | 1 | Airborne grab, hanging, swing, jump release and bounded fixed-point chain; see `docs/ROPE.md` |
 
 Counts describe source placements in supported families, not completed coverage
 of every room. The importer rejects unsupported modes, geometry and timer or
-resource budgets. Moving platforms, ropes, crushers, doors, narrative triggers
+resource budgets. Moving platforms, other rope variants, crushers, narrative triggers
 and the remaining systems still require their own implementations. The GBA
 collapsing-platform route verifies an original placement through standing,
 collapse, falling, return and restart. Native tests cover interval/inverted
@@ -102,9 +112,9 @@ Lua C sources are available, the test also executes the complete original Lua
 file and compares the resulting mechanism states. Both reference cases pass in
 this workspace. No second hand-edited Lua version is maintained.
 
-The source callbacks are tested against a C mechanism fixture. They are not yet
-wired to the owl puzzle in a streamed game world. Compiling two callbacks does
-not make the level script, its events or the puzzle playable.
+The compiled callbacks are tested against a C mechanism fixture. The opening owl
+puzzle is playable through reviewed native adventure bindings; complete source
+level-script event dispatch remains unimplemented.
 
 ## Current playable addition
 

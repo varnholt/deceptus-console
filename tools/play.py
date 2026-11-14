@@ -54,7 +54,7 @@ def play(backend, core, library, rom=None):
         timer_api.timeBeginPeriod(1)
     window = tk.Tk()
     window.title(f"Deceptus — {rom.stem if rom else backend} | " +
-                 ("arrows move / Z or X jump / Up interact / Enter menu / Tab inventory" if backend == 'gba'
+                 ("arrows move / Z or X jump / C sword / Up interact / Enter menu / Tab inventory" if backend == 'gba'
                   else "arrows move / Z jump / Up interact / Enter pause / R restart"))
     canvas = tk.Label(window, borderwidth=0)
     canvas.pack()
@@ -90,7 +90,7 @@ def play(backend, core, library, rom=None):
         if emulator:
             mapping = {"left": 6, "right": 7, "z": 0, "space": 0, "up": 4, "return": 3, "r": 2}
             if backend == 'gba':
-                mapping.update(z=8, space=8, x=0, down=5, tab=2)
+                mapping.update(z=8, space=8, x=0, down=5, tab=2, c=10, q=10, e=11)
             emulator.run(1, [value for key, value in mapping.items() if key in keys])
             image = emulator.last_image
         else:

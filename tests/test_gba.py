@@ -4,6 +4,7 @@ import json
 import sys
 import unittest
 
+import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
@@ -115,11 +116,19 @@ class GbaGraphicsTests(unittest.TestCase):
         graphics = (folder / 'mechanisms.bin').read_bytes()
         palettes = (folder / 'mechanisms.pal').read_bytes()
         table = (folder / 'mechanisms.tbl').read_bytes()
-        self.assertEqual(len(manifest), 494)
+        animations = json.loads((source / 'animations.json').read_text())
+        from gba_assets import SWORD_CLIPS
+        sword_count = sum(animations[name + '_' + side]['sprite_count']
+                          for side in ('r', 'l') for name in SWORD_CLIPS)
+        self.assertEqual(len(manifest), 494 + sword_count + 86 + 4 + 114 + 100 + 3 + 8 + 63 + 8 + 9 + 6)
         atlases = {}
+        # retain exact source-colour checks for all resources except the
+        # explicitly colour-reduced sword range, which has its own checks.
         for resource, frame in enumerate(manifest):
+            if 494 <= resource < 494 + sword_count:
+                continue
             if frame['source'] not in atlases:
-                atlases[frame['source']] = Image.open(source / frame['source']).convert('RGBA')
+                atlases[frame['source']] = Image.open((folder if frame.get('source_generated') else source) / frame['source']).convert('RGBA')
             x, y, width, height = frame['source_rect']
             padded = Image.new('RGBA', frame['size'])
             image = atlases[frame['source']].crop((x, y, x + width, y + height))
@@ -127,10 +136,26 @@ class GbaGraphicsTests(unittest.TestCase):
                 image = image.transpose({90: Image.Transpose.ROTATE_90, 180: Image.Transpose.ROTATE_180, 270: Image.Transpose.ROTATE_270}[frame['rotation']])
             padded.alpha_composite(image)
             count, first = frame['palette_count'], frame['palette_first']
+            self.assertEqual(first % 2, 0, 'palette DMA destination must be 32-bit aligned')
+            self.assertEqual(frame['palette_offset'] % 4, 0, 'palette DMA source must be 32-bit aligned')
+            self.assertEqual(count % 2, 0, 'palette DMA transfer must contain whole 32-bit words')
             palette = struct.unpack_from(f'<{count}H', palettes, frame['palette_offset'])
             descriptor = struct.unpack_from('<IIH4B2x', table, resource * 16)
             self.assertEqual(descriptor, (frame['offset'], frame['palette_offset'], frame['bytes'],
                                          padded.width // 16, padded.height // 16, first, count))
+            reserved = struct.unpack_from('<H', table, resource * 16 + 14)[0]
+            if 'logical_source_rect' in frame:
+                lx, ly, lw, lh = frame['logical_source_rect']
+                dx, dy = frame['trim_offset']
+                self.assertEqual(reserved, dx | (dy << 8))
+                self.assertEqual([x, y], [lx + dx, ly + dy])
+                logical = atlases[frame['source']].crop((lx, ly, lx + lw, ly + lh))
+                opaque_bounds = logical.getchannel('A').point(lambda alpha: 255 if alpha >= 128 else 0).getbbox()
+                self.assertEqual((dx, dy, dx + width, dy + height), opaque_bounds or (0, 0, 1, 1))
+                self.assertFalse(frame['resampling'])
+                self.assertFalse(frame['dithering'])
+            else:
+                self.assertEqual(reserved, 0)
             offset = frame['offset']
             for top in range(0, padded.height, 16):
                 for left in range(0, padded.width, 16):
@@ -148,6 +173,69 @@ class GbaGraphicsTests(unittest.TestCase):
                                     else:
                                         self.assertEqual(index, 0)
             self.assertEqual(offset, frame['offset'] + frame['bytes'])
+
+    def test_sword_frames_preserve_source_grid_with_bounded_palette_error(self):
+        source = ROOT.parent / 'deceptus_engine/data/sprites'
+        folder = graphics_folder()
+        if not (source / 'player.png').exists() or not (folder / 'mechanisms-frames.json').exists():
+            self.skipTest('original assets and a GBA build are required')
+        manifest = json.loads((folder / 'mechanisms-frames.json').read_text())
+        graphics = (folder / 'mechanisms.bin').read_bytes()
+        palettes = (folder / 'mechanisms.pal').read_bytes()
+        table = (folder / 'mechanisms.tbl').read_bytes()
+        animations = json.loads((source / 'animations.json').read_text())
+        from gba_assets import SWORD_CLIPS
+        expected = [(name + '_' + side, index)
+                    for side in ('r', 'l') for name in SWORD_CLIPS
+                    for index in range(animations[name + '_' + side]['sprite_count'])]
+        self.assertEqual(len(manifest[494:638]), len(expected))
+        atlas = Image.open(source / 'player.png').convert('RGBA')
+        error_sum, pixel_count = 0, 0
+        for resource, (frame, (name, step)) in enumerate(zip(manifest[494:638], expected), start=494):
+            animation = animations[name]
+            width, height = animation['frame_size']
+            x, y = animation['frame_offset']
+            x += step * width
+            self.assertEqual(frame['animation'], name)
+            self.assertEqual(frame['source_rect'], [x, y, width, height])
+            self.assertEqual(frame['size'], [(width + 15) // 16 * 16, (height + 15) // 16 * 16])
+            self.assertEqual((frame['palette_first'], frame['palette_count']), (2, 32))
+            self.assertEqual(frame['palette_first'] % 2, 0)
+            self.assertEqual(frame['palette_offset'] % 4, 0)
+            self.assertEqual(frame['palette_count'] % 2, 0)
+            # sword replaces the normal player, but can share a view with every
+            # imported mechanism without overlapping its palette reservation.
+            for other in manifest[:494]:
+                self.assertGreaterEqual(other['palette_first'], 34)
+            self.assertTrue(frame['palette_reduced'])
+            self.assertFalse(frame['dithering'])
+            self.assertFalse(frame['resampling'])
+            padded = Image.new('RGBA', frame['size'])
+            padded.alpha_composite(atlas.crop((x, y, x + width, y + height)))
+            pixels = np.asarray(padded)
+            opaque = pixels[:, :, 3] >= 128
+            palette = np.array(struct.unpack_from('<32H', palettes, frame['palette_offset']), dtype=np.int16)
+            colours = np.stack((palette & 31, (palette >> 5) & 31, palette >> 10), axis=1)
+            payload = graphics[frame['offset']:frame['offset'] + frame['bytes']]
+            indices = np.frombuffer(payload, dtype=np.uint8).reshape(padded.height // 16, padded.width // 16,
+                                                                    2, 2, 8, 8)
+            indices = indices.transpose(0, 2, 4, 1, 3, 5).reshape(padded.height, padded.width)
+            self.assertTrue(np.all(indices[~opaque] == 0), name)
+            self.assertTrue(np.all((indices[opaque] >= 2) & (indices[opaque] < 34)), name)
+            source_colours = (pixels[:, :, :3][opaque] >> 3).astype(np.int16)
+            output_colours = colours[indices[opaque] - 2]
+            errors = ((source_colours - output_colours) ** 2).sum(axis=1)
+            # each opaque source pixel must retain its position and choose the
+            # nearest reserved colour: this also rejects dithering and resampling.
+            nearest = ((source_colours[:, None, :] - colours[None, :, :]) ** 2).sum(axis=2).min(axis=1)
+            self.assertTrue(np.array_equal(errors, nearest), name)
+            descriptor = struct.unpack_from('<IIH4B2x', table, resource * 16)
+            self.assertEqual(descriptor, (frame['offset'], frame['palette_offset'], frame['bytes'],
+                                         padded.width // 16, padded.height // 16, 2, 32))
+            error_sum += int(errors.sum())
+            pixel_count += len(errors)
+        # reviewed 32-colour source conversion measures 2.29 RGB555 units per channel.
+        self.assertLessEqual(error_sum / (pixel_count * 3), 2.5)
 
 
 

@@ -27,6 +27,27 @@ static deceptus_u8 overlaps(const deceptus_rect *bounds, deceptus_i16 x, deceptu
 
 deceptus_u8 deceptus_interaction_available(const deceptus_adventure *game, const deceptus_interaction *interaction)
 {
+    deceptus_i16 slot;
+    if (interaction->effect == DECEPTUS_ACTION_EXAMINE_BLOCKER) {
+        slot = deceptus_mechanism_find(&game->campaign.engine.mechanisms, interaction->mechanism_id);
+        if (slot < 0) {
+            return 0;
+        }
+        if (game->campaign.engine.mechanisms.definitions[slot].kind == DECEPTUS_MECH_DOOR) {
+            if (game->campaign.engine.mechanisms.states[slot].enabled) {
+                return 0;
+            }
+        } else if (!game->campaign.engine.mechanisms.states[slot].active ||
+                   game->campaign.engine.mechanisms.states[slot].triggered) {
+            return 0;
+        }
+    }
+    if (interaction->effect == DECEPTUS_ACTION_SWORD && interaction->mechanism_id) {
+        slot = deceptus_mechanism_find(&game->campaign.engine.mechanisms, interaction->mechanism_id);
+        if (slot < 0 || game->campaign.engine.mechanisms.states[slot].enabled) {
+            return 0;
+        }
+    }
     return (game->flags & interaction->required_flags) == interaction->required_flags &&
            !(game->flags & interaction->forbidden_flags) &&
            (!interaction->cost_item ||
@@ -37,6 +58,7 @@ void deceptus_adventure_init(deceptus_adventure *game, const deceptus_adventure_
                              const deceptus_video_caps *video)
 {
     deceptus_video_caps saved_video;
+    deceptus_u8 index;
     saved_video = *video;
     memset(game, 0, sizeof(*game));
     game->definition = definition;
@@ -50,6 +72,15 @@ void deceptus_adventure_init(deceptus_adventure *game, const deceptus_adventure_
     }
     game->campaign.definition = definition->campaign;
     game->campaign.video = saved_video;
+    for (index = 0; index < definition->campaign->room_count; ++index) {
+        if (!definition->campaign->rooms[index] ||
+            (definition->rooms[index].binding_count && !definition->rooms[index].bindings) ||
+            (definition->rooms[index].portal_count && !definition->rooms[index].portals) ||
+            (definition->rooms[index].interaction_count && !definition->rooms[index].interactions)) {
+            game->campaign.engine.content_error = 8;
+            return;
+        }
+    }
     deceptus_init(&game->campaign.engine, definition->campaign->rooms[0], &saved_video);
     deceptus_tick(&game->campaign.engine, 0);
 }
@@ -62,6 +93,52 @@ static void save_room(deceptus_adventure *game)
     game->visited[room] = 1;
 }
 
+static deceptus_u8 linked_valid(const deceptus_mechanism_set *set, deceptus_u16 source_id)
+{
+    return deceptus_mechanism_find(set, source_id) >= 0;
+}
+
+static void enable_linked(deceptus_mechanism_set *set, deceptus_u16 source_id, deceptus_u8 enabled)
+{
+    const deceptus_mechanism_def *definition;
+    deceptus_i16 slot;
+    deceptus_u16 target;
+    slot = deceptus_mechanism_find(set, source_id);
+    if (slot < 0) {
+        return;
+    }
+    definition = &set->definitions[slot];
+    deceptus_mechanism_enable(set, source_id, enabled);
+    for (target = 0; target < definition->target_count; ++target) {
+        deceptus_mechanism_enable(set, set->targets[definition->target_first + target], enabled);
+    }
+}
+
+static void apply_bindings(deceptus_adventure *game)
+{
+    const deceptus_adventure_room *room;
+    const deceptus_adventure_binding *binding;
+    deceptus_u8 index;
+    room = &game->definition->rooms[game->campaign.room_index];
+    for (index = 0; index < room->binding_count; ++index) {
+        binding = &room->bindings[index];
+        if ((game->flags & binding->required_flags) != binding->required_flags ||
+            (game->flags & binding->forbidden_flags)) {
+            continue;
+        }
+        /* the eyes appear immediately; the source ward releases 0.45 seconds later. */
+        if (game->pending_ticks && game->pending_room == game->campaign.room_index &&
+            game->pending_action->mechanism_id == binding->mechanism_id) {
+            continue;
+        }
+        if (!linked_valid(&game->campaign.engine.mechanisms, binding->mechanism_id)) {
+            game->campaign.engine.content_error = 8;
+            return;
+        }
+        enable_linked(&game->campaign.engine.mechanisms, binding->mechanism_id, binding->enabled);
+    }
+}
+
 static void load_room(deceptus_adventure *game, deceptus_u8 room, deceptus_u16 buttons)
 {
     deceptus_engine *engine;
@@ -70,10 +147,12 @@ static void load_room(deceptus_adventure *game, deceptus_u8 room, deceptus_u16 b
     health = engine->health;
     game->campaign.room_index = room;
     deceptus_init(engine, game->definition->campaign->rooms[room], &game->campaign.video);
+    deceptus_playersword_init(&game->sword);
     engine->health = health;
     if (game->visited[room]) {
         memcpy(engine->mechanisms.states, game->saved[room], sizeof(game->saved[room]));
     }
+    apply_bindings(game);
     engine->previous_buttons = buttons;
     game->automatic_action = 0;
     game->automatic_ticks = 0;
@@ -92,24 +171,53 @@ static deceptus_u8 interact(deceptus_adventure *game, const deceptus_interaction
             return 0;
         }
     }
+    if (action->effect == DECEPTUS_ACTION_DOOR) {
+        slot = deceptus_mechanism_find(&game->campaign.engine.mechanisms, action->mechanism_id);
+        if (slot < 0 || game->campaign.engine.mechanisms.definitions[slot].kind != DECEPTUS_MECH_DOOR ||
+            game->campaign.engine.mechanisms.states[slot].cooldown) {
+            return 0;
+        }
+    }
+    if ((action->effect == DECEPTUS_ACTION_DISABLE_LINKED || action->effect == DECEPTUS_ACTION_OWL_EYES) &&
+        (!linked_valid(&game->campaign.engine.mechanisms, action->mechanism_id) ||
+         (action->effect == DECEPTUS_ACTION_OWL_EYES && game->pending_ticks))) {
+        return 0;
+    }
     if (action->grant_item &&
         (action->grant_item >= DECEPTUS_INVENTORY_ITEMS || game->inventory.counts[action->grant_item] == 255)) {
         return 0;
     }
-    if (action->cost_item && !deceptus_inventory_remove(&game->inventory, action->cost_item)) {
+    if (action->cost_item && action->effect != DECEPTUS_ACTION_DOOR &&
+        !deceptus_inventory_remove(&game->inventory, action->cost_item)) {
         return 0;
     }
     if (action->grant_item) {
         deceptus_inventory_add(&game->inventory, action->grant_item);
     }
-    if (slot >= 0) {
+    if (slot >= 0 && action->effect == DECEPTUS_ACTION_HANDLE) {
         game->campaign.engine.mechanisms.states[slot].handle_available = 1;
     }
     game->flags |= action->set_flags;
-    deceptus_event_push(&game->campaign.engine, action->grant_item  ? DECEPTUS_EVENT_ITEM
-                                                : action->effect    ? DECEPTUS_EVENT_LEVER_INSERT
-                                                : action->cost_item ? DECEPTUS_EVENT_DOOR
-                                                                    : DECEPTUS_EVENT_DIALOGUE);
+    if (action->effect == DECEPTUS_ACTION_DISABLE_LINKED) {
+        enable_linked(&game->campaign.engine.mechanisms, action->mechanism_id, 0);
+    } else if (action->effect == DECEPTUS_ACTION_OWL_EYES) {
+        game->pending_action = action;
+        game->pending_room = game->campaign.room_index;
+        game->pending_ticks = 27;
+    } else if (action->effect == DECEPTUS_ACTION_SWORD) {
+        game->has_sword = 1;
+    } else if (action->effect == DECEPTUS_ACTION_DOOR) {
+        deceptus_mechanism_enable(&game->campaign.engine.mechanisms, action->mechanism_id,
+                                  !game->campaign.engine.mechanisms.states[slot].enabled);
+    }
+    apply_bindings(game);
+    deceptus_event_push(&game->campaign.engine, action->effect == DECEPTUS_ACTION_DOOR ? DECEPTUS_EVENT_DOOR
+                                                : action->effect == DECEPTUS_ACTION_EXAMINE_BLOCKER
+                                                    ? DECEPTUS_EVENT_DIALOGUE
+                                                : action->grant_item ? DECEPTUS_EVENT_ITEM
+                                                : action->effect     ? DECEPTUS_EVENT_LEVER_INSERT
+                                                : action->cost_item  ? DECEPTUS_EVENT_DOOR
+                                                                     : DECEPTUS_EVENT_DIALOGUE);
     if (action->page_count) {
         game->dialogue = action;
         game->page = 0;
@@ -216,6 +324,21 @@ deceptus_u8 deceptus_adventure_tick(deceptus_adventure *game, deceptus_u16 butto
         return 0;
     }
     if (campaign->mode == DECEPTUS_MENU_CONTROLS || campaign->mode == DECEPTUS_MENU_INVENTORY) {
+        if (campaign->mode == DECEPTUS_MENU_INVENTORY && (pressed & (DECEPTUS_UP | DECEPTUS_DOWN))) {
+            for (index = 0; index < game->definition->item_count; ++index) {
+                if (pressed & DECEPTUS_UP) {
+                    game->selection = game->selection > 1 ? game->selection - 1 : game->definition->item_count;
+                } else {
+                    game->selection = game->selection < game->definition->item_count ? game->selection + 1 : 1;
+                }
+                if (game->inventory.counts[game->selection]) {
+                    break;
+                }
+            }
+            if (index == game->definition->item_count) {
+                game->selection = 0;
+            }
+        }
         if (pressed & (DECEPTUS_BACK | DECEPTUS_RESTART | DECEPTUS_PAUSE | DECEPTUS_ACCEPT | DECEPTUS_JUMP)) {
             campaign->mode = game->menu_return;
             engine->previous_buttons = buttons;
@@ -256,6 +379,13 @@ deceptus_u8 deceptus_adventure_tick(deceptus_adventure *game, deceptus_u16 butto
     if (pressed & DECEPTUS_RESTART) {
         campaign->mode = DECEPTUS_MENU_INVENTORY;
         game->menu_return = DECEPTUS_CAMPAIGN_PLAYING;
+        game->selection = 0;
+        for (index = 1; index <= game->definition->item_count; ++index) {
+            if (game->inventory.counts[index]) {
+                game->selection = index;
+                break;
+            }
+        }
         return 0;
     }
     room = &game->definition->rooms[campaign->room_index];
@@ -290,7 +420,17 @@ deceptus_u8 deceptus_adventure_tick(deceptus_adventure *game, deceptus_u16 butto
         --game->automatic_ticks;
     }
     deaths = engine->deaths;
+    if (game->pending_ticks && !--game->pending_ticks) {
+        if (game->pending_room == campaign->room_index) {
+            enable_linked(&engine->mechanisms, game->pending_action->mechanism_id, 0);
+        }
+        game->pending_action = 0;
+    }
+    apply_bindings(game);
     deceptus_tick(engine, buttons & ~(DECEPTUS_PAUSE | DECEPTUS_RESTART));
+    if (game->has_sword) {
+        deceptus_playersword_tick(&game->sword, engine, pressed);
+    }
     campaign->deaths += engine->deaths - deaths;
     if (game->automatic_action && !game->automatic_ticks) {
         action = game->automatic_action;
@@ -315,10 +455,11 @@ deceptus_u8 deceptus_adventure_tick(deceptus_adventure *game, deceptus_u16 butto
         portal = &room->portals[index];
         direction = (portal->direction == DECEPTUS_PORTAL_LEFT && (buttons & DECEPTUS_LEFT)) ||
                     (portal->direction == DECEPTUS_PORTAL_RIGHT && (buttons & DECEPTUS_RIGHT)) ||
-                    (portal->direction == DECEPTUS_PORTAL_DOWN && engine->entities[0].velocity_y > 0);
+                    (portal->direction == DECEPTUS_PORTAL_DOWN && engine->entities[0].velocity_y > 0) ||
+                    portal->direction == DECEPTUS_PORTAL_TOUCH;
         if (!direction || !overlaps(&portal->bounds, x, y) ||
-            (portal->direction != DECEPTUS_PORTAL_DOWN &&
-             (y < portal->bounds.y || y >= portal->bounds.y + portal->bounds.height))) {
+            ((portal->direction == DECEPTUS_PORTAL_LEFT || portal->direction == DECEPTUS_PORTAL_RIGHT) &&
+             (y < portal->bounds.y || y > portal->bounds.y + portal->bounds.height))) {
             continue;
         }
         if (portal->destination >= game->definition->campaign->room_count) {

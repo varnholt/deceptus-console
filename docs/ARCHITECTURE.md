@@ -13,9 +13,11 @@ shared code under a very different compiler and resource budget.
 | `src/engine/world.c` | Grid collision, dynamic blockers, one-way floors and body clearance |
 | `src/engine/entities.c`, `enemies.c`, `enemies/` | Bounded entity/projectile services and native enemy behavior |
 | `src/engine/player/playerwater.c` | Source atmosphere water detection, swim motion and source-frame timing |
+| `src/engine/player/playerrope.c` | Airborne rope grab, attachment, swing control and release/grace state |
 | `src/engine/mechanisms/`, `logic.c` | Original-named mechanism modules, bounded state/queues and compiled actions |
 | `src/engine/adventure.c` | Inventory transactions, interaction conditions, dialogue/menu modes, portals and room state |
 | `src/game/deceptus.c`, `campaign.c` | Player/game rules and the curated preview campaign |
+| `src/game/weapons/playersword.c` | Source sword timing, hit bounds and supported blob damage |
 | `src/platform/gba/` | Registers, input, DMA, tile residency, OAM, menus, UI and cartridge startup |
 | `src/platform/snes/` | SNES/PVSnesLib video, input and prototype frontend |
 | `src/platform/host/` | Native preview bridge |
@@ -44,6 +46,9 @@ counterparts live under `deceptus_engine/src/game/mechanisms/`.
 | `sensorrect.cpp` | `sensorrect.c` | Enter/leave notifications |
 | `damagerect.cpp` | `damagerect.c` | Contact damage notification |
 | `blockingrect.cpp` | `blockingrect.c` | Common dynamic-solid query for supported blocker families |
+| `door.cpp` | `door.c` | Reusable-key opening, source frame timing, cooldown and collision |
+| `destructibleblockingrect.cpp` | `destructibleblockingrect.c` | Sword damage, destruction animation and persistent removed blockers |
+| `rope.cpp`, `grabrope.cpp` | `grabrope.c` | Bounded chain constraints, static/dynamic collision, cached arc lengths and render-point queries |
 
 `switchanimation.c` holds the shared on/off/spike animation queue implementation.
 Its frame rules come from the original families, not a new visual design.
@@ -56,7 +61,11 @@ objects. This intentionally preserves static cross-family inlining, the existing
 GBA IWRAM placement and the SNES compiler's optimization scope. CMake lists the
 private modules as header-only sources for IDE navigation. The public API stays
 in `include/deceptus/mechanisms.h`; no virtual dispatch, heap objects or additional
-per-instance state are introduced by the source split.
+per-instance state are introduced by the source split. Mechanism definitions
+are immutable imported data; mutable instances live in the caller-owned
+`deceptus_mechanism_set`. Source ids link levers, interactions and saved room
+state to those instances. Collision queries and logical visual state are shared;
+the backend selects console graphics without implementing mechanism rules.
 
 Use matching source basenames for future enemy ports, such as `blob_2.c` for
 `blob_2.lua`. Keep source object ids, properties and state meanings. The C90,
@@ -85,7 +94,7 @@ player frames supply the presentation.
 
 `deceptus_adventure` wraps the campaign/engine and stores inventory counts,
 progression flags, active dialogue/page, menu selection, portal cooldown and
-per-room mechanism snapshots. Current capacities are sixteen rooms (thirteen imported) and sixteen
+per-room mechanism snapshots. Current capacities are thirty-two rooms (twenty-six imported) and sixteen
 inventory slots, including reserved item zero. Progression is in-memory only.
 
 Interactions refer to source identities and bounded rectangles. Required and
@@ -93,6 +102,12 @@ forbidden flags select available actions. Item consumption, item grant and
 handle installation are validated before committing the transaction. Fitting
 a handle consumes the interaction input so it cannot also operate the lever on
 the same press.
+
+Persistent source bindings reapply the headtorch tunnel, released sword cage and
+graveyard sinkhole state when entering a room. Ruby insertion consumes the gems
+immediately; a bounded 27-tick timer releases the linked cage rectangles. Leaving
+and returning during this delay preserves its remaining time. Sword ownership
+persists across rooms; its animation and enemy damage state reset with the room.
 
 Horizontal portals use the original authored entrance rectangles and arrival
 positions. Room changes save and restore mechanism state and keep inventory and

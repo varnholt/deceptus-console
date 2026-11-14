@@ -10,19 +10,31 @@ add_custom_target(gba_rom
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "building the GBA ROM from the original content")
 
+add_custom_target(snes_rom
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_snes.py" --data "${DECEPTUS_DATA_DIR}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "building the retained SNES prototype")
+
+add_custom_target(console_roms
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_consoles.py" --data "${DECEPTUS_DATA_DIR}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "building the GBA opening and SNES prototype in parallel")
+
 add_custom_target(convert_assets
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/assets.py" --import-data "${DECEPTUS_DATA_DIR}"
     BYPRODUCTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/generated/room.c"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "converting assets from the main engine checkout")
 
-add_library(deceptus_engine STATIC src/engine/player/playerwater.c src/engine/world.c src/engine/entities.c src/engine/mechanisms.c src/engine/logic.c src/engine/enemies.c src/engine/animation.c src/engine/adventure.c)
+add_library(deceptus_engine STATIC src/engine/player/playerwater.c src/engine/player/playerrope.c src/engine/mechanisms/grabrope.c src/engine/world.c src/engine/entities.c src/engine/mechanisms.c src/engine/logic.c src/engine/enemies.c src/engine/animation.c)
 # private modules remain visible to IDEs, but mechanisms.c compiles them together.
 set(DECEPTUS_MECHANISM_PARTS
     src/engine/mechanisms/blockingrect.c
     src/engine/mechanisms/checkpoint.c
     src/engine/mechanisms/collapsingplatform.c
     src/engine/mechanisms/damagerect.c
+    src/engine/mechanisms/door.c
+    src/engine/mechanisms/destructibleblockingrect.c
     src/engine/mechanisms/gamemechanism.c
     src/engine/mechanisms/lever.c
     src/engine/mechanisms/onoffblock.c
@@ -35,7 +47,7 @@ set_source_files_properties(${DECEPTUS_MECHANISM_PARTS} PROPERTIES HEADER_FILE_O
 target_sources(deceptus_engine PRIVATE ${DECEPTUS_MECHANISM_PARTS})
 target_include_directories(deceptus_engine PUBLIC include)
 set_target_properties(deceptus_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
-add_library(deceptus_game STATIC src/game/deceptus.c src/game/campaign.c)
+add_library(deceptus_game STATIC src/game/deceptus.c src/game/campaign.c src/engine/adventure.c src/game/weapons/playersword.c)
 target_link_libraries(deceptus_game PUBLIC deceptus_engine)
 set_target_properties(deceptus_game PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
@@ -52,6 +64,16 @@ add_dependencies(deceptus_preview convert_assets)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(gba_runtime_tests tests/gba_runtime_tests.c src/platform/gba/runtime.c)
+    target_include_directories(gba_runtime_tests PRIVATE include)
+    target_compile_definitions(gba_runtime_tests PRIVATE memset=deceptus_test_memset memcpy=deceptus_test_memcpy)
+    add_test(NAME gba_runtime COMMAND gba_runtime_tests)
+    add_executable(playerrope_tests tests/playerrope_tests.c)
+    target_link_libraries(playerrope_tests PRIVATE deceptus_game)
+    add_test(NAME playerrope COMMAND playerrope_tests)
+    add_executable(playersword_tests tests/playersword_tests.c)
+    target_link_libraries(playersword_tests PRIVATE deceptus_game)
+    add_test(NAME playersword COMMAND playersword_tests)
     add_executable(playerwater_tests tests/playerwater_tests.c)
     target_link_libraries(playerwater_tests PRIVATE deceptus_game)
     add_test(NAME playerwater COMMAND playerwater_tests)

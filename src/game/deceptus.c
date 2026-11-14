@@ -38,6 +38,7 @@ static void respawn(deceptus_engine *engine)
     player->crouched = 0;
     player->bend_ticks = 0;
     player->drop_ticks = 0;
+    deceptus_playerrope_reset(engine);
 }
 
 static void update_camera(deceptus_engine *engine)
@@ -84,6 +85,9 @@ void deceptus_init(deceptus_engine *engine, const deceptus_room *room, const dec
     engine->content_error = !deceptus_mechanisms_init(&engine->mechanisms, room->mechanisms, room->mechanism_count,
                                                       room->mechanism_targets, room->mechanism_target_count);
     deceptus_mechanisms_configure(&engine->mechanisms, room->mechanism_timings);
+    if (!deceptus_grabropes_init(engine)) {
+        engine->content_error = 9;
+    }
     deceptus_spawn(engine, DECEPTUS_PLAYER, room->spawn_x, room->spawn_y);
     if (room->patrol_x >= 0) {
         deceptus_spawn(engine, DECEPTUS_PATROL, room->patrol_x, room->patrol_y);
@@ -118,6 +122,10 @@ static void update_player(deceptus_engine *engine, const deceptus_input *input)
     deceptus_u8 height, was_grounded;
     player = &engine->entities[0];
     if (deceptus_player_water_tick(engine, input)) {
+        deceptus_playerrope_reset(engine);
+        return;
+    }
+    if (deceptus_playerrope_tick(engine, input)) {
         return;
     }
     was_grounded = player->grounded;
@@ -303,6 +311,7 @@ static void update_actors(deceptus_engine *engine, const deceptus_input *input)
 
 void deceptus_place_player(deceptus_engine *engine, deceptus_i16 x, deceptus_i16 y)
 {
+    deceptus_playerrope_reset(engine);
     engine->entities[0].x = DECEPTUS_FIXED(x);
     engine->entities[0].y = DECEPTUS_FIXED(y);
     engine->entities[0].velocity_x = 0;
@@ -345,6 +354,7 @@ void deceptus_tick(deceptus_engine *engine, deceptus_u16 buttons)
     if (engine->hurt_ticks) {
         --engine->hurt_ticks;
     }
+    deceptus_grabropes_tick(engine);
     update_player(engine, &input);
     player = &engine->entities[0];
     player_rect.x = deceptus_floor(player->x) - PLAYER_HALF_WIDTH;
@@ -411,7 +421,11 @@ void deceptus_render(const deceptus_engine *engine, deceptus_frame *frame)
         }
         screen_x = deceptus_floor(entity->x) - engine->camera_x - 16;
         screen_y = deceptus_floor(entity->y) - engine->camera_y - 48;
-        if (screen_x <= -32 || screen_x >= engine->video.width || screen_y <= -48 || screen_y >= engine->video.height) {
+        if (index == 0 && engine->player_rope.attached) {
+            screen_x -= 20;
+        }
+        if (screen_x <= (index == 0 && engine->player_rope.attached ? -72 : -32) || screen_x >= engine->video.width ||
+            screen_y <= -48 || screen_y >= engine->video.height) {
             continue;
         }
         if (frame->count >= DECEPTUS_DRAW_CAPACITY || frame->count >= engine->video.max_draws) {
@@ -424,7 +438,11 @@ void deceptus_render(const deceptus_engine *engine, deceptus_frame *frame)
         draw->palette = entity->kind == DECEPTUS_PATROL ? 1 : 0;
         draw->flip_x = entity->facing_left;
         draw->kind = entity->kind;
-        if (index == 0 && entity->in_water) {
+        if (index == 0 && engine->player_rope.attached) {
+            draw->kind = DECEPTUS_PLAYER_ROPE;
+            draw->frame = entity->frame + (entity->facing_left ? 3 : 0);
+            draw->flip_x = 0;
+        } else if (index == 0 && entity->in_water) {
             draw->kind = DECEPTUS_PLAYER_SWIM;
             draw->x -= 20;
             draw->frame += entity->facing_left ? 13 : 0;

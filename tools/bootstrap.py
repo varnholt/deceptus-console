@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import platform
+import struct
 import urllib.request
 import zipfile
 
@@ -32,6 +33,30 @@ def extract(archive, destination):
                 permissions = entry.external_attr >> 16
                 if permissions:
                     (destination / entry.filename).chmod(permissions)
+
+
+def ensure_emulator(target):
+    """Fetch a missing player core without installing a compiler or SDK."""
+    names = {'gba': 'mgba', 'snes': 'snes9x'}
+    name = names[target]
+    if platform.system() != 'Windows' or platform.machine().lower() not in ('amd64', 'x86_64') or struct.calcsize('P') != 8:
+        raise SystemExit('automatic emulator setup requires Windows x64 Python; supply a native core with --core PATH')
+    folder = ROOT / '.tools'
+    core = folder / name / f'{name}_libretro.dll'
+    if core.is_file():
+        return core
+    folder.mkdir(parents=True, exist_ok=True)
+    url = f'https://buildbot.libretro.com/nightly/windows/x86_64/latest/{name}_libretro.dll.zip'
+    archive = folder / f'{name}_libretro.zip'
+    checksum = download(url, archive)
+    extract(archive, core.parent)
+    if not core.is_file():
+        raise RuntimeError(f'emulator archive did not contain {core.name}')
+    manifest_path = folder / 'downloads.json'
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    manifest[name] = {'url': url, 'sha256': checksum, 'channel': 'nightly; cached until removed'}
+    manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+    return core
 
 
 def bootstrap(emulator=False, target='snes'):

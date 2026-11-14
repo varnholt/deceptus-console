@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 import re
 import struct
-from PIL import Image, ImageDraw, ImageFont
+import hashlib
+from PIL import Image, ImageDraw, ImageFont, __version__ as pillow_version
+import numpy as np
 import gba_assets
 from assets import ROOT
 
@@ -20,11 +22,65 @@ def font_tiles(data, output):
     (output / 'font.bin').write_bytes(tiles)
 
 
-def compile_campaign(data, config=None, scene='tonight'):
+def asset_identity(data):
+    """Hash the original inputs and converter code before opting into room reuse."""
+    data = Path(data)
+    files = []
+    for name in ('level-catacombs','level-graveyard','sprites','scripts','fonts','config','effects','weapons','shaders','light'):
+        files += sorted(path for path in (data/name).rglob('*') if path.is_file())
+    digest = hashlib.sha256()
+    for path in files:
+        digest.update(path.relative_to(data).as_posix().encode())
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    for name in ('watersurface.cpp','watersurface.h','ringshaderlayer.cpp','ringshaderlayer.h','shaderlayer.cpp','shaderlayer.h'):
+        path=data.parent/'src/game/mechanisms'/name
+        if path.exists():
+            digest.update(name.encode())
+            digest.update(path.read_bytes())
+    for relative in ('src/game/items/itemheadtorch.cpp','src/game/items/itemheadtorch.h',
+                     'src/game/player/playereyepositions.cpp','src/game/player/playereyepositions.h',
+                     'src/game/effects/lightsystem.cpp','src/game/effects/lightsystem.h',
+                     'src/game/mechanisms/rope.cpp','src/game/mechanisms/rope.h',
+                     'src/game/mechanisms/grabrope.cpp','src/game/mechanisms/grabrope.h',
+                     'src/game/player/playerrope.cpp','src/game/player/playerrope.h',
+                     'src/game/player/playerropehold.cpp','src/game/player/playerropehold.h',
+                     'src/game/player/playeranimation.cpp','src/game/player/playeranimation.h',
+                     'src/game/level/tmxenemy.cpp','src/game/level/tmxenemy.h','src/game/level/level.cpp'):
+        path=data.parent/relative
+        if path.exists():
+            digest.update(relative.encode())
+            digest.update(path.read_bytes())
+    source_digest = digest.hexdigest()
+    digest = hashlib.sha256()
+    digest.update((pillow_version+np.__version__).encode())
+    for name in ('assets.py','gba_assets.py','campaign_assets.py','tiled.py','palettes.py',
+                 'world_export.py','content.py','lua_source.py','enemies.py','scenery.py','tileanimation.py','water.py','ringshader.py','headtorch_assets.py','rope_assets.py','enemy_paths.py'):
+        digest.update(name.encode())
+        digest.update((ROOT/'tools'/name).read_bytes())
+    return dict(source_sha256=source_digest,converters_sha256=digest.hexdigest())
+
+
+
+ROOM_OUTPUTS = ('room.c','gba_assets.h','data.s','budget.json','background.pal','stream-patterns.bin','stream-cells.bin',
+                'animation-cells.bin','animation-durations.bin','foreground-cells.bin',
+                'gba_sword_resources.h','gba_headtorch_resources.h','gba_rope_resources.h','mechanisms.bin','mechanisms.pal','mechanisms.tbl','mechanisms-frames.json')
+
+
+def validate_room_assets(folder, expected):
+    manifest_path=folder/'asset-inputs.json'
+    if not manifest_path.exists() or json.loads(manifest_path.read_text()) != expected:
+        raise ValueError(f'{folder.name}: room assets cannot be reused after input changes; run a full conversion')
+    for filename in ROOM_OUTPUTS:
+        if not (folder/filename).is_file():
+            raise ValueError(f'{folder.name}: missing converted asset {filename}; run a full conversion')
+
+
+def compile_campaign(data, config=None, scene='tonight', reuse_assets=False):
     config = config or json.loads((ROOT / 'assets/campaigns/tonight.json').read_text())
     output = ROOT / 'assets/generated/gba'
     output.mkdir(parents=True, exist_ok=True)
     common_source = ROOT / 'assets/source/campaign'
+    identity = asset_identity(data)
     assemblies, room_sources, stages, goals, reports = [], [], [], [], []
     header = None
     for index, stage in enumerate(config['stages']):
@@ -33,10 +89,18 @@ def compile_campaign(data, config=None, scene='tonight'):
         recipe = stage.get('room_recipe') or json.loads((ROOT / 'assets/rooms' / stage['recipe']).read_text())
         recipe.update(stream_background=True, max_health=100)
         recipe_path = folder / 'recipe.json'
+        manifest_path = folder / 'asset-inputs.json'
+        expected = dict(identity,recipe=recipe)
+        if reuse_assets:
+            validate_room_assets(folder,expected)
+        else:
+            manifest_path.unlink(missing_ok=True)
         recipe_path.write_text(json.dumps(recipe, indent=2) + '\n')
         gba_assets.OUTPUT = folder
         gba_assets.SOURCE = common_source / f'area{index}'
-        gba_assets.compile_assets(data, stage.get('recipe', scene), recipe_path)
+        if not reuse_assets:
+            gba_assets.compile_assets(data, stage.get('recipe', scene), recipe_path)
+            manifest_path.write_text(json.dumps(expected,sort_keys=True,indent=2)+'\n')
         report = json.loads((folder / 'budget.json').read_text())
         reports.append(report)
         prefix = f'gba_area{index}'

@@ -190,8 +190,55 @@ def pack_objects(indices):
     return graphics
 
 
+SWORD_CLIPS = ['player_idle_sword', 'player_run_sword', 'player_jump_up_sword',
+               'player_jump_midair_sword', 'player_jump_down_sword', 'player_bend_down_idle_sword',
+               'player_swim_idle_sword', 'player_swim_sword', 'player_standing_attack_sword_1',
+               'player_bend_down_attack_sword_1', 'player_jump_attack_sword']
+
+
+def sword_frames(data, output):
+    animations = json.loads((data / 'sprites/animations.json').read_text())
+    frames, clips = [], []
+    for side in ('r', 'l'):
+        for name in SWORD_CLIPS:
+            animation = animations[name + '_' + side]
+            first, elapsed, previous = len(frames), 0, 0
+            x, y = animation['frame_offset']
+            width, height = animation['frame_size']
+            for index, duration in enumerate(animation['frame_durations']):
+                elapsed += duration
+                tick = (elapsed * 60 + 999) // 1000
+                frames.append(dict(source_rect=[x + index * width, y, width, height],
+                                   duration=tick - previous, animation=name + '_' + side))
+                previous = tick
+            if len(frames) - first != animation['sprite_count']:
+                raise ValueError(f'{name}: sword animation frame count differs')
+            clips.append([first, animation['sprite_count'], *map(int, animation['origin'])])
+    if len(frames) > 255:
+        raise ValueError('equipped sword frames exceed logical draw frame capacity')
+    lines = ['/* native source rectangles, origins and 60hz frame durations. */',
+             '#ifndef GBA_SWORD_RESOURCES_H', '#define GBA_SWORD_RESOURCES_H',
+             'static const deceptus_u8 gba_sword_clips[][4] = {']
+    lines.extend('    {' + ', '.join(map(str, clip)) + '},' for clip in clips)
+    lines.extend(['};', 'static const deceptus_u8 gba_sword_durations[] = {',
+                  '    ' + ', '.join(str(frame['duration']) for frame in frames), '};', '#endif'])
+    (output / 'gba_sword_resources.h').write_text('\n'.join(lines) + '\n')
+    return frames
+
+
 def compile_mechanisms(data, output):
     graphics, palettes, descriptors, manifest = bytearray(), bytearray(), bytearray(), []
+    sword = sword_frames(data, output)
+    from headtorch_assets import compile_headtorch
+    compile_headtorch(data, output)
+    from rope_assets import compile_rope
+    rope = compile_rope(data, output)
+    doors = json.loads((data / 'sprites/door_animations.json').read_text())
+    for name, offset in [('iron_door_open', [0, 0]), ('iron_door_close', [0, 144])]:
+        animation = doors[name]
+        if (animation['frame_size'] != [96, 144] or animation['frame_offset'] != offset or
+                animation['sprite_count'] != 57 or animation['frame_durations'] != [20] * 57):
+            raise ValueError('iron door animation differs from the source-timed runtime contract')
     specifications = [('levers.png', 72, 72, 11, 33, 52, 136, False),
                       ('enemy_spikeblock.png', 24, 24, 8, 40, 188, 12, False),
                       ('on_off_block.png', 24, 24, 8, 32, 200, 12, True),
@@ -202,14 +249,56 @@ def compile_mechanisms(data, output):
                       ('../weapons/arrow.png', 24, 24, 15, 16, 80, 16, True),
                       ('player-swim',72,48,8,26,128,32,True),
                       ('enemy_blob_2.png',72,72,16,61,96,32,True),
-                      ('player-splash',72,72,20,20,160,28,True)]
+                      ('player-splash',72,72,20,20,160,28,True),
+                      # equipped sword replaces the unarmed player's OBJ palette.
+                      # retain a 32-bit DMA-aligned first colour, excluding zero,
+                      # and leave all mechanism ranges (52+) free.
+                      ('player-sword',72,48,1,len(sword),2,32,True),
+                      ('cannon-body',144,72,12,86,52,48,False),
+                      ('cannonball',72,72,4,4,100,46,True),
+                      ('iron-door.png',96,144,57,114,52,24,False),
+                      ('wooden_planks.png',150,163,50,100,52,32,False),
+                      ('player-helmet',24,24,2,2,52,22,True),
+                      ('headtorch-beam.png',64,32,1,1,52,16,True),
+                      ('orb.png',120,120,8,8,52,4,True),
+                      ('frog-blue',48,48,8,63,52,32,False),
+                      ('frog-blue-orb',120,120,8,8,52,4,True),
+                      ('rope-segments.png',16,16,9,9,52,4,True),
+                      ('player-rope',72,48,3,6,2,32,True)]
     for filename, width, height, columns, count, palette_first, palette_count, shared in specifications:
-        actual_filename = 'player.png' if filename in ('player-swim','player-splash') else 'enemy_arrowtrap_2.png' if filename.startswith('trap-') else filename
-        atlas = Image.open(data / 'sprites' / actual_filename).convert('RGBA')
+        actual_filename = ('player.png' if filename in ('player-swim','player-splash','player-sword','player-helmet','player-rope') else
+                           'enemy_arrowtrap_2.png' if filename.startswith('trap-') else
+                           'enemy_pirate_cannon.png' if filename == 'cannon-body' else
+                           'enemy_frog.png' if filename in ('frog-blue', 'frog-blue-orb') else
+                           'enemy_pirate_cannon_cannonball.png' if filename == 'cannonball' else filename)
+        generated = filename in ('headtorch-beam.png', 'rope-segments.png')
+        atlas = Image.open((output if generated else data / 'sprites') / actual_filename).convert('RGBA')
+        if filename == 'wooden_planks.png' and atlas.size != (7500, 326):
+            raise ValueError('wooden plank atlas differs from its authored 50-frame directional layout')
         rects, rotations = [], []
         for index in range(count):
             rotation = None
-            if filename=='player-splash':
+            if filename == 'player-sword':
+                rect = sword[index]['source_rect']
+            elif filename == 'player-rope':
+                rect = rope['player_frames'][index]['source_rect']
+            elif filename == 'player-helmet':
+                rect = [index * 24, 1776, 24, 24]
+            elif filename == 'cannon-body':
+                phase = index % 43
+                row, column = (0, phase) if phase < 3 else (1 + (phase - 3) // 12, (phase - 3) % 12)
+                rect = [column * 144, (row + (index // 43) * 5) * 72, 144, 72]
+            elif filename == 'frog-blue':
+                if index >= 44:
+                    rect = [(index - 44) * 72, 432, 72, 72]
+                else:
+                    phase = index % 22
+                    row, column = ((0, phase) if phase < 8 else
+                                   (1, phase - 8) if phase < 16 else (2, phase - 16))
+                    rect = [768 + column * 48, (row + (index // 22) * 3) * 48, 48, 48]
+            elif filename == 'frog-blue-orb':
+                rect = [index * 120, 312, 120, 120]
+            elif filename=='player-splash':
                 spec=json.loads((data/'sprites/animations.json').read_text())['player_water_splash']
                 x,y=spec['frame_offset'];rect=[x+index*72,y,72,72]
             elif filename=='enemy_blob_2.png':
@@ -249,7 +338,33 @@ def compile_mechanisms(data, output):
         if actual_filename == 'enemy_arrowtrap_2.png':
             pixels = np.asarray(atlas)
             common = set(map(tuple, (pixels[:, :, :3][pixels[:, :, 3] >= 128] >> 3).tolist()))
+        if filename == 'player-sword' and len(common) > palette_count:
+            # sword trails have more colours than the player's reserved OBJ range.
+            # reduce colours only; preserve the source pixel grid without dithering.
+            opaque_pixels = np.concatenate([np.asarray(image)[np.asarray(image)[:, :, 3] >= 128, :3]
+                                            for image in images])
+            sample = Image.fromarray(opaque_pixels.reshape(1, -1, 3))
+            reduced = sample.quantize(colors=palette_count, method=Image.Quantize.MEDIANCUT,
+                                      dither=Image.Dither.NONE).convert('RGB')
+            common = set(map(tuple, (np.asarray(reduced).reshape(-1, 3) >> 3).tolist()))
         for index, image in enumerate(images):
+            trim_x, trim_y = 0, 0
+            logical_rect = rects[index]
+            source_rect = logical_rect
+            trim = filename in ('cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
+                                'orb.png', 'frog-blue', 'frog-blue-orb', 'player-rope')
+            if trim:
+                # omit transparent padding only, keeping the authored logical
+                # rectangle and source-pixel placement through descriptor offsets.
+                bounds = image.getchannel('A').point(lambda alpha: 255 if alpha >= 128 else 0).getbbox()
+                if bounds:
+                    trim_x, trim_y = bounds[:2]
+                    image = image.crop(bounds)
+                else:
+                    image = Image.new('RGBA', (1, 1))
+                if trim_x > 255 or trim_y > 255:
+                    raise ValueError('sprite trim offset exceeds its descriptor budget')
+                source_rect = [logical_rect[0] + trim_x, logical_rect[1] + trim_y, image.width, image.height]
             width, height = image.size
             padded = Image.new('RGBA', (((width + 15) // 16) * 16, ((height + 15) // 16) * 16))
             padded.alpha_composite(image)
@@ -261,16 +376,31 @@ def compile_mechanisms(data, output):
                 raise ValueError(f'{filename} frame {index}: {len(colours)} colours exceed {palette_count}')
             lookup = {colour: palette_first + slot for slot, colour in enumerate(colours)}
             indices = np.zeros(opaque.shape, dtype=np.uint8)
-            for top, left in zip(*np.where(opaque)):
-                indices[top, left] = lookup[tuple(rgb5[top, left])]
+            if filename == 'player-sword':
+                candidates = np.asarray(colours, dtype=np.int16)
+                source = rgb5[opaque].astype(np.int16)
+                nearest = ((source[:, None, :] - candidates[None, :, :]) ** 2).sum(axis=2).argmin(axis=1)
+                indices[opaque] = palette_first + nearest
+            else:
+                for top, left in zip(*np.where(opaque)):
+                    indices[top, left] = lookup[tuple(rgb5[top, left])]
             packed = pack_objects(indices)
             palette = [red | (green << 5) | (blue << 10) for red, green, blue in colours]
             palette += [0] * (palette_count - len(palette))
-            descriptors.extend(struct.pack('<IIH4B2x', len(graphics), len(palettes), len(packed),
-                                           padded.width // 16, padded.height // 16, palette_first, palette_count))
-            manifest.append(dict(source=actual_filename, frame=index, source_rect=rects[index], rotation=rotations[index], size=list(padded.size),
+            descriptors.extend(struct.pack('<IIH4BH', len(graphics), len(palettes), len(packed),
+                                           padded.width // 16, padded.height // 16, palette_first, palette_count,
+                                           trim_x | (trim_y << 8)))
+            manifest.append(dict(source=actual_filename, frame=index, source_rect=source_rect, rotation=rotations[index], size=list(padded.size),
                                  offset=len(graphics), palette_offset=len(palettes), bytes=len(packed),
                                  palette_first=palette_first, palette_count=palette_count))
+            if trim:
+                manifest[-1].update(logical_source_rect=logical_rect, trim_offset=[trim_x, trim_y],
+                                    resampling=False, dithering=False, object_count=(padded.width // 16) * (padded.height // 16))
+            if generated:
+                manifest[-1]['source_generated'] = True
+            if filename == 'player-sword':
+                manifest[-1].update(animation=sword[index]['animation'], duration_ticks=sword[index]['duration'],
+                                    palette_reduced=True, dithering=False, resampling=False)
             graphics.extend(packed)
             palettes.extend(struct.pack(f'<{palette_count}H', *palette))
     (output / 'mechanisms.bin').write_bytes(graphics)
@@ -302,6 +432,11 @@ def compile_assets(data, scene="lever", recipe_path=None):
     if recipe.get('tile_animations'):
         from tileanimation import bake_tile_animations
         animations += bake_tile_animations(data,recipe)
+    if recipe.get('ring_shaders'):
+        from ringshader import bake_ring_shaders
+        if not streamed:
+            raise ValueError('source ring shaders require a streamed room')
+        animations += bake_ring_shaders(data,recipe)
     if len(animations) > 4:
         raise ValueError('room exceeds four background animation clips')
     foreground = Image.open(source/'foreground.png').convert('RGBA') if recipe.get('foreground_layers') else None
@@ -343,7 +478,12 @@ def compile_assets(data, scene="lever", recipe_path=None):
                'typedef struct gba_background_animation { deceptus_u16 left, top, columns, rows, frames, frame_ticks; const deceptus_u8 *cells; deceptus_u16 required_flags, forbidden_flags; const deceptus_u16 *durations; deceptus_u8 plane; } gba_background_animation;',
                'extern const gba_background_animation gba_background_animations[];']
     header += ['typedef struct gba_mechanism_resource { deceptus_u32 offset; deceptus_u32 palette_offset; deceptus_u16 bytes; deceptus_u8 columns, rows, palette_first, palette_count; deceptus_u16 reserved; } gba_mechanism_resource;',
-               '#define GBA_LEVER_FIRST 0', '#define GBA_SPIKES_FIRST 33', '#define GBA_BLOCK_FIRST 73', '#define GBA_COLLAPSE_FIRST 105', '#define GBA_RAT_FIRST 257', '#define GBA_TRAP_FIRST 327', '#define GBA_MUZZLE_FIRST 331', '#define GBA_ARROW_FIRST 371', '#define GBA_SWIM_FIRST 387', '#define GBA_BLOB_FIRST 413', '#define GBA_SPLASH_FIRST 474',
+               '#define GBA_LEVER_FIRST 0', '#define GBA_SPIKES_FIRST 33', '#define GBA_BLOCK_FIRST 73', '#define GBA_COLLAPSE_FIRST 105', '#define GBA_RAT_FIRST 257', '#define GBA_TRAP_FIRST 327', '#define GBA_MUZZLE_FIRST 331', '#define GBA_ARROW_FIRST 371', '#define GBA_SWIM_FIRST 387', '#define GBA_BLOB_FIRST 413', '#define GBA_SPLASH_FIRST 474', '#define GBA_SWORD_FIRST 494',
+               '#define GBA_CANNON_FIRST 638', '#define GBA_CANNONBALL_FIRST 724',
+               '#define GBA_IRON_DOOR_FIRST 728', '#define GBA_WOODEN_PLANKS_FIRST 842',
+               '#define GBA_HEADTORCH_FIRST 942', '#define GBA_HEADTORCH_BEAM_FIRST 944',
+               '#define GBA_ORB_FIRST 945', '#define GBA_FROG_BLUE_FIRST 953', '#define GBA_BLUE_FIREBALL_FIRST 1016',
+               '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033',
                f'#define GBA_MECHANISM_FRAME_COUNT {mechanism_frames}',
                '#define GBA_ACTOR_FRAME_BYTES 1536', f'#define GBA_ACTOR_FRAME_COUNT {ACTOR_FRAME_COUNT}', '#endif', '']
     (OUTPUT / 'data.s').write_text('\n'.join(assembly) + '\n')

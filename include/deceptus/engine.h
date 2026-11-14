@@ -1,7 +1,9 @@
 #ifndef DECEPTUS_ENGINE_H
 #define DECEPTUS_ENGINE_H
 
+#include "deceptus/grabrope.h"
 #include "deceptus/mechanisms.h"
+#include "deceptus/playerrope.h"
 #include "deceptus/types.h"
 
 #define DECEPTUS_ENTITY_CAPACITY 12
@@ -18,6 +20,7 @@
 #define DECEPTUS_DOWN 64
 #define DECEPTUS_ACCEPT 128
 #define DECEPTUS_BACK 256
+#define DECEPTUS_ATTACK 512
 #define DECEPTUS_SKILL_WALL_JUMP 1
 #define DECEPTUS_SKILL_CRAWL 2
 #define DECEPTUS_PLAYER_HEIGHT(player) ((player)->crouched ? 18 : 30)
@@ -33,6 +36,10 @@
 #define DECEPTUS_DOOR 3
 #define DECEPTUS_PLAYER_SWIM 8
 #define DECEPTUS_WATER_SPLASH 10
+#define DECEPTUS_PLAYER_ROPE 19
+#define DECEPTUS_PLAYER_SWORD 11
+#define DECEPTUS_HEADTORCH 14
+#define DECEPTUS_HEADTORCH_BEAM 15
 
 #define DECEPTUS_EVENT_JUMP 1
 #define DECEPTUS_EVENT_HURT 2
@@ -142,6 +149,9 @@ typedef struct deceptus_projectile {
     deceptus_fixed x, y, velocity_x, velocity_y;
     deceptus_u16 age, damage;
     deceptus_u8 active, alignment, gravity;
+    deceptus_u8 kind;
+    deceptus_u8 owner;
+    deceptus_u16 phase;
 } deceptus_projectile;
 
 typedef struct deceptus_engine {
@@ -168,6 +178,8 @@ typedef struct deceptus_engine {
     deceptus_u16 deaths, projectiles_fired;
     deceptus_i16 splash_x, splash_y;
     deceptus_u8 splash_active, splash_frame, splash_elapsed;
+    deceptus_grabrope_set grab_ropes;
+    deceptus_playerrope player_rope;
 } deceptus_engine;
 
 /* initializes caller-owned state; room and collision storage must outlive it. */

@@ -11,7 +11,12 @@ SECTIONS
         KEEP(*(.gba_header))
         KEEP(*(.text.reset))
         *(.romtext*)
-        *(EXCLUDE_FILE (*world.o *enemies.o *deceptus.o *mechanisms.o *main.o) .text*)
+        *enemies.o(.text.deceptus_enemies_init .text.deceptus_enemies_render)
+        *mechanisms.o(.text.deceptus_mechanisms_init .text.deceptus_mechanisms_configure)
+        *deceptus.o(.text.deceptus_init .text.deceptus_place_player)
+        *grabrope.o(.text.deceptus_grabropes_init .text.deceptus_grabrope_length .text.deceptus_grabrope_point_at)
+        *playerrope.o(.text.deceptus_playerrope_reset .text.playerrope_move)
+        *(EXCLUDE_FILE (*world.o *enemies.o *deceptus.o *mechanisms.o *main.o *grabrope.o *playerrope.o) .text*)
         *(.rodata*)
         . = ALIGN(4);
     } > rom
@@ -24,6 +29,8 @@ SECTIONS
         *deceptus.o(.text*)
         *mechanisms.o(.text*)
         *main.o(.text*)
+        *grabrope.o(.text*)
+        *playerrope.o(.text*)
         . = ALIGN(4);
         __iwram_end = .;
     } > iwram AT> rom

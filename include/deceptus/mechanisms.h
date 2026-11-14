@@ -14,11 +14,17 @@
 #define DECEPTUS_MECH_SPIKES 7
 #define DECEPTUS_MECH_COLLAPSING 8
 #define DECEPTUS_MECH_WIND 9
+#define DECEPTUS_MECH_DOOR 10
+#define DECEPTUS_MECH_DESTRUCTIBLE 11
+#define DECEPTUS_MECH_CANNON_BODY 12
+#define DECEPTUS_MECH_GRAB_ROPE 13
 #define DECEPTUS_TIMED_ANIMATION 1
 #define DECEPTUS_TIMED_INTERVAL 2
 #define DECEPTUS_COLLAPSE_ONCE_TOUCHED 4
 #define DECEPTUS_MECH_INVERTED 1
 #define DECEPTUS_MECH_MISSING_HANDLE 2
+#define DECEPTUS_MECH_INVERT_TARGETS 4
+#define DECEPTUS_MECH_RIGHT_ALIGNED 8
 #define DECEPTUS_MECH_ENTER 1
 #define DECEPTUS_MECH_LEAVE 2
 #define DECEPTUS_MECH_ENABLED 3
@@ -99,8 +105,12 @@ deceptus_u8 deceptus_mechanisms_init(deceptus_mechanism_set *set, const deceptus
 void deceptus_mechanisms_configure(deceptus_mechanism_set *set, const deceptus_mechanism_timing *timings);
 deceptus_i16 deceptus_mechanism_find(const deceptus_mechanism_set *set, deceptus_u16 source_id);
 deceptus_u8 deceptus_mechanism_enable(deceptus_mechanism_set *set, deceptus_u16 source_id, deceptus_u8 enabled);
+/* applies one weapon hit to the original destructible blocker durability. */
+deceptus_u8 deceptus_mechanism_hit(deceptus_mechanism_set *set, deceptus_u16 source_id, deceptus_u16 damage);
 /* clears the transient event queue and evaluates one frame of rectangle interactions. */
 void deceptus_mechanisms_tick(deceptus_mechanism_set *set, const deceptus_rect *player, deceptus_u8 interact_pressed);
 deceptus_u8 deceptus_mechanism_solid(const deceptus_mechanism_set *set, const deceptus_rect *bounds);
+/* source cannon gun projectiles ignore cannon enemy fixtures. */
+deceptus_u8 deceptus_mechanism_projectile_solid(const deceptus_mechanism_set *set, const deceptus_rect *bounds);
 
 #endif

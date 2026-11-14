@@ -1,8 +1,9 @@
 #ifndef DECEPTUS_ADVENTURE_H
 #define DECEPTUS_ADVENTURE_H
 #include "deceptus/campaign.h"
+#include "deceptus/playersword.h"
 
-#define DECEPTUS_ADVENTURE_ROOMS 16
+#define DECEPTUS_ADVENTURE_ROOMS 32
 #define DECEPTUS_INVENTORY_ITEMS 16
 #define DECEPTUS_DIALOGUE 4
 #define DECEPTUS_MENU_PAUSE 5
@@ -15,7 +16,13 @@
 #define DECEPTUS_PORTAL_LEFT 1
 #define DECEPTUS_PORTAL_RIGHT 2
 #define DECEPTUS_PORTAL_DOWN 3
+#define DECEPTUS_PORTAL_TOUCH 4
 #define DECEPTUS_ACTION_HANDLE 1
+#define DECEPTUS_ACTION_DISABLE_LINKED 2
+#define DECEPTUS_ACTION_SWORD 3
+#define DECEPTUS_ACTION_OWL_EYES 4
+#define DECEPTUS_ACTION_DOOR 5
+#define DECEPTUS_ACTION_EXAMINE_BLOCKER 6
 #define DECEPTUS_ACTION_NOTIFICATION 128
 
 typedef struct deceptus_inventory {
@@ -44,7 +51,15 @@ typedef struct deceptus_adventure_room {
     const deceptus_portal *portals;
     const deceptus_interaction *interactions;
     deceptus_u8 portal_count, interaction_count;
+    const struct deceptus_adventure_binding *bindings;
+    deceptus_u8 binding_count;
 } deceptus_adventure_room;
+
+/* source level callbacks derived from persistent inventory/treasure flags. */
+typedef struct deceptus_adventure_binding {
+    deceptus_u16 required_flags, forbidden_flags, mechanism_id;
+    deceptus_u8 enabled;
+} deceptus_adventure_binding;
 
 typedef struct deceptus_adventure_def {
     const deceptus_campaign_def *campaign;
@@ -57,12 +72,15 @@ typedef struct deceptus_adventure {
     deceptus_campaign campaign;
     const deceptus_adventure_def *definition;
     deceptus_inventory inventory;
+    deceptus_playersword sword;
     deceptus_mechanism_state saved[DECEPTUS_ADVENTURE_ROOMS][DECEPTUS_MECHANISM_CAPACITY];
     deceptus_u8 visited[DECEPTUS_ADVENTURE_ROOMS];
     deceptus_u16 flags;
     const deceptus_interaction *dialogue;
     const deceptus_interaction *automatic_action;
     deceptus_u8 automatic_ticks;
+    const deceptus_interaction *pending_action;
+    deceptus_u8 pending_room, pending_ticks, has_sword;
     deceptus_u8 page, selection, prompt, portal_cooldown, room_label_ticks, menu_return, options_return;
 } deceptus_adventure;
 

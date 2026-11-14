@@ -133,16 +133,18 @@ def inventory(data, output):
         api.update(re.findall(r'lua_register\([^,]+,\s*"([^"]+)"', (source / name).read_text()))
     referenced_api = sorted({call for module in modules.values() for call in module["calls"] if call in api})
     native_groups = ('collapsing_platforms', 'on_off_blocks', 'spike_blocks', 'sensor_rects',
-                     'blocking_rects', 'checkpoints', 'levers', 'damage_rects')
+                     'blocking_rects', 'checkpoints', 'levers', 'damage_rects', 'doors', 'destructible_blocking_rects', 'grab_ropes')
     mechanism_counts = {group: sum(level['group_counts'].get(group, 0) for level in levels) for group in native_groups}
     summary = {"levels": len(levels), "rooms": sum(level["group_counts"].get("rooms", 0) for level in levels),
         "enemy_placements": sum(active_scripts.values()), "active_enemy_scripts": dict(sorted(active_scripts.items())),
         "reachable_lua_modules": len(modules), "referenced_host_api": referenced_api,
         "compiled_callbacks": callback_support,
         "native_mechanism_family_placements": mechanism_counts,
-        "native_enemy_family_placements": {name: active_scripts[name] for name in ("rat.lua", "arrowtrap_2.lua", "blob_2.lua") if name in active_scripts},
-        "native_enemy_variant_limits": {"blob_2.lua": "normal ground patrol and stomp death; jumping and ceiling-drop variants remain unsupported"},
-        "unported_enemy_types": sorted(set(active_scripts) - {"rat.lua", "arrowtrap_2.lua", "blob_2.lua"}),
+        "native_enemy_family_placements": {name: active_scripts[name] for name in ("rat.lua", "arrowtrap_2.lua", "blob_2.lua", "cannon_2.lua") if name in active_scripts},
+        "native_enemy_variant_limits": {
+            "blob_2.lua": "normal ground patrol and stomp death; jumping and ceiling-drop variants remain unsupported",
+            "cannon_2.lua": "unrotated horizontal source gun, 16fps, fire interval up to15s; bounded circle/AABB collision approximation and no audio"},
+        "unported_enemy_types": sorted(set(active_scripts) - {"rat.lua", "arrowtrap_2.lua", "blob_2.lua", "cannon_2.lua"}),
         "native_mechanism_scope": "C components; import validates supported settings; not all placements are loaded or drawn",
         "full_game_supported": False,
         "remaining": ["room/resource streaming", "remaining mechanisms", "enemy behavior and animations",
@@ -170,14 +172,34 @@ def crop_mechanisms(data, recipe):
     left, top, width, height = recipe["crop_pixels"]
     supported = {"checkpoints": "DECEPTUS_MECH_CHECKPOINT", "sensor_rects": "DECEPTUS_MECH_SENSOR",
                  "levers": "DECEPTUS_MECH_LEVER", "blocking_rects": "DECEPTUS_MECH_BLOCK",
-                 "collapsing_platforms": "DECEPTUS_MECH_COLLAPSING", "on_off_blocks": "DECEPTUS_MECH_BLOCK", "spike_blocks": "DECEPTUS_MECH_SPIKES", "damage_rects": "DECEPTUS_MECH_DAMAGE", "wind": "DECEPTUS_MECH_WIND"}
+                 "collapsing_platforms": "DECEPTUS_MECH_COLLAPSING", "on_off_blocks": "DECEPTUS_MECH_BLOCK", "spike_blocks": "DECEPTUS_MECH_SPIKES", "damage_rects": "DECEPTUS_MECH_DAMAGE", "wind": "DECEPTUS_MECH_WIND",
+                 "doors": "DECEPTUS_MECH_DOOR", "destructible_blocking_rects": "DECEPTUS_MECH_DESTRUCTIBLE",
+                 "enemies": "DECEPTUS_MECH_CANNON_BODY", "grab_ropes": "DECEPTUS_MECH_GRAB_ROPE"}
     selected, unsupported = [], []
     for obj in objects:
-        if obj["x"] >= left + width or obj["y"] >= top + height or obj["x"] + max(1, obj["width"]) <= left or obj["y"] + max(1, obj["height"]) <= top:
+        object_left, object_top = obj['x'], obj['y']
+        object_width, object_height = max(1,obj['width']), max(1,obj['height'])
+        if obj['group'] == 'grab_ropes' and obj.get('points'):
+            object_left += min(point[0] for point in obj['points'])-8
+            object_top += min(point[1] for point in obj['points'])
+            object_width = max(point[0] for point in obj['points'])-min(point[0] for point in obj['points'])+16
+            object_height = max(point[1] for point in obj['points'])-min(point[1] for point in obj['points'])
+        if object_left >= left + width or object_top >= top + height or object_left + object_width <= left or object_top + object_height <= top:
             continue
         reason = None
         if obj["group"] not in supported:
             reason = "runtime or visual adapter not implemented"
+        elif obj['group'] == 'enemies' and obj['properties'].get('script') != 'cannon_2.lua':
+            reason = 'enemy body is handled by its separate behavior importer'
+        elif obj['group'] == 'grab_ropes':
+            points = obj.get('points',[]);props = obj['properties']
+            if (obj['rotation'] or obj['shape'] != 'polyline' or len(points) != 2 or
+                    list(points[0]) != [0,0] or points[1][0] != 0 or not -512 <= points[1][1] < 0 or
+                    not 2 <= int(props.get('segments',7)) <= 24 or obj['width'] or
+                    props.get('texture','data/sprites/ropes.png') != 'data/sprites/ropes.png' or
+                    int(props.get('sprite',1)) != 1 or float(props.get('push_strength',.02)) != 0 or
+                    'player_impulse' in props):
+                reason = 'grab rope requires a vertical source rope, 2..24 links, plain texture and no ambient push'
         elif obj["rotation"] or obj["shape"] != "rectangle":
             reason = "dynamic mechanisms currently require unrotated rectangles"
         elif obj["properties"].get("mode", "lever") not in ("lever", "interval"):
@@ -187,6 +209,29 @@ def crop_mechanisms(data, recipe):
         elif obj["group"] == "collapsing_platforms" and (float(obj["properties"].get("destruction_speed", 30)) != 30 or
                                                         float(obj["properties"].get("fall_speed", 6)) != 6):
             reason = "custom collapse visual speeds are not implemented"
+        elif obj['group'] == 'doors':
+            props = obj['properties']
+            if (props.get('texture') != 'data/sprites/iron-door.png' or
+                    props.get('animation_open') != 'iron_door_open' or
+                    props.get('animation_close') != 'iron_door_close' or
+                    props.get('version') or obj['width'] != 96 or obj['height'] != 144):
+                reason = 'only the source 96x144 animated iron door is implemented'
+            elif props.get('item_required',props.get('key','')) not in ('','red'):
+                reason = 'door inventory item has no native identity binding'
+        elif obj['group'] == 'destructible_blocking_rects':
+            props = obj['properties']
+            if (props.get('texture','data/sprites/wooden_planks.png') != 'data/sprites/wooden_planks.png' or
+                    int(props.get('frame_width',150)) != 150 or int(props.get('frame_height',163)) != 163 or
+                    int(props.get('frame_count',50)) != 50 or float(props.get('animation_speed',40)) != 40):
+                reason = 'only the source 150x163, 50-frame wooden planks at 40fps are implemented'
+        elif obj['group'] == 'enemies':
+            from enemies import constants
+            values = constants(Path(data) / 'scripts/enemies/cannon_2.lua')
+            weapon = values.get('_weapon')
+            period = round(float(obj['properties'].get('fire_interval_s',values['mFireInterval']))*60)
+            if (obj['properties'].get('alignment','left') not in ('left','right') or
+                    weapon != ['WeaponType.Gun',1000,60,0.0,0.2] or not 0 < period <= 900):
+                reason = 'cannon body requires the validated source horizontal gun variant'
         if reason:
             unsupported.append({"id": obj["id"], "name": obj["name"], "group": obj["group"], "reason": reason})
             continue
@@ -211,7 +256,34 @@ def crop_mechanisms(data, recipe):
         bounds = [round(obj["x"] - left), round(obj["y"] - top), round(obj["width"]), round(obj["height"])]
         boolean = lambda value: str(value).lower() in ("true", "1")
         flags = int(boolean(props.get("inverted", False))) | (0 if boolean(props.get("handle_available", True)) else 2)
+        enabled = int(boolean(props.get('enabled',True)))
+        if obj['group'] == 'doors':
+            # door.cpp places its 24x72 physics body one source tile right/down.
+            bounds = [round(obj['x']-left)+24,round(obj['y']-top)+24,24,72]
+            enabled = int(boolean(props.get('open',False)))
+        elif obj['group'] == 'destructible_blocking_rects':
+            right_aligned = boolean(props.get('right_aligned',False))
+            bounds = [round(obj['x']-left)+(102 if right_aligned else 0),round(obj['y']-top),48,96]
+            if right_aligned:
+                flags |= 8
+        elif obj['group'] == 'enemies':
+            # cannon_2.lua addShapeRectBevel(1,.75,.05,0,.25), with 48px/metre.
+            bounds = [round(obj['x']-left),round(obj['y']-top)+12,48,36]
+        elif obj['group'] == 'grab_ropes':
+            bounds = [round(obj['x']-left),round(obj['y']+obj['points'][1][1]-top),7,round(-obj['points'][1][1])]
+        if obj['name'] in recipe.get('native_inverted_levers', []):
+            if obj['group'] != 'levers':
+                raise ValueError('only levers can invert their native target state')
+            flags |= 4
         value = int(props.get("damage", 100)) if obj["group"] in ("damage_rects", "spike_blocks") else int(props.get("index", 0))
+        if obj['group'] == 'doors':
+            value = 7 if props.get('item_required',props.get('key','')) == 'red' else 0
+        elif obj['group'] == 'destructible_blocking_rects':
+            value = int(props.get('max_damage',30))
+            if value <= 0:
+                raise ValueError(f'mechanism {obj["id"]}: durability must be positive')
+        elif obj['group'] == 'grab_ropes':
+            value = int(props.get('segments',7))
         if obj['group']=='wind':
             import math
             dx=float(props.get('direction_x',0));dy=float(props.get('direction_y',0))
@@ -238,9 +310,15 @@ def crop_mechanisms(data, recipe):
                   ticks(props.get('fade_in_duration_s', 1)),
                   int(animated) | (2 if interval else 0) | (4 if boolean(props.get('collapse_once_touched', False)) else 0)]
         definitions.append({"source_id": obj["id"], "name": obj["name"], "kind": supported[obj["group"]],
-                            "bounds": bounds, "timing": timing, "enabled": int(boolean(props.get("enabled", True))), "flags": flags,
+                            "bounds": bounds, "timing": timing, "enabled": enabled, "flags": flags,
                             "value": value, "target_first": first, "target_count": len(targets) - first,
                             "visual_status": "static background" if obj["group"] == "checkpoints" else "not implemented"})
+        if obj['group'] == 'enemies':
+            definitions[-1]['visual_status'] = 'invisible collision body; enemy importer owns artwork'
+            definitions[-1]['collision_note'] = 'source 48x36 body bounds; the 8px collision grid conservatively approximates its 2.4px corner bevel'
+        elif obj['group'] == 'grab_ropes':
+            definitions[-1]['visual_status'] = 'native plain rope strips and source player midair pose'
+            definitions[-1]['simulation_note'] = 'bounded fixed-point chain constraints replace Box2D joints; automatic airborne grab, swing-only hold, jump release'
     return definitions, targets, unsupported
 
 

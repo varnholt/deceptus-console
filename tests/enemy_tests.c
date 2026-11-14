@@ -15,6 +15,78 @@ static int noop(lua_State *state)
     return 0;
 }
 static unsigned reference_blob_frame;
+static unsigned reference_cannon_frame, reference_cannon_last_shot;
+static double reference_orb_x, reference_orb_y, reference_frog_offset_x, reference_frog_offset_y;
+static unsigned reference_orb_frame, reference_frog_frame, reference_frog_orb_frame, reference_frog_visible;
+static deceptus_u16 reference_frog_seed;
+static int record_orb_transform(lua_State *state)
+{
+    reference_orb_x = lua_tonumber(state, 1);
+    reference_orb_y = lua_tonumber(state, 2);
+    return 0;
+}
+static int record_orb_sprite(lua_State *state)
+{
+    reference_orb_frame = (unsigned)lua_tointeger(state, 2) / 120;
+    return 0;
+}
+static int record_frog_sprite(lua_State *state)
+{
+    unsigned x, y, row, column;
+    x = (unsigned)lua_tointeger(state, 2);
+    y = (unsigned)lua_tointeger(state, 3);
+    if (lua_tointeger(state, 1) == 1) {
+        reference_frog_orb_frame = x / 120;
+    } else if (lua_tointeger(state, 4) == 72) {
+        reference_frog_frame = 44 + x / 72;
+    } else {
+        row = y / 48;
+        column = (x - 768) / 48;
+        reference_frog_frame = (row / 3) * 22 + ((row % 3) == 0 ? column : (row % 3) == 1 ? 8 + column : 16 + column);
+    }
+    return 0;
+}
+static int record_frog_visible(lua_State *state)
+{
+    if (lua_tointeger(state, 1) == 1) {
+        reference_frog_visible = lua_toboolean(state, 2);
+    }
+    return 0;
+}
+static int record_frog_offset(lua_State *state)
+{
+    if (lua_tointeger(state, 1) == 1) {
+        reference_frog_offset_x = lua_tonumber(state, 2);
+        reference_frog_offset_y = lua_tonumber(state, 3);
+    }
+    return 0;
+}
+static int frog_reference_random(lua_State *state)
+{
+    reference_frog_seed = (deceptus_u16)(reference_frog_seed * 17U + 31U);
+    lua_pushinteger(state, (reference_frog_seed >> 8) % 20 + 1);
+    return 1;
+}
+static int record_cannon_sprite(lua_State *state)
+{
+    unsigned row, column;
+    column = (unsigned)lua_tointeger(state, 2) / 144;
+    row = (unsigned)lua_tointeger(state, 3) / 72;
+    reference_cannon_frame = (row / 5) * 43;
+    row %= 5;
+    reference_cannon_frame += row ? 3 + (row - 1) * 12 + column : column;
+    return 0;
+}
+static int record_cannon_shot(lua_State *state)
+{
+    (void)state;
+    /* LuaNode::useWeapon delegates to Gun::useInIntervals (>1000ms). */
+    if (reference_tick > reference_cannon_last_shot + 60 && reference_count < 64) {
+        reference_shots[reference_count++] = reference_tick;
+        reference_cannon_last_shot = reference_tick;
+    }
+    return 0;
+}
 static int record_blob_sprite(lua_State *state)
 {
     static const unsigned first[6] = {0, 15, 31, 0, 0, 47};
@@ -52,7 +124,14 @@ static const deceptus_enemy_def rat = {111, 200, 178, 0, 2, 0, 10, 1, 0, 0, {0, 
                                        20,  60};
 static const deceptus_enemy_def blob = {
     1048, 200, 180, 0, 2, 0, 5, 1, 4, 0, {0, 0, 0}, DECEPTUS_BLOB_2, 1, {15, 16, 16, 14, 3}, 20, 0};
+static const deceptus_enemy_def cannon = {
+    493, 96, 80, 0, 0, 0, 102, 0, 60, 180, {0, 0, 0}, DECEPTUS_CANNON_2, 1, {0, 0, 0, 0, 0}, 16, 0};
 static const deceptus_path_point path[] = {{200, 178}, {240, 178}};
+static const deceptus_path_point orb_path[] = {{200, 180}, {200, 100}, {120, 100}, {120, 180}};
+static const deceptus_enemy_def orb = {
+    1396, 188, 168, 0, 4, 0, 20, 123, 2, 0, {0, 0, 0}, DECEPTUS_ORB, 0, {0, 0, 0, 0, 0}, 20, 0};
+static const deceptus_enemy_def frog = {
+    1721, 800, 178, 0, 0, 0, 48, 0, 1, 300, {240, 1252, 320}, DECEPTUS_FROG_BLUE, 0, {10, 1, 0, 0, 0}, 10, 0};
 static void reset(const deceptus_enemy_def *enemy)
 {
     deceptus_u16 column;
@@ -71,11 +150,358 @@ static void reset(const deceptus_enemy_def *enemy)
     room.max_health = 100;
     room.enemy_definitions = enemy;
     room.enemy_count = 1;
-    room.enemy_paths = path;
-    room.enemy_path_count = 2;
+    room.enemy_paths = enemy->kind == DECEPTUS_ORB ? orb_path : path;
+    room.enemy_path_count = enemy->kind == DECEPTUS_ORB ? 4 : 2;
     deceptus_init(&engine, &room, &video);
     CHECK(!engine.content_error);
 }
+
+static void projectile_start(deceptus_i16 x, deceptus_i16 y, deceptus_fixed velocity_x, deceptus_fixed velocity_y)
+{
+    reset(&trap);
+    engine.entities[1].active = 0;
+    engine.projectiles[0].active = 1;
+    engine.projectiles[0].x = DECEPTUS_FIXED(x);
+    engine.projectiles[0].y = DECEPTUS_FIXED(y);
+    engine.projectiles[0].velocity_x = velocity_x;
+    engine.projectiles[0].velocity_y = velocity_y;
+    engine.projectiles[0].damage = 60;
+}
+
+static void projectile_floor_tests(void)
+{
+    static const deceptus_mechanism_def floor = {900, {80, 64, 32, 1}, 0, 0, 0, DECEPTUS_MECH_COLLAPSING, 1, 0};
+    deceptus_u16 tick;
+    projectile_start(100, 60, 0, 96);
+    cells[8 * 32 + 12] = DECEPTUS_ONE_WAY;
+    CHECK(!deceptus_enemies_tick(&engine));
+    CHECK(!engine.projectiles[0].active && engine.projectiles[0].y < DECEPTUS_FIXED(64));
+
+    /* the source's player-only pass-through callback does not exempt arrows:
+     * the closed collision contour catches underside and side impacts too. */
+    projectile_start(100, 74, 0, -96);
+    cells[8 * 32 + 12] = DECEPTUS_ONE_WAY;
+    deceptus_enemies_tick(&engine);
+    CHECK(!engine.projectiles[0].active);
+    projectile_start(94, 68, 96, 0);
+    cells[8 * 32 + 12] = DECEPTUS_ONE_WAY;
+    deceptus_enemies_tick(&engine);
+    CHECK(!engine.projectiles[0].active);
+    projectile_start(108, 68, -96, 0);
+    cells[8 * 32 + 12] = DECEPTUS_ONE_WAY;
+    deceptus_enemies_tick(&engine);
+    CHECK(!engine.projectiles[0].active);
+
+    projectile_start(94, 62, 96, 96);
+    cells[8 * 32 + 12] = DECEPTUS_ONE_WAY;
+    engine.projectiles[0].x += 7;
+    engine.projectiles[0].y += 9;
+    engine.projectiles[0].gravity = 203;
+    deceptus_enemies_tick(&engine);
+    CHECK(!engine.projectiles[0].active && engine.projectiles[0].velocity_y == 97);
+
+    /* an empty tile alongside the one-way floor remains empty. */
+    projectile_start(108, 62, 96, 96);
+    cells[8 * 32 + 12] = DECEPTUS_ONE_WAY;
+    deceptus_enemies_tick(&engine);
+    CHECK(engine.projectiles[0].active);
+
+    projectile_start(100, 60, 0, 96);
+    CHECK(deceptus_mechanisms_init(&engine.mechanisms, &floor, 1, 0, 0));
+    deceptus_enemies_tick(&engine);
+    CHECK(!engine.projectiles[0].active && engine.projectiles[0].y < DECEPTUS_FIXED(64));
+    projectile_start(100, 60, 0, 96);
+    CHECK(deceptus_mechanisms_init(&engine.mechanisms, &floor, 1, 0, 0));
+    engine.mechanisms.states[0].active = 0;
+    deceptus_enemies_tick(&engine);
+    CHECK(engine.projectiles[0].active);
+    engine.mechanisms.states[0].active = 1;
+    engine.mechanisms.states[0].enabled = 0;
+    engine.projectiles[0].y = DECEPTUS_FIXED(60);
+    deceptus_enemies_tick(&engine);
+    CHECK(engine.projectiles[0].active);
+
+    projectile_start(100, 60, 0, 96);
+    cells[8 * 32 + 12] = DECEPTUS_SOLID;
+    deceptus_enemies_tick(&engine);
+    CHECK(!engine.projectiles[0].active);
+    projectile_start(100, 62, 0, 96);
+    cells[8 * 32 + 12] = DECEPTUS_ONE_WAY;
+    engine.entities[0].x = DECEPTUS_FIXED(100);
+    engine.entities[0].y = DECEPTUS_FIXED(96);
+    CHECK(!deceptus_enemies_tick(&engine));
+    CHECK(!engine.projectiles[0].active);
+
+    projectile_start(100, 60, 48, -16);
+    for (tick = 0; tick < 10; ++tick) {
+        deceptus_enemies_tick(&engine);
+    }
+    CHECK(engine.projectiles[0].active && engine.projectiles[0].x == DECEPTUS_FIXED(130));
+    puts("arrow collision covers closed one-way contours and active dynamic floors");
+}
+
+static void cannon_tests(void)
+{
+    static const deceptus_mechanism_def body = {493, {96, 92, 48, 36}, 0, 0, 0, DECEPTUS_MECH_CANNON_BODY, 1, 0};
+    deceptus_enemy_def left;
+    deceptus_rect muzzle;
+    deceptus_u16 tick, previous, count;
+    unsigned shots[16];
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+    lua_State *reference;
+    unsigned index;
+    const char *stubs[] = {"addShapeRectBevel",  "addHitbox",
+                           "addAudioRange",      "addSample",
+                           "addWeapon",          "registerHitAnimation",
+                           "registerHitSamples", "updateProjectileAnimation",
+                           "setSpriteOffset",    "playSample"};
+    reference = luaL_newstate();
+    CHECK(reference);
+    luaL_openlibs(reference);
+    lua_getglobal(reference, "package");
+    lua_pushstring(reference, DECEPTUS_SOURCE_ROOT "/?.lua");
+    lua_setfield(reference, -2, "path");
+    lua_pop(reference, 1);
+    for (index = 0; index < sizeof(stubs) / sizeof(stubs[0]); ++index) {
+        lua_register(reference, stubs[index], noop);
+    }
+    reference_count = 0;
+    reference_cannon_last_shot = 0;
+    reference_cannon_frame = 0;
+    lua_register(reference, "useWeapon", record_cannon_shot);
+    lua_register(reference, "updateSpriteRect", record_cannon_sprite);
+    CHECK(luaL_dofile(reference, DECEPTUS_SOURCE_ROOT "/data/scripts/enemies/cannon_2.lua") == LUA_OK);
+    lua_getglobal(reference, "initialize");
+    CHECK(lua_pcall(reference, 0, 0, 0) == LUA_OK);
+    CHECK(luaL_dostring(reference, "writeProperty('alignment','right'); movedTo(96,80)") == LUA_OK);
+#endif
+    reset(&cannon);
+    engine.projectiles[0].kind = DECEPTUS_BLUE_FIREBALL;
+    engine.projectiles[0].owner = 1;
+    engine.projectiles[0].phase = 4321;
+    count = 0;
+    for (tick = 1; tick <= 720; ++tick) {
+        previous = engine.projectiles_fired;
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+        reference_tick = tick;
+        lua_getglobal(reference, "update");
+        lua_pushnumber(reference, 1.0 / 60.0 + 1e-10);
+        CHECK(lua_pcall(reference, 1, 0, 0) == LUA_OK);
+#endif
+        deceptus_enemies_tick(&engine);
+        if (engine.projectiles_fired != previous) {
+            CHECK(count < 16);
+            shots[count++] = tick;
+            CHECK(engine.projectiles[0].kind == DECEPTUS_CANNONBALL);
+            CHECK(!engine.projectiles[0].owner && !engine.projectiles[0].phase);
+            CHECK(engine.projectiles[0].velocity_x == 102 && engine.projectiles[0].velocity_y == 0);
+            CHECK(engine.projectiles[0].y == DECEPTUS_FIXED(104));
+        }
+        CHECK(engine.entities[1].frame < 86 && !engine.content_error);
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+        if (engine.entities[1].frame != reference_cannon_frame) {
+            fprintf(stderr, "cannon frame mismatch tick %u: C %u Lua %u\n", tick, engine.entities[1].frame,
+                    reference_cannon_frame);
+            exit(1);
+        }
+#endif
+    }
+    CHECK(count == 4 && shots[0] == 64 && shots[1] == 243);
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+    CHECK(reference_count == count);
+    for (index = 0; index < count; ++index) {
+        CHECK(shots[index] == reference_shots[index]);
+    }
+    lua_close(reference);
+    puts("cannon sprite sequence and gun interval agree with original Lua execution");
+#endif
+    reset(&cannon);
+    engine.projectiles[0].kind = DECEPTUS_CANNONBALL;
+    engine.projectiles[0].active = 1;
+    engine.projectiles[0].x = DECEPTUS_FIXED(100);
+    engine.projectiles[0].y = DECEPTUS_FIXED(100);
+    engine.projectiles[0].velocity_x = -102;
+    engine.projectiles[0].damage = 60;
+    engine.entities[0].x = DECEPTUS_FIXED(80);
+    engine.entities[0].y = DECEPTUS_FIXED(120);
+    CHECK(deceptus_enemies_tick(&engine) == 60);
+    CHECK(!engine.projectiles[0].active);
+    left = cannon;
+    left.alignment = 0;
+    reset(&left);
+    for (tick = 0; tick < 64; ++tick) {
+        deceptus_enemies_tick(&engine);
+    }
+    CHECK(engine.projectiles_fired == 1 && engine.projectiles[0].kind == DECEPTUS_CANNONBALL);
+    CHECK(engine.projectiles[0].velocity_x == -102 && engine.projectiles[0].velocity_y == 0);
+
+    /* source gun filtering ignores enemy bodies even when a right-facing
+     * muzzle begins inside its own cannon's physical collision contour. */
+    reset(&cannon);
+    CHECK(deceptus_mechanisms_init(&engine.mechanisms, &body, 1, 0, 0));
+    muzzle.x = 128;
+    muzzle.y = 104;
+    muzzle.width = 1;
+    muzzle.height = 1;
+    CHECK(deceptus_mechanism_solid(&engine.mechanisms, &muzzle));
+    CHECK(!deceptus_mechanism_projectile_solid(&engine.mechanisms, &muzzle));
+    for (tick = 0; tick < 64; ++tick) {
+        deceptus_enemies_tick(&engine);
+    }
+    CHECK(engine.projectiles[0].active && engine.projectiles[0].x > DECEPTUS_FIXED(128));
+}
+
+static void sealed_enemy_tests(void)
+{
+    static deceptus_u8 frog_cells[128 * 28];
+    deceptus_u16 tick, column, seen, fired;
+    deceptus_frame frame;
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+    lua_State *reference;
+    unsigned index;
+    double difference;
+    const char *orb_stubs[] = {"addShapeCircle"};
+    const char *frog_stubs[] = {"addShapeRect",
+                                "addHitbox",
+                                "addSprite",
+                                "setSpriteScale",
+                                "setSpriteZ",
+                                "addSample",
+                                "setReferenceVolume",
+                                "setAudioUpdateBehavior",
+                                "updateKeysPressed",
+                                "intersectsWithPlayer",
+                                "playSample",
+                                "setDamage",
+                                "die"};
+    reference = luaL_newstate();
+    CHECK(reference);
+    luaL_openlibs(reference);
+    lua_getglobal(reference, "package");
+    lua_pushstring(reference, DECEPTUS_SOURCE_ROOT "/?.lua");
+    lua_setfield(reference, -2, "path");
+    lua_pop(reference, 1);
+    for (index = 0; index < sizeof(orb_stubs) / sizeof(orb_stubs[0]); ++index) {
+        lua_register(reference, orb_stubs[index], noop);
+    }
+    lua_register(reference, "setTransform", record_orb_transform);
+    lua_register(reference, "updateSpriteRect", record_orb_sprite);
+    CHECK(luaL_dofile(reference, DECEPTUS_SOURCE_ROOT "/data/scripts/enemies/orb.lua") == LUA_OK);
+    CHECK(luaL_dostring(reference, "initialize(); movedTo(188,168); setPath('path',{188,168,188,112,132,112,132,168}); "
+                                   "writeProperty('speed',2); writeProperty('animation_speed',20)") == LUA_OK);
+#endif
+    reset(&orb);
+    seen = 0;
+    for (tick = 0; tick < 600; ++tick) {
+        CHECK(!deceptus_enemies_tick(&engine));
+        seen |= (deceptus_u16)(1U << engine.entities[1].frame);
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+        lua_getglobal(reference, "update");
+        lua_pushnumber(reference, 1.0 / 60.0 + 1e-10);
+        CHECK(lua_pcall(reference, 1, 0, 0) == LUA_OK);
+        difference = engine.entities[1].x / 16.0 - reference_orb_x;
+        CHECK(difference > -0.13 && difference < 0.13);
+        difference = engine.entities[1].y / 16.0 - reference_orb_y;
+        CHECK(difference > -0.13 && difference < 0.13);
+        CHECK(engine.entities[1].frame == reference_orb_frame);
+#endif
+    }
+    CHECK(seen == 255);
+    deceptus_place_player(&engine, deceptus_floor(engine.entities[1].x), deceptus_floor(engine.entities[1].y) + 16);
+    CHECK(deceptus_enemies_tick(&engine) == 2);
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+    lua_close(reference);
+    puts("orb contour motion and animation agree with original Lua within 0.13px");
+    reference = luaL_newstate();
+    CHECK(reference);
+    luaL_openlibs(reference);
+    lua_getglobal(reference, "package");
+    lua_pushstring(reference, DECEPTUS_SOURCE_ROOT "/?.lua");
+    lua_setfield(reference, -2, "path");
+    lua_pop(reference, 1);
+    for (index = 0; index < sizeof(frog_stubs) / sizeof(frog_stubs[0]); ++index) {
+        lua_register(reference, frog_stubs[index], noop);
+    }
+    reference_frog_seed = frog.source_id;
+    reference_frog_visible = 0;
+    lua_getglobal(reference, "math");
+    lua_pushcfunction(reference, frog_reference_random);
+    lua_setfield(reference, -2, "random");
+    lua_pop(reference, 1);
+    lua_register(reference, "setSpriteOffset", record_frog_offset);
+    lua_register(reference, "setSpriteVisible", record_frog_visible);
+    lua_register(reference, "updateSpriteRect", record_frog_sprite);
+    CHECK(luaL_dofile(reference, DECEPTUS_SOURCE_ROOT "/data/scripts/enemies/frog_blue.lua") == LUA_OK);
+    CHECK(luaL_dostring(reference, "initialize(); movedTo(800,178); writeProperty('alignment','left'); "
+                                   "writeProperty('attack_interval',5); writeProperty('orb_lifetime',4000); "
+                                   "writeProperty('orb_speed',180); writeProperty('orb_path','sine'); "
+                                   "writeProperty('orb_collision_size',10); writeProperty('wave_speed',0.8); "
+                                   "writeProperty('wave_strength',20)") == LUA_OK);
+#endif
+    reset(&frog);
+    memset(frog_cells, 0, sizeof(frog_cells));
+    for (column = 0; column < 128; ++column) {
+        frog_cells[24 * 128 + column] = DECEPTUS_SOLID;
+    }
+    for (tick = 0; tick < 24; ++tick) {
+        frog_cells[tick * 128 + 62] = DECEPTUS_SOLID;
+    }
+    room.collision = frog_cells;
+    room.columns = 128;
+    deceptus_init(&engine, &room, &video);
+    fired = 0;
+    for (tick = 1; tick <= 900; ++tick) {
+        CHECK(!deceptus_enemies_tick(&engine));
+        CHECK(!engine.content_error);
+        if (engine.projectiles_fired != fired) {
+            CHECK(tick == 360 || tick == 660);
+            fired = engine.projectiles_fired;
+        }
+        deceptus_enemies_render(&engine, &frame);
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+        lua_getglobal(reference, "update");
+        lua_pushnumber(reference, 1.0 / 60.0 + 1e-10);
+        CHECK(lua_pcall(reference, 1, 0, 0) == LUA_OK);
+        if (engine.entities[1].frame != reference_frog_frame) {
+            fprintf(stderr, "blue frog frame mismatch tick %u: C %u Lua %u\n", tick, engine.entities[1].frame,
+                    reference_frog_frame);
+            exit(1);
+        }
+        CHECK((engine.projectiles[0].active != 0) == (reference_frog_visible != 0));
+        if (reference_frog_visible) {
+            difference = engine.projectiles[0].x / 16.0 - (800 + reference_frog_offset_x - 24);
+            CHECK(difference > -0.13 && difference < 0.13);
+            difference = engine.projectiles[0].y / 16.0 - (178 + reference_frog_offset_y);
+            CHECK(difference > -0.3 && difference < 0.3);
+            CHECK(((engine.entities[1].drop_ticks * 3 / 10) & 7) == reference_frog_orb_frame);
+        }
+#endif
+    }
+    CHECK(fired == 2);
+#ifdef DECEPTUS_HAVE_LUA_REFERENCE
+    lua_close(reference);
+    puts("blue frog attack sequence, lifetime and sine orbs agree with original Lua");
+#endif
+    engine.entities[1].state = 1;
+    engine.projectiles[0].active = 1;
+    engine.projectiles[0].kind = DECEPTUS_BLUE_FIREBALL;
+    engine.projectiles[0].owner = 1;
+    engine.projectiles[0].age = 7;
+    engine.projectiles[0].phase = 7 * 1252;
+    engine.projectiles[0].velocity_x = -48;
+    engine.entities[0].x = DECEPTUS_FIXED(770);
+    engine.entities[0].y = DECEPTUS_FIXED(194);
+    CHECK(deceptus_enemies_tick(&engine) == 1);
+    CHECK(!engine.projectiles[0].active);
+    CHECK(!deceptus_enemies_tick(&engine));
+    engine.entities[1].state = 3;
+    engine.entities[1].pause_ticks = 0;
+    for (tick = 0; tick < 114; ++tick) {
+        deceptus_enemies_tick(&engine);
+    }
+    CHECK(!engine.entities[1].active);
+}
+
 int main(void)
 {
     deceptus_u16 tick, previous, count, states, index;
@@ -250,6 +676,9 @@ int main(void)
     deceptus_tick(&engine, DECEPTUS_RIGHT | DECEPTUS_JUMP);
     CHECK(engine.entities[0].velocity_x < 0 && engine.entities[0].velocity_y < 0 &&
           deceptus_floor(engine.entities[0].y) < previous);
+    projectile_floor_tests();
+    cannon_tests();
+    sealed_enemy_tests();
     puts("native rat patrol, trap projectiles, damage, respawn and wall jump checks passed");
     return 0;
 }

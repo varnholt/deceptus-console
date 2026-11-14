@@ -6,6 +6,11 @@
 #define DECEPTUS_ARROW 6
 #define DECEPTUS_ARROW_MUZZLE 7
 #define DECEPTUS_BLOB_2 9
+#define DECEPTUS_CANNON_2 12
+#define DECEPTUS_CANNONBALL 13
+#define DECEPTUS_ORB 16
+#define DECEPTUS_FROG_BLUE 17
+#define DECEPTUS_BLUE_FIREBALL 18
 
 typedef struct deceptus_path_point {
     deceptus_i16 x, y;

@@ -24,7 +24,7 @@ python tools/build_gba.py --scene tutorial --clang C:/build_utils/llvm/bin/clang
 ```
 
 Pass `--data D:/other/deceptus_engine/data` to select another source checkout.
-The tutorial build generates thirteen rooms, UI resources, water clips and
+The tutorial build generates twenty-six rooms, UI resources, water clips and
 native definitions before compiling the freestanding C engine and GBA backend.
 It produces `build/gba/deceptus-tutorial.gba`, the latest-build alias
 `deceptus.gba`, ELF symbols, a linker map and `build.json` with ROM size/hash.
@@ -32,6 +32,23 @@ A later scene build replaces the alias and generated resources; numbered
 playtest copies remain unchanged.
 
 ## Play
+
+The root launchers handle missing emulator cores and cartridges:
+
+```powershell
+python run_gba.py
+python run_snes.py
+python run_gba.py --build
+python run_snes.py --prepare
+```
+
+They cache cores in `.tools/` and do not download SDKs merely to play an existing
+ROM. Missing Python dependencies use `.venv`, without changing global packages.
+`--rom PATH` selects an existing cartridge, `--core PATH` selects an installed
+native libretro core, and `--data PATH` selects original content for a build.
+GBA defaults to the tutorial; `--scene tonight` selects the older preview.
+Automatic core downloads currently require Windows x64 Python. On other hosts,
+provide a matching native core and a Python installation with Tk support.
 
 ```powershell
 python tools/play.py --backend gba --rom build/gba/deceptus-tutorial.gba
@@ -77,6 +94,19 @@ the Crossroads/Fool's Ledge return connection. It restores production build
 outputs afterward. Reports and screenshots go to `artifacts/tutorial-check/`.
 It deliberately does not claim to play the entire tutorial with normal input.
 
+The separate normal-input route starts at New Game and checks progression
+against both native C and the production ROM:
+
+```powershell
+python tools/gba_emulator.py --scene tutorial
+```
+
+This does not inject player positions, inventory, flags or emulator memory.
+Its recorded checkpoints and scope live in `tests/fixtures/opening-route.json`;
+reports and screenshots go to `artifacts/opening-check/`. Room loading may consume
+display frames without a simulation tick, so the verifier holds ordinary inputs
+until the matching native simulation tick is reached.
+
 The older preview has its own complete curated input route:
 
 ```powershell
@@ -100,6 +130,32 @@ python tools/emulator.py
 This verifies the retained prototype's movement, jump, pause, checkpoint and
 portal route in Snes9x. It does not run the GBA tutorial. GBA, SNES and desktop
 share C engine code, so shared simulation changes need both console checks.
+
+## Parallel console builds
+
+```powershell
+python tools/build_consoles.py
+```
+
+This runs the GBA tutorial and SNES prototype builders concurrently against the
+same authoritative data checkout. Logs are separate in `build/consoles/gba.log`
+and `build/consoles/snes.log`; `build/consoles/build.json` records each result
+and successful cartridge hashes. A failed target makes the command fail even if
+the other target succeeds. Pass `--targets gba` or `--targets snes` to select one,
+and `--data`, `--sdk`, `--clang`, `--linker`, `--objcopy` to select local inputs
+and tools. Do not launch another build of either target into the same checkout
+while this command runs.
+
+CMake exposes `console_roms` for the same parallel command and `snes_rom` for
+the retained SNES build. Build success does not replace the emulator checks
+above. The two cartridges share simulation code but have different frontends
+and content coverage: SNES does not yet run the GBA adventure.
+
+`--targets smd` fails before building. There is no Mega Drive backend or graphics
+converter in this repository. A working SMD cartridge needs a 68000 toolchain,
+startup/linker layout, VDP tile/palette/sprite conversion and video/input
+backend, followed by ROM integration checks. The installed ARM-capable LLVM
+build alone does not supply that backend. No placeholder cartridge is produced.
 
 ## Packaging
 
