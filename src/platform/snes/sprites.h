@@ -24,11 +24,13 @@ static snes_obj_slot snes_obj_slots[SNES_OBJ_PIECES];
 static deceptus_u8 snes_obj_heads[SNES_SPRITE_RESOURCE_COUNT], snes_obj_epochs[SNES_SPRITE_RESOURCE_COUNT];
 static deceptus_u8 snes_obj_epoch;
 static deceptus_u16 snes_obj_unused, snes_obj_free_cursor;
-static deceptus_u8 snes_obj_oam[544];
-static deceptus_u8 snes_obj_lines[224], snes_obj_slivers[224];
+deceptus_u8 snes_obj_oam[544];
+deceptus_u8 snes_obj_lines[224], snes_obj_slivers[224];
 static const deceptus_u16 *snes_obj_palettes[8];
-static deceptus_u16 snes_obj_request_count, snes_obj_count, snes_obj_palette_count;
-static deceptus_u8 snes_sprite_overflow, snes_sprite_room_load, snes_sprite_blank;
+static deceptus_u16 snes_obj_request_count, snes_obj_palette_count;
+deceptus_u16 snes_obj_count;
+static deceptus_u8 snes_sprite_room_load, snes_sprite_blank;
+deceptus_u8 snes_sprite_overflow;
 static deceptus_u8 snes_sprite_initialized;
 static deceptus_u16 snes_sprite_upload_bytes;
 
@@ -146,8 +148,9 @@ static deceptus_u8 snes_obj_palette(const deceptus_u16 *palette)
     return (deceptus_u8)(snes_obj_palette_count - 1);
 }
 
-static void snes_obj_piece(deceptus_i16 x, deceptus_i16 y, deceptus_u16 tile, deceptus_u8 palette, deceptus_u8 flip,
-                           deceptus_u8 priority, deceptus_u8 size)
+#if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
+static void snes_obj_piece_reference(deceptus_i16 x, deceptus_i16 y, deceptus_u16 tile, deceptus_u8 palette,
+                                     deceptus_u8 flip, deceptus_u8 priority, deceptus_u8 size)
 {
     deceptus_i16 line, top, bottom;
     deceptus_u16 object, high, shift;
@@ -193,6 +196,14 @@ static void snes_obj_piece(deceptus_i16 x, deceptus_i16 y, deceptus_u16 tile, de
     snes_obj_oam[high] |= (deceptus_u8)(((((deceptus_u16)x >> 8) & 1) | (size == 16 ? 2 : 0)) << shift);
     ++snes_obj_count;
 }
+
+#endif
+#ifdef SNES_SPRITES_ASM
+void snes_obj_piece(deceptus_i16 x, deceptus_i16 y, deceptus_u16 tile, deceptus_u8 palette, deceptus_u8 flip,
+                    deceptus_u8 priority, deceptus_u8 size);
+#else
+#define snes_obj_piece snes_obj_piece_reference
+#endif
 
 static deceptus_u16 snes_obj_sword(const deceptus_adventure *game, deceptus_i16 *x, deceptus_i16 *y)
 {

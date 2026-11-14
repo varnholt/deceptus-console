@@ -93,7 +93,7 @@ not rotate those strips. The headtorch uses a source light sprite approximation.
 These are presentation adaptations, and neither a full original shader pipeline
 nor complete source-menu layout parity is established.
 
-Warm stationary measurements of the final quadrant-backed renderer in Snes9x
+Baseline stationary measurements of the quadrant-backed renderer in Snes9x
 used 3,000 display frames of warmup and 1,200 sampled frames. The Loop advanced
 102 simulation ticks (5.11 updates/s); the Crypt advanced 90 (4.51 updates/s),
 with no renderer errors or deaths. OBJ preparation dominated the Crypt sample.
@@ -123,3 +123,15 @@ off the sword ring. Native tests also exercise a deliberately saturated table.
 `tools/benchmark_snes.py --help` exposes the warmup/sample settings for these
 controlled ROM measurements. Fixture snapshots and their ROM hashes are kept
 separate from normal-input progression evidence.
+
+The scanline validation and OAM packing routine now runs as a small 65816
+backend function. Shared simulation remains portable C90. The C writer remains
+a reference: an actual Snes9x test ROM compares 2,048 calls, including clipped
+coordinates, mixed 8/16-pixel sizes, saturated scanlines and full OAM. It checks
+every OAM byte, both scanline-counter arrays, object count and overflow result.
+Run `python tools/verify_snes_sprites.py` after preparing the SNES assets.
+
+With the same 3,000-frame warmup and 1,200-frame sample, the Loop advances 137
+ticks (6.86 updates/s, previously 5.11); the Crypt advances 125 (6.26 updates/s,
+previously 4.51). These are approximately 34% and 39% gains for those scenes,
+respectively. This remains substantially below a playable console frame rate.

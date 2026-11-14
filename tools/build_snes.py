@@ -177,7 +177,7 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         sources += [ROOT / "assets/generated/room.c"]
     for source in sources:
         stem = source.stem
-        run([compiler, *(["-H", "-DDECEPTUS_SNES_OPENING=1"] if opening else []), "-I" + str(ROOT / "include"), "-I" + str(generated), "-I" + str(sdk / "pvsneslib/include"),
+        run([compiler, *(["-H", "-DDECEPTUS_SNES_OPENING=1", "-DSNES_SPRITES_ASM=1"] if opening else []), "-I" + str(ROOT / "include"), "-I" + str(generated), "-I" + str(sdk / "pvsneslib/include"),
              "-I" + str(sdk / "devkitsnes/include"), "-I" + str(folder), "-Wall", "-c", source,
              "-F", "-o", stem + ".ps"], folder)
         run([optimizer, "-i", stem + ".ps", "-o", stem + ".asm"], folder)
@@ -203,6 +203,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         objects.append("background_ram.obj")
         run([assembler, "-d", "-s", "-x", "-o", "background_dma.obj", ROOT / "src/platform/snes/background_dma.asm"], folder)
         objects.append("background_dma.obj")
+        run([assembler, "-d", "-s", "-x", "-o", "sprites_emit.obj", ROOT / "src/platform/snes/sprites_emit.asm"], folder)
+        objects.append("sprites_emit.obj")
         if rom_mib == 8:
             # these physical banks map reset vectors and cpu work ram; no assets
             # may occupy their reserved ranges before the boot mirror is copied.

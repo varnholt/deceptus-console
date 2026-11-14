@@ -147,6 +147,6 @@ The normal-input SNES replay now passes all 56 checkpoints from New Game
 through the graveyard, ruby collection, Crypt return, altar ruby use, sword
 acquisition and attack. It matches native positions, inventory, progression,
 projectile counts and damage, ending with 29 health and zero deaths. The final
-8 MiB ROM hash is `c9be78ad98684a1ad2b217b80fb296668cf58d7c72b4ebb1cf8caeceaac21f24`.
-Warm measurements in the Loop and Crypt are approximately 4.5–5.1 simulation
+8 MiB ROM hash is `aa667831b20123263a71da238ce51c5bdd4aa8175cbc1e02cc1f207b4360cbc8`.
+Warm measurements in the Loop and Crypt are approximately 6.3–6.9 simulation
 updates/s; major optimization remains necessary. See [SNES details](SNES.md).
