@@ -43,8 +43,11 @@ python run_gba.py --build
 python run_snes.py --prepare
 ```
 
-The Mega Drive launcher selects a one-room [proof of concept](MEGA_DRIVE.md),
-not the 26-room opening.
+The Mega Drive launcher defaults to the opening cartridge,
+`build/smd/deceptus-tutorial.bin`. Use `python run_smd.py --scene prototype`
+for the separate one-room [proof of concept](MEGA_DRIVE.md).
+The selected scene is forwarded when `--build` is used; `--rom PATH` plays an
+existing cartridge with the selected scene's controller setup.
 
 They cache cores in `.tools/` and do not download SDKs merely to play an existing
 ROM. Missing Python dependencies use `.venv`, without changing global packages.
@@ -155,27 +158,27 @@ explicitly. `--reuse-assets` requires matching source and converter identities.
 python tools/build_consoles.py
 ```
 
-This prepares the original opening imports once, then runs the GBA and SNES
-tutorial builders concurrently against the same authoritative data checkout.
-Logs are separate in `build/consoles/gba.log`
-and `build/consoles/snes.log`; `build/consoles/build.json` records each result
+This prepares the original opening imports and common metadata once. Mega Drive
+simulation metadata and target graphics are prepared in separate directories
+before the workers start. The GBA, SNES and Mega Drive tutorial builders then
+run concurrently; GBA validates prepared imports and Mega Drive reuses its
+prepared graphics. Each converter reads the authoritative original data.
+Logs are separate in `build/consoles/gba.log`, `build/consoles/snes.log` and
+`build/consoles/smd.log`; `build/consoles/build.json` records each result
 and successful cartridge hashes. A failed target makes the command fail even if
-the other target succeeds. Pass `--targets gba` or `--targets snes` to select one,
-and `--data`, `--sdk`, `--clang`, `--linker`, `--objcopy` to select local inputs
-and tools. Do not launch another build of either target into the same checkout
+the other targets succeed. Pass `--targets gba`, `--targets snes` or
+`--targets smd` to select one, and `--data`, `--sdk` (SNES), `--smd-sdk`,
+`--clang`, `--linker`, `--objcopy` to select local inputs and tools.
+Do not launch another build of these targets into the same checkout
 while this command runs.
 
 CMake exposes `console_roms` for the same parallel command and `snes_rom` for
 the SNES builder. Build success does not replace the emulator checks
-above. The two cartridges share simulation code but have different frontends
-and content coverage. The parallel command selects the opening tutorial;
-`build_snes.py --scene prototype` retains the smaller standalone regression case.
-
-`--targets smd` fails before building. There is no Mega Drive backend or graphics
-converter in this repository. A working SMD cartridge needs a 68000 toolchain,
-startup/linker layout, VDP tile/palette/sprite conversion and video/input
-backend, followed by ROM integration checks. The installed ARM-capable LLVM
-build alone does not supply that backend. No placeholder cartridge is produced.
+above. The cartridges share simulation code and use separate video/input
+backends. The parallel command selects the opening tutorial. SNES and Mega Drive
+opening performance remains experimental and below display rate; the smaller
+standalone regressions remain available through `build_snes.py --scene prototype`
+and `build_smd.py --scene prototype`.
 
 ## Packaging
 

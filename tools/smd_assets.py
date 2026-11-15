@@ -39,6 +39,55 @@ def words(payload):
     return [int.from_bytes(payload[start:start + 4], 'big') for start in range(0, len(payload), 4)]
 
 
+def fit_rgb333_palette(images, count=15):
+    """Fit one animation-stable palette using weighted source RGB333 medoids."""
+    samples=[]
+    for image in images:
+        pixels=np.asarray(image.convert('RGBA'))
+        samples.append((pixels[:,:,:3][pixels[:,:,3]>=128].astype(np.uint16)*7+127)//255)
+    samples=[sample for sample in samples if len(sample)]
+    if not samples:
+        return np.zeros((count,3),dtype=np.int16)
+    colors,weights=np.unique(np.concatenate(samples),axis=0,return_counts=True)
+    differences=colors.astype(np.int16)[:,None,:]-colors.astype(np.int16)[None,:,:]
+    distances=(differences.astype(np.int32)**2).sum(axis=2)
+    selected=[int(np.argmax(weights))]
+    for _ in range(min(count,len(colors))-1):
+        selected.append(int(np.argmax(distances[:,selected].min(axis=1)*weights)))
+    for _ in range(6):
+        assignment=distances[:,selected].argmin(axis=1);updated=[]
+        for slot,current in enumerate(selected):
+            members=np.flatnonzero(assignment==slot)
+            if len(members):
+                current=int(members[np.argmin(distances[np.ix_(members,members)]@weights[members])])
+            updated.append(current)
+        if updated==selected:
+            break
+        selected=updated
+    selected=sorted(set(selected),key=lambda index:(-int(weights[index]),index))
+    selected+=[selected[-1]]*(count-len(selected))
+    return colors[selected].astype(np.int16)
+
+
+def sprite_chunks(image,palette):
+    """Pack native16x16 pieces in Mega Drive column-major tile order."""
+    padded=Image.new('RGBA',(((image.width+15)//16)*16,((image.height+15)//16)*16))
+    padded.paste(image,(0,0));pixels=np.asarray(padded)
+    opaque=pixels[:,:,3]>=128;indices=np.zeros(opaque.shape,dtype=np.uint8)
+    values=(pixels[:,:,:3][opaque].astype(np.int16)*7+127)//255
+    if len(values):
+        indices[opaque]=1+((values[:,None,:]-palette[None,:,:])**2).sum(axis=2).argmin(axis=1)
+    pieces=bytearray();quads=[]
+    for top in range(0,padded.height,16):
+        for left in range(0,padded.width,16):
+            quartet=[]
+            for column,row in ((0,0),(0,8),(8,0),(8,8)):
+                quartet.append(packed_tile(indices[top+row:top+row+8,left+column:left+column+8]))
+            pieces.extend(b''.join(quartet))
+            quads.append(sum(1<<quadrant for quadrant,index in enumerate((0,2,1,3)) if any(quartet[index])))
+    return bytes(pieces),padded.width//16,padded.height//16,bytes(quads)
+
+
 def convert(data, output):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-"""Play the GBA/SNES ROM or shared C desktop build in a small Tk window."""
+"""Play a GBA, SNES or Mega Drive cartridge, or the shared C desktop build."""
 
 import argparse
 import ctypes as C
@@ -49,6 +49,30 @@ class Host:
         return canvas
 
 
+def console_keyboard_mapping(backend, scene):
+    mapping = {'left': 6, 'right': 7, 'z': 0, 'space': 0, 'up': 4, 'return': 3, 'r': 2}
+    if backend == 'gba':
+        mapping.update(z=8, space=8, x=0, down=5, tab=2, c=10, q=10, e=11)
+    elif backend == 'snes' and scene == 'tutorial':
+        mapping.update(x=8, down=5, tab=2, c=1, q=10, e=11)
+    elif backend == 'smd':
+        mapping.update(x=8, down=5)
+        if scene == 'tutorial':
+            mapping.pop('r')
+            mapping.update(c=1, q=10, e=11, tab=2)
+        else:
+            mapping['r'] = 1
+    return mapping
+
+
+def configure_emulator_controls(emulator, backend, scene):
+    if backend == 'smd' and scene == 'tutorial':
+        controller = emulator.core.retro_set_controller_port_device
+        controller.argtypes = [C.c_uint, C.c_uint]
+        controller.restype = None
+        controller(0, 513)
+
+
 def play(backend, core, library, rom=None, scene='tutorial'):
     timer_api = C.WinDLL('winmm') if os.name == 'nt' else None
     if timer_api:
@@ -56,7 +80,7 @@ def play(backend, core, library, rom=None, scene='tutorial'):
     window = tk.Tk()
     window.title(f"Deceptus — {rom.stem if rom else backend} | " +
                ("arrows move / Z or X jump / C sword / Up interact / Enter menu / Tab inventory"
-                if backend == 'gba' or (backend == 'snes' and scene == 'tutorial')
+                if backend == 'gba' or (backend in ('snes', 'smd') and scene == 'tutorial')
                   else ("arrows move / Z or X jump / Up interact / Enter pause / R restart"
                         if backend == "smd" else "arrows move / Z jump / Up interact / Enter pause / R restart")))
     canvas = tk.Label(window, borderwidth=0)
@@ -66,9 +90,12 @@ def play(backend, core, library, rom=None, scene='tutorial'):
     elif backend == 'snes':
         emulator = Emulator(core, rom or ROOT / f'build/snes/deceptus-{scene}.sfc')
     elif backend == 'smd':
-        emulator = Emulator(core, rom or ROOT / 'build/smd/deceptus-poc.bin')
+        filename = 'deceptus-tutorial.bin' if scene == 'tutorial' else 'deceptus-poc.bin'
+        emulator = Emulator(core, rom or ROOT / 'build/smd' / filename)
     else:
         emulator = None
+    if emulator:
+        configure_emulator_controls(emulator, backend, scene)
     host = Host(library) if backend == "host" else None
     keys = set()
     window.bind("<KeyPress>", lambda event: keys.add(event.keysym.lower()))
@@ -93,13 +120,7 @@ def play(backend, core, library, rom=None, scene='tutorial'):
             timer=window.after(100,refresh)
             return
         if emulator:
-            mapping = {"left": 6, "right": 7, "z": 0, "space": 0, "up": 4, "return": 3, "r": 2}
-            if backend == 'gba':
-                mapping.update(z=8, space=8, x=0, down=5, tab=2, c=10, q=10, e=11)
-            elif backend == 'snes' and scene == 'tutorial':
-                mapping.update(x=8, down=5, tab=2, c=1, q=10, e=11)
-            elif backend == 'smd':
-                mapping.update(x=8, down=5, r=1)
+            mapping = console_keyboard_mapping(backend, scene)
             emulator.run(1, [value for key, value in mapping.items() if key in keys])
             image = emulator.last_image
         else:

@@ -1,6 +1,6 @@
 # Current status
 
-Updated for the console openings and Mega Drive proof of concept, 15 November 2026.
+Updated for all three console openings, 15 November 2026.
 
 ## Available targets
 
@@ -10,7 +10,7 @@ Updated for the console openings and Mega Drive proof of concept, 15 November 20
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
 | SNES | Same 26-room opening in an 8 MiB ExHiROM; retained one-room test is explicit `--scene prototype`; performance remains substantially below target |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
-| Mega Drive | One-room SGDK proof of concept; shared C, native artwork size, scrolling and 60 Hz in the measured small scene; full opening remains unimplemented |
+| Mega Drive | Same 26-room opening in a flat 4 MiB cartridge budget; normal-input route passes, performance remains experimental; separate small prototype retains its measured 60 Hz result |
 
 ## Opening content
 
@@ -30,7 +30,7 @@ timed cutscene sequence is not reproduced. Cannon Fodder's eleven blocks use
 the original inverse relationship to its lever; its camera/delayed cutscene is
 also simplified to immediate group toggling.
 
-The normal-input native and GBA production-ROM route now completes the key/handle chain, the Loop,
+The normal-input native, GBA, SNES and Mega Drive ROM routes complete the key/handle chain, the Loop,
 Sewers, Cannon Fodder gate, Reading Room solar seal, Fool's Ledge headtorch,
 Sealed Cells, graveyard owl rubies, sinkhole and crypt return, and the return to
 the catacombs altar for sword acquisition and a shoulder-button attack. All 56
@@ -124,8 +124,8 @@ palettes; conflicting OBJ indices relocate without changing source colours.
 7. Extend complete-level/game verification, hardware testing and release packaging.
 
 The first commercial-quality target remains GBA. The reusable C engine can grow
-alongside that work; SNES is a secondary compatibility/performance effort and
-Mega Drive remains future work.
+alongside that work; SNES and Mega Drive remain secondary compatibility and
+performance efforts. Neither opening currently meets the intended frame rate.
 
 The Mines entrance is connected. Its farther iron door supports its reusable
 source red-key requirement; red-key and wetsuit acquisition are not yet connected.
@@ -148,12 +148,35 @@ through the graveyard, ruby collection, Crypt return, altar ruby use, sword
 acquisition and attack. It matches native positions, inventory, progression,
 projectile counts and damage, ending with 29 health and zero deaths. The final
 8 MiB ROM hash is `aa667831b20123263a71da238ce51c5bdd4aa8175cbc1e02cc1f207b4360cbc8`.
-Warm measurements in the Loop and Crypt are approximately 6.3–6.9 simulation
+Warm measurements in the Loop and Crypt are approximately 6.3-6.9 simulation
 updates/s; major optimization remains necessary. See [SNES details](SNES.md).
 
-## Mega Drive proof of concept
+## Mega Drive opening verification
 
-`python run_smd.py` opens the separate one-room playtest. The actual cartridge
+The actual opening cartridge passes all 56 normal-input checkpoints through
+the graveyard, Crypt, altar and sword. It matches native progression, damage,
+inventory and projectiles, ending with 29 health and zero deaths. The verified
+full replay used 70,675 display frames for 17,884 simulation ticks, approximately
+15.2 simulation updates/s including loads and rendering. This is not a 60 Hz
+opening claim.
+
+The independent converter preserves native pixel size, uses two background and
+two stable sprite palette banks, and checks all 88,151 random-access compressed
+blocks against raw target data. All 1,065 logical sprite resources retain trim
+and occupancy metadata. The 1,152-slot world cache covers the measured maximum
+of 1,085 patterns, including animated water and simultaneous-clip bounds.
+
+Compiled stationary fixtures, with 3,000 warm-up and 1,200 sampled display
+frames each, measured Cell 49.7, Crypt 19.55, Loop 26.1 and Altar 16.75
+simulation updates/s with zero content/background/graphics/OBJ/UI errors.
+Sprite preparation dominates Crypt and Loop; background preparation and commit
+also dominate Altar. These display-boundary samples are not cycle-accurate
+profiling or a substitute for the normal-input route. See
+[Mega Drive build and performance details](MEGA_DRIVE.md).
+
+## Retained Mega Drive prototype
+
+`python run_smd.py --scene prototype` opens the separate one-room playtest. The actual cartridge
 passes per-update comparisons against desktop C for movement, collision, jumps,
 scrolling, pause/resume, restart and checkpoint/portal return. The 600-frame idle
 sample advances 600 simulation ticks (59.92 updates/s in Genesis Plus GX). All

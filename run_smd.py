@@ -1,4 +1,4 @@
-"""Launch the Mega Drive proof of concept with project-local tools."""
+"""Launch the Mega Drive opening; --scene prototype selects the one-room playtest."""
 from pathlib import Path
 import sys
 

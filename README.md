@@ -1,8 +1,10 @@
 # Deceptus C Engine
 
 A portable C game engine and console adaptation of Deceptus. **GBA is the first
-complete-game target.** SNES now builds the same 26-room opening; Mega Drive has a
-one-room [proof of concept](docs/MEGA_DRIVE.md). The local folder currently keeps the name `deceptus-snes`.
+complete-game target.** SNES and Mega Drive now build the same 26-room opening;
+both remain experimental and run substantially below the desired frame rate.
+Mega Drive also retains its faster [one-room prototype](docs/MEGA_DRIVE.md).
+The local folder currently keeps the name `deceptus-snes`.
 
 The latest development build is the original prison opening, with twenty-six
 imported rooms, source dialogue, inventory and lever interactions, automatic
@@ -27,7 +29,9 @@ python run_snes.py
 python run_smd.py
 ```
 
-`run_smd.py` selects the separate one-room Mega Drive proof of concept.
+The launchers select the opening. Use `run_smd.py --scene prototype` for the
+separate Mega Drive proof of concept, whose measured 60 Hz performance does not
+describe the full opening.
 
 Each launcher downloads its missing emulator core into `.tools/`, builds a
 missing cartridge, and opens the project player. Existing cores and cartridges
@@ -146,6 +150,23 @@ python run_snes.py
 
 Use `--scene prototype` with the SNES builder and launcher for the retained
 one-room test. The default launcher selects `deceptus-tutorial.sfc` explicitly.
+
+The Mega Drive opening also passes the normal 56-checkpoint progression route.
+Its verified full replay averaged approximately 15.2 simulation updates/s,
+including loading and rendering; performance work remains necessary. See
+[Mega Drive implementation and measured limits](docs/MEGA_DRIVE.md).
+
+```powershell
+python tools/bootstrap_smd.py --emulator
+python tools/build_smd.py --scene tutorial
+python tools/verify_smd_opening.py --assets-dir assets/generated/smd-opening
+python run_smd.py
+```
+
+`python tools/build_consoles.py` prepares original imports and isolated portable
+metadata, then compiles all three opening cartridges concurrently. Select a
+subset with `--targets gba snes` or `--targets smd`. Each target has a separate
+result and log; compilation does not replace its emulator verification.
 
 ## Automated builds
 

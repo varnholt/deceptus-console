@@ -27,7 +27,7 @@ class ConsoleBuildTests(unittest.TestCase):
             shutil.rmtree(self.root)
 
     def test_parallel_failure_preserves_both_results(self):
-        ready = threading.Barrier(2)
+        ready = threading.Barrier(3)
 
         def build(target, *args):
             ready.wait(timeout=5)
@@ -43,16 +43,22 @@ class ConsoleBuildTests(unittest.TestCase):
         prepare.assert_called_once()
         report = json.loads((root / 'build/consoles/build.json').read_text())
         self.assertEqual(report['targets'], [{'target': 'gba', 'returncode': 0},
+                                              {'target': 'smd', 'returncode': 0},
                                               {'target': 'snes', 'returncode': 1}])
         self.assertFalse(report['full_game'])
 
-    def test_smd_rejected_before_any_build(self):
-        with patch.object(sys, 'argv', ['build_consoles.py', '--targets', 'gba', 'smd']), \
-                patch.object(build_consoles, 'build_target') as build, redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as failure:
-                build_consoles.main()
-            self.assertEqual(failure.exception.code, 2)
-            build.assert_not_called()
+    def test_smd_uses_tutorial_and_preflight_assets_with_its_own_sdk(self):
+        sdk=self.root/'sgdk'
+        with patch.object(build_consoles,'ROOT',self.root), \
+                patch.object(build_consoles.subprocess,'run') as run:
+            run.return_value.returncode=1
+            report=build_consoles.build_target('smd',self.root,self.root,'clang','ld.lld','llvm-objcopy',sdk)
+        command=run.call_args.args[0]
+        self.assertEqual(command[command.index('--scene')+1],'tutorial')
+        self.assertEqual(command[command.index('--sdk')+1],str(sdk))
+        self.assertIn('--reuse-assets',command)
+        self.assertEqual(report['returncode'],1)
+        self.assertNotIn('rom_sha256',report)
 
     def test_failed_preflight_does_not_start_parallel_targets(self):
         with patch.object(build_consoles,'ROOT',self.root), \
@@ -62,7 +68,7 @@ class ConsoleBuildTests(unittest.TestCase):
             self.assertEqual(build_consoles.main(),1)
             build.assert_not_called()
         report=json.loads((self.root/'build/consoles/build.json').read_text())
-        self.assertEqual(len(report['targets']),2)
+        self.assertEqual(len(report['targets']),3)
         self.assertTrue(all(item['phase']=='original-import preflight' and item['returncode']==1 for item in report['targets']))
 
     def test_preflight_finishes_before_either_parallel_target(self):
@@ -71,10 +77,34 @@ class ConsoleBuildTests(unittest.TestCase):
             self.assertEqual(ready,['imports validated'])
             return {'target':target,'returncode':0}
         with patch.object(build_consoles,'ROOT',self.root), \
-                patch.object(build_consoles,'prepare_opening',side_effect=lambda data:ready.append('imports validated')), \
+                patch.object(build_consoles,'prepare_opening',side_effect=lambda data,targets:ready.append('imports validated')), \
                 patch.object(build_consoles,'build_target',side_effect=build), \
                 patch.object(sys,'argv',['build_consoles.py']):
             self.assertEqual(build_consoles.main(),0)
+
+    def test_smd_preflight_prepares_isolated_metadata_before_target_conversion(self):
+        inputs=([],{'source_sha256':'original'});metadata=self.root/'build/consoles/smd-metadata';events=[]
+        with patch.object(build_consoles,'ROOT',self.root), \
+                patch('snes_tutorial_assets.ensure_original_imports',return_value=inputs), \
+                patch('smd_opening_inputs.prepare_smd_metadata',side_effect=lambda *args,**kwargs:events.append('metadata') or metadata) as prepare, \
+                patch('smd_opening_assets.compile_opening',side_effect=lambda *args:events.append('convert')) as convert:
+            build_consoles.prepare_opening(self.root,['smd','snes'])
+        self.assertEqual(events,['metadata','convert'])
+        prepare.assert_called_once_with(self.root,metadata,prepared_imports=inputs)
+        convert.assert_called_once_with(self.root,self.root/'assets/generated/smd-opening',metadata)
+
+    def test_metadata_helper_exports_only_portable_c_without_snes_graphics(self):
+        import smd_opening_inputs
+        output=self.root/'metadata';inputs=([],{'source_sha256':'original'})
+        def export(recipes,folder):
+            (folder/'opening_adventure.c').write_text('portable C')
+            return ['opening_adventure.c']
+        with patch.object(smd_opening_inputs,'compile_worlds',side_effect=export) as export_mock, \
+                patch.object(smd_opening_inputs,'ensure_original_imports') as ensure:
+            self.assertEqual(smd_opening_inputs.prepare_smd_metadata(self.root,output,inputs),output)
+            ensure.assert_not_called()
+        self.assertEqual(set(path.name for path in output.iterdir()),{'opening_adventure.c','build.json'})
+        self.assertEqual(json.loads((output/'build.json').read_text())['source_identity'],inputs[1])
 
     def test_gba_parallel_build_reuses_prepared_imports(self):
         with patch.object(build_consoles,'ROOT',self.root), \
