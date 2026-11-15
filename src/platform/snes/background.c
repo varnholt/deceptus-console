@@ -464,7 +464,7 @@ static void prepare_dma(void)
 
 void snes_background_prepare(deceptus_i16 camera_x, deceptus_i16 camera_y)
 {
-    deceptus_i16 left, top, x, y, added_column;
+    deceptus_i16 left, top, x, y, added_column, refresh_left, refresh_top, refresh_right, refresh_bottom;
     deceptus_u16 index, plane, duration;
     deceptus_u8 dirty_clips, active, full_refresh;
     const snes_background_animation *clip;
@@ -546,20 +546,31 @@ void snes_background_prepare(deceptus_i16 camera_x, deceptus_i16 camera_y)
                 continue;
             }
             clip = &stage->animations[index];
-            for (y = top; y < top + SNES_BG_HEIGHT; ++y) {
-                for (x = left; x < left + SNES_BG_WIDTH; ++x) {
-                    if (x >= clip->left && x < clip->left + clip->columns && y >= clip->top &&
-                        y < clip->top + clip->rows) {
-                        release_cell(clip->plane, x, y);
-                    }
+            refresh_left = left;
+            if (refresh_left < (deceptus_i16)clip->left) {
+                refresh_left = (deceptus_i16)clip->left;
+            }
+            refresh_top = top;
+            if (refresh_top < (deceptus_i16)clip->top) {
+                refresh_top = (deceptus_i16)clip->top;
+            }
+            refresh_right = left + SNES_BG_WIDTH;
+            if (refresh_right > (deceptus_i16)(clip->left + clip->columns)) {
+                refresh_right = (deceptus_i16)(clip->left + clip->columns);
+            }
+            refresh_bottom = top + SNES_BG_HEIGHT;
+            if (refresh_bottom > (deceptus_i16)(clip->top + clip->rows)) {
+                refresh_bottom = (deceptus_i16)(clip->top + clip->rows);
+            }
+            /* retain row order and release every old reference before reloading. */
+            for (y = refresh_top; y < refresh_bottom; ++y) {
+                for (x = refresh_left; x < refresh_right; ++x) {
+                    release_cell(clip->plane, x, y);
                 }
             }
-            for (y = top; y < top + SNES_BG_HEIGHT; ++y) {
-                for (x = left; x < left + SNES_BG_WIDTH; ++x) {
-                    if (x >= clip->left && x < clip->left + clip->columns && y >= clip->top &&
-                        y < clip->top + clip->rows) {
-                        load_cell(clip->plane, x, y, 2);
-                    }
+            for (y = refresh_top; y < refresh_bottom; ++y) {
+                for (x = refresh_left; x < refresh_right; ++x) {
+                    load_cell(clip->plane, x, y, 2);
                 }
             }
         }

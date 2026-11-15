@@ -7,6 +7,13 @@
 #define SNES_OBJ_REQUESTS 96
 #define SNES_OBJ_PIECES 128
 
+#ifdef SNES_SPRITES_PROFILE
+volatile deceptus_u16 snes_obj_profile_stage;
+#define SNES_OBJ_PROFILE(stage) snes_obj_profile_stage = (stage)
+#else
+#define SNES_OBJ_PROFILE(stage)
+#endif
+
 typedef struct snes_obj_request {
     deceptus_u16 resource;
     deceptus_i16 x, y;
@@ -20,7 +27,8 @@ typedef struct snes_obj_slot {
 
 static snes_obj_request snes_obj_requests[SNES_OBJ_REQUESTS];
 static deceptus_u16 snes_obj_active_resources[SNES_OBJ_REQUESTS];
-static snes_obj_slot snes_obj_slots[SNES_OBJ_PIECES];
+snes_obj_slot snes_obj_slots[SNES_OBJ_PIECES];
+typedef char snes_obj_slot_size[(sizeof(snes_obj_slot) == 8) ? 1 : -1];
 static deceptus_u8 snes_obj_heads[SNES_SPRITE_RESOURCE_COUNT], snes_obj_epochs[SNES_SPRITE_RESOURCE_COUNT];
 static deceptus_u8 snes_obj_epoch;
 static deceptus_u16 snes_obj_unused, snes_obj_free_cursor;
@@ -65,7 +73,7 @@ static deceptus_u16 snes_obj_tile(deceptus_u16 slot)
     return (slot / 64) * 256 + ((slot & 63) / 8) * 32 + (slot & 7) * 2;
 }
 
-static deceptus_u16 snes_obj_slot_for(deceptus_u16 resource, deceptus_u8 piece)
+deceptus_u16 snes_obj_slot_for(deceptus_u16 resource, deceptus_u16 piece)
 {
     deceptus_u16 index;
     deceptus_u8 link, previous;
@@ -203,6 +211,87 @@ void snes_obj_piece(deceptus_i16 x, deceptus_i16 y, deceptus_u16 tile, deceptus_
                     deceptus_u8 priority, deceptus_u8 size);
 #else
 #define snes_obj_piece snes_obj_piece_reference
+#endif
+
+#if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
+static void snes_obj_emit_quads_reference(deceptus_i16 x, deceptus_i16 y, deceptus_u16 slot, deceptus_u8 palette,
+                                          deceptus_u8 flip, deceptus_u8 priority, deceptus_u8 quads)
+{
+    deceptus_u8 quadrant;
+    deceptus_u16 tile;
+    tile = snes_obj_tile(slot);
+    if (quads == 15) {
+        snes_obj_piece_reference(x, y, tile, palette, flip, priority, 16);
+    } else {
+        for (quadrant = 0; quadrant < 4; ++quadrant) {
+            if (quads & (1U << quadrant)) {
+                snes_obj_piece_reference(x + (flip ? 1 - (quadrant & 1) : quadrant & 1) * 8, y + (quadrant >> 1) * 8,
+                                         tile + (quadrant & 1) + (quadrant >> 1) * 16, palette, flip, priority, 8);
+            }
+        }
+    }
+}
+#endif
+#ifdef SNES_SPRITES_ASM
+void snes_obj_emit_quads(deceptus_i16 x, deceptus_i16 y, deceptus_u16 slot, deceptus_u8 palette, deceptus_u8 flip,
+                         deceptus_u8 priority, deceptus_u8 quads);
+#else
+#define snes_obj_emit_quads snes_obj_emit_quads_reference
+#endif
+
+#if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
+static void snes_obj_begin_reference(void)
+{
+    deceptus_u16 index;
+    memset(snes_obj_oam, 0, sizeof(snes_obj_oam));
+    memset(snes_obj_lines, 0, sizeof(snes_obj_lines));
+    memset(snes_obj_slivers, 0, sizeof(snes_obj_slivers));
+    for (index = 0; index < SNES_OBJ_PIECES; ++index) {
+        snes_obj_oam[index * 4 + 1] = 240;
+        snes_obj_slots[index].used = 0;
+    }
+}
+#endif
+#ifdef SNES_SPRITES_ASM
+void snes_obj_begin(void);
+#else
+#define snes_obj_begin snes_obj_begin_reference
+#endif
+
+#ifdef SNES_SPRITES_ASM
+typedef char snes_obj_resource_size[(sizeof(snes_sprite_resource) == 16) ? 1 : -1];
+typedef char snes_obj_request_size[(sizeof(snes_obj_request) == 8) ? 1 : -1];
+void snes_obj_draw_resource(const snes_obj_request *request, deceptus_u16 palette);
+#endif
+
+#if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
+static void snes_obj_draw_resource_reference(const snes_obj_request *request, deceptus_u16 palette)
+{
+    const snes_sprite_resource *entry;
+    deceptus_u16 row, column, piece, slot;
+    deceptus_i16 x, y;
+    deceptus_u8 quads;
+    entry = &snes_sprite_resources[request->resource];
+    for (row = 0; row < entry->rows; ++row) {
+        for (column = 0; column < entry->columns; ++column) {
+            x = request->x + (request->flip ? entry->columns - column - 1 : column) * 16;
+            y = request->y + row * 16;
+            if (x <= -16 || x >= 256 || y <= -16 || y >= 224) {
+                continue;
+            }
+            piece = row * entry->columns + column;
+            if (!(snes_sprite_opaque[request->resource][piece >> 3] & (1U << (piece & 7)))) {
+                continue;
+            }
+            slot = snes_obj_slot_for(request->resource, piece);
+            if (slot != 65535) {
+                quads = snes_sprite_quads[snes_sprite_quad_offsets[request->resource] + piece];
+                snes_obj_emit_quads_reference(x, y, slot, (deceptus_u8)palette, request->flip, request->priority,
+                                              quads);
+            }
+        }
+    }
+}
 #endif
 
 static deceptus_u16 snes_obj_sword(const deceptus_adventure *game, deceptus_i16 *x, deceptus_i16 *y)
@@ -379,22 +468,17 @@ static void snes_sprites_init(void)
 
 static void snes_sprites_prepare(const deceptus_adventure *game, const deceptus_frame *frame)
 {
-    deceptus_u16 index, other, resource, row, column, piece, slot, active_count;
-    deceptus_i16 x, y;
-    deceptus_u8 palette, link, quads, quadrant;
+    deceptus_u16 index, other, resource, active_count;
+    deceptus_u8 palette, link;
     const deceptus_draw *draw;
     const snes_sprite_resource *entry;
     const snes_obj_request *request;
+    SNES_OBJ_PROFILE(1);
     snes_obj_request_count = snes_obj_count = snes_obj_palette_count = 0;
     snes_sprite_overflow = snes_sprite_blank = 0;
     snes_obj_free_cursor = 0;
-    memset(snes_obj_oam, 0, sizeof(snes_obj_oam));
-    memset(snes_obj_lines, 0, sizeof(snes_obj_lines));
-    memset(snes_obj_slivers, 0, sizeof(snes_obj_slivers));
-    for (index = 0; index < 128; ++index) {
-        snes_obj_oam[index * 4 + 1] = 240;
-        snes_obj_slots[index].used = 0;
-    }
+    snes_obj_begin();
+    SNES_OBJ_PROFILE(2);
     if (game->campaign.mode != DECEPTUS_CAMPAIGN_TITLE) {
         for (index = 0; index < frame->count; ++index) {
             draw = &frame->draws[index];
@@ -435,6 +519,7 @@ static void snes_sprites_prepare(const deceptus_adventure *game, const deceptus_
         snes_obj_ropes(&game->campaign.engine);
     }
     /* protect all existing frames needed later in this presentation. */
+    SNES_OBJ_PROFILE(3);
     active_count = 0;
     if (!++snes_obj_epoch) {
         memset(snes_obj_epochs, 0, sizeof(snes_obj_epochs));
@@ -453,44 +538,18 @@ static void snes_sprites_prepare(const deceptus_adventure *game, const deceptus_
         }
     }
     for (index = 0; index < snes_obj_request_count; ++index) {
+        SNES_OBJ_PROFILE(4);
         request = &snes_obj_requests[index];
-        entry = &snes_sprite_resources[request->resource];
+        resource = request->resource;
+        entry = &snes_sprite_resources[resource];
         palette = snes_obj_palette(entry->palette);
-        for (row = 0; row < entry->rows; ++row) {
-            for (column = 0; column < entry->columns; ++column) {
-                x = request->x + (request->flip ? entry->columns - column - 1 : column) * 16;
-                y = request->y + row * 16;
-                if (x <= -16 || x >= 256 || y <= -16 || y >= 224) {
-                    continue;
-                }
-                piece = row * entry->columns + column;
-#ifdef SNES_SPRITE_OPAQUE_MASK
-                if (!(snes_sprite_opaque[request->resource][piece >> 3] & (1U << (piece & 7)))) {
-                    continue;
-                }
+#ifdef SNES_SPRITES_ASM
+        snes_obj_draw_resource(request, palette);
+#else
+        snes_obj_draw_resource_reference(request, palette);
 #endif
-                slot = snes_obj_slot_for(request->resource, (deceptus_u8)piece);
-                if (slot != 65535) {
-                    quads = 15;
-#ifdef SNES_SPRITE_QUADS
-                    quads = snes_sprite_quads[snes_sprite_quad_offsets[request->resource] + piece];
-#endif
-                    if (quads == 15) {
-                        snes_obj_piece(x, y, snes_obj_tile(slot), palette, request->flip, request->priority, 16);
-                    } else {
-                        for (quadrant = 0; quadrant < 4; ++quadrant) {
-                            if (quads & (1U << quadrant)) {
-                                snes_obj_piece(x + (request->flip ? 1 - (quadrant & 1) : quadrant & 1) * 8,
-                                               y + (quadrant >> 1) * 8,
-                                               snes_obj_tile(slot) + (quadrant & 1) + (quadrant >> 1) * 16, palette,
-                                               request->flip, request->priority, 8);
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
+    SNES_OBJ_PROFILE(8);
 }
 
 static void snes_sprites_preload(void)

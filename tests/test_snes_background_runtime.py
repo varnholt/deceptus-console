@@ -111,6 +111,10 @@ int main(void) {
  assert(scratch>=19);prepare_dma();snes_background_commit();
  snes_background_load(0);check(0,0);
  snes_background_set_flags(1);for(x=0;x<12;++x)check(0,0);
+ check(10,10);check(10,10);check(11,11);check(11,11);
+ check(-22,-18);check(-22,-18);check(-23,-19);check(-23,-19);
+ check(10,-18);check(10,-18);check(-22,10);check(-22,10);
+ check(12,12);check(12,12);check(100,61);check(100,61);
  snes_background_set_flags(0);check(0,0);
  for(x=1;x<88;++x)check(x,x%2);
  for(y=2;y<62;++y)check(87,y);

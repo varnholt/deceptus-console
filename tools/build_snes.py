@@ -205,6 +205,12 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         objects.append("background_dma.obj")
         run([assembler, "-d", "-s", "-x", "-o", "sprites_emit.obj", ROOT / "src/platform/snes/sprites_emit.asm"], folder)
         objects.append("sprites_emit.obj")
+        run([assembler, "-d", "-s", "-x", "-o", "sprites_quads.obj", ROOT / "src/platform/snes/sprites_quads.asm"], folder)
+        objects.append("sprites_quads.obj")
+        run([assembler, "-d", "-s", "-x", "-o", "sprites_begin.obj", ROOT / "src/platform/snes/sprites_begin.asm"], folder)
+        objects.append("sprites_begin.obj")
+        run([assembler, "-d", "-s", "-x", "-o", "sprites_resource.obj", ROOT / "src/platform/snes/sprites_resource.asm"], folder)
+        objects.append("sprites_resource.obj")
         if rom_mib == 8:
             # these physical banks map reset vectors and cpu work ram; no assets
             # may occupy their reserved ranges before the boot mirror is copied.

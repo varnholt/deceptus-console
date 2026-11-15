@@ -10,8 +10,8 @@ route through graveyard rubies, Crypt return, altar use, sword pickup and attack
 with 29 health, zero deaths and no engine or renderer errors. Rendering performance
 is still being improved; these builds do not establish 60 Hz simulation.
 
-The final quadrant-backed stationary fixtures measured 5.06 simulation updates
-per second in The Loop and 4.51 in The Crypt under Snes9x 1.63. Each sample used
+The final resource-batched stationary fixtures measured 7.26 simulation updates
+per second in The Loop and 7.46 in The Crypt under Snes9x 1.63. Each sample used
 3,000 display frames of warmup and 1,200 measured display frames at the core's
 60.0988 Hz output rate, with no input, deaths or content/video errors. These
 measurements describe those views; they are not a full-game performance bound.
@@ -93,14 +93,6 @@ not rotate those strips. The headtorch uses a source light sprite approximation.
 These are presentation adaptations, and neither a full original shader pipeline
 nor complete source-menu layout parity is established.
 
-Baseline stationary measurements of the quadrant-backed renderer in Snes9x
-used 3,000 display frames of warmup and 1,200 sampled frames. The Loop advanced
-102 simulation ticks (5.11 updates/s); the Crypt advanced 90 (4.51 updates/s),
-with no renderer errors or deaths. OBJ preparation dominated the Crypt sample.
-The opening is functional, but this throughput is substantially below a playable
-console frame rate and needs further work. These measurements are specific to
-those views and do not establish a whole-game performance guarantee.
-
 The SDK emits exported initialized constants into a RAM-copy section even when
 they are declared const. For generated immutable content units, the builder
 reconstructs their labels at exact serialized byte offsets in banked ROM and
@@ -124,14 +116,28 @@ off the sword ring. Native tests also exercise a deliberately saturated table.
 controlled ROM measurements. Fixture snapshots and their ROM hashes are kept
 separate from normal-input progression evidence.
 
-The scanline validation and OAM packing routine now runs as a small 65816
-backend function. Shared simulation remains portable C90. The C writer remains
-a reference: an actual Snes9x test ROM compares 2,048 calls, including clipped
-coordinates, mixed 8/16-pixel sizes, saturated scanlines and full OAM. It checks
-every OAM byte, both scanline-counter arrays, object count and overflow result.
+Source-resource expansion, quadrant selection, presentation reset, scanline
+validation and OAM packing run in small 65816 backend functions. Cache allocation
+and eviction retain the existing bounded C implementation; shared simulation
+remains portable C90. The original C paths remain references. An actual Snes9x
+test ROM compares 6,482 cases: 2,048 object writes, 2,048 quadrant expansions,
+256 presentation resets and every one of the 1,065 resources in both directions.
+Cases include clipped coordinates, mixed 8/16-pixel sizes, saturated scanlines
+and full OAM. It checks every OAM byte, both scanline-counter arrays, object count,
+overflow and complete cache-slot contents.
 Run `python tools/verify_snes_sprites.py` after preparing the SNES assets.
 
-With the same 3,000-frame warmup and 1,200-frame sample, the Loop advances 137
-ticks (6.86 updates/s, previously 5.11); the Crypt advances 125 (6.26 updates/s,
-previously 4.51). These are approximately 34% and 39% gains for those scenes,
-respectively. This remains substantially below a playable console frame rate.
+With the same 3,000-frame warmup and 1,200-frame sample, the Loop advances 145
+ticks (7.26 updates/s, previously 6.86); the Crypt advances 149 (7.46 updates/s,
+previously 6.26). These are approximately 6% and 19% gains for those scenes.
+Resource batching reduced the full 56-checkpoint route from 257,997 to 248,738
+display frames. Restricting animated-background refreshes to the intersection
+of the clip and visible window reduces this further to 239,841 frames. Each
+refresh retains the same row order and releases all old references before
+loading the new cells. Native edge/corner checks and the 157,008-view water
+audit preserve the exact cache results.
+
+In the animated Altar view, the same warm sample improves from 31 to 46 ticks
+(1.55 to 2.30 updates/s); Loop and Crypt measurements remain unchanged. The
+matched 318-presentation Altar release fixture drops from 12,607 to 9,530 display
+frames. This remains substantially below a playable console frame rate.
