@@ -1,8 +1,8 @@
 # Deceptus C Engine
 
 A portable C game engine and console adaptation of Deceptus. **GBA is the first
-complete-game target.** SNES now builds the same 26-room opening; Mega Drive is a
-future backend. The local folder currently keeps the name `deceptus-snes`.
+complete-game target.** SNES now builds the same 26-room opening; Mega Drive has a
+one-room [proof of concept](docs/MEGA_DRIVE.md). The local folder currently keeps the name `deceptus-snes`.
 
 The latest development build is the original prison opening, with twenty-six
 imported rooms, source dialogue, inventory and lever interactions, automatic
@@ -24,7 +24,10 @@ To play an existing build, run from the repository root:
 ```powershell
 python run_gba.py
 python run_snes.py
+python run_smd.py
 ```
+
+`run_smd.py` selects the separate one-room Mega Drive proof of concept.
 
 Each launcher downloads its missing emulator core into `.tools/`, builds a
 missing cartridge, and opens the project player. Existing cores and cartridges

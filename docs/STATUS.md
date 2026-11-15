@@ -1,6 +1,6 @@
 # Current status
 
-Updated for the GBA opening and SNES opening backend, 14 November 2026.
+Updated for the console openings and Mega Drive proof of concept, 15 November 2026.
 
 ## Available targets
 
@@ -10,7 +10,7 @@ Updated for the GBA opening and SNES opening backend, 14 November 2026.
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
 | SNES | Same 26-room opening in an 8 MiB ExHiROM; retained one-room test is explicit `--scene prototype`; performance remains substantially below target |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
-| Mega Drive | Planned; no implementation |
+| Mega Drive | One-room SGDK proof of concept; shared C, native artwork size, scrolling and 60 Hz in the measured small scene; full opening remains unimplemented |
 
 ## Opening content
 
@@ -150,3 +150,13 @@ projectile counts and damage, ending with 29 health and zero deaths. The final
 8 MiB ROM hash is `aa667831b20123263a71da238ce51c5bdd4aa8175cbc1e02cc1f207b4360cbc8`.
 Warm measurements in the Loop and Crypt are approximately 6.3–6.9 simulation
 updates/s; major optimization remains necessary. See [SNES details](SNES.md).
+
+## Mega Drive proof of concept
+
+`python run_smd.py` opens the separate one-room playtest. The actual cartridge
+passes per-update comparisons against desktop C for movement, collision, jumps,
+scrolling, pause/resume, restart and checkpoint/portal return. The 600-frame idle
+sample advances 600 simulation ticks (59.92 updates/s in Genesis Plus GX). All
+1,010 post-boot display frames in the test produce one game-loop update. This
+does not establish full-opening, complex-enemy or rope performance. See
+[Mega Drive scope and build instructions](MEGA_DRIVE.md).

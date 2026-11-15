@@ -15,6 +15,11 @@ add_custom_target(snes_rom
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "building the SNES opening; --scene prototype remains available through tools/build_snes.py")
 
+add_custom_target(smd_poc
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_smd.py" --data "${DECEPTUS_DATA_DIR}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "building the one-room Mega Drive proof of concept")
+
 add_custom_target(console_roms
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_consoles.py" --data "${DECEPTUS_DATA_DIR}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

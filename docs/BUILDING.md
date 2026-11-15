@@ -38,9 +38,13 @@ The root launchers handle missing emulator cores and cartridges:
 ```powershell
 python run_gba.py
 python run_snes.py
+python run_smd.py
 python run_gba.py --build
 python run_snes.py --prepare
 ```
+
+The Mega Drive launcher selects a one-room [proof of concept](MEGA_DRIVE.md),
+not the 26-room opening.
 
 They cache cores in `.tools/` and do not download SDKs merely to play an existing
 ROM. Missing Python dependencies use `.venv`, without changing global packages.

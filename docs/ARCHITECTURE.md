@@ -20,6 +20,7 @@ shared code under a very different compiler and resource budget.
 | `src/game/weapons/playersword.c` | Source sword timing, hit bounds and supported blob damage |
 | `src/platform/gba/` | Registers, input, DMA, tile residency, OAM, menus, UI and cartridge startup |
 | `src/platform/snes/` | SNES/PVSnesLib world cache, OBJ staging, input and opening frontend |
+| `src/platform/smd/` | SGDK POC video/input, tile layout and private C header adapters |
 | `src/platform/host/` | Native preview bridge |
 | `tools/` | Offline authoritative-content import, conversion, compilation and verification |
 

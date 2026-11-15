@@ -58,8 +58,8 @@ def main():
     parser.add_argument('--objcopy', default='llvm-objcopy')
     args = parser.parse_args()
     if 'smd' in args.targets:
-        parser.error('SMD is not implemented: a 68000 toolchain, original-source graphics converter, '
-                     'cartridge startup and Mega Drive video/input backend are required; no ROM was built')
+        parser.error('SMD opening is not implemented; use python tools/build_smd.py for the separate '
+                     'one-room proof of concept. No full-opening SMD ROM was built')
     targets = list(dict.fromkeys(args.targets))
     reports = []
     folder = ROOT / 'build/consoles'
