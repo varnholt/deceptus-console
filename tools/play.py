@@ -10,6 +10,7 @@ import tkinter as tk
 from PIL import Image, ImageEnhance, ImageTk
 
 from emulator import Emulator, ROOT
+from player_display import present
 
 
 class Host:
@@ -109,12 +110,13 @@ def play(backend, core, library, rom=None, scene='tutorial'):
                     buttons |= value
             image = host.run(buttons)
         if image:
-            scaled=image.resize((image.width*3,image.height*3),Image.Resampling.NEAREST)
-            if hasattr(canvas,'image'):
-                canvas.image.paste(scaled)
-            else:
-                canvas.image=ImageTk.PhotoImage(scaled)
-                canvas.configure(image=canvas.image)
+            changed = present(canvas, image, (window.winfo_screenwidth(), window.winfo_screenheight()),
+                              ImageTk.PhotoImage)
+            if changed:
+                window.update_idletasks()
+                x = max(0, min(window.winfo_x(), window.winfo_screenwidth() - window.winfo_width() - 16))
+                y = max(0, min(window.winfo_y(), window.winfo_screenheight() - window.winfo_height() - 64))
+                window.geometry(f"+{x}+{y}")
         deadline += 1 / (emulator.fps if emulator else 60)
         now = time.perf_counter()
         if deadline < now - 0.1:
