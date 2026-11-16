@@ -61,7 +61,7 @@ def verify(name, assets, sdk, core):
 
     build_snes.run = run
     try:
-        build_snes.build(sdk, ROOT.parent / 'deceptus_engine/data', scene='tutorial', rooms=26,
+        build_snes.build(sdk, ROOT / 'assets/game/data', scene='tutorial', rooms=26,
                          reuse_assets=True, rom_mib=8, assets_dir=assets, output_dir=folder)
     finally:
         build_snes.run = original_run

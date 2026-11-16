@@ -37,7 +37,7 @@ def main(backend, arguments=None):
     parser.add_argument('--core', type=Path, help='use an existing native libretro core')
     parser.add_argument('--build', action='store_true', help='rebuild the default cartridge before playing')
     parser.add_argument('--prepare', action='store_true', help='set up the core and cartridge without opening a window')
-    parser.add_argument('--data', type=Path, default=ROOT.parent / 'deceptus_engine/data')
+    parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
     if backend == 'gba':
         parser.add_argument('--scene', choices=['tutorial', 'tonight', 'lever', 'platforms', 'preview', 'cell', 'water'], default='tutorial')
         parser.add_argument('--clang', default='clang')

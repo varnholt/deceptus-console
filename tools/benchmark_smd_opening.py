@@ -80,7 +80,7 @@ def build_fixture(name,assets,sdk,folder):
         original_run(command,working_directory)
     build_smd.run=run
     try:
-        build_smd.build(sdk,ROOT.parent/'deceptus_engine/data',folder,scene='tutorial',assets_dir=assets,reuse_assets=True)
+        build_smd.build(sdk,ROOT / 'assets/game/data',folder,scene='tutorial',assets_dir=assets,reuse_assets=True)
     finally:
         build_smd.run=original_run
     if source.read_text()!=original:

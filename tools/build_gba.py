@@ -106,7 +106,7 @@ def build(data, clang='clang', linker='ld.lld', objcopy='llvm-objcopy', full_gam
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--data', type=Path, default=ROOT.parent / 'deceptus_engine/data')
+    parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
     parser.add_argument('--clang', default='clang')
     parser.add_argument('--linker', default='ld.lld')
     parser.add_argument('--objcopy', default='llvm-objcopy')

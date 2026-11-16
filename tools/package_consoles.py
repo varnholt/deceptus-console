@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSIONS = {'gba': '.gba', 'snes': '.sfc', 'smd': '.bin'}
 NOTICES = {
     'ENGINE-CODE.txt': ROOT / 'LICENSE',
-    'DECEPTUS-DATA.md': ROOT.parent / 'deceptus_engine/data/LICENSE.md',
-    'GAME-CONTENT.txt': ROOT.parent / 'deceptus_engine/LICENSES/GAME-CONTENT.txt',
+    'DECEPTUS-DATA.md': ROOT / 'assets/game/data/LICENSE.md',
+    'GAME-CONTENT.txt': ROOT / 'assets/game/LICENSES/GAME-CONTENT.txt',
     'PVSNESLIB.txt': ROOT / '.tools/pvsneslib/pvsneslib/pvsneslib_license.txt',
     'SGDK.txt': ROOT / '.tools/sgdk/license.txt',
     'SGDK-RUNTIME.txt': ROOT / '.tools/sgdk/COPYING.RUNTIME',

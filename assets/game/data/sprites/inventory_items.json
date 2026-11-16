@@ -1,0 +1,101 @@
+{
+    "handle": {
+        "x_px": 0,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Whisperwood Lever-Grip",
+        "description": "Carved from ancient Whisperwood. It wakes mechanisms that have not turned in a long age, and rarely survives the effort.",
+        "properties": {
+            "consumed_after_use": "true"
+        }
+    },
+    "key": {
+        "x_px": 38,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Chrono-Skeleton Key",
+        "description": "Chrono-Smith work. It opens doors that time has locked, and fits yesterday's wards as though it were cut for them."
+    },
+    "locker_key": {
+        "x_px": 38,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Locker Key",
+        "description": "A shiny key."
+    },
+    "sword": {
+        "x_px": 76,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Echoing Blade",
+        "description": "Forged where the fires went out long ago. It rings with battles nobody remembers, and wants one more."
+    },
+    "potion_red": {
+        "x_px": 114,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Phoenix Elixir",
+        "description": "Brewed from phoenix feathers. Crimson, faintly warm, and it gives strength back to anyone brave enough to drink it."
+    },
+    "potion_green": {
+        "x_px": 152,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Sylvan Essence Draught",
+        "description": "Distilled from Sylvan Grove essence. It lends the patience of old woodland, and tells you which growing things to trust."
+    },
+    "book": {
+        "x_px": 190,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Temporal Grimoire",
+        "description": "A Chrono-Scribe's work. Its pages pull threads out of time and hand back spells that were meant to stay lost."
+    },
+    "headtorch": {
+        "x_px": 228,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Head Torch",
+        "description": "A miner's helm lamp, its beam narrow and honest. It follows wherever you look, and gutters when you land hard."
+    },
+    "gems": {
+        "x_px": 266,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Rubies",
+        "description": "Two cut stones, still warm from whoever carried them last. Worth a great deal to someone who is not down here."
+    },
+    "solar_seal": {
+        "x_px": 304,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Solar Seal",
+        "description": "A gilded seal stamped with a rayed sun. Someone pressed it into a lid once and took it with them afterwards."
+    },
+    "lunar_seal": {
+        "x_px": 342,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Lunar Seal",
+        "description": "A pewter seal stamped with a waning moon. The twin of the sun seal, and colder to hold than the tunnels explain."
+    },
+    "playerfirefly": {
+        "x_px": 380,
+        "y_px": 0,
+        "width_px": 38,
+        "height_px": 38,
+        "title": "Firefly",
+        "description": "A friendly firefly that orbits you through the dark."
+    }
+}

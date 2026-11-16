@@ -12,7 +12,7 @@ from smd_opening_assets import packbits,compile_background,viewport_peak,Writer,
 from pixel_font import NativePixelFont
 
 ROOT=Path(__file__).resolve().parents[1]
-DATA=ROOT.parent/'deceptus_engine/data'
+DATA=ROOT / 'assets/game/data'
 
 
 def decode_packets(payload,unit_bytes):

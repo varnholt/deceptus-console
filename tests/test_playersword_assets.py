@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from gba_assets import SWORD_CLIPS, sword_frames
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT.parent / 'deceptus_engine/data'
+DATA = ROOT / 'assets/game/data'
 
 
 class PlayerSwordAssetsTests(unittest.TestCase):

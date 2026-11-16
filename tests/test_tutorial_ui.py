@@ -5,7 +5,7 @@ from PIL import Image
 from tutorial_ui import TutorialUI
 from pixel_font import NativePixelFont
 ROOT=Path(__file__).resolve().parents[1]
-DATA=ROOT.parent/'deceptus_engine/data'
+DATA=ROOT / 'assets/game/data'
 
 @unittest.skipUnless((DATA/'fonts/deceptum.ttf').exists(),'original font required')
 class TutorialTextTests(unittest.TestCase):

@@ -17,7 +17,7 @@ def main(arguments=None):
     parser.add_argument('--rom', type=Path, help='play an existing cartridge')
     parser.add_argument('--core', type=Path)
     parser.add_argument('--sdk', type=Path)
-    parser.add_argument('--data', type=Path, default=ROOT.parent / 'deceptus_engine/data')
+    parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
     parser.add_argument('--build', action='store_true')
     parser.add_argument('--prepare', action='store_true')
     args = parser.parse_args(arguments)

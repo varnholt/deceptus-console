@@ -108,7 +108,7 @@ class GbaGraphicsTests(unittest.TestCase):
         self.assertEqual(len(payload) & (len(payload) - 1), 0)
         self.assertEqual(payload[0xac:0xb0], b'DCPT')
     def test_mechanism_frames_preserve_source_pixels(self):
-        source = ROOT.parent / 'deceptus_engine/data/sprites'
+        source = ROOT / 'assets/game/data/sprites'
         folder = graphics_folder()
         if not (source / 'levers.png').exists() or not (folder / 'mechanisms-frames.json').exists():
             self.skipTest('original assets and a GBA build are required')
@@ -175,7 +175,7 @@ class GbaGraphicsTests(unittest.TestCase):
             self.assertEqual(offset, frame['offset'] + frame['bytes'])
 
     def test_sword_frames_preserve_source_grid_with_bounded_palette_error(self):
-        source = ROOT.parent / 'deceptus_engine/data/sprites'
+        source = ROOT / 'assets/game/data/sprites'
         folder = graphics_folder()
         if not (source / 'player.png').exists() or not (folder / 'mechanisms-frames.json').exists():
             self.skipTest('original assets and a GBA build are required')

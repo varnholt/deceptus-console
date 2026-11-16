@@ -36,7 +36,7 @@ def package(build=False, core=CORE):
         shutil.copyfile(ROOT / 'assets/release' / name, output / name)
     (output / 'NATIVE-CHECKS.txt').write_text(native.stdout, encoding='utf-8')
     (output / 'verification.json').write_text(json.dumps(report, indent=2) + '\n')
-    original = ROOT.parent / 'deceptus_engine'
+    original = ROOT / 'assets/game'
     notices = [(ROOT / 'LICENSE', 'notices/port/LICENSE'),
                (original / 'LICENSE.md', 'notices/deceptus_engine/LICENSE.md'),
                (original / 'data/LICENSE.md', 'notices/deceptus_engine/data/LICENSE.md')]
@@ -59,7 +59,7 @@ def package(build=False, core=CORE):
                     'data/sprites/enemy_spikeblock.png', 'data/sprites/collapsing_platform.png', 'data/weapons/arrow.png']
     source_hashes = {name: hashlib.sha256((original / name).read_bytes()).hexdigest() for name in source_files}
     manifest = dict(created_utc=datetime.now(timezone.utc).isoformat(), port_revision=revision(ROOT),
-                    original_revision=revision(original), rom_sha256=report['rom_sha256'],
+                    original_revision=json.loads((original / 'SOURCE.json').read_text())['revision'], rom_sha256=report['rom_sha256'],
                     compiler=json.loads((ROOT / 'build/gba/build.json').read_text())['compiler'],
                     source_hashes=source_hashes, full_game=False, areas=4,
                     native_checks_passed=True, rom_playthrough_passed=True)

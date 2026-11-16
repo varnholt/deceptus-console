@@ -1,0 +1,54 @@
+{
+    "left": {
+        "texture": "data/light/spotlight_l.png",
+        "color_r": 255,
+        "color_g": 200,
+        "color_b": 100,
+        "color_a": 255,
+        "width_px": 256,
+        "height_px": 128,
+        "center_offset_x_px": 128,
+        "center_offset_y_px": 0,
+        "offset_x_px": -163,
+        "offset_y_px": -48
+    },
+    "right": {
+        "texture": "data/light/spotlight_r.png",
+        "color_r": 255,
+        "color_g": 200,
+        "color_b": 100,
+        "color_a": 255,
+        "width_px": 256,
+        "height_px": 128,
+        "center_offset_x_px": -128,
+        "center_offset_y_px": 0,
+        "offset_x_px": 91,
+        "offset_y_px": -48
+    },
+    "dust": {
+        "enabled": true,
+        "intensity": 1.0,
+        "layer_1_size": 3.0,
+        "layer_1_speed_x": 3.0,
+        "layer_1_speed_y": -2.0,
+        "layer_2_size": 2.0,
+        "layer_2_speed_x": -2.0,
+        "layer_2_speed_y": 3.5
+    },
+    "flicker": {
+        "speed": 3.0,
+        "amount": 0.3
+    },
+    "jitter": {
+        "duration_s": 0.4,
+        "magnitude_m": 0.35
+    },
+    "landing_tilt": {
+        "duration_s": 0.8,
+        "max_degrees": 7.0
+    },
+    "dust_burst": {
+        "duration_s": 0.5,
+        "peak_multiplier": 4.0
+    }
+}

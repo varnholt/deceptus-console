@@ -13,7 +13,7 @@ from tutorial_progression import (CATACOMBS, GRAVEYARD, ENTRANCES, extend_rooms,
 from tutorial_ui import TutorialUI
 from campaign_assets import validate_room_assets, ROOM_OUTPUTS, asset_identity
 
-DATA = Path(__file__).resolve().parents[2] / 'deceptus_engine/data'
+DATA = Path(__file__).resolve().parents[1] / 'assets/game/data'
 
 
 @unittest.skipUnless((DATA / CATACOMBS).exists(), 'original game data required')

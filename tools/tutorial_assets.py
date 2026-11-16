@@ -197,7 +197,7 @@ def compile_tutorial(data, reuse_assets=False):
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--data',type=Path,default=ROOT.parent/'deceptus_engine/data')
+    parser.add_argument('--data',type=Path,default=ROOT / 'assets/game/data')
     parser.add_argument('--reuse-room-assets',action='store_true',help='reuse only rooms with matching source, converter and recipe digests')
     args=parser.parse_args()
     compile_tutorial(args.data,reuse_assets=args.reuse_room_assets)

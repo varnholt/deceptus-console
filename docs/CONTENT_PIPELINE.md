@@ -1,9 +1,24 @@
 # Authoritative content pipeline
 
-The neighboring `deceptus_engine` owns game data. This repository maintains C
-runtime code, conversion tools and selection/binding recipes. Generated artwork,
-fonts, dialogue strings, tile data and imported sprites are ignored outputs.
-Updating the source and rebuilding is the normal content workflow.
+`assets/game/` contains the tracked source-content snapshot. Artwork, fonts,
+maps, scripts and selected original C++ reference files are bundled so this
+repository builds independently. The converters still read original source
+pixels, not previously reduced target artwork. Generated target resources in
+`assets/source/` and `assets/generated/` remain ignored.
+
+To adopt content from an original checkout, run:
+
+```powershell
+python tools/import_game_content.py D:/path/to/deceptus_engine
+```
+
+The importer copies tracked game data, license notices and the C++ reference
+files used to validate authored behavior. It records the original revision,
+locally modified source paths and SHA-256 hashes in `assets/game/SOURCE.json`.
+Review the copied changes together with converter changes before committing.
+Both repositories remain independent after the copy; synchronization is explicit.
+The optional `--data` argument still permits working directly from another
+checkout. Source filenames and relative `data/` paths are preserved.
 
 ## Conversion stages
 

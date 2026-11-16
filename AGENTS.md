@@ -1,6 +1,6 @@
 # Project conventions
 
-- `../deceptus_engine` remains the authoritative source for Deceptus artwork, maps, animations and content terms. Do not commit copies of those assets here. Import and convert them into ignored output directories.
+- `assets/game/` contains the versioned Deceptus source-content snapshot for standalone builds. Preserve original artwork and notices. Use `tools/import_game_content.py` to refresh from an original engine checkout and record file hashes/provenance; converted target outputs remain ignored. A neighboring checkout is optional via `--data`.
 - Preserve the artwork's original size and pixel grid at 1:1. Do not shrink or resample it to widen the view. Improve framing and scrolling instead. Console palette conversion is a separate constraint.
 - Keep the lossless content-import stage separate from target palette/tile conversion. A future GBA build must read the original import, never a colour-reduced SNES image. Do not enable dithering without a deliberate visual review.
 - Keep shared runtime and gameplay in portable C90. PVSnesLib's 65816 compiler has 16-bit `int` and `long`, and a 32-bit `long long`; use the types in `include/deceptus/types.h`.

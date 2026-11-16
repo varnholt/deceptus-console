@@ -268,7 +268,7 @@ def compile_opening(data,output,metadata_source,rooms=26):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--data',type=Path,default=ROOT.parent/'deceptus_engine/data')
+    parser.add_argument('--data',type=Path,default=ROOT / 'assets/game/data')
     parser.add_argument('--output',type=Path,default=ROOT/'build/smd-opening-assets')
     parser.add_argument('--metadata-source',type=Path,default=ROOT/'assets/generated/snes')
     parser.add_argument('--rooms',type=int,default=26)

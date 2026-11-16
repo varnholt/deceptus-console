@@ -34,7 +34,8 @@ header/checksum and retains ELF symbols. The current mGBA core misidentifies
 256KiB images as multiboot; the minimum padding avoids that path. ROMs can grow
 up to the 32MiB cartridge limit.
 
-`--data PATH` selects another authoritative engine checkout. Tool executable
+The default content is bundled in `assets/game/data/`; `--data PATH` selects
+another original engine data directory. Tool executable
 paths can be supplied with `--clang`, `--linker` and `--objcopy`. The CMake
 `gba_rom` target invokes the same default build. PVSnesLib is not needed.
 

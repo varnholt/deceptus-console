@@ -3,7 +3,7 @@ project(deceptus_console VERSION 0.1.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(DECEPTUS_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deceptus_engine/data" CACHE PATH "authoritative Deceptus game data")
+set(DECEPTUS_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/game/data" CACHE PATH "Deceptus game data (bundled by default)")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_custom_target(gba_rom
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_gba.py" --data "${DECEPTUS_DATA_DIR}"
@@ -95,7 +95,7 @@ if(BUILD_TESTING)
     add_executable(logic_source_tests tests/logic_source_tests.c build/content/source_logic.c)
     target_link_libraries(logic_source_tests PRIVATE deceptus_engine)
     add_dependencies(logic_source_tests inspect_content)
-    set(LUA_REFERENCE_SOURCE_DIR "${DECEPTUS_DATA_DIR}/../build_release/_deps/lua-src" CACHE PATH "optional original Lua source for differential tests")
+    set(LUA_REFERENCE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.tools/lua-src" CACHE PATH "optional original Lua source for differential tests")
     if(EXISTS "${LUA_REFERENCE_SOURCE_DIR}/lapi.c")
         file(GLOB LUA_REFERENCE_SOURCES "${LUA_REFERENCE_SOURCE_DIR}/*.c")
         list(FILTER LUA_REFERENCE_SOURCES EXCLUDE REGEX "/(lua|luac|ltests|onelua)\\.c$")

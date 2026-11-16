@@ -12,7 +12,7 @@ from snes_tutorial_assets import BinaryWriter,compile_background,compile_font,sp
 import snes_tutorial_assets
 from pixel_font import NativePixelFont
 ROOT=Path(__file__).resolve().parents[1]
-DATA=ROOT.parent/'deceptus_engine/data'
+DATA=ROOT / 'assets/game/data'
 
 
 def decode4(payload):

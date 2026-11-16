@@ -9,7 +9,7 @@ from rope_assets import compile_rope
 from headtorch_assets import compile_headtorch
 
 ROOT=Path(__file__).resolve().parents[1]
-DATA=ROOT.parent/'deceptus_engine/data'
+DATA=ROOT / 'assets/game/data'
 
 
 @unittest.skipUnless((DATA/'sprites/ropes.png').exists(),'original rope artwork required')

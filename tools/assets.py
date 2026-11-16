@@ -107,7 +107,7 @@ def import_deceptus(data, recipe_path=None, source=SOURCE):
     else:
         (source / 'enemies.json').write_text('{"definitions": [], "paths": [], "unsupported": []}\n')
     manifest = {
-        "source_map": "deceptus_engine/data/" + recipe["map"],
+        "source_map": "data/" + recipe["map"],
         "crop_pixels": crop,
         "visual_layers": names,
         "source_collision_layers": recipe['collision_layers'],
@@ -264,7 +264,7 @@ def compile_assets():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--import-data", type=Path, default=ROOT.parent / "deceptus_engine/data", help="original deceptus_engine/data directory")
+    parser.add_argument("--import-data", type=Path, default=ROOT / 'assets/game/data', help="game data directory (bundled by default)")
     arguments = parser.parse_args()
     import_deceptus(arguments.import_data)
     compile_assets()

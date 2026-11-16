@@ -1,0 +1,74 @@
+{
+   "sword_regular": {
+      "frame_durations": [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
+      "frame_offset": [0, 0],
+      "frame_size": [72, 72],
+      "origin": [36.0, 36.0],
+      "sprite_count": 30,
+      "texture": "data/sprites/extra_sword.png"
+   },
+   "sword_flash": {
+      "frame_durations": [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
+      "frame_offset": [0, 72],
+      "frame_size": [72, 72],
+      "origin": [36.0, 36.0],
+      "sprite_count": 30,
+      "texture": "data/sprites/extra_sword.png"
+   },
+   "handle_regular": {
+      "frame_durations": [4000],
+      "frame_offset": [0, 0],
+      "frame_size": [48, 48],
+      "origin": [24, 24],
+      "sprite_count": 1,
+      "texture": "data/sprites/ingame-items.png"
+   },
+   "handle_flash": {
+      "frame_durations": [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
+      "frame_offset": [0, 0],
+      "frame_size": [48, 48],
+      "origin": [24, 24],
+      "sprite_count": 17,
+      "texture": "data/sprites/ingame-items.png"
+   },
+   "heart_regular": {
+      "frame_durations": [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40],
+      "frame_offset": [0, 0],
+      "frame_size": [48, 48],
+      "origin": [24, 24],
+      "sprite_count": 24,
+      "texture": "data/sprites/extra_heart.png"
+   },
+   "locker_key_regular": {
+      "frame_durations": [2000],
+      "frame_offset": [0, 0],
+      "frame_size": [24, 24],
+      "origin": [12, 12],
+      "sprite_count": 1,
+      "texture": "data/sprites/locker_key.png"
+   },
+   "locker_key_flash": {
+      "frame_durations": [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
+      "frame_offset": [0, 0],
+      "frame_size": [24, 24],
+      "origin": [12, 12],
+      "sprite_count": 12,
+      "texture": "data/sprites/locker_key.png"
+   },
+   "diamond": {
+      "frame_durations": [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80],
+      "frame_offset": [0, 0],
+      "frame_size": [48, 48],
+      "origin": [24.0, 24.0],
+      "sprite_count": 40,
+      "texture": "data/sprites/treasures.png"
+   },
+   "treasure_flash": {
+      "frame_durations": [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
+      "frame_offset": [0, 100],
+      "frame_size": [100, 100],
+      "origin": [50.0, 50.0],
+      "sprite_count": 12,
+      "texture": "data/effects/spawn_orb.png"
+   }
+}

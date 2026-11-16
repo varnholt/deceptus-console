@@ -184,7 +184,7 @@ python tools/package_preview.py --build
 
 The native build generates the source callback fixture from the original files.
 `LUA_REFERENCE_SOURCE_DIR` can point to a Lua source checkout; by default it uses
-the main engine's fetched sources in `build_release/_deps/lua-src` when present.
+a local Lua source tree selected with `LUA_REFERENCE_SOURCE_DIR`, or system Lua 5.4.
 Without them, expected-state checks still run, but the Lua differential check is
 not performed. No Lua interpreter is included in the console ROM.
 

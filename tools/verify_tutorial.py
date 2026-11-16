@@ -140,7 +140,7 @@ def verify(core, clang, linker, objcopy, fixture_name=None):
                 code = code.replace('active_stage = &gba_stages[0];',
                                     'active_stage = &gba_stages[campaign.room_index];')
             fixture.write_text(code)
-            build_gba.build(ROOT.parent / 'deceptus_engine/data', clang, linker, objcopy, scene='tutorial')
+            build_gba.build(ROOT / 'assets/game/data', clang, linker, objcopy, scene='tutorial')
             emulator = Emulator(core, folder / 'deceptus-tutorial.gba',
                                 {'mgba_use_bios': 'OFF', 'mgba_frameskip': '0'})
             try:

@@ -37,7 +37,7 @@ class CollisionRoleTests(unittest.TestCase):
             self.assertEqual(masks['player'].getpixel((8,0)),0)
 
     def test_original_mausoleum_box88_cannot_create_a_hovering_player_platform(self):
-        source = ROOT.parent / 'deceptus_engine/data/level-graveyard/graveyard.tmx'
+        source = ROOT / 'assets/game/data/level-graveyard/graveyard.tmx'
         if not source.exists():
             self.skipTest('authoritative graveyard checkout unavailable')
         # box88 begins at1656; the authored gravestone surface begins at1680.

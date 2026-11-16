@@ -6,7 +6,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from enemies import constants, crop_enemies
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT.parent / 'deceptus_engine/data'
+DATA = ROOT / 'assets/game/data'
 
 class EnemyImportTests(unittest.TestCase):
     def test_rat_settings_are_read_from_the_original_lua(self):

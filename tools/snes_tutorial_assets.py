@@ -426,7 +426,7 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--data',type=Path,default=ROOT.parent/'deceptus_engine/data')
+    parser.add_argument('--data',type=Path,default=ROOT / 'assets/game/data')
     parser.add_argument('--output',type=Path,default=ROOT/'assets/generated/snes')
     parser.add_argument('--rooms',type=int,default=26)
     parser.add_argument('--no-sprites',action='store_true')

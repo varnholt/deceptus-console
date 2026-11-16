@@ -158,6 +158,6 @@ def compile_campaign(data, config=None, scene='tonight', reuse_assets=False):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--data', type=Path, default=ROOT.parent / 'deceptus_engine/data')
+    parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
     args = parser.parse_args()
     compile_campaign(args.data)

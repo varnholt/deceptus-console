@@ -1,6 +1,6 @@
 # Current status
 
-Updated for all three console openings, 15 November 2026.
+Updated for standalone content builds, 16 November 2026.
 
 ## Available targets
 
@@ -19,8 +19,8 @@ Guards' Office, Main Hall, Altar of the Blind Owl, Clockwork Antechamber, The
 Loop, The Sewers, Fool's Ledge and Mines Antechamber. Source room ids are retained in generated
 reports. It also includes Sealed Cells, Flooded Chamber, Rift Engine, Syphon,
 Scriptorium, Reading Room, Skull Room, Cannon Fodder, Graveyard, Mausoleum,
-Old Graves, Owl Shrine and Crypt. Original asset ownership and artwork remain
-in the main engine repo.
+Old Graves, Owl Shrine and Crypt. Original ownership is unchanged. This repository now bundles a versioned copy
+of source content in `assets/game/` and builds without the main engine checkout.
 
 Implemented opening rules include source cellmate/bed text, the key and locker,
 taking the lever handle, installing it, operating supported linked mechanisms,
@@ -183,3 +183,15 @@ sample advances 600 simulation ticks (59.92 updates/s in Genesis Plus GX). All
 1,010 post-boot display frames in the test produce one game-loop update. This
 does not establish full-opening, complex-enemy or rope performance. See
 [Mega Drive scope and build instructions](MEGA_DRIVE.md).
+
+## Standalone content verification
+
+Builds default to the tracked `assets/game/data/` snapshot. A fresh native build
+passes all twelve native groups, including actual Lua comparisons, and all 157
+Python checks pass. The GBA opening was rebuilt from bundled content and its
+normal-input emulator route passes. The SNES prototype was rebuilt from bundled
+content and passes its emulator check. The existing SNES opening route also
+passes; it was not rebuilt as part of this content-packaging change.
+
+CI now checks out this repository only. Source-content bytes are preserved by
+Git attributes; provenance and SHA-256 hashes are recorded in `assets/game/SOURCE.json`.

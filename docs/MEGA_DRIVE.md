@@ -49,7 +49,7 @@ The prototype retains its older controls, including R to restart.
 ## Original artwork and cartridge resources
 
 The converter reads original RGB artwork and lossless collision/mechanism
-imports from `../deceptus_engine`. Portable opening C declarations are prepared
+imports from bundled `assets/game/data/` by default. Portable opening C declarations are prepared
 from those imports. It never reads colour-reduced GBA or SNES pixels.
 Every pixel keeps its authored size and position; no resampling or dithering is
 used. The native bitmap font retains every ink pixel, cropping only the common

@@ -62,7 +62,7 @@ def build_target(target, data, sdk, clang, linker, objcopy, smd_sdk=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--targets', nargs='+', choices=['gba', 'snes', 'smd'], default=['gba', 'snes', 'smd'])
-    parser.add_argument('--data', type=Path, default=ROOT.parent / 'deceptus_engine/data')
+    parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
     parser.add_argument('--sdk', type=Path, default=Path(os.environ.get('PVSNESLIB_HOME', ROOT / '.tools/pvsneslib')))
     parser.add_argument('--smd-sdk',type=Path,default=ROOT/'.tools/sgdk')
     parser.add_argument('--clang', default='clang')

@@ -13,11 +13,11 @@ an opening playtest; later game content, audio and persistent saves remain unfin
 The normal-input verification route reaches the graveyard, takes the rubies,
 returns through the crypt, uses them at the altar, acquires the sword and attacks.
 
-`deceptus_engine` remains the authoritative repository for maps, artwork,
-animation definitions, Lua scripts, music and sound effects. Build tools read
-that checkout and generate ignored target resources. Artwork is not maintained
-twice, resized to fit a console screen, or taken from an already reduced console
-version.
+Game artwork, maps, animation definitions, Lua scripts, music and sound effects
+are bundled in `assets/game/data/`. This checkout builds independently of
+`deceptus_engine`. Target converters read those original assets and generate
+ignored tile/palette resources; source artwork is never resized or replaced
+with artwork reduced for another console. Content keeps its own license terms.
 
 ## Quick start
 
@@ -40,13 +40,8 @@ a window. Missing Python packages are installed in a project-local `.venv`.
 Automatic emulator downloads support Windows x64; other hosts can supply
 `--core PATH`. Building GBA still requires LLVM; SNES fetches its missing local SDK.
 
-Keep both checkouts beside one another:
-
-```text
-workspace/
-  deceptus_engine/data/
-  deceptus-snes/          this repository; may still be named deceptus-snes
-```
+Only this checkout is required. Bundled source content lives in `assets/game/`;
+`--data PATH` can optionally select another original engine's data directory.
 
 Install Python, the requirements below, and LLVM with `clang`, `ld.lld` and
 `llvm-objcopy` on PATH. The verified environment is Windows x64 with LLVM 18.1.8
@@ -171,7 +166,7 @@ result and log; compilation does not replace its emulator verification.
 ## Automated builds
 
 The **Build GBA** GitHub Actions workflow runs on pushes and pull requests and
-can be started manually. It checks out the original game data at `SOURCE_REVISION`,
+can be started manually. It uses the bundled game data from the same commit,
 builds the C engine and tutorial, runs tests, and uploads a downloadable cartridge
 artifact. See [CI builds](docs/BUILDING.md#github-actions) for the download steps.
 
@@ -187,7 +182,8 @@ artifact. See [CI builds](docs/BUILDING.md#github-actions) for the download step
 ## Ownership
 
 Original code in this repository is covered by [LICENSE](LICENSE). Deceptus
-content retains the terms in the main checkout's `data/LICENSE.md` and
-`LICENSES/GAME-CONTENT.txt`; artwork remains credited to dstar. Dependencies
+content retains the terms in [the bundled data notice](assets/game/data/LICENSE.md)
+and [game-content terms](assets/game/LICENSES/GAME-CONTENT.txt); artwork remains
+credited to dstar. Dependencies
 retain their upstream terms. Generated ROMs contain game content and are not
 covered solely by this repository's code license.

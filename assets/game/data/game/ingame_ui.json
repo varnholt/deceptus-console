@@ -1,0 +1,65 @@
+{
+   "heart": {
+      "frame_durations": [100, 100, 100, 100],
+      "frame_offset": [0, 0],
+      "frame_size": [5, 5],
+      "origin": [0, 0],
+      "sprite_count": 4,
+      "texture": "data/game/ingame_heart_shine.png"
+   },
+   "stamina": {
+      "frame_durations": [100, 100, 100, 100],
+      "frame_offset": [0, 5],
+      "frame_size": [5, 5],
+      "origin": [0, 0],
+      "sprite_count": 4,
+      "texture": "data/game/ingame_heart_shine.png"
+   },
+   "skull_blink": {
+      "frame_durations": [70, 70, 70, 70, 70, 70, 70, 70],
+      "frame_offset": [0, 0],
+      "frame_size": [21, 20],
+      "origin": [0, 0],
+      "sprite_count": 8,
+      "texture": "data/game/ingame_skull_blink.png"
+   },
+   "hp_unlock_left": {
+      "frame_durations": [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+      "frame_offset": [0, 0],
+      "frame_size": [14, 64],
+      "origin": [0, 0],
+      "sprite_count": 30,
+      "texture": "data/game/ingame_hp_unlock.png"
+   },
+   "hp_unlock_right": {
+      "frame_durations": [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+      "frame_offset": [0, 64],
+      "frame_size": [14, 64],
+      "origin": [0, 0],
+      "sprite_count": 30,
+      "texture": "data/game/ingame_hp_unlock.png"
+   },
+   "loading_fade_in": {
+      "frame_durations": [
+        100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 
+        100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 
+        100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 
+        100, 100, 100, 100, 100, 100, 100, 100],
+      "frame_offset": [0, 0],
+      "frame_size": [45, 45],
+      "origin": [0, 0],
+      "sprite_count": 38,
+      "texture": "data/game/loading.png"
+   },
+   "loading": {
+      "frame_durations": [
+        100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 
+        100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 
+        100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+      "frame_offset": [0, 45],
+      "frame_size": [45, 45],
+      "origin": [0, 0],
+      "sprite_count": 30,
+      "texture": "data/game/loading.png"
+   }
+}

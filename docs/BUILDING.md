@@ -2,7 +2,8 @@
 
 ## Prerequisites
 
-Use the neighboring `deceptus_engine` checkout as the source of truth. Install
+This checkout includes game content in `assets/game/data/`; no neighboring
+engine checkout is required. Install
 the pinned packages in `requirements.txt`: Pillow, NumPy and luaparser. NumPy
 2.3.4 requires Python 3.11 or newer; Python 3.13 is the verified interpreter.
 The source engine itself does not need to compile for asset conversion.
@@ -195,12 +196,10 @@ The `.github/workflows/build-gba.yml` workflow builds on Ubuntu 24.04 with LLVM,
 Python 3.13 and system Lua 5.4 for the source-reference tests. It runs on pushes
 to `main`, pull requests and manual **workflow_dispatch** runs.
 
-The original engine is checked out alongside this repository at the SHA in
-`SOURCE_REVISION`. Manual runs can supply another `engine_ref`. Keeping the
-revision explicit avoids silently changing game data underneath a code build;
-update that file when adopting an upstream content revision. The original
-repository currently permits public checkout, so no additional credential is
-required. Credentials are not persisted in either checkout.
+CI checks out this repository only and uses its bundled content. The engine and
+content therefore change atomically in one commit. `assets/game/SOURCE.json`
+records the original source revision and copied file hashes; `SOURCE_REVISION`
+is provenance, not a request to download a second repository.
 
 To download a cartridge: open the repository's **Actions** tab, select a
 successful **Build GBA** run, then download its `deceptus-gba-<commit>` artifact.

@@ -32,7 +32,7 @@ def verify(core, rom):
         current = state()
         # the next video callback displays the frame currently in the mailbox.
         emulator.run(1)
-        atlas = Image.open(ROOT.parent / 'deceptus_engine/data/sprites/levers.png').convert('RGBA')
+        atlas = Image.open(ROOT / 'assets/game/data/sprites/levers.png').convert('RGBA')
         left, top = (animation_frame % 11) * 72, (animation_frame // 11) * 72
         sprite = atlas.crop((left, top, left + 72, top + 72))
         origin_x, origin_y = 288 - current['camera_x'], 144 - current['camera_y']

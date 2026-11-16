@@ -237,7 +237,7 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sdk", type=Path, default=Path(os.environ.get("PVSNESLIB_HOME", ROOT / ".tools/pvsneslib")))
-    parser.add_argument("--data", type=Path, default=ROOT.parent / "deceptus_engine/data")
+    parser.add_argument("--data", type=Path, default=ROOT / 'assets/game/data')
     parser.add_argument("--full-game", action="store_true", help="require complete content support instead of building the prototype")
     parser.add_argument("--scene", choices=("tutorial", "prototype"), default="tutorial")
     parser.add_argument("--rooms", type=int, default=26)

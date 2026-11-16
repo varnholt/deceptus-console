@@ -324,7 +324,7 @@ def crop_mechanisms(data, recipe):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data", type=Path, default=ROOT.parent / "deceptus_engine/data")
+    parser.add_argument("--data", type=Path, default=ROOT / 'assets/game/data')
     parser.add_argument("--output", type=Path, default=ROOT / "build/content")
     parser.add_argument("--strict", action="store_true", help="fail while the complete game has unsupported features")
     arguments = parser.parse_args()

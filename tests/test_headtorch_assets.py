@@ -10,7 +10,7 @@ from headtorch_assets import compile_headtorch, helmet_pose
 from gba_assets import SWORD_CLIPS
 
 ROOT=Path(__file__).resolve().parents[1]
-DATA=ROOT.parent/'deceptus_engine/data'
+DATA=ROOT / 'assets/game/data'
 
 
 class HeadtorchOffsetTests(unittest.TestCase):

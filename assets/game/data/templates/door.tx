@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<template>
+ <object type="Door" width="24" height="96">
+  <properties>
+   <property name="animation_close" value=""/>
+   <property name="animation_open" value=""/>
+   <property name="item_required" value=""/>
+   <property name="key_animation" value=""/>
+   <property name="observed" type="bool" value="false"/>
+   <property name="open" type="bool" value="false"/>
+   <property name="sample_close" value=""/>
+   <property name="sample_open" value=""/>
+   <property name="z" type="int" value="20"/>
+  </properties>
+ </object>
+</template>

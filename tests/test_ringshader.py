@@ -11,7 +11,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from ringshader import heartbeat, repeated_noise, bake_ring_shaders, shader_signature, RING_FRAGMENT_SIGNATURE
 
 ROOT=Path(__file__).resolve().parents[1]
-DATA=ROOT.parent/'deceptus_engine/data'
+DATA=ROOT / 'assets/game/data'
 
 
 class RingMathTests(unittest.TestCase):

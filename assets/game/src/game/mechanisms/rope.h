@@ -1,0 +1,121 @@
+#pragma once
+
+#include "game/io/gamedeserializedata.h"
+#include "game/level/gamenode.h"
+#include "game/mechanisms/gamemechanism.h"
+#include "game/physics/renderinterpolation.h"
+
+#include "box2d/box2d.h"
+
+#include <cstdint>
+#include <string_view>
+
+class GameNode;
+struct TmxObject;
+
+constexpr std::string_view default_rope_texture{"data/sprites/ropes.png"};
+
+/// \brief simulates and renders a swinging rope built from box2d chain segments.
+class Rope : public GameMechanism, public GameNode
+{
+public:
+   /// \brief creates a rope mechanism with default segment and wind settings.
+   /// \param parent owning game node in the scene graph.
+   Rope(GameNode* parent);
+
+   /// \brief returns the mechanism type name used by the serialization system.
+   /// \return constant string view containing "Rope".
+   std::string_view objectName() const override;
+
+   /// \brief draws the rope as a textured strip between simulated chain bodies.
+   /// \param color color render target.
+   /// \param normal normal-map render target, unused by this mechanism.
+   void draw(sf::RenderTarget& color, sf::RenderTarget& normal) override;
+
+   /// \brief draws the rope as a textured strip with explicit render states (used in WASM to carry the level view).
+   /// \param color color render target.
+   /// \param normal normal-map render target, unused by this mechanism.
+   /// \param states render states to apply.
+   void draw(sf::RenderTarget& color, sf::RenderTarget& normal, const sf::RenderStates& states) override;
+   using GameMechanism::draw;
+
+   /// \brief updates wind impulses, player influence, and rope motion.
+   /// \param dt elapsed frame time.
+   void update(const sf::Time& dt) override;
+   void updateSpritePositions() override;
+
+   /// \brief returns the interaction area used for player impulse transfer.
+   /// \return rope bounding rectangle in pixel space.
+   std::optional<sf::FloatRect> getBoundingBoxPx() override;
+
+#if defined(DEVELOPMENT_MODE) && !defined(DECEPTUS_VRSFML)
+   /// \brief measures the interpolated rope geometry drawn for the current frame.
+   /// \return world-space strip bounds, or null before drawable geometry is available.
+   /// \note leaves the player interaction area and chunk assignments unchanged.
+   [[nodiscard]] std::optional<sf::FloatRect> get_editor_bounds() override;
+#endif
+
+   /// \brief builds rope geometry, reads tmx properties, and creates box2d joints.
+   /// \param data deserialization data with polyline path, world, and properties.
+   virtual void setup(const GameDeserializeData& data);
+
+   /// \brief returns the rope anchor position in pixels.
+   /// \return anchor position used to initialize the rope chain.
+   sf::Vector2i getPixelPosition() const;
+
+   /// \brief sets the rope anchor position in pixels.
+   /// \param position_px anchor position used for box2d body creation.
+   void setPixelPosition(const sf::Vector2i& position_px);
+
+   /// \brief returns the static body the rope chain hangs from.
+   /// \return anchor body, or nullptr before setup ran.
+   b2Body* getAnchorBody() const;
+
+protected:
+   int32_t _segment_count = 7;
+   float _segment_length_m = 0.01f;
+
+   std::vector<b2Body*> _chain_elements;
+
+   //!< where each chain element sat before the last simulation step, and where it sits now, so the
+   //!< strip can be built between the two rather than jumping once per step. Mechanisms update after
+   //!< the world has stepped, so the pair is kept by shifting rather than by reading the bodies twice
+   std::vector<b2Vec2> _chain_positions_previous_m;
+   std::vector<b2Vec2> _chain_positions_current_m;
+
+   //!< the strip the rope is drawn as, rebuilt once per frame by updateSpritePositions
+   std::vector<sf::Vertex> _strip;
+   std::shared_ptr<sf::Texture> _texture;
+   std::shared_ptr<sf::Texture> _normal_map;
+
+private:
+   /// \brief applies a horizontal impulse to all chain elements.
+   /// \param impulse impulse strength applied in world units.
+   void pushChain(float impulse);
+
+   sf::Vector2i _position_px;
+   sf::FloatRect _bounding_box;
+
+   // attachment of the 1st end of the rope
+   b2BodyDef _anchor_a_def;
+   b2Body* _anchor_a_body = nullptr;
+   b2EdgeShape _anchor_a_shape;
+   std::vector<b2Body*> _chain_bodies;
+
+   // rope
+   b2PolygonShape _rope_element_shape;
+   b2FixtureDef _rope_element_fixture_def;
+   b2RevoluteJointDef _joint_def;
+
+   sf::IntRect _texture_rect_px;
+
+   // wind
+   bool _wind_enabled = true;
+   float _push_time_s = 0.0f;
+   float _push_interval_s = 5.0f;
+   float _push_duration_s = 1.0f;
+   float _push_strength = 0.02f;
+   std::optional<float> _player_impulse;
+
+   static int32_t _instance_counter;
+};
