@@ -20,6 +20,11 @@ add_custom_target(smd_poc
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "building the one-room Mega Drive proof of concept")
 
+add_custom_target(amiga_poc
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_amiga.py" --data "${DECEPTUS_DATA_DIR}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "building the experimental one-room Amiga 500 executable")
+
 add_custom_target(console_roms
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_consoles.py" --data "${DECEPTUS_DATA_DIR}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
