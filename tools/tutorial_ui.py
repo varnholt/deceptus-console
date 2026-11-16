@@ -157,18 +157,18 @@ class TutorialUI:
         with (output/'data.s').open('a') as handle:
             handle.write('.balign 4\n.global gba_ui_blob\ngba_ui_blob:\n.incbin "'+(output/'ui.bin').as_posix()+'"\n')
         header=(output/'gba_assets.h').read_text()
-        declarations=['typedef struct gba_ui_resource { deceptus_u32 graphics, palette, map; deceptus_u16 patterns; deceptus_u8 columns, rows; } gba_ui_resource;',
-            'typedef struct gba_ui_presentation { const deceptus_interaction *action; deceptus_u16 page_first, cue_first, cue_count; deceptus_i16 x,y; } gba_ui_presentation;',
-            'extern const deceptus_u8 gba_ui_blob[];', 'extern const gba_ui_resource gba_ui_resources[];',
-            'extern const gba_ui_presentation gba_ui_presentations[];', f'#define GBA_UI_PRESENTATIONS {len(self.presentations)}']
+        declarations=['typedef struct GbaUiResource { DeceptusU32 graphics, palette, map; DeceptusU16 patterns; DeceptusU8 columns, rows; } GbaUiResource;',
+            'typedef struct GbaUiPresentation { const DeceptusInteraction *action; DeceptusU16 page_first, cue_first, cue_count; DeceptusI16 x,y; } GbaUiPresentation;',
+            'extern const DeceptusU8 gba_ui_blob[];', 'extern const GbaUiResource gba_ui_resources[];',
+            'extern const GbaUiPresentation gba_ui_presentations[];', f'#define GBA_UI_PRESENTATIONS {len(self.presentations)}']
         (output/'gba_assets.h').write_text(header.replace('#endif','\n'.join(declarations)+'\n#endif'))
-        lines=['const gba_ui_resource gba_ui_resources[] = {']
+        lines=['const GbaUiResource gba_ui_resources[] = {']
         lines += ['    {'+','.join(map(str,entry))+'},' for entry in self.resources]
-        lines += ['};','const gba_ui_presentation gba_ui_presentations[] = {']
+        lines += ['};','const GbaUiPresentation gba_ui_presentations[] = {']
         lines += ['    {&'+action+', '+','.join(map(str,values))+'},' for action,*values in self.presentations]
         lines += ['};']
         for kind,resources in self.menu_ids.items():
-            declarations.append('extern const deceptus_u16 gba_menu_'+kind+'[];')
-            lines.append('const deceptus_u16 gba_menu_'+kind+'[] = {'+','.join(map(str,resources))+'};')
+            declarations.append('extern const DeceptusU16 gba_menu_'+kind+'[];')
+            lines.append('const DeceptusU16 gba_menu_'+kind+'[] = {'+','.join(map(str,resources))+'};')
         (output/'gba_assets.h').write_text(header.replace('#endif','\n'.join(declarations)+'\n#endif'))
         return '\n'.join(lines)+'\n'

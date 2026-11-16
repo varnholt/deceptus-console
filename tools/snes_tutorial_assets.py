@@ -41,7 +41,7 @@ class BinaryWriter:
     def binary(self,label,payload):
         path=self.output/(label+'.bin');path.write_bytes(payload)
         self.sections += [f'.section "{label}_section" superfree',label+':',f'.incbin "{path.as_posix()}"','.ends']
-        self.externs.append('extern const deceptus_u8 '+label+'[];')
+        self.externs.append('extern const DeceptusU8 '+label+'[];')
         self.total+=len(payload)
         return label
 
@@ -52,7 +52,7 @@ class BinaryWriter:
         if not labels:
             labels.append(self.binary(label+'_0',bytes(4)))
         name=label+'_chunks'
-        self.tables.append('static const deceptus_u8 *const '+name+'[] = {'+','.join(labels)+'};')
+        self.tables.append('static const DeceptusU8 *const '+name+'[] = {'+','.join(labels)+'};')
         return '{'+name+','+str(len(payload))+'}'
 
     def finish(self):
@@ -130,9 +130,9 @@ def compile_font(data,output,writer):
     if len(graphics)>6144:
         raise ValueError('native SNES font exceeds its 6KiB VRAM budget')
     writer.binary('snes_font',graphics)
-    lines=['const snes_font_glyph snes_font_glyphs[95] = {']
+    lines=['const SnesFontGlyph snes_font_glyphs[95] = {']
     lines+=['    {'+str(tile)+','+str(columns)+'},' for tile,columns in glyphs]
-    lines+=['};','const deceptus_u16 snes_ui_palette[16] = {0,32767,4226,1599,0,0,0,0,0,0,0,0,0,0,0,0};']
+    lines+=['};','const DeceptusU16 snes_ui_palette[16] = {0,32767,4226,1599,0,0,0,0,0,0,0,0,0,0,0,0};']
     return lines,len(graphics)
 
 
@@ -201,12 +201,12 @@ def compile_worlds(recipes,output):
         filename=f'opening_area{index}.c';(output/filename).write_text(text);files.append(filename)
     # only portable simulation declarations are reused from the validated opening binding output.
     source=(ROOT/'assets/generated/gba/room.c').read_text()
-    campaign=source[source.index('static const deceptus_room *const campaign_rooms'):source.index('#include "gba_assets.h"',source.index('const deceptus_campaign_def gba_campaign_definition'))]
+    campaign=source[source.index('static const DeceptusRoom *const campaign_rooms'):source.index('#include "gba_assets.h"',source.index('const DeceptusCampaignDef gba_campaign_definition'))]
     start=source.index('static const char *const tutorial_pages_0_0')
-    end=source.index('const gba_ui_resource gba_ui_resources',start)
+    end=source.index('const GbaUiResource gba_ui_resources',start)
     adventure=source[start:end]
     text='#include "snes_assets.h"\n'
-    text+='\n'.join(f'extern const deceptus_room deceptus_snes_area{index};' for index in range(26))+'\n'
+    text+='\n'.join(f'extern const DeceptusRoom deceptus_snes_area{index};' for index in range(26))+'\n'
     text+=campaign+adventure
     text=re.sub(r'\bdeceptus_area(\d+)\b',r'deceptus_snes_area\1',text)
     text=text.replace('gba_campaign_definition','snes_campaign_definition').replace('gba_tutorial_definition','snes_tutorial_definition')
@@ -296,7 +296,7 @@ def compile_sprites(data,output,writer):
         palette=fit_sprite_palette(family_images);palettes[family]=palette
         name=f'snes_sprite_palette{family}';palette_names[family]=name
         values=[0]+[int(r)|(int(g)<<5)|(int(b)<<10) for r,g,b in palette]
-        lines.append('static const deceptus_u16 '+name+'[16] = {'+','.join(map(str,values))+'};')
+        lines.append('static const DeceptusU16 '+name+'[16] = {'+','.join(map(str,values))+'};')
     payloads={};resources=[];shared_masks=[];shared_quads=[]
     for index,(image,record) in enumerate(zip(images,records)):
         family=resource_family(index)
@@ -320,7 +320,7 @@ def compile_sprites(data,output,writer):
         left=round(x+index*width+ox-16);top=round(y+oy-48)
         normal.append(player.crop((left,top,left+32,top+48)))
     palette=fit_sprite_palette(normal);values=[0]+[int(r)|(int(g)<<5)|(int(b)<<10) for r,g,b in palette]
-    lines+=['static const deceptus_u16 snes_actor_palette[16] = {'+','.join(map(str,values))+'};']
+    lines+=['static const DeceptusU16 snes_actor_palette[16] = {'+','.join(map(str,values))+'};']
     actor_resources=[];actor_masks=[];actor_quads=[]
     for index,image in enumerate(normal):
         packed,columns,rows=sprite_planar(image,palette)
@@ -328,16 +328,16 @@ def compile_sprites(data,output,writer):
         actor_quads.append(sprite_quads(packed))
         name=writer.binary('snes_actor_gfx'+str(index),packed)
         actor_resources.append('{'+name+',snes_actor_palette,'+','.join(map(str,[len(packed),columns,rows,0,0]))+'}')
-    lines+=['const snes_sprite_resource snes_sprite_resources[1065] = {',*['    '+value+',' for value in actor_resources+shared_resources],'};']
-    lines+=['const deceptus_u8 snes_sprite_opaque[1065][8] = {',
+    lines+=['const SnesSpriteResource snes_sprite_resources[1065] = {',*['    '+value+',' for value in actor_resources+shared_resources],'};']
+    lines+=['const DeceptusU8 snes_sprite_opaque[1065][8] = {',
             *['    {'+','.join(map(str,mask))+'},' for mask in actor_masks+shared_masks],'};']
     offsets=[];quads=bytearray()
     for resource in actor_quads+shared_quads:
         offsets.append(len(quads));quads.extend(resource)
     if len(quads)>65535:
         raise ValueError('SNES sprite quadrant offsets exceed the16-bit ROM table budget')
-    lines+=['const deceptus_u16 snes_sprite_quad_offsets[1065] = {'+','.join(map(str,offsets))+'};',
-            'const deceptus_u8 snes_sprite_quads['+str(len(quads))+'] = {'+','.join(map(str,quads))+'};']
+    lines+=['const DeceptusU16 snes_sprite_quad_offsets[1065] = {'+','.join(map(str,offsets))+'};',
+            'const DeceptusU8 snes_sprite_quads['+str(len(quads))+'] = {'+','.join(map(str,quads))+'};']
     return lines,dict(logical_resources=len(records),unique_graphics=len(payloads),normal_actor_frames=26,
                       source='original source atlases and lossless generated light/rope effects',dithering=False,resampling=False,
                       limitation='unused prototype portal actor frame18 is transparent; original opening does not use it')
@@ -367,13 +367,13 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
             duration_name='0'
             if durations:
                 duration_name=name+'_durations'
-                animation_lines.append('static const deceptus_u16 '+duration_name+'[] = {'+','.join(map(str,durations))+'};')
+                animation_lines.append('static const DeceptusU16 '+duration_name+'[] = {'+','.join(map(str,durations))+'};')
             x,y,width,height=clip['bounds']
             animations.append('{'+','.join(map(str,[x//8,y//8,width//8,height//8,clip['frame_count'],clip['frame_ticks'],clip.get('required_flags',0),clip.get('forbidden_flags',0)]))+','+duration_name+','+blob+','+str(clip.get('plane',0))+'}')
         pointer='0'
         if animations:
             pointer=prefix+'_animations'
-            animation_lines+=['static const snes_background_animation '+pointer+'[] = {',*['    '+value+',' for value in animations],'};']
+            animation_lines+=['static const SnesBackgroundAnimation '+pointer+'[] = {',*['    '+value+',' for value in animations],'};']
         stage_lines.append('    {'+','.join([patterns,background,front,palette,str(image.width//8),str(image.height//8),str(converted['pattern_count']),pointer,str(len(animations)),json.dumps(recipe['title'])])+'},')
         reports.append(dict(room=index,patterns=converted['pattern_count'],animations=len(clips),world_palette_banks=7,color_fidelity=converted['metrics']))
         print(f'converted SNES room{index}: {converted["pattern_count"]}patterns',flush=True)
@@ -383,7 +383,7 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
         path=output/f'gba_{stem}_resources.h'
         if not path.exists():
             path=ROOT/'assets/generated/gba/area0'/f'gba_{stem}_resources.h'
-        text=path.read_text().replace('gba_','snes_').replace('GBA_','SNES_')
+        text=path.read_text().replace('gba_','snes_').replace('GBA_','SNES_').replace('Gba','Snes')
         (output/f'snes_{stem}_resources.h').write_text(text)
     header=['#ifndef SNES_ASSETS_H','#define SNES_ASSETS_H','#include "deceptus/adventure.h"',
             '#define DECEPTUS_SNES_OPENING 1',f'#define SNES_STAGE_COUNT {rooms}',f'#define SNES_FONT_BYTES {font_bytes}',
@@ -391,23 +391,23 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
             '#define SNES_SPRITE_RESOURCE_COUNT 1065','#define SNES_ACTOR_FIRST 0',
             '#define SNES_SPRITE_OPAQUE_MASK 1',
             '#define SNES_SPRITE_QUADS 1',
-            'typedef struct snes_rom_blob { const deceptus_u8 *const *chunks; deceptus_u32 bytes; } snes_rom_blob;',
-            'typedef struct snes_background_animation { deceptus_u16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags; const deceptus_u16 *durations; snes_rom_blob cells; deceptus_u8 plane; } snes_background_animation;',
-            'typedef struct snes_stage { snes_rom_blob patterns,background,foreground; const deceptus_u8 *palette; deceptus_u16 columns,rows,pattern_count; const snes_background_animation *animations; deceptus_u8 animation_count; const char *title; } snes_stage;',
-            'typedef struct snes_sprite_resource { const deceptus_u8 *graphics; const deceptus_u16 *palette; deceptus_u16 bytes; deceptus_u8 columns,rows,trim_x,trim_y; } snes_sprite_resource;',
-            'typedef struct snes_font_glyph { deceptus_u16 tile; deceptus_u8 columns; } snes_font_glyph;',
-            'extern const snes_stage snes_stages[SNES_STAGE_COUNT];','extern const snes_sprite_resource snes_sprite_resources[SNES_SPRITE_RESOURCE_COUNT];',
-            'extern const deceptus_u8 snes_sprite_opaque[1065][8];',
-            'extern const deceptus_u16 snes_sprite_quad_offsets[1065];','extern const deceptus_u8 snes_sprite_quads[];',
+            'typedef struct SnesRomBlob { const DeceptusU8 *const *chunks; DeceptusU32 bytes; } SnesRomBlob;',
+            'typedef struct SnesBackgroundAnimation { DeceptusU16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags; const DeceptusU16 *durations; SnesRomBlob cells; DeceptusU8 plane; } SnesBackgroundAnimation;',
+            'typedef struct SnesStage { SnesRomBlob patterns,background,foreground; const DeceptusU8 *palette; DeceptusU16 columns,rows,pattern_count; const SnesBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; } SnesStage;',
+            'typedef struct SnesSpriteResource { const DeceptusU8 *graphics; const DeceptusU16 *palette; DeceptusU16 bytes; DeceptusU8 columns,rows,trim_x,trim_y; } SnesSpriteResource;',
+            'typedef struct SnesFontGlyph { DeceptusU16 tile; DeceptusU8 columns; } SnesFontGlyph;',
+            'extern const SnesStage snes_stages[SNES_STAGE_COUNT];','extern const SnesSpriteResource snes_sprite_resources[SNES_SPRITE_RESOURCE_COUNT];',
+            'extern const DeceptusU8 snes_sprite_opaque[1065][8];',
+            'extern const DeceptusU16 snes_sprite_quad_offsets[1065];','extern const DeceptusU8 snes_sprite_quads[];',
             '#define snes_actors (snes_sprite_resources)','#define snes_sprites (snes_sprite_resources+26)',
-            'extern const snes_font_glyph snes_font_glyphs[95];','extern const deceptus_u8 snes_font[];','extern const deceptus_u16 snes_ui_palette[16];',
-            'extern const deceptus_campaign_def snes_campaign_definition;','extern const deceptus_adventure_def snes_tutorial_definition;']
+            'extern const SnesFontGlyph snes_font_glyphs[95];','extern const DeceptusU8 snes_font[];','extern const DeceptusU16 snes_ui_palette[16];',
+            'extern const DeceptusCampaignDef snes_campaign_definition;','extern const DeceptusAdventureDef snes_tutorial_definition;']
     # logical resource family prefixes are shared, never their target pixel encodings.
     gba_header=(ROOT/'assets/generated/gba/gba_assets.h').read_text()
     for name,value in re.findall(r'#define (GBA_\w+_FIRST) (\d+)',gba_header):
-        header.append('#define '+name.replace('GBA_','SNES_')+' '+str(int(value)+26))
+        header.append('#define '+name.replace('GBA_','SNES_').replace('Gba','Snes')+' '+str(int(value)+26))
     header+=['#endif'];(output/'snes_assets.h').write_text('\n'.join(header)+'\n')
-    resource='#include "snes_assets.h"\n'+'\n'.join(writer.externs+writer.tables+animation_lines+font_lines+sprite_lines+['const snes_stage snes_stages[SNES_STAGE_COUNT] = {',*stage_lines,'};'])+'\n'
+    resource='#include "snes_assets.h"\n'+'\n'.join(writer.externs+writer.tables+animation_lines+font_lines+sprite_lines+['const SnesStage snes_stages[SNES_STAGE_COUNT] = {',*stage_lines,'};'])+'\n'
     (output/'opening_resources.c').write_text(resource)
     writer.finish()
     report=dict(full_game=False,rooms=reports,adventure_rooms=26,graphics_rooms=rooms,sprites=sprite_report,

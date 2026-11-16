@@ -7,95 +7,105 @@
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
-extern const deceptus_u16 source_logic_definition_count;
+extern const DeceptusU16 source_logic_definition_count;
 extern const char *const source_logic_names[];
 extern const char *const source_logic_groups[];
-static deceptus_u8 reference_enabled[DECEPTUS_MECHANISM_CAPACITY];
-static deceptus_u8 reference_seen[DECEPTUS_MECHANISM_CAPACITY];
-static deceptus_u16 reference_writes;
+static DeceptusU8 reference_enabled[DECEPTUS_MECHANISM_CAPACITY];
+static DeceptusU8 reference_seen[DECEPTUS_MECHANISM_CAPACITY];
+static DeceptusU16 reference_writes;
 
-static int reference_set_enabled(lua_State *state)
+static int referenceSetEnabled(lua_State *state)
 {
-    const char *name;
-    const char *group;
-    deceptus_u16 index;
-    name = luaL_checkstring(state, 1);
-    group = luaL_checkstring(state, 3);
-    for (index = 0; index < source_logic_definition_count; ++index) {
-        if (strcmp(name, source_logic_names[index]) == 0 && strcmp(group, source_logic_groups[index]) == 0) {
-            reference_enabled[index] = lua_toboolean(state, 2) != 0;
-            reference_seen[index] = 1;
-            ++reference_writes;
-            return 0;
-        }
-    }
-    return luaL_error(state, "unexpected source mechanism selector: %s / %s", name, group);
+   const char *name;
+   const char *group;
+   DeceptusU16 index;
+   name = luaL_checkstring(state, 1);
+   group = luaL_checkstring(state, 3);
+   for (index = 0; index < source_logic_definition_count; ++index)
+   {
+      if (strcmp(name, source_logic_names[index]) == 0 && strcmp(group, source_logic_groups[index]) == 0)
+      {
+         reference_enabled[index] = lua_toboolean(state, 2) != 0;
+         reference_seen[index] = 1;
+         ++reference_writes;
+         return 0;
+      }
+   }
+   return luaL_error(state, "unexpected source mechanism selector: %s / %s", name, group);
 }
 #endif
 
-extern const deceptus_mechanism_def source_logic_definitions[];
-extern const deceptus_u16 source_logic_definition_count;
-extern const deceptus_u8 source_logic_program[];
-extern const deceptus_u16 source_logic_program_length;
+extern const DeceptusMechanismDef source_logic_definitions[];
+extern const DeceptusU16 source_logic_definition_count;
+extern const DeceptusU8 source_logic_program[];
+extern const DeceptusU16 source_logic_program_length;
 
-#define CHECK(condition)                                                                                               \
-    do {                                                                                                               \
-        if (!(condition)) {                                                                                            \
-            fprintf(stderr, "failure at line %d\n", __LINE__);                                                         \
-            exit(1);                                                                                                   \
-        }                                                                                                              \
-    } while (0)
+#define CHECK(condition)                                                                                                                   \
+   do                                                                                                                                      \
+   {                                                                                                                                       \
+      if (!(condition))                                                                                                                    \
+      {                                                                                                                                    \
+         fprintf(stderr, "failure at line %d\n", __LINE__);                                                                                \
+         exit(1);                                                                                                                          \
+      }                                                                                                                                    \
+   } while (0)
 
 int main(void)
 {
-    deceptus_mechanism_set mechanisms;
-    deceptus_u16 index;
+   DeceptusMechanismSet mechanisms;
+   DeceptusU16 index;
 #ifdef DECEPTUS_HAVE_LUA_REFERENCE
-    lua_State *reference;
-    int released;
-    reference = luaL_newstate();
-    CHECK(reference != 0);
-    luaL_openlibs(reference);
-    lua_getglobal(reference, "package");
-    lua_pushstring(reference, DECEPTUS_SOURCE_ROOT "/?.lua");
-    lua_setfield(reference, -2, "path");
-    lua_pop(reference, 1);
-    lua_register(reference, "setMechanismEnabled", reference_set_enabled);
-    if (luaL_dofile(reference, DECEPTUS_SOURCE_ROOT "/data/level-catacombs/level.lua") != LUA_OK) {
-        fprintf(stderr, "source Lua error: %s\n", lua_tostring(reference, -1));
-        return 1;
-    }
+   lua_State *reference;
+   int released;
+   reference = luaL_newstate();
+   CHECK(reference != 0);
+   luaL_openlibs(reference);
+   lua_getglobal(reference, "package");
+   lua_pushstring(reference, DECEPTUS_SOURCE_ROOT "/?.lua");
+   lua_setfield(reference, -2, "path");
+   lua_pop(reference, 1);
+   lua_register(reference, "setMechanismEnabled", referenceSetEnabled);
+   if (luaL_dofile(reference, DECEPTUS_SOURCE_ROOT "/data/level-catacombs/level.lua") != LUA_OK)
+   {
+      fprintf(stderr, "source Lua error: %s\n", lua_tostring(reference, -1));
+      return 1;
+   }
 #endif
-    CHECK(deceptus_mechanisms_init(&mechanisms, source_logic_definitions, source_logic_definition_count, 0, 0));
-    CHECK(source_logic_definition_count > 0 && source_logic_definition_count <= DECEPTUS_MECHANISM_CAPACITY);
-    CHECK(deceptus_logic_execute(&mechanisms, source_logic_program, source_logic_program_length, 1) == DECEPTUS_LOGIC_OK);
-    for (index = 0; index < mechanisms.count; ++index) {
-        CHECK(!mechanisms.states[index].enabled);
-    }
-    CHECK(deceptus_logic_execute(&mechanisms, source_logic_program, source_logic_program_length, 0) == DECEPTUS_LOGIC_OK);
-    for (index = 0; index < mechanisms.count; ++index) {
-        CHECK(mechanisms.states[index].enabled);
-    }
+   CHECK(deceptusMechanismsInit(&mechanisms, source_logic_definitions, source_logic_definition_count, 0, 0));
+   CHECK(source_logic_definition_count > 0 && source_logic_definition_count <= DECEPTUS_MECHANISM_CAPACITY);
+   CHECK(deceptusLogicExecute(&mechanisms, source_logic_program, source_logic_program_length, 1) == DECEPTUS_LOGIC_OK);
+   for (index = 0; index < mechanisms.count; ++index)
+   {
+      CHECK(!mechanisms.states[index].enabled);
+   }
+   CHECK(deceptusLogicExecute(&mechanisms, source_logic_program, source_logic_program_length, 0) == DECEPTUS_LOGIC_OK);
+   for (index = 0; index < mechanisms.count; ++index)
+   {
+      CHECK(mechanisms.states[index].enabled);
+   }
 #ifdef DECEPTUS_HAVE_LUA_REFERENCE
-    for (released = 0; released < 2; ++released) {
-        reference_writes = 0;
-        lua_getglobal(reference, "releaseSwordRing");
-        lua_pushboolean(reference, released);
-        if (lua_pcall(reference, 1, 0, 0) != LUA_OK) {
-            fprintf(stderr, "source callback error: %s\n", lua_tostring(reference, -1));
-            return 1;
-        }
-        CHECK(reference_writes >= source_logic_definition_count);
-        CHECK(deceptus_logic_execute(&mechanisms, source_logic_program, source_logic_program_length, (deceptus_u8)released) ==
-              DECEPTUS_LOGIC_OK);
-        for (index = 0; index < mechanisms.count; ++index) {
-            CHECK(reference_seen[index]);
-            CHECK(mechanisms.states[index].enabled == reference_enabled[index]);
-        }
-    }
-    lua_close(reference);
-    puts("compiled callback matches execution of the original full Lua source for both arguments");
+   for (released = 0; released < 2; ++released)
+   {
+      reference_writes = 0;
+      lua_getglobal(reference, "releaseSwordRing");
+      lua_pushboolean(reference, released);
+      if (lua_pcall(reference, 1, 0, 0) != LUA_OK)
+      {
+         fprintf(stderr, "source callback error: %s\n", lua_tostring(reference, -1));
+         return 1;
+      }
+      CHECK(reference_writes >= source_logic_definition_count);
+      CHECK(deceptusLogicExecute(&mechanisms, source_logic_program, source_logic_program_length, (DeceptusU8)released) ==
+            DECEPTUS_LOGIC_OK);
+      for (index = 0; index < mechanisms.count; ++index)
+      {
+         CHECK(reference_seen[index]);
+         CHECK(mechanisms.states[index].enabled == reference_enabled[index]);
+      }
+   }
+   lua_close(reference);
+   puts("compiled callback matches execution of the original full Lua source for both arguments");
 #endif
-    puts("original releaseSwordRing Lua callback controls its original Tiled targets");
-    return 0;
+   puts("original releaseSwordRing Lua callback controls its original Tiled targets");
+   return 0;
 }

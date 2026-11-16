@@ -218,9 +218,9 @@ def sword_frames(data, output):
         raise ValueError('equipped sword frames exceed logical draw frame capacity')
     lines = ['/* native source rectangles, origins and 60hz frame durations. */',
              '#ifndef GBA_SWORD_RESOURCES_H', '#define GBA_SWORD_RESOURCES_H',
-             'static const deceptus_u8 gba_sword_clips[][4] = {']
+             'static const DeceptusU8 gba_sword_clips[][4] = {']
     lines.extend('    {' + ', '.join(map(str, clip)) + '},' for clip in clips)
-    lines.extend(['};', 'static const deceptus_u8 gba_sword_durations[] = {',
+    lines.extend(['};', 'static const DeceptusU8 gba_sword_durations[] = {',
                   '    ' + ', '.join(str(frame['duration']) for frame in frames), '};', '#endif'])
     (output / 'gba_sword_resources.h').write_text('\n'.join(lines) + '\n')
     return frames
@@ -453,12 +453,12 @@ def compile_assets(data, scene="lever", recipe_path=None):
     collision_bytes = export_world(source, OUTPUT, recipe)
     if animations:
         with (OUTPUT / 'room.c').open('a') as handle:
-            handle.write('\n#include "gba_assets.h"\nconst gba_background_animation gba_background_animations[] = {\n')
+            handle.write('\n#include "gba_assets.h"\nconst GbaBackgroundAnimation gba_background_animations[] = {\n')
             for clip in animations:
                 x, y, width, height = clip['bounds']
                 handle.write('    {' + ','.join(map(str, [x//8, y//8, width//8, height//8, clip['frame_count'], clip['frame_ticks']])) +
                              f', gba_animation_cells + {clip["cell_offset"]}, {clip.get("required_flags",0)}, {clip.get("forbidden_flags",0)}, ' +
-                             (f'(const deceptus_u16 *)(gba_animation_durations + {clip["duration_offset"]})' if clip.get('frame_durations') else '0') + ', ' + str(clip.get('plane',0)) + '},\n')
+                             (f'(const DeceptusU16 *)(gba_animation_durations + {clip["duration_offset"]})' if clip.get('frame_durations') else '0') + ', ' + str(clip.get('plane',0)) + '},\n')
             handle.write('};\n')
     resources = [('gba_background0', 'background0.bin'), ('gba_background1', 'background1.bin'),
                  ('gba_map0', 'map0.bin'), ('gba_map1', 'map1.bin'),
@@ -472,12 +472,12 @@ def compile_assets(data, scene="lever", recipe_path=None):
     header = ['#ifndef GBA_ASSETS_H', '#define GBA_ASSETS_H', '#include "deceptus/types.h"']
     for label, filename in resources:
         assembly += ['.balign 4', f'.global {label}', f'{label}:', f'.incbin "{(OUTPUT / filename).as_posix()}"']
-        header += [f'extern const deceptus_u8 {label}[];', f'#define {label.upper()}_BYTES {(OUTPUT / filename).stat().st_size}']
+        header += [f'extern const DeceptusU8 {label}[];', f'#define {label.upper()}_BYTES {(OUTPUT / filename).stat().st_size}']
     header += ['#define GBA_CAMPAIGN 0', f'#define GBA_LAYERED_BACKGROUND {int(foreground is not None)}', f'#define GBA_STREAMED_BACKGROUND {int(streamed)}', f'#define GBA_ROOM_COLUMNS {room.width // 8}', f'#define GBA_ROOM_ROWS {room.height // 8}', f'#define GBA_PATTERN_COUNT {patterns}',
                f'#define GBA_BACKGROUND_ANIMATION_COUNT {len(animations)}', f'#define GBA_BACKGROUND_ANIMATION_CAPACITY {len(animations)}', '#define GBA_TUTORIAL 0',
-               'typedef struct gba_background_animation { deceptus_u16 left, top, columns, rows, frames, frame_ticks; const deceptus_u8 *cells; deceptus_u16 required_flags, forbidden_flags; const deceptus_u16 *durations; deceptus_u8 plane; } gba_background_animation;',
-               'extern const gba_background_animation gba_background_animations[];']
-    header += ['typedef struct gba_mechanism_resource { deceptus_u32 offset; deceptus_u32 palette_offset; deceptus_u16 bytes; deceptus_u8 columns, rows, palette_first, palette_count; deceptus_u16 reserved; } gba_mechanism_resource;',
+               'typedef struct GbaBackgroundAnimation { DeceptusU16 left, top, columns, rows, frames, frame_ticks; const DeceptusU8 *cells; DeceptusU16 required_flags, forbidden_flags; const DeceptusU16 *durations; DeceptusU8 plane; } GbaBackgroundAnimation;',
+               'extern const GbaBackgroundAnimation gba_background_animations[];']
+    header += ['typedef struct GbaMechanismResource { DeceptusU32 offset; DeceptusU32 palette_offset; DeceptusU16 bytes; DeceptusU8 columns, rows, palette_first, palette_count; DeceptusU16 reserved; } GbaMechanismResource;',
                '#define GBA_LEVER_FIRST 0', '#define GBA_SPIKES_FIRST 33', '#define GBA_BLOCK_FIRST 73', '#define GBA_COLLAPSE_FIRST 105', '#define GBA_RAT_FIRST 257', '#define GBA_TRAP_FIRST 327', '#define GBA_MUZZLE_FIRST 331', '#define GBA_ARROW_FIRST 371', '#define GBA_SWIM_FIRST 387', '#define GBA_BLOB_FIRST 413', '#define GBA_SPLASH_FIRST 474', '#define GBA_SWORD_FIRST 494',
                '#define GBA_CANNON_FIRST 638', '#define GBA_CANNONBALL_FIRST 724',
                '#define GBA_IRON_DOOR_FIRST 728', '#define GBA_WOODEN_PLANKS_FIRST 842',

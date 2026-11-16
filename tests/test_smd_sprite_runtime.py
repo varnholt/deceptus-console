@@ -16,9 +16,9 @@ class SpriteRuntimeTests(unittest.TestCase):
         folder.mkdir(parents=True, exist_ok=True)
         production = (ROOT / 'src/platform/smd/opening_sprites.h').read_text()
         # compile the actual packing seam without requiring generated game artwork.
-        budget = production[production.index('static union {'):production.index('static deceptus_u16 smd_obj_request_count')]
-        packing = production[production.index('static void smd_obj_piece('):production.index('static deceptus_u16 smd_obj_sword(')]
-        fits = production[production.index('static deceptus_u8 smd_obj_budget_fits('):production.index('static void smd_sprites_prepare(const')]
+        budget = production[production.index('static union'):production.index('static DeceptusU16 smd_obj_request_count')]
+        packing = production[production.index('static void smdObjPiece('):production.index('static DeceptusU16 smdObjSword(')]
+        fits = production[production.index('static DeceptusU8 smdObjBudgetFits('):production.index('static void smdSpritesPrepare(const')]
         source = r'''
 #include <assert.h>
 #include <stdio.h>
@@ -69,7 +69,7 @@ int main(void)
      for(y=0;y<5;++y) {
       reset(fast);source_quads=(unsigned)quads;
       memset(actual,0,sizeof(actual));memset(expected,0,sizeof(expected));
-      smd_obj_quads(xs[x],ys[y],0,2,(deceptus_u8)flip,(deceptus_u8)quads);
+      smdObjQuads(xs[x],ys[y],0,2,(DeceptusU8)flip,(DeceptusU8)quads);
       for(dy=0;dy<16;++dy) {
        for(dx=0;dx<16;++dx) {
         sx=flip?15-dx:dx;sy=dy;
@@ -81,7 +81,7 @@ int main(void)
       }
       assert(memcmp(actual,expected,sizeof(actual))==0);
       assert(!smd_sprite_overflow);
-      if(fast) {assert(smd_obj_budget_fits());}
+      if(fast) {assert(smdObjBudgetFits());}
      }
     }
    }
@@ -94,7 +94,7 @@ int main(void)
    seed=seed*1664525U+1013904223U;x=(int)((seed>>16)%350)-20;
    seed=seed*1664525U+1013904223U;y=(int)((seed>>16)%260)-20;
    width=(seed&1)?8:16;height=(seed&2)?8:16;
-   smd_obj_piece((deceptus_i16)x,(deceptus_i16)y,0,2,0,(deceptus_u8)width,(deceptus_u8)height);
+   smdObjPiece((DeceptusI16)x,(DeceptusI16)y,0,2,0,(DeceptusU8)width,(DeceptusU8)height);
    if(x<=-(int)width||x>=320||y<=-(int)height||y>=224) {continue;}
    for(line=y<0?0:y;line<y+(int)height&&line<224;++line) {
     ++lines[line];fetch[line]+=(unsigned char)(width/8);
@@ -106,12 +106,12 @@ int main(void)
    assert(objects==lines[line]&&slivers==fetch[line]);
    if(lines[line]>20||fetch[line]>40) {valid=0;}
   }
-  assert(smd_obj_budget_fits()==valid);
+  assert(smdObjBudgetFits()==valid);
  }
  reset(1);
- for(i=0;i<20;++i) {smd_obj_piece(0,0,0,2,0,16,16);}
- assert(smd_obj_budget_fits());
- smd_obj_piece(0,0,0,2,0,8,8);assert(!smd_obj_budget_fits());
+ for(i=0;i<20;++i) {smdObjPiece(0,0,0,2,0,16,16);}
+ assert(smdObjBudgetFits());
+ smdObjPiece(0,0,0,2,0,8,8);assert(!smdObjBudgetFits());
  puts("1500 clipped quadrant images and1000 scanline budget scenes passed");
  return 0;
 }
@@ -126,4 +126,3 @@ int main(void)
 
 if __name__ == '__main__':
     unittest.main()
-

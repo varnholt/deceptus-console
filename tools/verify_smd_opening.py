@@ -16,8 +16,8 @@ from verify_opening import ROUTE, check, native_state as opening_native_state
 
 def native_state(library):
     state = opening_native_state(library)
-    state['projectiles_fired'] = library.opening_state(15)
-    state['hurt_ticks'] = library.opening_state(14)
+    state['projectiles_fired'] = library.openingState(15)
+    state['hurt_ticks'] = library.openingState(14)
     return state
 
 
@@ -84,22 +84,22 @@ def verify(core=None, rom=None, route_path=ROUTE, clang='clang', milestone='full
                  if milestone == 'boot' else len(route['steps']) - 1)
     steps = route['steps'][:last_step + 1]
     library = compile_native(clang,assets_dir)
-    library.opening_init()
-    library.opening_tick(16)
+    library.openingInit()
+    library.openingTick(16)
     for _ in range(60):
-        library.opening_tick(0)
+        library.openingTick(0)
     idle_expected = native_state(library)
-    library.opening_init()
+    library.openingInit()
     report = dict(scope=route['scope'] if milestone == 'full' else 'New Game, original Cell and live Lower Cells portal',
                   route_sha256=hashlib.sha256(Path(route_path).read_bytes()).hexdigest(),
                   input_ticks=sum(ticks for ticks, _ in steps), native=[], smd=[],
                   native_damage_events=[], smd_damage_events=[])
     trace = []
-    previous_native_health = library.opening_state(5)
+    previous_native_health = library.openingState(5)
     for index, (ticks, buttons) in enumerate(steps):
         for _ in range(ticks):
-            library.opening_tick(buttons)
-            health = library.opening_state(5)
+            library.openingTick(buttons)
+            health = library.openingState(5)
             if health != previous_native_health:
                 report['native_damage_events'].append(dict(step=index, damage=previous_native_health - health,
                                                            **native_state(library)))
@@ -110,8 +110,8 @@ def verify(core=None, rom=None, route_path=ROUTE, clang='clang', milestone='full
             point = checkpoints[index]
             check(current, point['expected'], point['name'])
             report['native'].append(dict(name=point['name'], **current))
-    report['simulation_ticks'] = library.opening_state(12)
-    report['native_rope_attached_ticks'] = library.opening_state(13)
+    report['simulation_ticks'] = library.openingState(12)
+    report['native_rope_attached_ticks'] = library.openingState(13)
     output = ROOT / 'artifacts/smd-opening-check'
     output.mkdir(parents=True, exist_ok=True)
     if core:

@@ -5,25 +5,26 @@
 #define DECEPTUS_GRAB_ROPE_CAPACITY 2
 #define DECEPTUS_GRAB_ROPE_NODES 24
 
-typedef struct deceptus_grabrope {
-    deceptus_fixed x[DECEPTUS_GRAB_ROPE_NODES], y[DECEPTUS_GRAB_ROPE_NODES];
-    deceptus_fixed previous_x[DECEPTUS_GRAB_ROPE_NODES], previous_y[DECEPTUS_GRAB_ROPE_NODES];
-    deceptus_u16 cumulative_length[DECEPTUS_GRAB_ROPE_NODES], total_length;
-    deceptus_u8 mechanism_index, node_count, damping_ticks, dynamic_solids;
-} deceptus_grabrope;
+typedef struct DeceptusGrabRope
+{
+   DeceptusFixed x[DECEPTUS_GRAB_ROPE_NODES], y[DECEPTUS_GRAB_ROPE_NODES];
+   DeceptusFixed previous_x[DECEPTUS_GRAB_ROPE_NODES], previous_y[DECEPTUS_GRAB_ROPE_NODES];
+   DeceptusU16 cumulative_length[DECEPTUS_GRAB_ROPE_NODES], total_length;
+   DeceptusU8 mechanism_index, node_count, damping_ticks, dynamic_solids;
+} DeceptusGrabRope;
 
-typedef struct deceptus_grabrope_set {
-    deceptus_grabrope ropes[DECEPTUS_GRAB_ROPE_CAPACITY];
-    deceptus_u8 count;
-} deceptus_grabrope_set;
+typedef struct DeceptusGrabRopeSet
+{
+   DeceptusGrabRope ropes[DECEPTUS_GRAB_ROPE_CAPACITY];
+   DeceptusU8 count;
+} DeceptusGrabRopeSet;
 
-struct deceptus_engine;
-deceptus_u8 deceptus_grabropes_init(struct deceptus_engine *engine);
-void deceptus_grabropes_tick(struct deceptus_engine *engine);
-void deceptus_grabrope_pin(struct deceptus_engine *engine, deceptus_u8 rope, deceptus_u8 node, deceptus_fixed x,
-                           deceptus_fixed y);
-deceptus_u16 deceptus_grabrope_distance(deceptus_i32 x, deceptus_i32 y);
-deceptus_u16 deceptus_grabrope_length(const struct deceptus_engine *engine, deceptus_u8 rope);
-deceptus_u8 deceptus_grabrope_point_at(const struct deceptus_engine *engine, deceptus_u8 rope, deceptus_u16 distance_px,
-                                       deceptus_i16 *x, deceptus_i16 *y);
+struct DeceptusEngine;
+DeceptusU8 deceptusGrabRopesInit(struct DeceptusEngine *engine);
+void deceptusGrabRopesTick(struct DeceptusEngine *engine);
+void deceptusGrabRopePin(struct DeceptusEngine *engine, DeceptusU8 rope, DeceptusU8 node, DeceptusFixed x, DeceptusFixed y);
+DeceptusU16 deceptusGrabRopeDistance(DeceptusI32 x, DeceptusI32 y);
+DeceptusU16 deceptusGrabRopeLength(const struct DeceptusEngine *engine, DeceptusU8 rope);
+DeceptusU8 deceptusGrabRopePointAt(const struct DeceptusEngine *engine, DeceptusU8 rope, DeceptusU16 distance_px, DeceptusI16 *x,
+                                   DeceptusI16 *y);
 #endif

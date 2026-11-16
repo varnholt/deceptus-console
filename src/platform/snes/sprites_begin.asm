@@ -7,7 +7,7 @@
 ; clear presentation counters and hide unused objects. cached graphics identity,
 ; display protection and pending uploads remain intact across presentations.
 .section "snes_sprite_begin" semisuperfree banks 2-15
-snes_obj_begin:
+snesObjBegin:
     php
     rep #$30
     phx

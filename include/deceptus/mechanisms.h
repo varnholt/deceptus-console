@@ -34,83 +34,89 @@
 #define DECEPTUS_MECH_RESTORED 7
 #define DECEPTUS_MECH_FORCE 8
 
-typedef struct deceptus_rect {
-    deceptus_i16 x;
-    deceptus_i16 y;
-    deceptus_i16 width;
-    deceptus_i16 height;
-} deceptus_rect;
+typedef struct DeceptusRect
+{
+   DeceptusI16 x;
+   DeceptusI16 y;
+   DeceptusI16 width;
+   DeceptusI16 height;
+} DeceptusRect;
 
 /* source_id is the original Tiled object id, not its position in an array. */
-typedef struct deceptus_mechanism_def {
-    deceptus_u16 source_id;
-    deceptus_rect bounds;
-    deceptus_u16 target_first;
-    deceptus_u16 target_count;
-    deceptus_u16 value;
-    deceptus_u8 kind;
-    deceptus_u8 enabled;
-    deceptus_u8 flags;
-} deceptus_mechanism_def;
+typedef struct DeceptusMechanismDef
+{
+   DeceptusU16 source_id;
+   DeceptusRect bounds;
+   DeceptusU16 target_first;
+   DeceptusU16 target_count;
+   DeceptusU16 value;
+   DeceptusU8 kind;
+   DeceptusU8 enabled;
+   DeceptusU8 flags;
+} DeceptusMechanismDef;
 
-typedef struct deceptus_mechanism_timing {
-    deceptus_u16 on_ticks;
-    deceptus_u16 off_ticks;
-    deceptus_u16 collapse_ticks;
-    deceptus_u16 respawn_ticks;
-    deceptus_u16 fade_ticks;
-    deceptus_u8 flags;
-} deceptus_mechanism_timing;
+typedef struct DeceptusMechanismTiming
+{
+   DeceptusU16 on_ticks;
+   DeceptusU16 off_ticks;
+   DeceptusU16 collapse_ticks;
+   DeceptusU16 respawn_ticks;
+   DeceptusU16 fade_ticks;
+   DeceptusU8 flags;
+} DeceptusMechanismTiming;
 
-typedef struct deceptus_mechanism_state {
-    deceptus_u8 enabled;
-    deceptus_u8 visible;
-    deceptus_u8 inside;
-    deceptus_u8 triggered;
-    deceptus_u8 active;
-    deceptus_u8 frame;
-    deceptus_u8 target_frame;
-    deceptus_u8 fraction;
-    deceptus_u8 progress;
-    deceptus_u8 phase;
-    deceptus_u8 pending;
-    deceptus_u8 pending_count;
-    deceptus_u8 handle_available;
-    deceptus_u16 timer;
-    deceptus_u16 cooldown;
-    deceptus_u16 idle_ticks;
-} deceptus_mechanism_state;
+typedef struct DeceptusMechanismState
+{
+   DeceptusU8 enabled;
+   DeceptusU8 visible;
+   DeceptusU8 inside;
+   DeceptusU8 triggered;
+   DeceptusU8 active;
+   DeceptusU8 frame;
+   DeceptusU8 target_frame;
+   DeceptusU8 fraction;
+   DeceptusU8 progress;
+   DeceptusU8 phase;
+   DeceptusU8 pending;
+   DeceptusU8 pending_count;
+   DeceptusU8 handle_available;
+   DeceptusU16 timer;
+   DeceptusU16 cooldown;
+   DeceptusU16 idle_ticks;
+} DeceptusMechanismState;
 
-typedef struct deceptus_mechanism_event {
-    deceptus_u16 source_id;
-    deceptus_u16 value;
-    deceptus_u8 kind;
-} deceptus_mechanism_event;
+typedef struct DeceptusMechanismEvent
+{
+   DeceptusU16 source_id;
+   DeceptusU16 value;
+   DeceptusU8 kind;
+} DeceptusMechanismEvent;
 
-typedef struct deceptus_mechanism_set {
-    const deceptus_mechanism_def *definitions;
-    const deceptus_u16 *targets;
-    const deceptus_mechanism_timing *timings;
-    deceptus_mechanism_state states[DECEPTUS_MECHANISM_CAPACITY];
-    deceptus_mechanism_event events[DECEPTUS_MECHANISM_EVENT_CAPACITY];
-    deceptus_u16 target_count;
-    deceptus_u8 count;
-    deceptus_u8 event_count;
-    deceptus_u8 overflow;
-} deceptus_mechanism_set;
+typedef struct DeceptusMechanismSet
+{
+   const DeceptusMechanismDef *definitions;
+   const DeceptusU16 *targets;
+   const DeceptusMechanismTiming *timings;
+   DeceptusMechanismState states[DECEPTUS_MECHANISM_CAPACITY];
+   DeceptusMechanismEvent events[DECEPTUS_MECHANISM_EVENT_CAPACITY];
+   DeceptusU16 target_count;
+   DeceptusU8 count;
+   DeceptusU8 event_count;
+   DeceptusU8 overflow;
+} DeceptusMechanismSet;
 
 /* invalid or oversized definitions fail without leaving a partially bound set. */
-deceptus_u8 deceptus_mechanisms_init(deceptus_mechanism_set *set, const deceptus_mechanism_def *definitions,
-                                     deceptus_u16 count, const deceptus_u16 *targets, deceptus_u16 target_count);
-void deceptus_mechanisms_configure(deceptus_mechanism_set *set, const deceptus_mechanism_timing *timings);
-deceptus_i16 deceptus_mechanism_find(const deceptus_mechanism_set *set, deceptus_u16 source_id);
-deceptus_u8 deceptus_mechanism_enable(deceptus_mechanism_set *set, deceptus_u16 source_id, deceptus_u8 enabled);
+DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMechanismDef *definitions, DeceptusU16 count,
+                                  const DeceptusU16 *targets, DeceptusU16 target_count);
+void deceptusMechanismsConfigure(DeceptusMechanismSet *set, const DeceptusMechanismTiming *timings);
+DeceptusI16 deceptusMechanismFind(const DeceptusMechanismSet *set, DeceptusU16 source_id);
+DeceptusU8 deceptusMechanismEnable(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU8 enabled);
 /* applies one weapon hit to the original destructible blocker durability. */
-deceptus_u8 deceptus_mechanism_hit(deceptus_mechanism_set *set, deceptus_u16 source_id, deceptus_u16 damage);
+DeceptusU8 deceptusMechanismHit(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU16 damage);
 /* clears the transient event queue and evaluates one frame of rectangle interactions. */
-void deceptus_mechanisms_tick(deceptus_mechanism_set *set, const deceptus_rect *player, deceptus_u8 interact_pressed);
-deceptus_u8 deceptus_mechanism_solid(const deceptus_mechanism_set *set, const deceptus_rect *bounds);
+void deceptusMechanismsTick(DeceptusMechanismSet *set, const DeceptusRect *player, DeceptusU8 interact_pressed);
+DeceptusU8 deceptusMechanismSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds);
 /* source cannon gun projectiles ignore cannon enemy fixtures. */
-deceptus_u8 deceptus_mechanism_projectile_solid(const deceptus_mechanism_set *set, const deceptus_rect *bounds);
+DeceptusU8 deceptusMechanismProjectileSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds);
 
 #endif

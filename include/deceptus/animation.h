@@ -3,14 +3,15 @@
 #include "deceptus/types.h"
 
 /* a target-independent clock for baked scenery, sprites and interface clips. */
-typedef struct deceptus_animation {
-    deceptus_u16 frame, elapsed;
-} deceptus_animation;
+typedef struct DeceptusAnimation
+{
+   DeceptusU16 frame, elapsed;
+} DeceptusAnimation;
 
-void deceptus_animation_reset(deceptus_animation *animation);
+void deceptusAnimationReset(DeceptusAnimation *animation);
 /* invalid clips stay at frame zero; returns one if the displayed frame changes. */
-deceptus_u8 deceptus_animation_advance(deceptus_animation *animation, deceptus_u16 frames, deceptus_u16 frame_ticks,
-                                       deceptus_u16 ticks, deceptus_u8 loop);
-deceptus_u8 deceptus_animation_advance_timed(deceptus_animation *animation, deceptus_u16 frames,
-                                             const deceptus_u16 *durations, deceptus_u16 ticks, deceptus_u8 loop);
+DeceptusU8 deceptusAnimationAdvance(DeceptusAnimation *animation, DeceptusU16 frames, DeceptusU16 frame_ticks, DeceptusU16 ticks,
+                                    DeceptusU8 loop);
+DeceptusU8 deceptusAnimationAdvanceTimed(DeceptusAnimation *animation, DeceptusU16 frames, const DeceptusU16 *durations, DeceptusU16 ticks,
+                                         DeceptusU8 loop);
 #endif

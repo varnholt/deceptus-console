@@ -4,12 +4,13 @@
 #include "deceptus/engine.h"
 
 /* caller-owned sword state; enemy damage resets with the room's enemies. */
-typedef struct deceptus_playersword {
-    deceptus_u8 ticks, duration, facing_left, crouched, airborne, hit;
-    deceptus_u8 damage[DECEPTUS_ENTITY_CAPACITY];
-} deceptus_playersword;
+typedef struct DeceptusPlayerSword
+{
+   DeceptusU8 ticks, duration, facing_left, crouched, airborne, hit;
+   DeceptusU8 damage[DECEPTUS_ENTITY_CAPACITY];
+} DeceptusPlayerSword;
 
-void deceptus_playersword_init(deceptus_playersword *sword);
-void deceptus_playersword_tick(deceptus_playersword *sword, deceptus_engine *engine, deceptus_u16 pressed);
+void deceptusPlayerSwordInit(DeceptusPlayerSword *sword);
+void deceptusPlayerSwordTick(DeceptusPlayerSword *sword, DeceptusEngine *engine, DeceptusU16 pressed);
 
 #endif

@@ -57,7 +57,7 @@ class Writer:
         for suffix,data,kind in (('_rle',packed,'u8'),('_offsets',offset_data,'u32')):
             label=name+suffix;path=self.output/(label+'.bin');path.write_bytes(data)
             self.assembly+=['.balign 4','.global '+label,label+':','.incbin "'+path.as_posix()+'"']
-            self.externs.append('extern const deceptus_'+kind+' '+label+'[];')
+            self.externs.append('extern const Deceptus'+kind.capitalize()+' '+label+'[];')
         self.raw_bytes+=len(payload);self.rle_bytes+=len(packed);self.offset_bytes+=len(offset_data)
         self.zlib_bytes+=len(zlib.compress(payload,9))
         return '{'+name+'_rle,'+name+'_offsets,'+','.join(map(str,[block_bytes,len(offsets)-1,unit_bytes]))+'}'
@@ -119,7 +119,7 @@ def portable_metadata(source,output):
     files=[]
     for filename in ['opening_area'+str(index)+'.c' for index in range(26)]+['opening_adventure.c']:
         text=(source/filename).read_text().replace('snes_','smd_').replace('SNES_','SMD_')
-        if 'smd_sprite' in text or 'smd_stage' in text:
+        if 'smd_sprite' in text or 'SmdStage' in text:
             raise ValueError('graphics declarations leaked into portable opening metadata')
         (output/filename).write_text(text);files.append(filename)
     return files
@@ -179,8 +179,8 @@ def compile_sprites(data,output,writer):
             if value:
                 mask[index//8]|=1<<(index%8)
         masks.append(mask)
-    lines+=['const smd_sprite_resource smd_sprite_resources[1065] = {',*['    '+value+',' for value in descriptors],'};',
-            'const deceptus_u8 smd_sprite_opaque[1065][8] = {',*['{'+','.join(map(str,mask))+'},' for mask in masks],'};',
+    lines+=['const SmdSpriteResource smd_sprite_resources[1065] = {',*['    '+value+',' for value in descriptors],'};',
+            'const DeceptusU8 smd_sprite_opaque[1065][8] = {',*['{'+','.join(map(str,mask))+'},' for mask in masks],'};',
             array('smd_sprite_quad_offsets',offsets,'u16',16),array('smd_sprite_quads',quads,'u8',32)]
     return lines,dict(resources=len(images),unique_graphics=len(dedup),pieces=len(quads),actor_colors=13,actor_black_slot=33,common_colors=15,ui_white_slot=47)
 
@@ -199,8 +199,8 @@ def compile_font(data,writer):
             for left in range(0,columns*8,8):
                 payload.extend(packed_tile(image.crop((left,top,left+8,top+8))))
     blob=writer.blob('smd_font',payload,32)
-    return ['const smd_rom_blob smd_font = '+blob+';',
-            'const smd_font_glyph smd_font_glyphs[95] = {'+','.join('{'+str(tile)+','+str(columns)+'}' for tile,columns in glyphs)+'};'],len(payload)//32
+    return ['const SmdRomBlob smd_font = '+blob+';',
+            'const SmdFontGlyph smd_font_glyphs[95] = {'+','.join('{'+str(tile)+','+str(columns)+'}' for tile,columns in glyphs)+'};'],len(payload)//32
 
 
 def compile_opening(data,output,metadata_source,rooms=26):
@@ -224,7 +224,7 @@ def compile_opening(data,output,metadata_source,rooms=26):
             animations.append('{'+','.join(map(str,[x//8,y//8,width//8,height//8,clip['frame_count'],clip['frame_ticks'],clip.get('required_flags',0),clip.get('forbidden_flags',0)]))+','+duration+','+blob+','+str(clip.get('plane',0))+'}')
         pointer='0'
         if animations:
-            pointer=prefix+'_animations';lines+=['static const smd_background_animation '+pointer+'[] = {',*['    '+value+',' for value in animations],'};']
+            pointer=prefix+'_animations';lines+=['static const SmdBackgroundAnimation '+pointer+'[] = {',*['    '+value+',' for value in animations],'};']
         stages.append('{'+patterns+','+bg+','+fg+','+prefix+'_palette,'+','.join(map(str,[image.width//8,image.height//8,result['pattern_count']]))+','+pointer+','+str(len(animations))+','+json.dumps(recipe['title'])+'}')
         peak=viewport_peak(result['background'],result['foreground'])
         reports.append(dict(room=index,patterns=result['pattern_count'],raw_pattern_bytes=len(result['patterns']),static_peak=peak,color_fidelity=result['metrics'],animation_frames=[clip['frame_count'] for clip in clips]))
@@ -234,24 +234,24 @@ def compile_opening(data,output,metadata_source,rooms=26):
             '#define SMD_OPENING 1',f'#define SMD_STAGE_COUNT {rooms}','#define SMD_SPRITE_RESOURCE_COUNT 1065',
             '#define SMD_ACTOR_FIRST 0','#define SMD_SPRITE_QUADS 1','#define SMD_SPRITE_OPAQUE_MASK 1',f'#define SMD_FONT_TILES {font_tiles}',
             '#define SMD_FONT_ROWS 2','#define SMD_FONT_SOURCE_TOP 3','#define SMD_ROM_BLOB_RLE 1',
-            'typedef struct smd_rom_blob { const deceptus_u8 *data; const deceptus_u32 *offsets; deceptus_u16 block_bytes,blocks; deceptus_u8 unit_bytes; } smd_rom_blob;',
-            'typedef struct smd_background_animation { deceptus_u16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags; const deceptus_u16 *durations; smd_rom_blob cells; deceptus_u8 plane; } smd_background_animation;',
-            'typedef struct smd_stage { smd_rom_blob patterns,background,foreground; const deceptus_u16 *palette; deceptus_u16 columns,rows,pattern_count; const smd_background_animation *animations; deceptus_u8 animation_count; const char *title; } smd_stage;',
-            'typedef struct smd_sprite_resource { smd_rom_blob graphics; deceptus_u16 bytes; deceptus_u8 columns,rows,trim_x,trim_y,palette_bank; } smd_sprite_resource;',
-            'typedef struct smd_font_glyph { deceptus_u16 tile; deceptus_u8 columns; } smd_font_glyph;',
-            'extern const smd_stage smd_stages[SMD_STAGE_COUNT];','extern const smd_sprite_resource smd_sprite_resources[1065];',
-            'extern const deceptus_u8 smd_sprite_opaque[1065][8],smd_sprite_quads[];','extern const deceptus_u16 smd_sprite_quad_offsets[1065],smd_sprite_palette2[16],smd_sprite_palette3[16];',
-            'extern const smd_rom_blob smd_font;','extern const smd_font_glyph smd_font_glyphs[95];',
-            'extern const deceptus_campaign_def smd_campaign_definition;','extern const deceptus_adventure_def smd_tutorial_definition;']
+            'typedef struct SmdRomBlob { const DeceptusU8 *data; const DeceptusU32 *offsets; DeceptusU16 block_bytes,blocks; DeceptusU8 unit_bytes; } SmdRomBlob;',
+            'typedef struct SmdBackgroundAnimation { DeceptusU16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags; const DeceptusU16 *durations; SmdRomBlob cells; DeceptusU8 plane; } SmdBackgroundAnimation;',
+            'typedef struct SmdStage { SmdRomBlob patterns,background,foreground; const DeceptusU16 *palette; DeceptusU16 columns,rows,pattern_count; const SmdBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; } SmdStage;',
+            'typedef struct SmdSpriteResource { SmdRomBlob graphics; DeceptusU16 bytes; DeceptusU8 columns,rows,trim_x,trim_y,palette_bank; } SmdSpriteResource;',
+            'typedef struct SmdFontGlyph { DeceptusU16 tile; DeceptusU8 columns; } SmdFontGlyph;',
+            'extern const SmdStage smd_stages[SMD_STAGE_COUNT];','extern const SmdSpriteResource smd_sprite_resources[1065];',
+            'extern const DeceptusU8 smd_sprite_opaque[1065][8],smd_sprite_quads[];','extern const DeceptusU16 smd_sprite_quad_offsets[1065],smd_sprite_palette2[16],smd_sprite_palette3[16];',
+            'extern const SmdRomBlob smd_font;','extern const SmdFontGlyph smd_font_glyphs[95];',
+            'extern const DeceptusCampaignDef smd_campaign_definition;','extern const DeceptusAdventureDef smd_tutorial_definition;']
     for name,value in re.findall(r'#define (GBA_\w+_FIRST) (\d+)',(ROOT/'assets/generated/gba/gba_assets.h').read_text()):
-        header.append('#define '+name.replace('GBA_','SMD_')+' '+str(int(value)+26))
+        header.append('#define '+name.replace('GBA_','SMD_').replace('Gba','Smd')+' '+str(int(value)+26))
     (output/'smd_assets.h').write_text('\n'.join(header+['#endif'])+'\n')
     for stem in ('sword','headtorch','rope'):
         path=output/f'gba_{stem}_resources.h'
         if not path.exists():
             path=ROOT/'assets/generated/gba/area0'/f'gba_{stem}_resources.h'
-        (output/f'smd_{stem}_resources.h').write_text(path.read_text().replace('gba_','smd_').replace('GBA_','SMD_'))
-    resources='#include "smd_assets.h"\n'+'\n'.join(writer.externs+lines+sprite_lines+font_lines+['const smd_stage smd_stages[SMD_STAGE_COUNT] = {',*['    '+stage+',' for stage in stages],'};'])
+        (output/f'smd_{stem}_resources.h').write_text(path.read_text().replace('gba_','smd_').replace('GBA_','SMD_').replace('Gba','Smd'))
+    resources='#include "smd_assets.h"\n'+'\n'.join(writer.externs+lines+sprite_lines+font_lines+['const SmdStage smd_stages[SMD_STAGE_COUNT] = {',*['    '+stage+',' for stage in stages],'};'])
     (output/'opening_resources.c').write_text(resources);writer.finish()
     report=dict(full_game=False,graphics_rooms=rooms,adventure_rooms=26,source_identity=identity,
                 converter_sha256=hashlib.sha256(Path(__file__).read_bytes()+Path(__file__).with_name('smd_assets.py').read_bytes()).hexdigest(),

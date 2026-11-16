@@ -1,6 +1,9 @@
 BasedOnStyle: LLVM
-IndentWidth: 4
-ColumnLimit: 120
-BreakBeforeBraces: Linux
+IndentWidth: 3
+ColumnLimit: 140
+BreakBeforeBraces: Allman
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
+ContinuationIndentWidth: 3
+AllowShortFunctionsOnASingleLine: None
+InsertBraces: true

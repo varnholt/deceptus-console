@@ -7,7 +7,7 @@
 ; eight-byte commands are prepared outside vblank. the runner owns dma channel
 ; six only for this batch and restores the ordinary vram increment afterwards.
 .section "snes_background_dma_runner" semisuperfree banks 2-15
-snes_background_run_dma:
+snesBackgroundRunDma:
     php
     rep #$30
     phb

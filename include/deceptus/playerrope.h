@@ -4,13 +4,14 @@
 
 #define DECEPTUS_PLAYER_ROPE_HAND_OFFSET 20
 
-typedef struct deceptus_playerrope {
-    deceptus_u16 radius, link_length;
-    deceptus_u8 attached, rope_index, node_index, regrab_ticks, grace_ticks;
-} deceptus_playerrope;
+typedef struct DeceptusPlayerRope
+{
+   DeceptusU16 radius, link_length;
+   DeceptusU8 attached, rope_index, node_index, regrab_ticks, grace_ticks;
+} DeceptusPlayerRope;
 
-struct deceptus_engine;
-struct deceptus_input;
-void deceptus_playerrope_reset(struct deceptus_engine *engine);
-deceptus_u8 deceptus_playerrope_tick(struct deceptus_engine *engine, const struct deceptus_input *input);
+struct DeceptusEngine;
+struct DeceptusInput;
+void deceptusPlayerRopeReset(struct DeceptusEngine *engine);
+DeceptusU8 deceptusPlayerRopeTick(struct DeceptusEngine *engine, const struct DeceptusInput *input);
 #endif

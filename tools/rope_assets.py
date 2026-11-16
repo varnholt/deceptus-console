@@ -50,10 +50,10 @@ def compile_rope(data, output):
     lines=['/* original native-width rope slices; padding is for rotation, never scaled artwork. */',
            '#ifndef GBA_ROPE_RESOURCES_H','#define GBA_ROPE_RESOURCES_H',
            '#define GBA_ROPE_NATIVE_WIDTH 7',
-           'static const deceptus_u8 gba_rope_slice_heights[9] = {16,1,2,3,4,5,6,7,8};',
-           'static const deceptus_u8 gba_rope_slice_tops[9] = {0,4,4,4,4,4,4,4,4};',
-           'static const deceptus_u8 gba_rope_player_clips[2][4] = {{0,3,36,48},{3,3,36,48}};',
-           'static const deceptus_u8 gba_rope_player_durations[6] = {'+','.join(str(frame['duration_ticks']) for frame in player)+'};',
+           'static const DeceptusU8 gba_rope_slice_heights[9] = {16,1,2,3,4,5,6,7,8};',
+           'static const DeceptusU8 gba_rope_slice_tops[9] = {0,4,4,4,4,4,4,4,4};',
+           'static const DeceptusU8 gba_rope_player_clips[2][4] = {{0,3,36,48},{3,3,36,48}};',
+           'static const DeceptusU8 gba_rope_player_durations[6] = {'+','.join(str(frame['duration_ticks']) for frame in player)+'};',
            '#endif']
     (output/'gba_rope_resources.h').write_text('\n'.join(lines)+'\n')
     paths=[source,data/'sprites/player.png',data/'sprites/animations.json',source_cpp,

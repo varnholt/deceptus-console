@@ -1,4 +1,6 @@
 import sys
+import shutil
+import subprocess
 from pathlib import Path
 import unittest
 import uuid
@@ -7,6 +9,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+from smd_assets import array as c_array
 from smd_assets import packed_tile, palette_word, physical_tile, rgb333, fit_rgb333_palette, sprite_chunks
 from smd_opening_assets import packbits,compile_background,viewport_peak,Writer,compile_font
 from pixel_font import NativePixelFont
@@ -27,6 +30,25 @@ def decode_packets(payload,unit_bytes):
 
 
 class MegaDriveAssetsTests(unittest.TestCase):
+    def test_generated_c_tables_and_blob_declarations_compile_with_engine_types(self):
+        compiler = shutil.which('clang')
+        if not compiler:
+            self.skipTest('clang is required for the generated C contract check')
+        folder = ROOT / 'build/tests' / ('smd-c-types-' + uuid.uuid4().hex)
+        folder.mkdir(parents=True)
+        writer = Writer(folder)
+        writer.blob('sample', bytes(32), 32)
+        source = folder / 'declarations.c'
+        declarations = ['#include "deceptus/types.h"', *writer.externs]
+        for kind in ('u8', 'u16', 'u32'):
+            declarations.append(c_array('values_' + kind, [0, 1, 255], kind, 8))
+        source.write_text('\n'.join(declarations) + '\n')
+        subprocess.run(
+            [compiler, '-std=c90', '-Wall', '-Wextra', '-Werror', '-fsyntax-only',
+             '-I' + str(ROOT / 'include'), str(source)],
+            check=True, capture_output=True, text=True,
+        )
+
     def test_palette_is_shared_source_rgb333_medoids_with_bounded_size(self):
         first=Image.new('RGBA',(8,8),(255,0,0,255))
         second=Image.new('RGBA',(8,8),(0,255,0,255))

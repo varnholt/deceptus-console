@@ -10,7 +10,6 @@
 
 /* executes bounded boolean callbacks compiled from source Lua. writes commit
  * only after END, so an unsupported target or malformed program changes nothing. */
-deceptus_u8 deceptus_logic_execute(deceptus_mechanism_set *set, const deceptus_u8 *code, deceptus_u16 length,
-                                   deceptus_u8 arguments);
+DeceptusU8 deceptusLogicExecute(DeceptusMechanismSet *set, const DeceptusU8 *code, DeceptusU16 length, DeceptusU8 arguments);
 
 #endif

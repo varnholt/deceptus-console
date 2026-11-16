@@ -16,7 +16,7 @@ from player_display import present
 class Host:
     def __init__(self, library):
         self.library = C.CDLL(str(library.resolve()))
-        self.library.preview_init()
+        self.library.previewInit()
         self.room = Image.open(ROOT / "assets/generated/room-preview.png").convert("RGB")
         self.actors = Image.open(ROOT / "assets/generated/actors-preview.png")
         self.actors.info["transparency"] = 0
@@ -27,24 +27,24 @@ class Host:
             self.sprites.append(self.actors.crop((left, top, left + 32, top + 48)))
 
     def run(self, buttons):
-        self.library.preview_tick(buttons)
-        camera = self.library.preview_state(2)
-        camera_y = self.library.preview_state(11)
+        self.library.previewTick(buttons)
+        camera = self.library.previewState(2)
+        camera_y = self.library.previewState(11)
         canvas = self.room.crop((camera, camera_y, camera + 256, camera_y + 224)).convert("RGBA")
         for index in range(12):
-            frame = self.library.preview_draw(index, 2)
+            frame = self.library.previewDraw(index, 2)
             if frame < 0:
                 break
             sprite = self.sprites[frame]
-            if self.library.preview_draw(index, 4):
+            if self.library.previewDraw(index, 4):
                 sprite = sprite.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-            if self.library.preview_draw(index, 3):
+            if self.library.previewDraw(index, 3):
                 sprite = sprite.copy()
                 red, green, blue, alpha = sprite.split()
                 sprite = Image.merge("RGBA", (red.point(lambda value: value // 2),
                     green.point(lambda value: min(255, value + 45)), blue.point(lambda value: value // 2), alpha))
-            canvas.alpha_composite(sprite, (self.library.preview_draw(index, 0), self.library.preview_draw(index, 1)))
-        if self.library.preview_state(3):
+            canvas.alpha_composite(sprite, (self.library.previewDraw(index, 0), self.library.previewDraw(index, 1)))
+        if self.library.previewState(3):
             canvas = ImageEnhance.Brightness(canvas).enhance(0.5)
         return canvas
 

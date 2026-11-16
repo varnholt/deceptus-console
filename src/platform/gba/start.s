@@ -75,6 +75,6 @@ __aeabi_uidiv:
     swi 0x06
     bx lr
 5:
-    ldr r2, =deceptus_gba_unsigned_divide
+    ldr r2, =deceptusGbaUnsignedDivide
     bx r2
 .ltorg

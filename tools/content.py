@@ -150,15 +150,15 @@ def inventory(data, output):
         "remaining": ["room/resource streaming", "remaining mechanisms", "enemy behavior and animations",
                       "complete level scripts and cutscenes", "inventory and progression", "audio", "persistent save backend"]}
     if "releaseSwordRing" in programs:
-        source = ['#include "deceptus/logic.h"', '', 'const deceptus_mechanism_def source_logic_definitions[] = {']
+        source = ['#include "deceptus/logic.h"', '', 'const DeceptusMechanismDef source_logic_definitions[] = {']
         for obj in callback_objects:
             kind = "DECEPTUS_MECH_BLOCK" if obj["group"] == "blocking_rects" else "DECEPTUS_MECH_FLAG"
             source.append(f'    {{{obj["id"]}, {{0, 0, 24, 24}}, 0, 0, 0, {kind}, 1, 0}},')
-        source += ['};', f'const deceptus_u16 source_logic_definition_count = {len(callback_objects)};',
+        source += ['};', f'const DeceptusU16 source_logic_definition_count = {len(callback_objects)};',
                    'const char *const source_logic_names[] = {' + ','.join(json.dumps(obj['name']) for obj in callback_objects) + '};',
                    'const char *const source_logic_groups[] = {' + ','.join(json.dumps(obj['group']) for obj in callback_objects) + '};',
-                   'const deceptus_u8 source_logic_program[] = {' + ','.join(map(str, programs["releaseSwordRing"])) + '};',
-                   f'const deceptus_u16 source_logic_program_length = {len(programs["releaseSwordRing"])};', '']
+                   'const DeceptusU8 source_logic_program[] = {' + ','.join(map(str, programs["releaseSwordRing"])) + '};',
+                   f'const DeceptusU16 source_logic_program_length = {len(programs["releaseSwordRing"])};', '']
         (output / "source_logic.c").write_text("\n".join(source))
     (output / "catalog.json").write_text(json.dumps({"levels": levels, "lua": modules, "summary": summary}, indent=2) + "\n")
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")

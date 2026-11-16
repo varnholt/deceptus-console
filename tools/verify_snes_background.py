@@ -32,7 +32,7 @@ def audit(assets, output):
     stages = {int(room): tuple(map(int, values)) for room, *values in re.findall(
         r'snes_area(\d+)_palette,(\d+),(\d+),(\d+),', resources)}
     reports = []
-    for room, body in re.findall(r'static const snes_background_animation snes_area(\d+)_animations\[\] = \{(.*?)\n\};', resources, re.S):
+    for room, body in re.findall(r'static const SnesBackgroundAnimation snes_area(\d+)_animations\[\] = \{(.*?)\n\};', resources, re.S):
         room = int(room)
         for animation, line in enumerate(body.strip().splitlines()):
             match = re.fullmatch(r'\s*\{(\d+),(\d+),(\d+),(\d+),12,6,0,0,0,\{[^,]+,(\d+)\},0\},', line)
@@ -49,26 +49,26 @@ def audit(assets, output):
 #include <assert.h>
 #include <stdio.h>
 #include "BACKGROUND"
-void snes_background_run_dma(const snes_background_dma_command *commands,deceptus_u16 count) {(void)commands;(void)count;}
-deceptus_u8 snes_background_storage[32768];
-static deceptus_u8 bg[131072],fg[131072],cells[131072],dummy[32768],palette[256];
-static const deceptus_u8 *const bc[]={bg,bg+32768,bg+65536,bg+98304};
-static const deceptus_u8 *const fc[]={fg,fg+32768,fg+65536,fg+98304};
-static const deceptus_u8 *const ac[]={cells,cells+32768,cells+65536,cells+98304};
-static const deceptus_u8 *const pc[]={dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy};
-static const snes_background_animation clips[]={{LEFT,TOP,COLS,ROWS,12,65535,0,0,0,{ac,ANIMBYTES},0}};
-const snes_stage snes_stages[SNES_STAGE_COUNT]={{{pc,COUNT*32L},{bc,WIDTH*HEIGHT*4L},{fc,WIDTH*HEIGHT*4L},palette,WIDTH,HEIGHT,COUNT,clips,1,"water"}};
-static void read_cells(const char*name,deceptus_u8*target,unsigned long bytes) {
+void snesBackgroundRunDma(const SnesBackgroundDmaCommand *commands,DeceptusU16 count) {(void)commands;(void)count;}
+DeceptusU8 snes_background_storage[32768];
+static DeceptusU8 bg[131072],fg[131072],cells[131072],dummy[32768],palette[256];
+static const DeceptusU8 *const bc[]={bg,bg+32768,bg+65536,bg+98304};
+static const DeceptusU8 *const fc[]={fg,fg+32768,fg+65536,fg+98304};
+static const DeceptusU8 *const ac[]={cells,cells+32768,cells+65536,cells+98304};
+static const DeceptusU8 *const pc[]={dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy};
+static const SnesBackgroundAnimation clips[]={{LEFT,TOP,COLS,ROWS,12,65535,0,0,0,{ac,ANIMBYTES},0}};
+const SnesStage snes_stages[SNES_STAGE_COUNT]={{{pc,COUNT*32L},{bc,WIDTH*HEIGHT*4L},{fc,WIDTH*HEIGHT*4L},palette,WIDTH,HEIGHT,COUNT,clips,1,"water"}};
+static void read_cells(const char*name,DeceptusU8*target,unsigned long bytes) {
  FILE*f=fopen(name,"rb");assert(f);assert(fread(target,1,bytes,f)==bytes);fclose(f);
 }
 int main(void) {
  int frame,x,y,step;unsigned slot,used,scratch,peak=0,peak_scratch=0,views=0,rebuilds=0,compactions=0;
  read_cells("background.bin",bg,WIDTH*HEIGHT*4L);read_cells("foreground.bin",fg,WIDTH*HEIGHT*4L);read_cells("animationANIM_cells.bin",cells,ANIMBYTES);
  for(frame=0;frame<12;++frame) {
-  snes_background_load(0);work->clip_frame[0]=(deceptus_u16)frame;
+  snesBackgroundLoad(0);work->clip_frame[0]=(DeceptusU16)frame;
   for(y=0;y<=HEIGHT-29;++y)for(step=0;step<=WIDTH-33;++step) {
    x=(y&1)?WIDTH-33-step:step;
-   snes_background_prepare((deceptus_i16)(x*8),(deceptus_i16)(y*8));
+   snesBackgroundPrepare((DeceptusI16)(x*8),(DeceptusI16)(y*8));
    if(snes_background_error) {fprintf(stderr,"cache_error=%u frame=%d x=%d y=%d\n",snes_background_error,frame,x,y);return 2;}
    if(snes_background_full)++rebuilds;
    used=0;scratch=0;
@@ -76,7 +76,7 @@ int main(void) {
     ++used;if(slot>=1024)++scratch;
    }
    if(used>peak)peak=used;if(scratch>peak_scratch)peak_scratch=scratch;
-   ++views;snes_background_commit();
+   ++views;snesBackgroundCommit();
   }
   compactions+=snes_background_compactions;
  }

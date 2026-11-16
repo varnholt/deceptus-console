@@ -7,7 +7,7 @@
 ; packed c arguments: x/y/tile words, then palette/flip/priority/size bytes.
 ; validate the complete scanline range before changing either counters or oam.
 .section "snes_sprite_emit" semisuperfree banks 2-15
-snes_obj_piece:
+snesObjPiece:
     php
     rep #$30
     phb

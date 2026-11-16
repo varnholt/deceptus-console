@@ -39,15 +39,15 @@ def native_reference():
     folder = ROOT / 'build/tests/smd-reference'
     folder.mkdir(parents=True, exist_ok=True)
     bridge = folder / 'reference.c'
-    expressions = ['e.ticks', 'deceptus_floor(e.entities[0].x)', 'deceptus_floor(e.entities[0].y)',
+    expressions = ['e.ticks', 'deceptusFloor(e.entities[0].x)', 'deceptusFloor(e.entities[0].y)',
                    'e.camera_x', 'e.camera_y', 'e.paused', 'e.health', 'e.door_entries',
                    'e.checkpoint_id', 'e.content_error', 'e.entities[0].grounded',
                    'e.checkpoint_x', 'e.checkpoint_y']
-    bridge.write_text('#include "deceptus/engine.h"\nextern const deceptus_room deceptus_scene;\n'
-        'static deceptus_engine e;\n'
-        '__declspec(dllexport) void ref_init(void){deceptus_video_caps v={320,224,12};'
-        'deceptus_init(&e,&deceptus_scene,&v);}\n'
-        '__declspec(dllexport) void ref_tick(unsigned short b){deceptus_tick(&e,b);}\n'
+    bridge.write_text('#include "deceptus/engine.h"\nextern const DeceptusRoom deceptus_scene;\n'
+        'static DeceptusEngine e;\n'
+        '__declspec(dllexport) void ref_init(void){DeceptusVideoCaps v={320,224,12};'
+        'deceptusInit(&e,&deceptus_scene,&v);}\n'
+        '__declspec(dllexport) void ref_tick(unsigned short b){deceptusTick(&e,b);}\n'
         '__declspec(dllexport) int ref_state(int i){switch(i){' +
         ''.join(f'case {i}:return {value};' for i, value in enumerate(expressions)) + 'default:return -1;}}\n')
     library = folder / 'reference.dll'

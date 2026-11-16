@@ -41,11 +41,11 @@ The narrow chain API is declared in `include/deceptus/grabrope.h`:
 
 | Function | Contract |
 | --- | --- |
-| `deceptus_grabropes_init(engine)` | Validate definitions and initialize caller state; return zero on capacity or geometry failure. |
-| `deceptus_grabropes_tick(engine)` | Advance enabled chains once per simulation tick. |
-| `deceptus_grabrope_pin(engine, rope, node, x, y)` | Constrain a grabbed chain body to the player's hand in room 12.4 coordinates. |
-| `deceptus_grabrope_length(engine, rope)` | Return visible arc length in pixels, or zero for an unavailable rope. |
-| `deceptus_grabrope_point_at(engine, rope, distance_px, x, y)` | Query a room-pixel point along the visible chain, clamping past its end; return zero for an unavailable rope. |
+| `deceptusGrabRopesInit(engine)` | Validate definitions and initialize caller state; return zero on capacity or geometry failure. |
+| `deceptusGrabRopesTick(engine)` | Advance enabled chains once per simulation tick. |
+| `deceptusGrabRopePin(engine, rope, node, x, y)` | Constrain a grabbed chain body to the player's hand in room 12.4 coordinates. |
+| `deceptusGrabRopeLength(engine, rope)` | Return visible arc length in pixels, or zero for an unavailable rope. |
+| `deceptusGrabRopePointAt(engine, rope, distance_px, x, y)` | Query a room-pixel point along the visible chain, clamping past its end; return zero for an unavailable rope. |
 
 Arc lengths are cached during simulation. Drawing queries walk at most
 24 cached intervals and do not recompute square roots. The backend owns

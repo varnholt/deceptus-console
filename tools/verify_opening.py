@@ -24,7 +24,7 @@ FIELDS = {'room': 0, 'x': 1, 'y': 2, 'mode': 3, 'flags': 4,
 def simulation_declarations(source):
     """Keep generated simulation definitions and exclude platform graphics."""
     declarations = []
-    for match in re.finditer(r'^(?:static )?const (?:deceptus_\w+|char \*const)\b', source, re.M):
+    for match in re.finditer(r'^(?:static )?const (?:Deceptus\w+|char \*const)\b', source, re.M):
         quote = None
         escaped = False
         for end in range(match.end(), len(source)):
@@ -69,8 +69,8 @@ def compile_native(clang):
 
 
 def native_state(library):
-    result = {name: library.opening_state(index) for name, index in FIELDS.items()}
-    result['inventory'] = [library.opening_state(16 + index) for index in range(7)]
+    result = {name: library.openingState(index) for name, index in FIELDS.items()}
+    result['inventory'] = [library.openingState(16 + index) for index in range(7)]
     return result
 
 
@@ -100,22 +100,22 @@ def check(state, expected, label):
 def verify(route_path=ROUTE, clang='clang', core=None, rom=None):
     route = json.loads(Path(route_path).read_text())
     library = compile_native(clang)
-    library.opening_init()
+    library.openingInit()
     checkpoints = {point['step']: point for point in route['checkpoints']}
     report = {'scope': route['scope'], 'route_sha256': hashlib.sha256(Path(route_path).read_bytes()).hexdigest(),
               'input_ticks': sum(ticks for ticks, _ in route['steps']), 'native': []}
     trace = []
     for index, (ticks, buttons) in enumerate(route['steps']):
         for _ in range(ticks):
-            library.opening_tick(buttons)
+            library.openingTick(buttons)
         trace.append(native_state(library))
         if index in checkpoints:
             point = checkpoints[index]
             current = native_state(library)
             check(current, point['expected'], point['name'])
             report['native'].append(dict(name=point['name'], **current))
-    report['simulation_ticks'] = library.opening_state(12)
-    report['native_rope_attached_ticks'] = library.opening_state(13)
+    report['simulation_ticks'] = library.openingState(12)
+    report['native_rope_attached_ticks'] = library.openingState(13)
     if core:
         emulator = Emulator(core, rom, {'mgba_use_bios': 'OFF', 'mgba_frameskip': '0'})
         report['rom_sha256'] = hashlib.sha256(Path(rom).read_bytes()).hexdigest()

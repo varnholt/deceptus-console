@@ -27,7 +27,7 @@ def packed_tile(tile):
 
 def array(label, values, kind, width):
     rows = [','.join(str(value) + ('UL' if kind == 'u32' else '') for value in values[start:start + width]) for start in range(0, len(values), width)]
-    return f'const deceptus_{kind} {label}[{len(values)}] = {{\n' + ',\n'.join(rows) + '\n};\n'
+    return f'const Deceptus{kind.capitalize()} {label}[{len(values)}] = {{\n' + ',\n'.join(rows) + '\n};\n'
 
 
 def physical_tile(index):
@@ -144,7 +144,7 @@ def convert(data, output):
         array('smd_room_map', entries, 'u16', 16) + array('smd_palette', palette, 'u16', 16) +
         array('smd_frame_tiles', frames, 'u16', 12))
     (output / 'smd_assets.h').write_text('#include "deceptus/types.h"\n' +
-        '\n'.join(f'extern const deceptus_{kind} {name}[];' for name, kind in (
+        '\n'.join(f'extern const Deceptus{kind.capitalize()} {name}[];' for name, kind in (
             ('smd_background_tiles', 'u32'), ('smd_actor_tiles', 'u32'), ('smd_room_map', 'u16'),
             ('smd_palette', 'u16'), ('smd_frame_tiles', 'u16'))) +
         f'\n#define SMD_BACKGROUND_TILES {len(patterns)}\n#define SMD_ACTOR_FIRST {actor_first}\n#define SMD_ACTOR_TILES {len(actor_patterns) * 4}\n')

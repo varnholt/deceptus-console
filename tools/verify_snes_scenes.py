@@ -30,23 +30,23 @@ def verify(name, assets, sdk, core):
     source = ROOT / 'src/platform/snes/main.c'
     scratch = folder / 'main.c'
     code = source.read_text()
-    marker = 'deceptus_adventure_init(&adventure, &snes_tutorial_definition, &video);'
+    marker = 'deceptusAdventureInit(&adventure, &snes_tutorial_definition, &video);'
     assert code.count(marker) == 1
     setup = (f'adventure.campaign.room_index={room};'
-             f'deceptus_init(&adventure.campaign.engine,snes_campaign_definition.rooms[{room}],&video);'
-             f'deceptus_place_player(&adventure.campaign.engine,{x},{y});'
+             f'deceptusInit(&adventure.campaign.engine,snes_campaign_definition.rooms[{room}],&video);'
+             f'deceptusPlacePlayer(&adventure.campaign.engine,{x},{y});'
              'adventure.campaign.mode=DECEPTUS_CAMPAIGN_PLAYING;' + progress)
     code = code.replace(marker, marker + setup)
     if freeze:
-        render = 'deceptus_render(&adventure.campaign.engine, &frame);'
+        render = 'deceptusRender(&adventure.campaign.engine, &frame);'
         assert code.count(render) == 1
         position = str(x) if name != 'scroll-loop' else f'{x}+(adventure.campaign.engine.ticks<12?adventure.campaign.engine.ticks:12)'
         extra = ''
         if name.startswith('altar-release'):
             extra = ('adventure.campaign.engine.mechanisms.states['
-                     'deceptus_mechanism_find(&adventure.campaign.engine.mechanisms,1386)].enabled='
+                     'deceptusMechanismFind(&adventure.campaign.engine.mechanisms,1386)].enabled='
                      f'adventure.campaign.engine.ticks<{312 if name.endswith("-long") else 12};')
-        code = code.replace(render, f'deceptus_place_player(&adventure.campaign.engine,{position},{y});' + extra + render)
+        code = code.replace(render, f'deceptusPlacePlayer(&adventure.campaign.engine,{position},{y});' + extra + render)
     completed = 'deceptus_debug[11] = 19;'
     assert code.count(completed) == 1
     code = code.replace(completed, '++deceptus_debug[45];' + completed)

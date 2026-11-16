@@ -83,17 +83,17 @@ def compile_headtorch(data, output, sword_clips=None):
                              round(48+anchor_shift[1]-8-helmet_eye_offset[1])])
     lines=['/* source eye positions/origins; helmet offsets are relative to the drawn player feet. */',
            '#ifndef GBA_HEADTORCH_RESOURCES_H','#define GBA_HEADTORCH_RESOURCES_H',
-           'typedef struct gba_headtorch_pose { deceptus_i16 x, y; deceptus_u8 side, valid; } gba_headtorch_pose;',
-           'static const gba_headtorch_pose gba_headtorch_normal[2][26] = {']
+           'typedef struct GbaHeadtorchPose { DeceptusI16 x, y; DeceptusU8 side, valid; } GbaHeadtorchPose;',
+           'static const GbaHeadtorchPose gba_headtorch_normal[2][26] = {']
     for poses in normal:
         lines+=['    {']+['        {'+','.join(map(str,pose))+'},' for pose in poses]+['    },']
-    lines+=['};','static const gba_headtorch_pose gba_headtorch_swim[26] = {']
+    lines+=['};','static const GbaHeadtorchPose gba_headtorch_swim[26] = {']
     lines+=['    {'+','.join(map(str,pose))+'},' for pose in swim]
-    lines+=['};','static const gba_headtorch_pose gba_headtorch_sword['+str(len(sword))+'] = {']
+    lines+=['};','static const GbaHeadtorchPose gba_headtorch_sword['+str(len(sword))+'] = {']
     lines+=['    {'+','.join(map(str,pose))+'},' for pose in sword]
-    lines+=['};','static const gba_headtorch_pose gba_headtorch_rope[6] = {']
+    lines+=['};','static const GbaHeadtorchPose gba_headtorch_rope[6] = {']
     lines+=['    {'+','.join(map(str,pose))+'},' for pose in rope]
-    lines+=['};','static const deceptus_i16 gba_headtorch_lamp_offsets[2][2] = {']
+    lines+=['};','static const DeceptusI16 gba_headtorch_lamp_offsets[2][2] = {']
     lines+=['    {'+','.join(map(str,value))+'},' for value in lamp_offsets]
     lines+=['};','#endif']
     (output/'gba_headtorch_resources.h').write_text('\n'.join(lines)+'\n')

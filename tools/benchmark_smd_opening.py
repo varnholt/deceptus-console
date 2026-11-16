@@ -16,7 +16,7 @@ FIXTURES={
     'crypt':(25,597,264,'adventure.flags=7327;adventure.inventory.counts[3]=1;adventure.inventory.counts[5]=1;'),
     'loop':(9,370,696,'adventure.flags=31;'),
     'altar':(7,536,312,'adventure.flags=8095;adventure.inventory.counts[5]=1;adventure.inventory.counts[6]=1;adventure.has_sword=1;'
-             '{deceptus_i16 fixture_cage;fixture_cage=deceptus_mechanism_find(&adventure.campaign.engine.mechanisms,1386);'
+             '{DeceptusI16 fixture_cage;fixture_cage=deceptusMechanismFind(&adventure.campaign.engine.mechanisms,1386);'
              'if(fixture_cage>=0){adventure.campaign.engine.mechanisms.states[fixture_cage].enabled=0;}}'),
 }
 PHASES={0:'initialization',1:'gameplay/input',2:'shared render',3:'background prepare',4:'sprite prepare/measure',
@@ -32,21 +32,21 @@ def replace_once(code,marker,replacement):
 
 def fixture_source(code,name):
     room,x,y,progress=FIXTURES[name]
-    code=replace_once(code,'static deceptus_adventure adventure;',
-                      'volatile deceptus_u16 smd_profile_phase;\nstatic deceptus_adventure adventure;')
-    marker='deceptus_adventure_init(&adventure, &smd_tutorial_definition, &video);'
+    code=replace_once(code,'static DeceptusAdventure adventure;',
+                      'volatile DeceptusU16 smd_profile_phase;\nstatic DeceptusAdventure adventure;')
+    marker='deceptusAdventureInit(&adventure, &smd_tutorial_definition, &video);'
     setup=(f'adventure.campaign.room_index={room};'
-           f'deceptus_init(&adventure.campaign.engine,smd_campaign_definition.rooms[{room}],&video);'
-           f'deceptus_place_player(&adventure.campaign.engine,{x},{y});'
+           f'deceptusInit(&adventure.campaign.engine,smd_campaign_definition.rooms[{room}],&video);'
+           f'deceptusPlacePlayer(&adventure.campaign.engine,{x},{y});'
            'adventure.campaign.mode=DECEPTUS_CAMPAIGN_PLAYING;'+progress)
     code=replace_once(code,marker,marker+setup)
-    render='deceptus_render(&adventure.campaign.engine, &frame);'
-    code=replace_once(code,render,f'deceptus_place_player(&adventure.campaign.engine,{x},{y});\n'
+    render='deceptusRender(&adventure.campaign.engine, &frame);'
+    code=replace_once(code,render,f'deceptusPlacePlayer(&adventure.campaign.engine,{x},{y});\n'
                       'smd_profile_phase=2;'+render)
-    hooks=[('buttons = input_read();',1),('smd_background_set_flags(flags);',3),
-           ('smd_sprites_prepare(&adventure, &frame);',4),('smd_ui_prepare(&adventure);',5),
-           ('debug_write(buttons, blank);',6),('smd_sprites_preload();',8),
-           ('smd_background_commit();',9),('smd_sprites_commit();',10),('smd_ui_commit();',11),
+    hooks=[('buttons = inputRead();',1),('smdBackgroundSetFlags(flags);',3),
+           ('smdSpritesPrepare(&adventure, &frame);',4),('smdUiPrepare(&adventure);',5),
+           ('debugWrite(buttons, blank);',6),('smdSpritesPreload();',8),
+           ('smdBackgroundCommit();',9),('smdSpritesCommit();',10),('smdUiCommit();',11),
            ('VDP_setEnable(TRUE);',12)]
     for marker,phase in hooks:
         code=replace_once(code,marker,'smd_profile_phase='+str(phase)+';'+marker)
@@ -54,7 +54,7 @@ def fixture_source(code,name):
     if code.count('SYS_doVBlankProcess();')!=2:
         raise ValueError('update benchmark VBlank hooks')
     code=code.replace('SYS_doVBlankProcess();','smd_profile_phase=7;SYS_doVBlankProcess();smd_profile_phase=12;')
-    code=code.replace('video_load();','smd_profile_phase=13;video_load();smd_profile_phase=12;')
+    code=code.replace('videoLoad();','smd_profile_phase=13;videoLoad();smd_profile_phase=12;')
     return code
 
 

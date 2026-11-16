@@ -8,7 +8,7 @@
 ; palette/flip/priority/quads and a quadrant counter. emitter calls may clobber
 ; every imaginary register, so persistent values remain on the caller stack.
 .section "snes_sprite_quads" semisuperfree banks 2-15
-snes_obj_emit_quads:
+snesObjEmitQuads:
     php
     rep #$30
     phb
@@ -120,7 +120,7 @@ quads_emit:
     clc
     adc.b tcc__r0
     pha
-    jsl snes_obj_piece
+    jsl snesObjPiece
     tsa
     clc
     adc #10

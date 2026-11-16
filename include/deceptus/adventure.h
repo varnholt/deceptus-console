@@ -25,67 +25,73 @@
 #define DECEPTUS_ACTION_EXAMINE_BLOCKER 6
 #define DECEPTUS_ACTION_NOTIFICATION 128
 
-typedef struct deceptus_inventory {
-    deceptus_u8 counts[DECEPTUS_INVENTORY_ITEMS];
-} deceptus_inventory;
-deceptus_u8 deceptus_inventory_add(deceptus_inventory *inventory, deceptus_u8 item);
-deceptus_u8 deceptus_inventory_remove(deceptus_inventory *inventory, deceptus_u8 item);
+typedef struct DeceptusInventory
+{
+   DeceptusU8 counts[DECEPTUS_INVENTORY_ITEMS];
+} DeceptusInventory;
+DeceptusU8 deceptusInventoryAdd(DeceptusInventory *inventory, DeceptusU8 item);
+DeceptusU8 deceptusInventoryRemove(DeceptusInventory *inventory, DeceptusU8 item);
 
-typedef struct deceptus_portal {
-    deceptus_rect bounds;
-    deceptus_i16 offset_x, offset_y;
-    deceptus_u8 destination, direction;
-    deceptus_i16 arrival_x, arrival_y;
-    deceptus_u8 has_arrival;
-} deceptus_portal;
+typedef struct DeceptusPortal
+{
+   DeceptusRect bounds;
+   DeceptusI16 offset_x, offset_y;
+   DeceptusU8 destination, direction;
+   DeceptusI16 arrival_x, arrival_y;
+   DeceptusU8 has_arrival;
+} DeceptusPortal;
 
-typedef struct deceptus_interaction {
-    deceptus_u16 source_id;
-    deceptus_rect bounds;
-    const char *const *pages;
-    deceptus_u16 required_flags, forbidden_flags, set_flags, mechanism_id;
-    deceptus_u8 page_count, cost_item, grant_item, effect, automatic;
-} deceptus_interaction;
+typedef struct DeceptusInteraction
+{
+   DeceptusU16 source_id;
+   DeceptusRect bounds;
+   const char *const *pages;
+   DeceptusU16 required_flags, forbidden_flags, set_flags, mechanism_id;
+   DeceptusU8 page_count, cost_item, grant_item, effect, automatic;
+} DeceptusInteraction;
 
-typedef struct deceptus_adventure_room {
-    const deceptus_portal *portals;
-    const deceptus_interaction *interactions;
-    deceptus_u8 portal_count, interaction_count;
-    const struct deceptus_adventure_binding *bindings;
-    deceptus_u8 binding_count;
-} deceptus_adventure_room;
+typedef struct DeceptusAdventureRoom
+{
+   const DeceptusPortal *portals;
+   const DeceptusInteraction *interactions;
+   DeceptusU8 portal_count, interaction_count;
+   const struct DeceptusAdventureBinding *bindings;
+   DeceptusU8 binding_count;
+} DeceptusAdventureRoom;
 
 /* source level callbacks derived from persistent inventory/treasure flags. */
-typedef struct deceptus_adventure_binding {
-    deceptus_u16 required_flags, forbidden_flags, mechanism_id;
-    deceptus_u8 enabled;
-} deceptus_adventure_binding;
+typedef struct DeceptusAdventureBinding
+{
+   DeceptusU16 required_flags, forbidden_flags, mechanism_id;
+   DeceptusU8 enabled;
+} DeceptusAdventureBinding;
 
-typedef struct deceptus_adventure_def {
-    const deceptus_campaign_def *campaign;
-    const deceptus_adventure_room *rooms;
-    const char *const *item_names;
-    deceptus_u8 item_count;
-} deceptus_adventure_def;
+typedef struct DeceptusAdventureDef
+{
+   const DeceptusCampaignDef *campaign;
+   const DeceptusAdventureRoom *rooms;
+   const char *const *item_names;
+   DeceptusU8 item_count;
+} DeceptusAdventureDef;
 
-typedef struct deceptus_adventure {
-    deceptus_campaign campaign;
-    const deceptus_adventure_def *definition;
-    deceptus_inventory inventory;
-    deceptus_playersword sword;
-    deceptus_mechanism_state saved[DECEPTUS_ADVENTURE_ROOMS][DECEPTUS_MECHANISM_CAPACITY];
-    deceptus_u8 visited[DECEPTUS_ADVENTURE_ROOMS];
-    deceptus_u16 flags;
-    const deceptus_interaction *dialogue;
-    const deceptus_interaction *automatic_action;
-    deceptus_u8 automatic_ticks;
-    const deceptus_interaction *pending_action;
-    deceptus_u8 pending_room, pending_ticks, has_sword;
-    deceptus_u8 page, selection, prompt, portal_cooldown, room_label_ticks, menu_return, options_return;
-} deceptus_adventure;
+typedef struct DeceptusAdventure
+{
+   DeceptusCampaign campaign;
+   const DeceptusAdventureDef *definition;
+   DeceptusInventory inventory;
+   DeceptusPlayerSword sword;
+   DeceptusMechanismState saved[DECEPTUS_ADVENTURE_ROOMS][DECEPTUS_MECHANISM_CAPACITY];
+   DeceptusU8 visited[DECEPTUS_ADVENTURE_ROOMS];
+   DeceptusU16 flags;
+   const DeceptusInteraction *dialogue;
+   const DeceptusInteraction *automatic_action;
+   DeceptusU8 automatic_ticks;
+   const DeceptusInteraction *pending_action;
+   DeceptusU8 pending_room, pending_ticks, has_sword;
+   DeceptusU8 page, selection, prompt, portal_cooldown, room_label_ticks, menu_return, options_return;
+} DeceptusAdventure;
 
-void deceptus_adventure_init(deceptus_adventure *game, const deceptus_adventure_def *definition,
-                             const deceptus_video_caps *video);
-deceptus_u8 deceptus_adventure_tick(deceptus_adventure *game, deceptus_u16 buttons);
-deceptus_u8 deceptus_interaction_available(const deceptus_adventure *game, const deceptus_interaction *interaction);
+void deceptusAdventureInit(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video);
+DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons);
+DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure *game, const DeceptusInteraction *interaction);
 #endif

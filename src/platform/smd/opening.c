@@ -2,13 +2,13 @@
 #include "opening_video.h"
 #include <genesis.h>
 
-static deceptus_adventure adventure;
-static deceptus_frame frame;
-static const deceptus_video_caps video = {320, 224, DECEPTUS_DRAW_CAPACITY};
-static deceptus_u16 sequence;
-volatile deceptus_u16 smd_opening_packets[2][56];
-static volatile deceptus_u16 *smd_opening_debug = smd_opening_packets[0];
-static deceptus_u8 packet_slot;
+static DeceptusAdventure adventure;
+static DeceptusFrame frame;
+static const DeceptusVideoCaps video = {320, 224, DECEPTUS_DRAW_CAPACITY};
+static DeceptusU16 sequence;
+volatile DeceptusU16 smd_opening_packets[2][56];
+static volatile DeceptusU16 *smd_opening_debug = smd_opening_packets[0];
+static DeceptusU8 packet_slot;
 
 #include "opening_sprites.h"
 #include "opening_ui.h"
@@ -16,168 +16,184 @@ static deceptus_u8 packet_slot;
 /* direct, bounded transfers own presentation; the sdk queue is not needed. */
 void __wrap_DMA_init(void)
 {
-    DMA_setAutoFlush(FALSE);
-    DMA_clearQueue();
+   DMA_setAutoFlush(FALSE);
+   DMA_clearQueue();
 }
 
-static deceptus_u16 input_read(void)
+static DeceptusU16 inputRead(void)
 {
-    deceptus_u16 pad, buttons;
-    pad = JOY_readJoypad(JOY_1);
-    buttons = 0;
-    if (pad & BUTTON_LEFT) {
-        buttons |= DECEPTUS_LEFT;
-    }
-    if (pad & BUTTON_RIGHT) {
-        buttons |= DECEPTUS_RIGHT;
-    }
-    if (pad & BUTTON_DOWN) {
-        buttons |= DECEPTUS_DOWN;
-    }
-    if (pad & BUTTON_UP) {
-        buttons |= DECEPTUS_UP;
-    }
-    if (pad & BUTTON_B) {
-        buttons |= DECEPTUS_JUMP;
-    }
-    if (pad & BUTTON_C) {
-        buttons |= DECEPTUS_JUMP | DECEPTUS_BACK;
-    }
-    if (pad & BUTTON_START) {
-        buttons |= DECEPTUS_PAUSE;
-    }
-    if (pad & BUTTON_MODE) {
-        buttons |= DECEPTUS_RESTART;
-    }
-    if (pad & BUTTON_X) {
-        buttons |= DECEPTUS_ACCEPT;
-    }
-    if (pad & BUTTON_Z) {
-        buttons |= DECEPTUS_BACK;
-    }
-    if (pad & BUTTON_A) {
-        buttons |= DECEPTUS_ATTACK;
-    }
-    return buttons;
+   DeceptusU16 pad, buttons;
+   pad = JOY_readJoypad(JOY_1);
+   buttons = 0;
+   if (pad & BUTTON_LEFT)
+   {
+      buttons |= DECEPTUS_LEFT;
+   }
+   if (pad & BUTTON_RIGHT)
+   {
+      buttons |= DECEPTUS_RIGHT;
+   }
+   if (pad & BUTTON_DOWN)
+   {
+      buttons |= DECEPTUS_DOWN;
+   }
+   if (pad & BUTTON_UP)
+   {
+      buttons |= DECEPTUS_UP;
+   }
+   if (pad & BUTTON_B)
+   {
+      buttons |= DECEPTUS_JUMP;
+   }
+   if (pad & BUTTON_C)
+   {
+      buttons |= DECEPTUS_JUMP | DECEPTUS_BACK;
+   }
+   if (pad & BUTTON_START)
+   {
+      buttons |= DECEPTUS_PAUSE;
+   }
+   if (pad & BUTTON_MODE)
+   {
+      buttons |= DECEPTUS_RESTART;
+   }
+   if (pad & BUTTON_X)
+   {
+      buttons |= DECEPTUS_ACCEPT;
+   }
+   if (pad & BUTTON_Z)
+   {
+      buttons |= DECEPTUS_BACK;
+   }
+   if (pad & BUTTON_A)
+   {
+      buttons |= DECEPTUS_ATTACK;
+   }
+   return buttons;
 }
 
-static void video_load(void)
+static void videoLoad(void)
 {
-    VDP_setEnable(FALSE);
-    smd_background_load(adventure.campaign.room_index);
-    smd_sprites_init();
-    smd_ui_init();
+   VDP_setEnable(FALSE);
+   smdBackgroundLoad(adventure.campaign.room_index);
+   smdSpritesInit();
+   smdUiInit();
 }
 
-static void debug_write(deceptus_u16 buttons, deceptus_u8 blank)
+static void debugWrite(DeceptusU16 buttons, DeceptusU8 blank)
 {
-    const deceptus_engine *engine;
-    engine = &adventure.campaign.engine;
-    packet_slot ^= 1;
-    smd_opening_debug = smd_opening_packets[packet_slot];
-    smd_opening_debug[0] = 0xd3ce;
-    smd_opening_debug[1] = 0x4d4f;
-    smd_opening_debug[2] = ++sequence;
-    smd_opening_debug[3] = engine->ticks;
-    smd_opening_debug[4] = deceptus_floor(engine->entities[0].x);
-    smd_opening_debug[5] = deceptus_floor(engine->entities[0].y);
-    smd_opening_debug[6] = engine->camera_x;
-    smd_opening_debug[7] = engine->camera_y;
-    smd_opening_debug[8] = adventure.campaign.room_index;
-    smd_opening_debug[9] = adventure.campaign.mode;
-    smd_opening_debug[10] = adventure.flags;
-    smd_opening_debug[11] = engine->health;
-    smd_opening_debug[12] = adventure.campaign.deaths;
-    smd_opening_debug[13] = engine->content_error;
-    smd_opening_debug[14] = smd_background_error;
-    smd_opening_debug[15] = smd_graphics_error;
-    smd_opening_debug[16] = smd_sprite_overflow;
-    smd_opening_debug[17] = smd_ui_overflow;
-    smd_opening_debug[18] = adventure.has_sword;
-    smd_opening_debug[19] = adventure.page;
-    smd_opening_debug[20] = buttons;
-    smd_opening_debug[21] = adventure.campaign.previous_buttons;
-    smd_opening_debug[22] = smd_obj_count;
-    smd_opening_debug[23] = smd_background_dma_bytes;
-    smd_opening_debug[24] = smd_sprite_upload_bytes;
-    smd_opening_debug[25] = smd_background_uploads;
-    smd_opening_debug[26] = (deceptus_u16)vtimer;
-    smd_opening_debug[27] = SYS_getCPULoad();
-    smd_opening_debug[28] = engine->player_rope.attached;
-    smd_opening_debug[29] = engine->entities[0].grounded;
-    smd_opening_debug[30] = engine->projectiles_fired;
-    smd_opening_debug[31] = engine->entities[0].velocity_x;
-    smd_opening_debug[32] = engine->entities[0].velocity_y;
-    smd_opening_debug[33] = engine->entities[0].x;
-    smd_opening_debug[34] = engine->entities[0].y;
-    smd_opening_debug[35] = adventure.pending_ticks;
-    smd_opening_debug[36] = adventure.automatic_ticks;
-    smd_opening_debug[37] = MEM_getFree();
-    smd_opening_debug[38] = blank;
-    smd_opening_debug[39] = smd_sprite_blank;
-    smd_opening_debug[47] = smd_ui_dirty;
-    smd_opening_debug[48] = smd_background_full;
-    smd_opening_debug[40] = adventure.inventory.counts[0];
-    smd_opening_debug[41] = adventure.inventory.counts[1];
-    smd_opening_debug[42] = adventure.inventory.counts[2];
-    smd_opening_debug[43] = adventure.inventory.counts[3];
-    smd_opening_debug[44] = adventure.inventory.counts[4];
-    smd_opening_debug[45] = adventure.inventory.counts[5];
-    smd_opening_debug[46] = adventure.inventory.counts[6];
-    smd_opening_debug[55] = ++sequence;
-    smd_opening_debug[2] = sequence;
+   const DeceptusEngine *engine;
+   engine = &adventure.campaign.engine;
+   packet_slot ^= 1;
+   smd_opening_debug = smd_opening_packets[packet_slot];
+   smd_opening_debug[0] = 0xd3ce;
+   smd_opening_debug[1] = 0x4d4f;
+   smd_opening_debug[2] = ++sequence;
+   smd_opening_debug[3] = engine->ticks;
+   smd_opening_debug[4] = deceptusFloor(engine->entities[0].x);
+   smd_opening_debug[5] = deceptusFloor(engine->entities[0].y);
+   smd_opening_debug[6] = engine->camera_x;
+   smd_opening_debug[7] = engine->camera_y;
+   smd_opening_debug[8] = adventure.campaign.room_index;
+   smd_opening_debug[9] = adventure.campaign.mode;
+   smd_opening_debug[10] = adventure.flags;
+   smd_opening_debug[11] = engine->health;
+   smd_opening_debug[12] = adventure.campaign.deaths;
+   smd_opening_debug[13] = engine->content_error;
+   smd_opening_debug[14] = smd_background_error;
+   smd_opening_debug[15] = smd_graphics_error;
+   smd_opening_debug[16] = smd_sprite_overflow;
+   smd_opening_debug[17] = smd_ui_overflow;
+   smd_opening_debug[18] = adventure.has_sword;
+   smd_opening_debug[19] = adventure.page;
+   smd_opening_debug[20] = buttons;
+   smd_opening_debug[21] = adventure.campaign.previous_buttons;
+   smd_opening_debug[22] = smd_obj_count;
+   smd_opening_debug[23] = smd_background_dma_bytes;
+   smd_opening_debug[24] = smd_sprite_upload_bytes;
+   smd_opening_debug[25] = smd_background_uploads;
+   smd_opening_debug[26] = (DeceptusU16)vtimer;
+   smd_opening_debug[27] = SYS_getCPULoad();
+   smd_opening_debug[28] = engine->player_rope.attached;
+   smd_opening_debug[29] = engine->entities[0].grounded;
+   smd_opening_debug[30] = engine->projectiles_fired;
+   smd_opening_debug[31] = engine->entities[0].velocity_x;
+   smd_opening_debug[32] = engine->entities[0].velocity_y;
+   smd_opening_debug[33] = engine->entities[0].x;
+   smd_opening_debug[34] = engine->entities[0].y;
+   smd_opening_debug[35] = adventure.pending_ticks;
+   smd_opening_debug[36] = adventure.automatic_ticks;
+   smd_opening_debug[37] = MEM_getFree();
+   smd_opening_debug[38] = blank;
+   smd_opening_debug[39] = smd_sprite_blank;
+   smd_opening_debug[47] = smd_ui_dirty;
+   smd_opening_debug[48] = smd_background_full;
+   smd_opening_debug[40] = adventure.inventory.counts[0];
+   smd_opening_debug[41] = adventure.inventory.counts[1];
+   smd_opening_debug[42] = adventure.inventory.counts[2];
+   smd_opening_debug[43] = adventure.inventory.counts[3];
+   smd_opening_debug[44] = adventure.inventory.counts[4];
+   smd_opening_debug[45] = adventure.inventory.counts[5];
+   smd_opening_debug[46] = adventure.inventory.counts[6];
+   smd_opening_debug[55] = ++sequence;
+   smd_opening_debug[2] = sequence;
 }
 
 int main(bool hard_reset)
 {
-    deceptus_u16 buttons, flags;
-    deceptus_i16 cage;
-    deceptus_u8 blank;
-    (void)hard_reset;
-    VDP_setEnable(FALSE);
-    VDP_setScreenWidth320();
-    VDP_setPlaneSize(64, 32, TRUE);
-    VDP_setBGAAddress(0xc000);
-    VDP_setBGBAddress(0xe000);
-    VDP_setWindowAddress(0xb000);
-    VDP_setSpriteListAddress(0xf000);
-    VDP_setHScrollTableAddress(0xf400);
-    PAL_setColors(32, smd_sprite_palette2, 16, CPU);
-    PAL_setColors(48, smd_sprite_palette3, 16, CPU);
-    JOY_setSupport(PORT_1, JOY_SUPPORT_6BTN);
-    deceptus_adventure_init(&adventure, &smd_tutorial_definition, &video);
-    video_load();
-    while (1) {
-        buttons = input_read();
-        if (deceptus_adventure_tick(&adventure, buttons)) {
-            video_load();
-        }
-        deceptus_render(&adventure.campaign.engine, &frame);
-        flags = adventure.flags;
-        cage = deceptus_mechanism_find(&adventure.campaign.engine.mechanisms, 1386);
-        if (cage >= 0 && adventure.campaign.engine.mechanisms.states[cage].enabled) {
-            flags |= 8192;
-        }
-        smd_background_set_flags(flags);
-        smd_background_prepare(frame.camera_x, frame.camera_y);
-        smd_sprites_prepare(&adventure, &frame);
-        smd_sprites_measure();
-        smd_ui_prepare(&adventure);
-        blank = smd_background_full || smd_sprite_blank ||
-                smd_background_dma_bytes + smd_sprite_upload_bytes + (smd_ui_dirty ? 4096 : 0) > 5500;
-        debug_write(buttons, blank);
-        SYS_doVBlankProcess();
-        if (blank) {
-            VDP_setEnable(FALSE);
-        }
-        smd_sprites_preload();
-        smd_background_commit();
-        smd_sprites_commit();
-        smd_ui_commit();
-        if (blank) {
-            SYS_doVBlankProcess();
-        }
-        VDP_setEnable(TRUE);
-    }
-    return 0;
+   DeceptusU16 buttons, flags;
+   DeceptusI16 cage;
+   DeceptusU8 blank;
+   (void)hard_reset;
+   VDP_setEnable(FALSE);
+   VDP_setScreenWidth320();
+   VDP_setPlaneSize(64, 32, TRUE);
+   VDP_setBGAAddress(0xc000);
+   VDP_setBGBAddress(0xe000);
+   VDP_setWindowAddress(0xb000);
+   VDP_setSpriteListAddress(0xf000);
+   VDP_setHScrollTableAddress(0xf400);
+   PAL_setColors(32, smd_sprite_palette2, 16, CPU);
+   PAL_setColors(48, smd_sprite_palette3, 16, CPU);
+   JOY_setSupport(PORT_1, JOY_SUPPORT_6BTN);
+   deceptusAdventureInit(&adventure, &smd_tutorial_definition, &video);
+   videoLoad();
+   while (1)
+   {
+      buttons = inputRead();
+      if (deceptusAdventureTick(&adventure, buttons))
+      {
+         videoLoad();
+      }
+      deceptusRender(&adventure.campaign.engine, &frame);
+      flags = adventure.flags;
+      cage = deceptusMechanismFind(&adventure.campaign.engine.mechanisms, 1386);
+      if (cage >= 0 && adventure.campaign.engine.mechanisms.states[cage].enabled)
+      {
+         flags |= 8192;
+      }
+      smdBackgroundSetFlags(flags);
+      smdBackgroundPrepare(frame.camera_x, frame.camera_y);
+      smdSpritesPrepare(&adventure, &frame);
+      smdSpritesMeasure();
+      smdUiPrepare(&adventure);
+      blank =
+         smd_background_full || smd_sprite_blank || smd_background_dma_bytes + smd_sprite_upload_bytes + (smd_ui_dirty ? 4096 : 0) > 5500;
+      debugWrite(buttons, blank);
+      SYS_doVBlankProcess();
+      if (blank)
+      {
+         VDP_setEnable(FALSE);
+      }
+      smdSpritesPreload();
+      smdBackgroundCommit();
+      smdSpritesCommit();
+      smdUiCommit();
+      if (blank)
+      {
+         SYS_doVBlankProcess();
+      }
+      VDP_setEnable(TRUE);
+   }
+   return 0;
 }

@@ -6,8 +6,8 @@
 
 ; request abi: resource/x/y words and flip/priority bytes. source descriptors
 ; have sixteen-byte stride; slot misses retain the bounded c allocation path.
-.section "snes_sprite_resource" semisuperfree banks 2-15
-snes_obj_draw_resource:
+.section "SnesSpriteResource" semisuperfree banks 2-15
+snesObjDrawResource:
     php
     rep #$30
     phb
@@ -150,7 +150,7 @@ resource_allocate:
     pha
     lda 3,s
     pha
-    jsl snes_obj_slot_for
+    jsl snesObjSlotFor
     tsa
     clc
     adc #4
@@ -182,7 +182,7 @@ resource_emit:
     pha
     lda 31,s
     pha
-    jsl snes_obj_emit_quads
+    jsl snesObjEmitQuads
     tsa
     clc
     adc #10

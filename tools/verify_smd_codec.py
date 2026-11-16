@@ -20,10 +20,10 @@ def verify(assets):
     folder.mkdir(parents=True, exist_ok=True)
     bridge = folder / 'bridge.c'
     bridge.write_text('#include "opening_video.h"\n'
-        '__declspec(dllexport) int decode(const smd_rom_blob*b,unsigned short i,unsigned char*d)'
-        '{return smd_decode_block(b,i,d);}\n'
-        '__declspec(dllexport) const unsigned char*cell(const smd_rom_blob*b,unsigned short y,unsigned short x)'
-        '{return smd_cell(b,y,x);}\n')
+        '__declspec(dllexport) int decode(const SmdRomBlob*b,unsigned short i,unsigned char*d)'
+        '{return smdDecodeBlock(b,i,d);}\n'
+        '__declspec(dllexport) const unsigned char*cell(const SmdRomBlob*b,unsigned short y,unsigned short x)'
+        '{return smdCell(b,y,x);}\n')
     library = folder / 'codec.dll'
     subprocess.run(['clang', '-shared', '-O2', '-std=c90', '-Wall', '-Wextra', '-Werror',
                     '-I' + str(ROOT / 'include'), '-I' + str(ROOT / 'src/platform/smd'), '-I' + str(assets),

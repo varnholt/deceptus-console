@@ -45,7 +45,7 @@ PROGRESSION_SETUP = {
     'sword-lever': 'adventure.flags=512; adventure.inventory.counts[6]=1; adventure.has_sword=1;',
     'crypt-return': 'adventure.flags=4224; adventure.inventory.counts[3]=1;',
     # keep the upper source rat in view of the on/off blocks for palette stress.
-    'cannon-rat': ('{ deceptus_u16 i; for(i=1;i<DECEPTUS_ENTITY_CAPACITY;++i) {'
+    'cannon-rat': ('{ DeceptusU16 i; for(i=1;i<DECEPTUS_ENTITY_CAPACITY;++i) {'
                    'if(engine.entities[i].active && engine.entities[i].kind==DECEPTUS_RAT && '
                    'engine.room->enemy_definitions[engine.entities[i].definition].source_id==1618) '
                    '{engine.entities[i].y=DECEPTUS_FIXED(288);} } }'),
@@ -102,7 +102,7 @@ def verify(core, clang, linker, objcopy, fixture_name=None):
         raise ValueError('build --scene tutorial before running tutorial fixtures')
     source = ROOT / 'src/platform/gba/main.c'
     original_main = source.read_text()
-    marker = 'deceptus_adventure_init(&adventure, &gba_tutorial_definition, &video);'
+    marker = 'deceptusAdventureInit(&adventure, &gba_tutorial_definition, &video);'
     if original_main.count(marker) != 1:
         raise ValueError('update the fixture entry hook for the current startup code')
     scratch = ROOT / 'build/tests/tutorial'
@@ -133,8 +133,8 @@ def verify(core, clang, linker, objcopy, fixture_name=None):
             code = original_main
             if room >= 0:
                 setup = (f'\n campaign.room_index={room}; '
-                         f'deceptus_init(&engine,gba_campaign_definition.rooms[{room}],&video); '
-                         f'deceptus_place_player(&engine,{x},{y}); campaign.mode=DECEPTUS_CAMPAIGN_PLAYING;'
+                         f'deceptusInit(&engine,gba_campaign_definition.rooms[{room}],&video); '
+                         f'deceptusPlacePlayer(&engine,{x},{y}); campaign.mode=DECEPTUS_CAMPAIGN_PLAYING;'
                          + PROGRESSION_SETUP.get(name, ''))
                 code = code.replace(marker, marker + setup)
                 code = code.replace('active_stage = &gba_stages[0];',

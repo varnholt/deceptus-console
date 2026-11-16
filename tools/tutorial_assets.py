@@ -81,7 +81,7 @@ def compile_tutorial(data, reuse_assets=False):
         stages.append(dict(room_recipe=recipe,title=names[index],instruction='',hint1='',hint2='',goal=[0,0,1,1]))
     compile_campaign(data,dict(stages=stages),scene='tutorial',reuse_assets=reuse_assets)
     output = ROOT / 'assets/generated/gba'
-    header = (output/'gba_assets.h').read_text().replace('#endif', '#include "deceptus/adventure.h"\nextern const deceptus_adventure_def gba_tutorial_definition;\n#endif')
+    header = (output/'gba_assets.h').read_text().replace('#endif', '#include "deceptus/adventure.h"\nextern const DeceptusAdventureDef gba_tutorial_definition;\n#endif')
     (output/'gba_assets.h').write_text(header)
     lines = ['#include "gba_assets.h"']
     ui=TutorialUI(data)
@@ -140,7 +140,7 @@ def compile_tutorial(data, reuse_assets=False):
             report.append(dict(room=room_index,source_map=room_maps[room_index],source_id=obj['id'],bounds_source=bounds_obj['id'],pages=len(pages),
                                **{key: action[key] for key in ('required_flags','forbidden_flags','set_flags','mechanism_id','cost_item','grant_item','effect','automatic') if key in action}))
         if serialized:
-            lines += [f'static const deceptus_interaction tutorial_actions_{room_index}[] = {{',*serialized,'};']
+            lines += [f'static const DeceptusInteraction tutorial_actions_{room_index}[] = {{',*serialized,'};']
     # portals are automatic at the real shared room edges. intervals are world coordinates.
     links = [(0,1,2,2592,2688),(1,0,1,2592,2688),(1,2,2,2496,2616),(2,1,1,2496,2616),
              (2,3,1,2136,2256),(3,2,2,2136,2256),(3,4,1,2136,2256),(4,3,2,2136,2256),
@@ -167,19 +167,19 @@ def compile_tutorial(data, reuse_assets=False):
             portals.append('    {{'+','.join(map(str,bounds))+'}, '+','.join(map(str,[origin[0]-target[0],origin[1]-target[1],destination,direction]+spawn))+'},')
         portals += extra_portals(index, stages, object_sets)
         if portals:
-            lines += [f'static const deceptus_portal tutorial_portals_{index}[] = {{',*portals,'};']
+            lines += [f'static const DeceptusPortal tutorial_portals_{index}[] = {{',*portals,'};']
         counts.append(len(portals))
     bindings = room_bindings()
     for room_index, values in bindings.items():
-        lines += [f'static const deceptus_adventure_binding tutorial_bindings_{room_index}[] = {{',
+        lines += [f'static const DeceptusAdventureBinding tutorial_bindings_{room_index}[] = {{',
                   *['    {'+','.join(map(str,value))+'},' for value in values], '};']
-    lines += ['static const deceptus_adventure_room tutorial_rooms[] = {']
+    lines += ['static const DeceptusAdventureRoom tutorial_rooms[] = {']
     for index,actions in enumerate(interactions):
         lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}, '+(f'tutorial_bindings_{index}' if index in bindings else '0')+f', {len(bindings.get(index, []))}'+'},')
     source_items=json.loads((data/'sprites/inventory_items.json').read_text())
     item_names=['']+[source_items[key]['title'] for key in ('locker_key','handle','gems','solar_seal','headtorch','sword')]+['Red Key']
     lines += ['};','static const char *const tutorial_items[] = {'+','.join(json.dumps(name) for name in item_names)+'};',
-              'const deceptus_adventure_def gba_tutorial_definition = {&gba_campaign_definition,tutorial_rooms,tutorial_items,7};']
+              'const DeceptusAdventureDef gba_tutorial_definition = {&gba_campaign_definition,tutorial_rooms,tutorial_items,7};']
     with (output/'room.c').open('a') as handle:
         handle.write('\n'.join(lines)+'\n'+ui.finish(output))
     compile_menu(data,output)
