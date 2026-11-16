@@ -73,7 +73,7 @@ def configure_emulator_controls(emulator, backend, scene):
         controller(0, 513)
 
 
-def play(backend, core, library, rom=None, scene='tutorial'):
+def play(backend, core, library, rom=None, scene='tutorial', zoom=3, position=None, run_unfocused=False):
     timer_api = C.WinDLL('winmm') if os.name == 'nt' else None
     if timer_api:
         timer_api.timeBeginPeriod(1)
@@ -83,6 +83,8 @@ def play(backend, core, library, rom=None, scene='tutorial'):
                 if backend == 'gba' or (backend in ('snes', 'smd') and scene == 'tutorial')
                   else ("arrows move / Z or X jump / Up interact / Enter pause / R restart"
                         if backend == "smd" else "arrows move / Z jump / Up interact / Enter pause / R restart")))
+    if position is not None:
+        window.geometry(f"+{position[0]}+{position[1]}")
     canvas = tk.Label(window, borderwidth=0)
     canvas.pack()
     if backend == 'gba':
@@ -115,7 +117,7 @@ def play(backend, core, library, rom=None, scene='tutorial'):
 
     def refresh():
         nonlocal deadline, timer
-        if not focused:
+        if not focused and not run_unfocused:
             deadline=time.perf_counter()
             timer=window.after(100,refresh)
             return
@@ -132,7 +134,7 @@ def play(backend, core, library, rom=None, scene='tutorial'):
             image = host.run(buttons)
         if image:
             changed = present(canvas, image, (window.winfo_screenwidth(), window.winfo_screenheight()),
-                              ImageTk.PhotoImage)
+                              ImageTk.PhotoImage, zoom)
             if changed:
                 window.update_idletasks()
                 x = max(0, min(window.winfo_x(), window.winfo_screenwidth() - window.winfo_width() - 16))
@@ -167,8 +169,11 @@ if __name__ == "__main__":
     parser.add_argument("--library", type=Path, default=ROOT / "build/host/Debug/deceptus_preview.dll")
     parser.add_argument("--rom", type=Path, help="open a particular built ROM")
     parser.add_argument('--scene', choices=['tutorial', 'prototype'], default='tutorial')
+    parser.add_argument('--zoom', type=int, choices=[1, 2, 3], default=3, help='maximum integer display scale')
+    parser.add_argument('--position', type=int, nargs=2, metavar=('X', 'Y'), help='initial window position')
+    parser.add_argument('--run-unfocused', action='store_true', help='keep running while another window has focus')
     args = parser.parse_args()
     cores = {'gba': '.tools/mgba/mgba_libretro.dll', 'snes': '.tools/snes9x/snes9x_libretro.dll',
              'smd': '.tools/genesis_plus_gx/genesis_plus_gx_libretro.dll'}
     core = args.core or ROOT / cores.get(args.backend, cores['snes'])
-    play(args.backend, core, args.library, args.rom, args.scene)
+    play(args.backend, core, args.library, args.rom, args.scene, args.zoom, args.position, args.run_unfocused)

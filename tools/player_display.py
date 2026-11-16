@@ -8,8 +8,8 @@ def integer_zoom(size, screen_size, maximum=3):
                       max(1, screen_height - 96) // height))
 
 
-def present(canvas, image, screen_size, photo_factory):
-    zoom = integer_zoom(image.size, screen_size)
+def present(canvas, image, screen_size, photo_factory, maximum_zoom=3):
+    zoom = integer_zoom(image.size, screen_size, maximum_zoom)
     size = image.width * zoom, image.height * zoom
     from PIL import Image
     scaled = image.resize(size, Image.Resampling.NEAREST)
