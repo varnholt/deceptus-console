@@ -1,5 +1,5 @@
 #include "deceptus/enemies.h"
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
 #include "deceptus/physics.h"
 #include "deceptus/playerwater.h"
 #include <string.h>
@@ -12,18 +12,6 @@
 #define MAX_SPEED 35
 #define ACCELERATION 4
 #define FRICTION 6
-
-void deceptusEventPush(DeceptusEngine *engine, DeceptusU8 kind)
-{
-   if (engine->event_count == DECEPTUS_EVENT_CAPACITY)
-   {
-      engine->event_overflow = 1;
-      return;
-   }
-   engine->events[engine->event_count].kind = kind;
-   engine->events[engine->event_count].entity = 0;
-   ++engine->event_count;
-}
 
 static void respawn(DeceptusEngine *engine)
 {

@@ -1,4 +1,4 @@
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
 
 #ifdef _WIN32
 #define PREVIEW_API __declspec(dllexport)

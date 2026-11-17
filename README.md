@@ -1,11 +1,15 @@
 # Deceptus C Engine
 
-A portable C game engine and console adaptation of Deceptus. **GBA is the first
-complete-game target.** SNES and Mega Drive now build the same 26-room opening;
-both remain experimental and run substantially below the desired frame rate.
-Mega Drive also retains its faster [one-room prototype](docs/MEGA_DRIVE.md).
-An experimental [Amiga 500 backend](docs/AMIGA.md) runs the separate one-room
-catacombs prototype. It does not yet run the opening campaign.
+A portable C90 engine with a separate Deceptus game layer and GBA, SNES,
+Mega Drive and Amiga backends. The current parity milestone is the original
+opening workflow through headtorch, graveyard, crypt return and sword acquisition
+on all four platforms.
+
+GBA, SNES and Mega Drive build the same 26-room opening; SNES and Mega Drive
+remain experimental and run substantially below the desired frame rate.
+Mega Drive retains its faster [one-room prototype](docs/MEGA_DRIVE.md).
+The experimental [Amiga 500 backend](docs/AMIGA.md) currently runs a separate
+one-room prototype; the opening campaign is still being developed.
 The local folder currently keeps the name `deceptus-snes`.
 
 The latest development build is the original prison opening, with twenty-six

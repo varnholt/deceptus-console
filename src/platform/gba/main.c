@@ -1,6 +1,6 @@
 #include "deceptus/adventure.h"
 #include "deceptus/enemies.h"
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
 #include "gba_assets.h"
 #if GBA_TUTORIAL
 #include "area0/gba_sword_resources.h"

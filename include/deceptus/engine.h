@@ -37,9 +37,6 @@
 #define DECEPTUS_PLAYER_SWIM 8
 #define DECEPTUS_WATER_SPLASH 10
 #define DECEPTUS_PLAYER_ROPE 19
-#define DECEPTUS_PLAYER_SWORD 11
-#define DECEPTUS_HEADTORCH 14
-#define DECEPTUS_HEADTORCH_BEAM 15
 
 #define DECEPTUS_EVENT_JUMP 1
 #define DECEPTUS_EVENT_HURT 2
@@ -192,14 +189,6 @@ typedef struct DeceptusEngine
    DeceptusPlayerRope player_rope;
 } DeceptusEngine;
 
-/* initializes caller-owned state; room and collision storage must outlive it. */
-void deceptusInit(DeceptusEngine *engine, const DeceptusRoom *room, const DeceptusVideoCaps *video);
-/* advances one 60Hz simulation tick; replaces the transient event queue. */
-void deceptusTick(DeceptusEngine *engine, DeceptusU16 buttons);
-/* builds a bounded list of logical metasprites without modifying simulation. */
-void deceptusRender(const DeceptusEngine *engine, DeceptusFrame *frame);
-/* move to a room entrance and immediately reframe the camera. */
-void deceptusPlacePlayer(DeceptusEngine *engine, DeceptusI16 x, DeceptusI16 y);
 void deceptusEventPush(DeceptusEngine *engine, DeceptusU8 kind);
 /* returns solid outside horizontal/top boundaries, empty below the room. */
 DeceptusU8 deceptusCell(const DeceptusRoom *room, DeceptusI16 column, DeceptusI16 row);

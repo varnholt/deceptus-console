@@ -1,4 +1,4 @@
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
 #include "smd_assets.h"
 #include <genesis.h>
 

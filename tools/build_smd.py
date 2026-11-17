@@ -49,12 +49,12 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
          '-c', sdk / 'src/boot/sega.s', '-o', folder / 'sega.o'], output)
     sources = ['src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
                'src/engine/mechanisms/grabrope.c', 'src/engine/animation.c', 'src/engine/world.c',
-               'src/engine/entities.c', 'src/engine/mechanisms.c', 'src/engine/logic.c',
-               'src/engine/enemies.c', 'src/game/deceptus.c', 'src/platform/smd/main.c']
+               'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c', 'src/engine/logic.c',
+               'src/game/enemies.c', 'src/game/deceptus.c', 'src/platform/smd/main.c']
     sources = [ROOT / source for source in sources]
     if opening:
         sources = [source for source in sources if source != ROOT / 'src/platform/smd/main.c']
-        sources += [ROOT / name for name in ('src/engine/adventure.c', 'src/game/campaign.c',
+        sources += [ROOT / name for name in ('src/game/adventure.c', 'src/game/campaign.c',
                     'src/game/weapons/playersword.c', 'src/platform/smd/opening.c',
                     'src/platform/smd/background.c', 'src/platform/smd/graphics_io.c')]
         sources += [generated / name for name in metadata['c_sources']]

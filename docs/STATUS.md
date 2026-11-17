@@ -1,6 +1,7 @@
 # Current status
 
-Updated for standalone content builds, 16 November 2026.
+Updated for the engine/game separation and four-platform opening milestone,
+17 November 2026.
 
 ## Available targets
 
@@ -9,8 +10,35 @@ Updated for standalone content builds, 16 November 2026.
 | GBA tutorial | Twenty-six imported rooms; prison, headtorch, graveyard rubies, crypt return, owl altar and sword progression |
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
 | SNES | Same 26-room opening in an 8 MiB ExHiROM; retained one-room test is explicit `--scene prototype`; performance remains substantially below target |
+| Amiga | PAL OCS one-room prototype at nominal 50 fps; opening streaming, UI and equipment support remain to be implemented |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
 | Mega Drive | Same 26-room opening in a flat 4 MiB cartridge budget; normal-input route passes, performance remains experimental; separate small prototype retains its measured 60 Hz result |
+
+## Active parity milestone
+
+The engine stays reusable. Story progression, inventory and equipment rules,
+enemy behaviors and level callbacks belong in the Deceptus game layer or its
+imported content. Hardware backends render and accept input without deciding
+progression. DOS and STM32 remain later targets.
+
+The first shared workflow must cover the tutorial, solar seal and locked box,
+headtorch acquisition with visible helmet and light, graveyard ruby pickup,
+source-timed earthquake and collapse, crypt traversal and return, altar ruby
+use, sword release/acquisition and attack on GBA, SNES, Mega Drive and Amiga.
+Remaining original content follows through the same engine/game contracts.
+
+The engine/game boundary is now enforced by library ownership and separate
+headers: reusable services use `engine.h`; Deceptus controller/equipment APIs
+use `game.h`. Adventure and original enemy behaviors live under `src/game/`.
+A local executable links the complete engine archive without the game library.
+All 13 existing native/converter groups pass, all four platform builds pass, and
+the 56-checkpoint existing opening route passes on the actual GBA, SNES and Mega
+Drive ROMs after the separation. The Amiga result remains the prototype only.
+
+Next work closes game-layer presentation/timing gaps and implements Amiga
+opening resources and room loading. Existing route success does not establish
+source-faithful cutscenes, whole-opening frame rate, audio, saves or a complete
+original-game port.
 
 ## Opening content
 
@@ -47,7 +75,7 @@ than assuming every adjacent room's walkways have identical heights.
 - Original shrine tile animation and one-shot falling-entry splash; no ambient looping splash.
 - Underwater tint, a small exit hop, original upward wind and delayed wetsuit warning.
 - Main Hall/Mines Antechamber passage verified in both directions.
-- Mechanism files named after their original counterparts; public C namespace `deceptus_`.
+- Mechanism files named after their original counterparts; public C function prefix `deceptus` with camelCase.
 - GitHub Actions build and source-revision-recorded cartridge artifacts.
 - Original bitmap font at 13px; title headings use exact 2x copies of those pixels.
 - Smooth affine title rotation, changing on 59 of 60 sampled display frames.
@@ -123,9 +151,10 @@ palettes; conflicting OBJ indices relocate without changing source colours.
 6. Add persistent save storage and versioned progression serialization.
 7. Extend complete-level/game verification, hardware testing and release packaging.
 
-The first commercial-quality target remains GBA. The reusable C engine can grow
-alongside that work; SNES and Mega Drive remain secondary compatibility and
-performance efforts. Neither opening currently meets the intended frame rate.
+The active opening milestone targets all four platforms through a shared game
+layer. GBA is furthest along; SNES and Mega Drive still require substantial
+performance work, and Amiga still requires opening support. The prototype frame
+rates do not establish whole-opening performance.
 
 The Mines entrance is connected. Its farther iron door supports its reusable
 source red-key requirement; red-key and wetsuit acquisition are not yet connected.

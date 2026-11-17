@@ -1,6 +1,6 @@
 #ifndef DECEPTUS_SNES_OPENING
 #include "asset_sizes.h"
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
 #include <snes.h>
 
 extern char room_patterns, room_patterns_end;

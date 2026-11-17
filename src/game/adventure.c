@@ -1,3 +1,4 @@
+#include "deceptus/game.h"
 #include "deceptus/adventure.h"
 #include <string.h>
 

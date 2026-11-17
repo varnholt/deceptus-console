@@ -14,8 +14,8 @@ from assets import ROOT
 SOURCES = (
     'src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
     'src/engine/mechanisms/grabrope.c', 'src/engine/animation.c',
-    'src/engine/world.c', 'src/engine/entities.c', 'src/engine/mechanisms.c',
-    'src/engine/logic.c', 'src/engine/enemies.c', 'src/game/deceptus.c',
+    'src/engine/world.c', 'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c',
+    'src/engine/logic.c', 'src/game/enemies.c', 'src/game/deceptus.c',
     'src/platform/amiga/runtime.c', 'src/platform/amiga/main.c',
     'src/platform/amiga/input.c', 'src/platform/amiga/video.c',
 )

@@ -1,3 +1,4 @@
+#include "deceptus/game.h"
 #if GBA_TUTORIAL && defined(GBA_HEADTORCH_FIRST)
 static void __attribute__((section(".romtext"), noinline)) headtorchPrepare(void)
 {

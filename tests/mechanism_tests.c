@@ -1,4 +1,4 @@
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
 #include "deceptus/logic.h"
 #include "deceptus/physics.h"
 #include <stdio.h>

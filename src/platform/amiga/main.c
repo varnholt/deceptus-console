@@ -1,3 +1,4 @@
+#include "deceptus/game.h"
 #include "input.h"
 #include "video.h"
 

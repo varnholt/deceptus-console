@@ -9,26 +9,42 @@ shared code under a very different compiler and resource budget.
 
 | Area | Responsibility |
 | --- | --- |
-| `include/deceptus/` | Shared types, input, world, entities, mechanisms, animation, campaign and adventure contracts |
+| `include/deceptus/engine.h` and component headers | Reusable simulation state, collision, entities, mechanisms, animation and event contracts |
+| `include/deceptus/game.h`, `campaign.h`, `adventure.h`, `enemies.h` | Game controller, campaign, story/inventory and enemy contracts |
 | `src/engine/world.c` | Grid collision, dynamic blockers, one-way floors and body clearance |
-| `src/engine/entities.c`, `enemies.c`, `enemies/` | Bounded entity/projectile services and native enemy behavior |
+| `src/engine/entities.c`, `events.c` | Bounded entity allocation and transient event queues |
+| `src/game/enemies.c`, `enemies/` | Deceptus enemy behaviors, projectile rules and source-script dispatch |
 | `src/engine/player/playerwater.c` | Source atmosphere water detection, swim motion and source-frame timing |
 | `src/engine/player/playerrope.c` | Airborne rope grab, attachment, swing control and release/grace state |
 | `src/engine/mechanisms/`, `logic.c` | Original-named mechanism modules, bounded state/queues and compiled actions |
-| `src/engine/adventure.c` | Inventory transactions, interaction conditions, dialogue/menu modes, portals and room state |
+| `src/game/adventure.c` | Inventory transactions, interaction conditions, dialogue/menu modes, portals and room state |
 | `src/game/deceptus.c`, `campaign.c` | Player/game rules and the curated preview campaign |
 | `src/game/weapons/playersword.c` | Source sword timing, hit bounds and supported blob damage |
 | `src/platform/gba/` | Registers, input, DMA, tile residency, OAM, menus, UI and cartridge startup |
 | `src/platform/snes/` | SNES/PVSnesLib world cache, OBJ staging, input and opening frontend |
 | `src/platform/smd/` | SGDK POC video/input, tile layout and private C header adapters |
+| `src/platform/amiga/` | OCS bitplanes, blitter, copper, input and system takeover/restoration |
 | `src/platform/host/` | Native preview bridge |
 | `tools/` | Offline authoritative-content import, conversion, compilation and verification |
 
 Console registers and SDK headers belong only in platform code. There is no
 runtime SFML, Lua interpreter, heap allocation or floating-point simulation.
 The GBA uses a small freestanding runtime rather than a host C library.
-Public C symbols use `deceptus_`, constants use `DECEPTUS_`, and headers live in
+Public C functions use the `deceptus` prefix and camelCase; constants use
+`DECEPTUS_`, types use CamelCase, and headers live in
 `include/deceptus/`. Names of external emulator protocols retain their upstream API.
+
+Game-specific story callbacks, inventory rules, equipment choices and enemy
+behaviors belong in `src/game/` or the imported game content. The engine library
+contains reusable simulation services and links independently of the game
+library. Backends translate game presentation into hardware operations; they do
+not decide when rubies are acquired, when the ground collapses or when a sword
+becomes available.
+
+`src/game/enemies.c` includes its private enemy modules as one translation unit,
+matching the mechanism build pattern. Compile that entry rather than its private
+fragments separately. This preserves existing compiler optimization and bounded
+runtime behavior while making ownership explicit.
 
 ## Mechanism source correspondence
 
@@ -64,7 +80,7 @@ private modules as header-only sources for IDE navigation. The public API stays
 in `include/deceptus/mechanisms.h`; no virtual dispatch, heap objects or additional
 per-instance state are introduced by the source split. Mechanism definitions
 are immutable imported data; mutable instances live in the caller-owned
-`deceptus_mechanism_set`. Source ids link levers, interactions and saved room
+`DeceptusMechanismSet`. Source ids link levers, interactions and saved room
 state to those instances. Collision queries and logical visual state are shared;
 the backend selects console graphics without implementing mechanism rules.
 
@@ -157,7 +173,7 @@ than cropping or mirroring the other direction. The GBA packs these separately
 from the standing player's metasprites. Their colours remain exact RGB555 within
 a distinct OBJ palette reservation.
 
-`src/engine/enemies/blob_2.c` maps directly to `blob_2.lua`. Normal patrol uses the
+`src/game/enemies/blob_2.c` maps directly to `blob_2.lua`. Normal patrol uses the
 source idle/walk animation cycles, pulsed movement, contact damage and stomp
 lifecycle. Ground-patrol sprite transitions are compared against execution of
 the original Lua with identical position inputs. Jumping and ceiling-drop

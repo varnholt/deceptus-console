@@ -34,7 +34,8 @@ def compile_native(clang):
     sources = (sorted((ROOT / 'src/engine').glob('*.c')) +
                sorted((ROOT / 'src/engine/player').glob('*.c')) +
                [ROOT / 'src/engine/mechanisms/grabrope.c'] +
-               sorted((ROOT / 'src/game').rglob('*.c')))
+               sorted(path for path in (ROOT / 'src/game').rglob('*.c')
+                      if path.parent != ROOT / 'src/game/enemies'))
     folder = ROOT / 'build/tests/snes-opening'
     folder.mkdir(parents=True, exist_ok=True)
     library = folder / ('opening-' + uuid4().hex + ('.dll' if sys.platform == 'win32' else '.so'))

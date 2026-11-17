@@ -1,6 +1,6 @@
 # Arrows and pirate cannons
 
-`src/engine/enemies/cannon_2.c` follows
+`src/game/enemies/cannon_2.c` follows
 `deceptus_engine/data/scripts/enemies/cannon_2.lua`. Its source object ids,
 horizontal alignment, fire interval and time offset remain in the imported enemy
 definitions. The source's 16fps firing/idle sequence uses the original directional
@@ -26,7 +26,7 @@ This matters because its right-facing muzzle starts inside the body bounds.
 
 ## Projectile collisions
 
-`src/engine/enemies.c` advances projectiles in eight bounded substeps, each less
+`src/game/enemies.c` advances projectiles in eight bounded substeps, each less
 than one pixel under the shared velocity limit. Arrows use their existing point
 collision representation. Both arrows and cannonballs collide with solid tiles,
 wooden one-way floor tiles and active dynamic mechanisms, including collapsing

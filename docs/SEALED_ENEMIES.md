@@ -1,6 +1,6 @@
 # Sealed Cells enemies
 
-`src/engine/enemies/orb.c` and `frog_blue.c` map to the original scripts of those
+`src/game/enemies/orb.c` and `frog_blue.c` map to the original scripts of those
 names. The source room is Tiled object 1110, imported as room 13. Its supported
 enemies are orb object 1396 and blue frog object 1721. Original sprite pixels,
 animation frames and source object ids are retained.
