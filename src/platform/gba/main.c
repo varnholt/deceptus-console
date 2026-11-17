@@ -1,6 +1,7 @@
 #include "deceptus/adventure.h"
 #include "deceptus/enemies.h"
 #include "deceptus/game.h"
+#include "deceptus/playeranimation.h"
 #include "gba_assets.h"
 #if GBA_TUTORIAL
 #include "area0/gba_sword_resources.h"
@@ -643,91 +644,27 @@ static void enemyObjects(DeceptusU16 *count, const DeceptusDraw *draw)
 #if GBA_TUTORIAL
 static void __attribute__((section(".romtext"), noinline)) swordPrepare(void)
 {
-   static DeceptusU8 previous_pose = 255;
-   static DeceptusU16 previous_tick, pose_ticks;
-   const DeceptusEntity *player;
-   const DeceptusPlayerSword *sword;
-   const DeceptusU8 *clip;
-   DeceptusDraw *draw;
-   DeceptusU16 index, elapsed, duration, step, delta;
-   DeceptusU8 pose, left;
-   if (!adventure.has_sword)
+   static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
+   static const DeceptusSwordAnimationDef definition = {gba_sword_clips, gba_sword_durations, sizeof(gba_sword_durations),
+                                                        sizeof(gba_sword_clips) / sizeof(gba_sword_clips[0])};
+   DeceptusDraw appearance, *draw;
+   DeceptusU16 index;
+   DeceptusU8 result;
+   result = deceptusPlayerSwordAppearance(&adventure, &animation, &definition, &appearance);
+   if (result == DECEPTUS_APPEARANCE_BAD_CONTENT)
    {
-      previous_pose = 255;
+      engine.content_error = 4;
+   }
+   if (result != DECEPTUS_APPEARANCE_READY)
+   {
       return;
-   }
-   player = &engine.entities[0];
-   sword = &adventure.sword;
-   left = player->facing_left;
-   if (sword->ticks)
-   {
-      pose = sword->airborne ? 10 : (sword->crouched ? 9 : 8);
-      left = sword->facing_left;
-   }
-#ifdef GBA_PLAYER_ROPE_FIRST
-   else if (engine.player_rope.attached)
-   {
-      pose = 3;
-   }
-#endif
-   else if (player->in_water)
-   {
-      pose = player->velocity_x ? 7 : 6;
-   }
-   else if (player->crouched)
-   {
-      pose = 5;
-   }
-   else if (!player->grounded)
-   {
-      pose = player->velocity_y < -16 ? 2 : (player->velocity_y > 16 ? 4 : 3);
-   }
-   else
-   {
-      pose = player->velocity_x ? 1 : 0;
-   }
-   pose += left ? 11 : 0;
-   delta = (DeceptusU16)(engine.ticks - previous_tick);
-   if (pose != previous_pose || delta > 4)
-   {
-      pose_ticks = 0;
-   }
-   else
-   {
-      pose_ticks += delta;
-   }
-   previous_pose = pose;
-   previous_tick = engine.ticks;
-   clip = gba_sword_clips[pose];
-   duration = 0;
-   for (step = 0; step < clip[1]; ++step)
-   {
-      duration += gba_sword_durations[clip[0] + step];
-   }
-   /* delta is bounded above, so at most four clip wraps can occur here. */
-   while (pose_ticks >= duration)
-   {
-      pose_ticks -= duration;
-   }
-   elapsed = sword->ticks ? sword->ticks - 1 : pose_ticks;
-   for (step = 0; step + 1 < clip[1] && elapsed >= gba_sword_durations[clip[0] + step]; ++step)
-   {
-      elapsed -= gba_sword_durations[clip[0] + step];
    }
    for (index = 0; index < frame.count; ++index)
    {
       draw = &frame.draws[index];
-      if (draw->kind == DECEPTUS_PLAYER || draw->kind == DECEPTUS_PLAYER_SWIM
-#ifdef GBA_PLAYER_ROPE_FIRST
-          || draw->kind == DECEPTUS_PLAYER_ROPE
-#endif
-      )
+      if (draw->kind == DECEPTUS_PLAYER || draw->kind == DECEPTUS_PLAYER_SWIM || draw->kind == DECEPTUS_PLAYER_ROPE)
       {
-         draw->kind = DECEPTUS_PLAYER_SWORD;
-         draw->frame = clip[0] + step;
-         draw->x = deceptusFloor(player->x) - engine.camera_x - clip[2];
-         draw->y = deceptusFloor(player->y) - engine.camera_y - clip[3];
-         draw->flip_x = 0;
+         *draw = appearance;
       }
    }
 }

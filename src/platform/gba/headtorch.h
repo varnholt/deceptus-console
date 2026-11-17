@@ -1,4 +1,5 @@
 #include "deceptus/game.h"
+#include "deceptus/itemheadtorch.h"
 #if GBA_TUTORIAL && defined(GBA_HEADTORCH_FIRST)
 static void __attribute__((section(".romtext"), noinline)) headtorchPrepare(void)
 {
@@ -7,7 +8,7 @@ static void __attribute__((section(".romtext"), noinline)) headtorchPrepare(void
    DeceptusDraw helmet, beam;
    DeceptusI16 x, y;
    DeceptusU16 index, player_index;
-   if (!adventure.inventory.counts[5])
+   if (!deceptusItemHeadtorchEquipped(&adventure))
    {
       return;
    }

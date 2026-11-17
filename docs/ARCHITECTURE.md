@@ -20,6 +20,8 @@ shared code under a very different compiler and resource budget.
 | `src/game/adventure.c` | Inventory transactions, interaction conditions, dialogue/menu modes, portals and room state |
 | `src/game/deceptus.c`, `campaign.c` | Player/game rules and the curated preview campaign |
 | `src/game/weapons/playersword.c` | Source sword timing, hit bounds and supported blob damage |
+| `src/game/player/playeranimation.c` | Shared source sword pose and frame selection for every backend |
+| `src/game/items/itemheadtorch.c` | Game-owned headtorch equipment rules |
 | `src/platform/gba/` | Registers, input, DMA, tile residency, OAM, menus, UI and cartridge startup |
 | `src/platform/snes/` | SNES/PVSnesLib world cache, OBJ staging, input and opening frontend |
 | `src/platform/smd/` | SGDK POC video/input, tile layout and private C header adapters |

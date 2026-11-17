@@ -57,7 +57,7 @@ set_source_files_properties(${DECEPTUS_MECHANISM_PARTS} PROPERTIES HEADER_FILE_O
 target_sources(deceptus_engine PRIVATE ${DECEPTUS_MECHANISM_PARTS})
 target_include_directories(deceptus_engine PUBLIC include)
 set_target_properties(deceptus_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
-add_library(deceptus_game STATIC src/game/deceptus.c src/game/campaign.c src/game/adventure.c src/game/enemies.c src/game/weapons/playersword.c)
+add_library(deceptus_game STATIC src/game/deceptus.c src/game/campaign.c src/game/adventure.c src/game/enemies.c src/game/weapons/playersword.c src/game/player/playeranimation.c src/game/items/itemheadtorch.c)
 set(DECEPTUS_ENEMY_PARTS
     src/game/enemies/blob_2.c
     src/game/enemies/cannon_2.c

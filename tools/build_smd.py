@@ -55,7 +55,7 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     if opening:
         sources = [source for source in sources if source != ROOT / 'src/platform/smd/main.c']
         sources += [ROOT / name for name in ('src/game/adventure.c', 'src/game/campaign.c',
-                    'src/game/weapons/playersword.c', 'src/platform/smd/opening.c',
+                    'src/game/weapons/playersword.c', 'src/game/player/playeranimation.c', 'src/game/items/itemheadtorch.c', 'src/platform/smd/opening.c',
                     'src/platform/smd/background.c', 'src/platform/smd/graphics_io.c')]
         sources += [generated / name for name in metadata['c_sources']]
     else:

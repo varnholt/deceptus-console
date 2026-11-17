@@ -1,5 +1,7 @@
 /* logical source frames mapped to bounded SNES OBJ tiles and palette banks. */
 #include "deceptus/enemies.h"
+#include "deceptus/itemheadtorch.h"
+#include "deceptus/playeranimation.h"
 #include "snes_headtorch_resources.h"
 #include "snes_sword_resources.h"
 #include <string.h>
@@ -340,62 +342,18 @@ static void snesObjDrawResourceReference(const SnesObjRequest *request, Deceptus
 
 static DeceptusU16 snesObjSword(const DeceptusAdventure *game, DeceptusI16 *x, DeceptusI16 *y)
 {
-   static DeceptusU8 previous_pose = 255;
-   static DeceptusU16 previous_tick, pose_ticks;
-   const DeceptusEntity *player;
-   const DeceptusU8 *clip;
-   DeceptusU16 step, duration, elapsed, delta;
-   DeceptusU8 pose, left;
-   player = &game->campaign.engine.entities[0];
-   left = player->facing_left;
-   if (game->sword.ticks)
+   static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
+   static const DeceptusSwordAnimationDef definition = {snes_sword_clips, snes_sword_durations, sizeof(snes_sword_durations),
+                                                        sizeof(snes_sword_clips) / sizeof(snes_sword_clips[0])};
+   DeceptusDraw appearance;
+   if (deceptusPlayerSwordAppearance(game, &animation, &definition, &appearance) != DECEPTUS_APPEARANCE_READY)
    {
-      pose = game->sword.airborne ? 10 : game->sword.crouched ? 9 : 8;
-      left = game->sword.facing_left;
+      snes_sprite_overflow = 1;
+      return 0;
    }
-   else if (game->campaign.engine.player_rope.attached)
-   {
-      pose = 3;
-   }
-   else if (player->in_water)
-   {
-      pose = player->velocity_x ? 7 : 6;
-   }
-   else if (player->crouched)
-   {
-      pose = 5;
-   }
-   else if (!player->grounded)
-   {
-      pose = player->velocity_y < -16 ? 2 : player->velocity_y > 16 ? 4 : 3;
-   }
-   else
-   {
-      pose = player->velocity_x ? 1 : 0;
-   }
-   pose += left ? 11 : 0;
-   delta = game->campaign.engine.ticks - previous_tick;
-   pose_ticks = pose != previous_pose || delta > 4 ? 0 : pose_ticks + delta;
-   previous_pose = pose;
-   previous_tick = game->campaign.engine.ticks;
-   clip = snes_sword_clips[pose];
-   duration = 0;
-   for (step = 0; step < clip[1]; ++step)
-   {
-      duration += snes_sword_durations[clip[0] + step];
-   }
-   while (pose_ticks >= duration)
-   {
-      pose_ticks -= duration;
-   }
-   elapsed = game->sword.ticks ? game->sword.ticks - 1 : pose_ticks;
-   for (step = 0; step + 1 < clip[1] && elapsed >= snes_sword_durations[clip[0] + step]; ++step)
-   {
-      elapsed -= snes_sword_durations[clip[0] + step];
-   }
-   *x = deceptusFloor(player->x) - game->campaign.engine.camera_x - clip[2];
-   *y = deceptusFloor(player->y) - game->campaign.engine.camera_y - clip[3];
-   return clip[0] + step;
+   *x = appearance.x;
+   *y = appearance.y;
+   return appearance.frame;
 }
 
 static void snesObjPlayer(const DeceptusAdventure *game, const DeceptusDraw *draw)
@@ -432,7 +390,7 @@ static void snesObjPlayer(const DeceptusAdventure *game, const DeceptusDraw *dra
       resource = SNES_ACTOR_FIRST + image;
       pose = &snes_headtorch_normal[engine->entities[0].facing_left][image];
    }
-   if (game->inventory.counts[5] && pose->valid)
+   if (deceptusItemHeadtorchEquipped(game) && pose->valid)
    {
       helmet_x = deceptusFloor(engine->entities[0].x) - engine->camera_x + pose->x;
       helmet_y = deceptusFloor(engine->entities[0].y) - engine->camera_y + pose->y;

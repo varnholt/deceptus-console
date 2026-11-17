@@ -35,6 +35,12 @@ All 13 existing native/converter groups pass, all four platform builds pass, and
 the 56-checkpoint existing opening route passes on the actual GBA, SNES and Mega
 Drive ROMs after the separation. The Amiga result remains the prototype only.
 
+Sword appearance selection and timing now live in the shared game layer;
+GBA, SNES and Mega Drive render the resulting source poses. Headtorch equipment
+checks also belong to the game layer. A local comparison matches 2,000 source
+frames against the previous renderer, and all three existing ROM opening
+replays still pass after the change.
+
 Next work closes game-layer presentation/timing gaps and implements Amiga
 opening resources and room loading. Existing route success does not establish
 source-faithful cutscenes, whole-opening frame rate, audio, saves or a complete
