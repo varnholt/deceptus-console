@@ -4,6 +4,8 @@ A portable C game engine and console adaptation of Deceptus. **GBA is the first
 complete-game target.** SNES and Mega Drive now build the same 26-room opening;
 both remain experimental and run substantially below the desired frame rate.
 Mega Drive also retains its faster [one-room prototype](docs/MEGA_DRIVE.md).
+An experimental [Amiga 500 backend](docs/AMIGA.md) runs the separate one-room
+catacombs prototype. It does not yet run the opening campaign.
 The local folder currently keeps the name `deceptus-snes`.
 
 The latest development build is the original prison opening, with twenty-six
