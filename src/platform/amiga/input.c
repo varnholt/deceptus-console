@@ -32,5 +32,6 @@ DeceptusU16 amigaInputRead(void)
 
 int amigaInputQuit(void)
 {
-   return !(*(volatile DeceptusU8 *)0xbfe001 & 0x40);
+   /* focusing the emulator with a left click must not end the game. */
+   return !(*(volatile DeceptusU8 *)0xbfe001 & 0x40) && !(*(volatile DeceptusU16 *)0xdff016 & 0x0400);
 }

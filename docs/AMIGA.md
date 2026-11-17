@@ -17,9 +17,10 @@ and verifies the pinned 200 MB compiler/emulator bundle, builds a missing
 executable and starts WinUAE. Use `--build` to rebuild or `--prepare` to prepare
 everything without opening the emulator.
 
-Numpad 4/6 move and numpad 0 jumps using WinUAE's keyboard joystick layout.
-A joystick in Amiga port 2 uses left/right and the fire button. Left mouse exits
-the game and restores the operating system.
+Cursor keys move and right Ctrl jumps using WinUAE's keyboard joystick layout.
+A joystick in Amiga port 2 uses left/right and the fire button. Hold both mouse
+buttons to exit and restore the operating system. A focus click keeps the game
+running.
 
 The default firmware is WinUAE's built-in AROS replacement. To use your own
 Kickstart 1.3 ROM:
@@ -53,8 +54,14 @@ and frame rates describe this single room, not the full opening or later content
 
 The display uses a 320x224 viewport over the 512x224 imported room. Artwork
 retains its original pixel size. Five OCS bitplanes provide 32 palette slots;
-conversion fits separate background and actor palettes to RGB444 without
-resampling or dithering. Emulator captures confirmed pixel-exact background
+conversion fits a shared RGB444 palette using perceptual Oklab distance with
+a source-RGB fidelity term, without
+resampling or dithering. Actor colours are weighted across the complete animation
+sheet, and transparency uses its own mask instead of spending a colour slot.
+The current room uses 27 background colours, compared with 15 in the first
+prototype. Against the original room, RGB error fell from 10.77 to 6.07 RMSE
+and Oklab error from 0.02510 to 0.01452, approximately 44% and 42% lower. Exact per-build
+measurements are recorded in the asset report. Emulator captures confirmed pixel-exact background
 scrolling against the converted preview, including non-word-aligned positions.
 
 The prototype has no opening menus, audio, disk streaming or persistent saves.

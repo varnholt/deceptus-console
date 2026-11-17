@@ -31,13 +31,15 @@ def write_config(executable, output, kickstart=None, slowmem=512):
         ntsc='false', boot_rom_uae='automatic',
         gfx_width_windowed=752, gfx_height_windowed=574,
         gfx_resolution='hires', gfx_linemode='double',
-        sound_output='interrupts', joyport0='mouse', joyport1='kbd1',
+        sound_output='interrupts', joyport0='mouse', joyport1='kbd2',
         filesystem=f'rw,dh0:{drive}',
         filesystem2=f'rw,DH1:Build:{executable.parent},-128',
     )
     config = output / 'deceptus-amiga.uae'
     lines = [f'{key}={value}' for key, value in settings.items()]
-    lines += ['win32.start_not_captured=yes']
+    lines += ['win32.start_not_captured=yes',
+              'win32.active_not_captured_pause=false',
+              'win32.inactive_pause=false', 'input.config=0']
     config.write_text('\n'.join(lines) + '\n')
     return config
 
@@ -71,7 +73,7 @@ def main(arguments=None):
     print(f'Executable: {executable}', flush=True)
     if args.prepare:
         return 0
-    print('Numpad 4/6 move, numpad 0 fires/jumps. Left mouse exits the game.',
+    print('Cursor keys move, right Ctrl jumps. Hold both mouse buttons to exit.',
           flush=True)
     return subprocess.call([str(sdk / 'winuae-gdb.exe'), '-f', str(config)],
                            cwd=output)

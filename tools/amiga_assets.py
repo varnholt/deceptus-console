@@ -6,14 +6,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from assets import ROOT, import_deceptus, indexed
+from assets import ACTOR_FRAME_COUNT, ROOT, import_deceptus
+from amiga_palette import color_error, fit_palette, map_image
 from world_export import export_world
-
-
-def rgb444(image):
-    pixels = np.array(image.convert('RGBA'))
-    pixels[:, :, :3] = ((pixels[:, :, :3].astype(np.uint16) + 8) // 17) * 17
-    return Image.fromarray(pixels)
 
 
 def planar_words(pixels, planes):
@@ -41,34 +36,40 @@ def convert(data, output):
     recipe['patrol'] = [-1, -1]
     recipe['door'] = [-1, -1]
     export_world(source, output, recipe)
-    background = indexed(rgb444(Image.open(source / 'catacombs.png')))
-    actors = indexed(rgb444(Image.open(source / 'actors.png')), transparent=True)
-    for image in (background, actors):
-        image.putpalette([((value + 8) // 17) * 17
-                          for value in image.getpalette()])
+    original_background = Image.open(source / 'catacombs.png').convert('RGB')
+    original_actors = Image.open(source / 'actors.png').convert('RGBA')
+    manifest = json.loads((source / 'import.json').read_text())
+    for frame, definition in enumerate(manifest['frames']):
+        if not definition['animation'].startswith('player_'):
+            left, top = (frame % 4) * 32, (frame // 4) * 48
+            original_actors.paste((0, 0, 0, 0), (left, top, left + 32, top + 48))
+    colors = fit_palette(original_background, original_actors)
+    background = map_image(original_background, colors)
+    actors = map_image(original_actors, colors)
+    actor_preview = actors.convert('RGBA')
+    actor_preview.putalpha(original_actors.getchannel('A'))
     background.save(output / 'background-preview.png')
-    actors.save(output / 'actors-preview.png')
+    actor_preview.save(output / 'actors-preview.png')
     pixels = np.pad(np.asarray(background, dtype=np.uint8), ((0, 0), (16, 16)))
     width, height = background.size
     if width % 16 or not 320 <= width <= 512 or height != 224:
         raise ValueError(
             'Amiga prototype needs a word-aligned room 320..512 pixels wide and 224 high')
     actor_words, masks = [], []
-    for frame in range(26):
+    for frame in range(ACTOR_FRAME_COUNT):
         left, top = (frame % 4) * 32, (frame // 4) * 48
         image = np.array(actors.crop((left, top, left + 32, top + 48)))
+        alpha = np.array(original_actors.getchannel('A').crop(
+            (left, top, left + 32, top + 48))) >= 128
         for flipped in (False, True):
             values = np.fliplr(image) if flipped else image
             values = np.pad(values, ((0, 0), (0, 16)))
-            masks.extend(planar_words((values != 0).astype(np.uint8), 1))
-            actor_words.extend(planar_words(np.where(values, values + 16, 0), 5))
-    palette = []
-    for image in (background, actors):
-        colors = image.getpalette()
-        for slot in range(16):
-            red, green, blue = colors[slot * 3:slot * 3 + 3]
-            palette.append(((red + 8) // 17) << 8 |
-                           ((green + 8) // 17) << 4 | ((blue + 8) // 17))
+            visible = np.fliplr(alpha) if flipped else alpha
+            visible = np.pad(visible, ((0, 0), (0, 16)))
+            masks.extend(planar_words(visible.astype(np.uint8), 1))
+            actor_words.extend(planar_words(np.where(visible, values, 0), 5))
+    palette = [(int(red) // 17) << 8 | (int(green) // 17) << 4 | int(blue) // 17
+               for red, green, blue in colors]
     payload = '#include "amiga_assets.h"\n'
     for name, values in (
             ('amiga_background', planar_words(pixels, 5)),
@@ -80,7 +81,7 @@ def convert(data, output):
         '#ifndef DECEPTUS_AMIGA_ASSETS_H\n#define DECEPTUS_AMIGA_ASSETS_H\n'
         '#include "deceptus/types.h"\n'
         f'#define AMIGA_ROOM_WIDTH {width}\n#define AMIGA_ROOM_HEIGHT {height}\n'
-        '#define AMIGA_PLANES 5\n#define AMIGA_ACTOR_FRAMES 26\n'
+        f'#define AMIGA_PLANES 5\n#define AMIGA_ACTOR_FRAMES {ACTOR_FRAME_COUNT}\n'
         'extern const DeceptusU16 amiga_background[];\n'
         'extern const DeceptusU16 amiga_actors[];\n'
         'extern const DeceptusU16 amiga_masks[];\n'
@@ -91,6 +92,10 @@ def convert(data, output):
                   background_bytes=(width + 32) * height * 5 // 8,
                   framebuffer_bytes=(width + 32) * height * 5 // 4,
                   actor_bytes=(len(actor_words) + len(masks)) * 2,
+                  palette_mode='shared RGB444',
+                  background_colors=len(np.unique(np.asarray(background))),
+                  color_error=dict(background=color_error(original_background, background),
+                                   actors=color_error(original_actors, actor_preview)),
                   original_import=json.loads((source / 'import.json').read_text()))
     (output / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     return report
