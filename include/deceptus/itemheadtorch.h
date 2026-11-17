@@ -3,6 +3,12 @@
 
 #include "deceptus/adventure.h"
 
+typedef struct DeceptusHeadtorchPose
+{
+   DeceptusI16 x, y;
+   DeceptusU8 side, valid;
+} DeceptusHeadtorchPose;
+
 DeceptusU8 deceptusItemHeadtorchEquipped(const DeceptusAdventure *game);
 
 #endif

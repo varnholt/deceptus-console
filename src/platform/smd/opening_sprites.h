@@ -1,7 +1,6 @@
 /* logical source frames mapped to bounded Mega Drive sprites and palette banks. */
+#include "deceptus/appearance.h"
 #include "deceptus/enemies.h"
-#include "deceptus/itemheadtorch.h"
-#include "deceptus/playeranimation.h"
 #include "opening_video.h"
 #include "smd_headtorch_resources.h"
 #include "smd_sword_resources.h"
@@ -250,161 +249,22 @@ static void smdObjQuads(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, Deceptus
    }
 }
 
-static DeceptusU16 smdObjSword(const DeceptusAdventure *game, DeceptusI16 *x, DeceptusI16 *y)
+static DeceptusU8 smdObjAppearance(void *context, const DeceptusSpriteAppearance *sprite)
 {
-   static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
-   static const DeceptusSwordAnimationDef definition = {smd_sword_clips, smd_sword_durations, sizeof(smd_sword_durations),
-                                                        sizeof(smd_sword_clips) / sizeof(smd_sword_clips[0])};
-   DeceptusDraw appearance;
-   if (deceptusPlayerSwordAppearance(game, &animation, &definition, &appearance) != DECEPTUS_APPEARANCE_READY)
+   static const DeceptusU16 first[DECEPTUS_SPRITE_FAMILY_COUNT] = {
+      SMD_ACTOR_FIRST,     SMD_LEVER_FIRST,         SMD_SPIKES_FIRST,    SMD_BLOCK_FIRST,          SMD_COLLAPSE_FIRST,
+      SMD_RAT_FIRST,       SMD_TRAP_FIRST,          SMD_MUZZLE_FIRST,    SMD_ARROW_FIRST,          SMD_SWIM_FIRST,
+      SMD_BLOB_FIRST,      SMD_SPLASH_FIRST,        SMD_SWORD_FIRST,     SMD_CANNON_FIRST,         SMD_CANNONBALL_FIRST,
+      SMD_IRON_DOOR_FIRST, SMD_WOODEN_PLANKS_FIRST, SMD_HEADTORCH_FIRST, SMD_HEADTORCH_BEAM_FIRST, SMD_ORB_FIRST,
+      SMD_FROG_BLUE_FIRST, SMD_BLUE_FIREBALL_FIRST, SMD_GRAB_ROPE_FIRST, SMD_PLAYER_ROPE_FIRST};
+   (void)context;
+   if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
    {
-      smd_sprite_overflow = 1;
       return 0;
    }
-   *x = appearance.x;
-   *y = appearance.y;
-   return appearance.frame;
-}
-
-static void smdObjPlayer(const DeceptusAdventure *game, const DeceptusDraw *draw)
-{
-   const SmdHeadtorchPose *pose;
-   const DeceptusEngine *engine;
-   DeceptusU16 resource, image;
-   DeceptusI16 x, y, helmet_x, helmet_y;
-   DeceptusU8 flip;
-   engine = &game->campaign.engine;
-   image = draw->frame;
-   x = draw->x;
-   y = draw->y;
-   flip = draw->flip_x;
-   if (game->has_sword)
-   {
-      image = smdObjSword(game, &x, &y);
-      resource = SMD_SWORD_FIRST + image;
-      pose = &smd_headtorch_sword[image];
-      flip = 0;
-   }
-   else if (draw->kind == DECEPTUS_PLAYER_SWIM)
-   {
-      resource = SMD_SWIM_FIRST + image;
-      pose = &smd_headtorch_swim[image];
-   }
-   else if (draw->kind == DECEPTUS_PLAYER_ROPE)
-   {
-      resource = SMD_PLAYER_ROPE_FIRST + image;
-      pose = &smd_headtorch_rope[image];
-   }
-   else
-   {
-      resource = SMD_ACTOR_FIRST + image;
-      pose = &smd_headtorch_normal[engine->entities[0].facing_left][image];
-   }
-   if (deceptusItemHeadtorchEquipped(game) && pose->valid)
-   {
-      helmet_x = deceptusFloor(engine->entities[0].x) - engine->camera_x + pose->x;
-      helmet_y = deceptusFloor(engine->entities[0].y) - engine->camera_y + pose->y;
-      smdObjAdd(SMD_HEADTORCH_FIRST + pose->side, helmet_x, helmet_y, 0, 2);
-      smdObjAdd(SMD_HEADTORCH_BEAM_FIRST, helmet_x + smd_headtorch_lamp_offsets[pose->side][0] - (pose->side ? 64 : 0),
-                helmet_y + smd_headtorch_lamp_offsets[pose->side][1] - 16, pose->side, 2);
-   }
-   smdObjAdd(resource, x, y, flip, 2);
-}
-
-static void smdObjMechanisms(const DeceptusEngine *engine)
-{
-   const DeceptusMechanismDef *definition;
-   const DeceptusMechanismState *state;
-   DeceptusU16 index, resource, segment, segments;
-   DeceptusI16 x, y;
-   for (index = 0; index < engine->mechanisms.count; ++index)
-   {
-      definition = &engine->mechanisms.definitions[index];
-      state = &engine->mechanisms.states[index];
-      if (!state->visible)
-      {
-         continue;
-      }
-      segments = 1;
-      x = definition->bounds.x - engine->camera_x;
-      y = definition->bounds.y - engine->camera_y;
-      if (definition->kind == DECEPTUS_MECH_LEVER)
-      {
-         resource = SMD_LEVER_FIRST + (state->handle_available ? state->frame : 32);
-      }
-      else if (definition->kind == DECEPTUS_MECH_BLOCK && engine->mechanisms.timings &&
-               (engine->mechanisms.timings[index].flags & DECEPTUS_TIMED_ANIMATION))
-      {
-         resource = SMD_BLOCK_FIRST + state->frame;
-      }
-      else if (definition->kind == DECEPTUS_MECH_SPIKES)
-      {
-         resource = SMD_SPIKES_FIRST + state->frame;
-      }
-      else if (definition->kind == DECEPTUS_MECH_COLLAPSING)
-      {
-         if (state->frame >= 38 || state->phase == 2)
-         {
-            continue;
-         }
-         resource = SMD_COLLAPSE_FIRST + state->frame;
-         segments = definition->bounds.width / 24;
-         y -= 24;
-         if (state->phase == 1)
-         {
-            y += state->timer / 10;
-         }
-         else if (state->timer)
-         {
-            y += (DeceptusI16)((state->timer / 2) & 3) - 1;
-         }
-      }
-      else if (definition->kind == DECEPTUS_MECH_DOOR)
-      {
-         resource = SMD_IRON_DOOR_FIRST + state->frame;
-         x -= 24;
-         y -= 24;
-      }
-      else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE)
-      {
-         resource = SMD_WOODEN_PLANKS_FIRST + state->frame;
-         if (definition->flags & DECEPTUS_MECH_RIGHT_ALIGNED)
-         {
-            resource += 50;
-            x -= 102;
-         }
-      }
-      else
-      {
-         continue;
-      }
-      for (segment = 0; segment < segments; ++segment)
-      {
-         smdObjAdd(resource + (definition->kind == DECEPTUS_MECH_COLLAPSING ? (segment & 3) * 38 : 0), x + segment * 24, y, 0, 2);
-      }
-   }
-}
-
-static void smdObjRopes(const DeceptusEngine *engine)
-{
-   DeceptusU16 distance, length, height;
-   DeceptusU8 rope;
-   DeceptusI16 x, y;
-   for (rope = 0; rope < engine->grab_ropes.count; ++rope)
-   {
-      length = deceptusGrabRopeLength(engine, rope);
-      for (distance = 0; distance < length; distance += height)
-      {
-         height = distance ? 8 : 16;
-         if (height > length - distance)
-         {
-            height = length - distance;
-         }
-         deceptusGrabRopePointAt(engine, rope, distance, &x, &y);
-         smdObjAdd(SMD_GRAB_ROPE_FIRST + (distance ? height : 0), x - engine->camera_x - 7, y - engine->camera_y - (distance ? 4 : 0), 0,
-                   3);
-      }
-   }
+   smdObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x,
+             sprite->family == DECEPTUS_SPRITE_GRAB_ROPE ? 3 : 2);
+   return 1;
 }
 
 static void smdSpritesInit(void)
@@ -428,7 +288,14 @@ static void smdSpritesPreparePass(const DeceptusAdventure *game, const DeceptusF
    DeceptusU16 index, other, resource, row, column, piece, slot, active_count;
    DeceptusI16 x, y;
    DeceptusU8 palette, link, quads;
-   const DeceptusDraw *draw;
+   static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
+   static const DeceptusAppearanceDef appearance = {
+      {smd_sword_clips, smd_sword_durations, sizeof(smd_sword_durations), sizeof(smd_sword_clips) / sizeof(smd_sword_clips[0])},
+      smd_headtorch_normal,
+      smd_headtorch_swim,
+      smd_headtorch_rope,
+      smd_headtorch_sword,
+      smd_headtorch_lamp_offsets};
    const SmdSpriteResource *entry;
    const SmdObjRequest *request;
    smd_obj_request_count = smd_obj_count = 0;
@@ -439,69 +306,9 @@ static void smdSpritesPreparePass(const DeceptusAdventure *game, const DeceptusF
    {
       smd_obj_slots[index].used = 0;
    }
-   if (game->campaign.mode != DECEPTUS_CAMPAIGN_TITLE)
+   if (!deceptusAppearanceVisit(game, frame, &appearance, &animation, smdObjAppearance, 0))
    {
-      for (index = 0; index < frame->count; ++index)
-      {
-         draw = &frame->draws[index];
-         if (draw->kind == DECEPTUS_PLAYER || draw->kind == DECEPTUS_PLAYER_SWIM || draw->kind == DECEPTUS_PLAYER_ROPE)
-         {
-            smdObjPlayer(game, draw);
-            continue;
-         }
-         if (draw->kind == DECEPTUS_RAT)
-         {
-            resource = SMD_RAT_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_BLOB_2)
-         {
-            resource = SMD_BLOB_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_ARROW_TRAP)
-         {
-            resource = SMD_TRAP_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_ARROW_MUZZLE)
-         {
-            resource = SMD_MUZZLE_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_ARROW)
-         {
-            resource = SMD_ARROW_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_CANNON_2)
-         {
-            resource = SMD_CANNON_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_CANNONBALL)
-         {
-            resource = SMD_CANNONBALL_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_ORB)
-         {
-            resource = SMD_ORB_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_FROG_BLUE)
-         {
-            resource = SMD_FROG_BLUE_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_BLUE_FIREBALL)
-         {
-            resource = SMD_BLUE_FIREBALL_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_WATER_SPLASH)
-         {
-            resource = SMD_SPLASH_FIRST;
-         }
-         else
-         {
-            smd_sprite_overflow = 1;
-            continue;
-         }
-         smdObjAdd(resource + draw->frame, draw->x, draw->y, draw->flip_x, 2);
-      }
-      smdObjMechanisms(&game->campaign.engine);
-      smdObjRopes(&game->campaign.engine);
+      smd_sprite_overflow = 1;
    }
    /* protect all existing frames needed later in this presentation. */
    active_count = 0;

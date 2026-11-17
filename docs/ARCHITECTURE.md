@@ -48,6 +48,41 @@ matching the mechanism build pattern. Compile that entry rather than its private
 fragments separately. This preserves existing compiler optimization and bounded
 runtime behavior while making ownership explicit.
 
+## Streamed room content
+
+`DeceptusAdventureInitWithRoomProvider` accepts a caller-owned room loader. The
+adventure chooses the destination using its content-defined portals; a platform
+loader only supplies that room's resources. Cartridge builds retain the existing
+static room tables and `deceptusAdventureInit` entry point. A streamed campaign
+may omit its static room-pointer table. Returned room storage, including its
+collision bytes and referenced arrays, must remain valid until the next load.
+A failed load halts the adventure with a content error before arrival placement.
+Restarting the adventure retains the provider and its context.
+
+`tools/room_content.py` exports `DRM1` files from the same lossless collision grid
+used by `world_export.py`. `src/game/roomcontent.c` decodes explicit big-endian
+fields into caller-owned arrays; it never casts file bytes to C structures.
+It validates the exact file length, dimensions, capacities and target/path
+ranges. Ordinary mechanism/enemy initialization still checks semantic content.
+The collision grid points into the resident file bytes instead of a second copy.
+Enemy definitions keep this codec in the game library, independent of the engine.
+
+The opening needs at most 16,522 bytes for one simulation file, 16 mechanisms,
+12 target links, five enemies and six path points. These are measured content
+requirements, not new global engine limits. Local checks compare all 26 decoded
+rooms to the static definitions and replay the entire opening with one reusable
+room slot; newly created verification artifacts remain outside version control.
+
+## Shared game presentation
+
+`src/game/appearance.c` visits original-source sprite appearances for the player,
+equipment, enemies, mechanisms and grab ropes. It owns pose/attachment choices
+and emits logical family/frame coordinates. Backends map those families to their
+converted graphics, cull offscreen requests and enforce their existing bounded
+hardware queues. The visitor adds no intermediate frame buffer or heap storage.
+SNES and Mega Drive consume this path; it is also available to the Amiga opening.
+GBA still has its existing renderer, with shared sword pose and equipment rules.
+
 ## Mechanism source correspondence
 
 Keep the original engine's vocabulary and recognizable file names when porting.

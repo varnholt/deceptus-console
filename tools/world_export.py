@@ -8,9 +8,9 @@ from PIL import Image
 from tiled import collision_grid
 
 
-def export_world(source, output, recipe):
-    source, output = Path(source), Path(output)
-    output.mkdir(parents=True, exist_ok=True)
+def collision_data(source, recipe):
+    """Return the lossless simulation grid before any target graphics conversion."""
+    source = Path(source)
     solid_image = Image.open(source / "collision.png")
     solid = collision_grid(solid_image, recipe["collision_cell"], recipe["coverage_threshold"])
     one_way = collision_grid(Image.open(source / "one_way.png"), recipe["collision_cell"], threshold=0.125)
@@ -19,6 +19,13 @@ def export_world(source, output, recipe):
         water=collision_grid(Image.open(source/'water.png'),recipe['collision_cell'],threshold=0.5)
         collision=[value|(8 if wet else 0) for value,wet in zip(collision,water)]
     columns, rows = solid_image.width // recipe["collision_cell"], solid_image.height // recipe["collision_cell"]
+    return bytes(collision), columns, rows
+
+
+def export_world(source, output, recipe):
+    source, output = Path(source), Path(output)
+    output.mkdir(parents=True, exist_ok=True)
+    collision, columns, rows = collision_data(source, recipe)
     (output / "collision.bin").write_bytes(bytes(collision))
     lines = ['#include "deceptus/engine.h"', '#include "deceptus/enemies.h"', '', 'static const DeceptusU8 room_collision[] = {']
     lines += ['    ' + ','.join(map(str, collision[offset:offset + columns])) + ','

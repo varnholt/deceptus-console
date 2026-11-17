@@ -1,5 +1,5 @@
-#include "deceptus/game.h"
 #include "deceptus/adventure.h"
+#include "deceptus/game.h"
 #include <string.h>
 
 DeceptusU8 deceptusInventoryAdd(DeceptusInventory *inventory, DeceptusU8 item)
@@ -62,17 +62,42 @@ DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure *game, const Dec
            (interaction->cost_item < DECEPTUS_INVENTORY_ITEMS && game->inventory.counts[interaction->cost_item]));
 }
 
+static const DeceptusRoom *requestRoom(DeceptusAdventure *game, DeceptusU8 room)
+{
+   if (game->room_provider.load)
+   {
+      return game->room_provider.load(game->room_provider.context, room);
+   }
+   return game->definition->campaign->rooms[room];
+}
+
 void deceptusAdventureInit(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video)
 {
+   deceptusAdventureInitWithRoomProvider(game, definition, video, 0);
+}
+
+void deceptusAdventureInitWithRoomProvider(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video,
+                                           const DeceptusRoomProvider *provider)
+{
    DeceptusVideoCaps saved_video;
+   DeceptusRoomProvider saved_provider;
+   const DeceptusRoom *room;
    DeceptusU8 index;
    saved_video = *video;
+   saved_provider.load = 0;
+   saved_provider.context = 0;
+   if (provider)
+   {
+      saved_provider = *provider;
+   }
    memset(game, 0, sizeof(*game));
    game->definition = definition;
+   game->room_provider = saved_provider;
    game->prompt = 255;
    game->room_label_ticks = 120;
-   if (!definition || !definition->campaign || !definition->rooms || !definition->campaign->rooms || !definition->campaign->room_count ||
-       definition->campaign->room_count > DECEPTUS_ADVENTURE_ROOMS || definition->item_count >= DECEPTUS_INVENTORY_ITEMS)
+   if (!definition || !definition->campaign || !definition->rooms || (!saved_provider.load && !definition->campaign->rooms) ||
+       !definition->campaign->room_count || definition->campaign->room_count > DECEPTUS_ADVENTURE_ROOMS ||
+       definition->item_count >= DECEPTUS_INVENTORY_ITEMS)
    {
       game->campaign.engine.content_error = 8;
       return;
@@ -81,7 +106,8 @@ void deceptusAdventureInit(DeceptusAdventure *game, const DeceptusAdventureDef *
    game->campaign.video = saved_video;
    for (index = 0; index < definition->campaign->room_count; ++index)
    {
-      if (!definition->campaign->rooms[index] || (definition->rooms[index].binding_count && !definition->rooms[index].bindings) ||
+      if ((!saved_provider.load && !definition->campaign->rooms[index]) ||
+          (definition->rooms[index].binding_count && !definition->rooms[index].bindings) ||
           (definition->rooms[index].portal_count && !definition->rooms[index].portals) ||
           (definition->rooms[index].interaction_count && !definition->rooms[index].interactions))
       {
@@ -89,7 +115,13 @@ void deceptusAdventureInit(DeceptusAdventure *game, const DeceptusAdventureDef *
          return;
       }
    }
-   deceptusInit(&game->campaign.engine, definition->campaign->rooms[0], &saved_video);
+   room = requestRoom(game, 0);
+   if (!room)
+   {
+      game->campaign.engine.content_error = 8;
+      return;
+   }
+   deceptusInit(&game->campaign.engine, room, &saved_video);
    deceptusTick(&game->campaign.engine, 0);
 }
 
@@ -152,14 +184,21 @@ static void applyBindings(DeceptusAdventure *game)
    }
 }
 
-static void loadRoom(DeceptusAdventure *game, DeceptusU8 room, DeceptusU16 buttons)
+static DeceptusU8 loadRoom(DeceptusAdventure *game, DeceptusU8 room, DeceptusU16 buttons)
 {
    DeceptusEngine *engine;
+   const DeceptusRoom *definition;
    DeceptusU8 health;
    engine = &game->campaign.engine;
    health = engine->health;
+   definition = requestRoom(game, room);
+   if (!definition)
+   {
+      engine->content_error = 8;
+      return 0;
+   }
    game->campaign.room_index = room;
-   deceptusInit(engine, game->definition->campaign->rooms[room], &game->campaign.video);
+   deceptusInit(engine, definition, &game->campaign.video);
    deceptusPlayerSwordInit(&game->sword);
    engine->health = health;
    if (game->visited[room])
@@ -173,6 +212,7 @@ static void loadRoom(DeceptusAdventure *game, DeceptusU8 room, DeceptusU16 butto
    game->portal_cooldown = 12;
    game->room_label_ticks = 120;
    game->prompt = 255;
+   return !engine->content_error;
 }
 
 static DeceptusU8 interact(DeceptusAdventure *game, const DeceptusInteraction *action)
@@ -342,7 +382,7 @@ DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons)
       {
          if (game->selection)
          {
-            deceptusAdventureInit(game, game->definition, &campaign->video);
+            deceptusAdventureInitWithRoomProvider(game, game->definition, &campaign->video, &game->room_provider);
             game->campaign.previous_buttons = buttons;
             return 1;
          }
@@ -596,7 +636,10 @@ DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons)
       velocity_x = engine->entities[0].velocity_x;
       velocity_y = engine->entities[0].velocity_y;
       saveRoom(game);
-      loadRoom(game, portal->destination, buttons);
+      if (!loadRoom(game, portal->destination, buttons))
+      {
+         return 0;
+      }
       x += portal->offset_x;
       y += portal->offset_y;
       if (portal->direction == DECEPTUS_PORTAL_LEFT)

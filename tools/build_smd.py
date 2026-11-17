@@ -21,14 +21,14 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     opening = scene == 'tutorial'
     generated = Path(assets_dir).resolve() if assets_dir else ROOT / ('assets/generated/smd-opening' if opening else 'assets/generated/smd')
     if opening:
-        from smd_opening_assets import compile_opening
+        from smd_opening_assets import compile_opening, converter_identity
         from campaign_assets import asset_identity
         if not reuse_assets:
             from smd_opening_inputs import prepare_smd_metadata
             portable = prepare_smd_metadata(data, output / 'portable-metadata')
             compile_opening(data, generated, portable)
         metadata = json.loads((generated / 'build.json').read_text())
-        digest = hashlib.sha256((ROOT / 'tools/smd_opening_assets.py').read_bytes() + (ROOT / 'tools/smd_assets.py').read_bytes()).hexdigest()
+        digest = converter_identity()
         if metadata['source_identity'] != asset_identity(data) or metadata['converter_sha256'] != digest:
             raise SystemExit('Mega Drive cached opening does not match original sources or converter; rebuild without --reuse-assets')
         if metadata['rom_graphics_bytes'] > 4 * 1024 * 1024 - 262144:
@@ -55,7 +55,7 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     if opening:
         sources = [source for source in sources if source != ROOT / 'src/platform/smd/main.c']
         sources += [ROOT / name for name in ('src/game/adventure.c', 'src/game/campaign.c',
-                    'src/game/weapons/playersword.c', 'src/game/player/playeranimation.c', 'src/game/items/itemheadtorch.c', 'src/platform/smd/opening.c',
+                    'src/game/weapons/playersword.c', 'src/game/player/playeranimation.c', 'src/game/items/itemheadtorch.c', 'src/game/appearance.c', 'src/platform/smd/opening.c',
                     'src/platform/smd/background.c', 'src/platform/smd/graphics_io.c')]
         sources += [generated / name for name in metadata['c_sources']]
     else:
