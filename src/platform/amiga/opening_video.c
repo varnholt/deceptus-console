@@ -3,6 +3,7 @@
 #include "deceptus/appearance.h"
 #include "opening_ui.h"
 #include "rooms.h"
+#include "spritecache.h"
 #include "system.h"
 #include <hardware/blit.h>
 #include <hardware/custom.h>
@@ -19,7 +20,9 @@
 #define BUFFER_WORDS (PLANE_WORDS * 5)
 #define SPRITE_CAPACITY 96
 #define TILE_CACHE_SLOTS 128
-#define ROW_CACHE_SLOTS 4
+#define SPRITE_CACHE_BYTES (24UL * 1024)
+#define ROW_CACHE_WAYS 4
+#define ROW_CACHE_SETS 16
 #define CHIP __attribute__((section(".MEMF_CHIP")))
 
 typedef struct AmigaRowCache
@@ -34,7 +37,6 @@ typedef struct AmigaSpriteRequest
 {
    AmigaGraphicsSprite graphic;
    DeceptusI16 x, y;
-   DeceptusU8 flip;
 } AmigaSpriteRequest;
 
 typedef struct AmigaClipState
@@ -50,12 +52,15 @@ static DeceptusU16 copper[2][128] CHIP;
 static DeceptusU16 blank_copper[6] CHIP = {0x0100, 0, 0x0180, 0, 0xffff, 0xfffe};
 static DeceptusU16 sprite_pixels[(AMIGA_SPRITE_SCRATCH_BYTES + 1) / 2] CHIP;
 static DeceptusU16 palette[32];
+static AmigaSpriteCache sprite_cache;
 static DeceptusU8 *tile_cache, *tile_directory;
 static DeceptusU16 tile_directory_count;
 static DeceptusU16 tile_slots;
 static DeceptusU16 tile_groups[TILE_CACHE_SLOTS];
-static AmigaRowCache row_cache[ROW_CACHE_SLOTS];
-static DeceptusU8 tile_cursor, row_cursor;
+static AmigaRowCache base_rows[ROW_CACHE_WAYS];
+static AmigaRowCache *row_cache = base_rows;
+static DeceptusU8 row_sets, row_cursors[ROW_CACHE_SETS];
+static DeceptusU8 tile_cursor;
 static AmigaClipState clips[AMIGA_OPENING_CLIPS];
 static DeceptusU16 previous_clip_frames[2][AMIGA_OPENING_CLIPS];
 static DeceptusU8 previous_clip_enabled[2][AMIGA_OPENING_CLIPS];
@@ -125,11 +130,27 @@ void amigaOpeningVideoClose(void)
    amigaSystemClose();
 }
 
-static DeceptusU8 prepareTileCache(void)
+static DeceptusU8 prepareCaches(void)
 {
-   DeceptusU32 size, offset;
+   DeceptusU32 size, offset, sprite_size, chip_size, unused;
    DeceptusU16 slot;
+   DeceptusU8 *sprite_memory, *chip_memory, *row_memory;
+   DeceptusU32 row_bytes;
+   DeceptusU8 rows_in_sprite_bank;
+   row_cache = base_rows;
+   row_sets = 1;
+   rows_in_sprite_bank = 0;
    tile_directory = amigaRoomScratch(&size);
+   chip_memory = amigaRoomChipScratch(&chip_size);
+   sprite_memory = chip_memory;
+   sprite_size = chip_size;
+   if (chip_size > size)
+   {
+      sprite_memory = tile_directory;
+      sprite_size = size;
+      tile_directory = chip_memory;
+      size = chip_size;
+   }
    tile_directory_count = (DeceptusU16)(((DeceptusU32)graphics->pattern_count + 15) / 16);
    offset = ((DeceptusU32)tile_directory_count + 3) & ~3UL;
    if (!tile_directory || size < offset + AMIGA_TILE_GROUP_BYTES)
@@ -142,6 +163,46 @@ static DeceptusU8 prepareTileCache(void)
    {
       tile_slots = TILE_CACHE_SLOTS;
    }
+   if (tile_slots > tile_directory_count)
+   {
+      tile_slots = tile_directory_count;
+   }
+   unused = size - offset - (DeceptusU32)tile_slots * AMIGA_TILE_GROUP_BYTES;
+   row_memory = tile_cache + (DeceptusU32)tile_slots * AMIGA_TILE_GROUP_BYTES;
+   row_bytes = unused;
+   if (sprite_size > SPRITE_CACHE_BYTES && sprite_size - SPRITE_CACHE_BYTES > row_bytes)
+   {
+      rows_in_sprite_bank = 1;
+      row_memory = sprite_memory + SPRITE_CACHE_BYTES;
+      row_bytes = sprite_size - SPRITE_CACHE_BYTES;
+   }
+   while (row_sets < ROW_CACHE_SETS && (DeceptusU32)row_sets * 2 * ROW_CACHE_WAYS * sizeof(*row_cache) <= row_bytes)
+   {
+      row_sets *= 2;
+   }
+   if (row_sets > 1)
+   {
+      row_cache = (AmigaRowCache *)row_memory;
+      row_bytes = (DeceptusU32)row_sets * ROW_CACHE_WAYS * sizeof(*row_cache);
+      if (rows_in_sprite_bank)
+      {
+         sprite_size = SPRITE_CACHE_BYTES;
+      }
+      else
+      {
+         unused -= row_bytes;
+      }
+   }
+   if (sprite_size < SPRITE_CACHE_BYTES && unused > sprite_size)
+   {
+      sprite_memory = tile_cache + (DeceptusU32)tile_slots * AMIGA_TILE_GROUP_BYTES + (row_cache == base_rows ? 0 : row_bytes);
+      sprite_size = unused;
+   }
+   if (sprite_size > SPRITE_CACHE_BYTES)
+   {
+      sprite_size = SPRITE_CACHE_BYTES;
+   }
+   amigaSpriteCacheInit(&sprite_cache, sprite_memory, sprite_size);
    memset(tile_directory, 255, tile_directory_count);
    for (slot = 0; slot < tile_slots; ++slot)
    {
@@ -154,11 +215,12 @@ static DeceptusU8 prepareTileCache(void)
 void amigaOpeningVideoReset(void)
 {
    graphics = amigaRoomGraphics();
-   error = !prepareTileCache() || !amigaGraphicsPalette(graphics, palette) || graphics->clip_count > AMIGA_OPENING_CLIPS;
+   error = !prepareCaches() || !amigaGraphicsPalette(graphics, palette) || graphics->clip_count > AMIGA_OPENING_CLIPS;
    valid[0] = valid[1] = 0;
    previous_counts[0] = previous_counts[1] = 0;
    previous_ui_count[0] = previous_ui_count[1] = 0;
-   memset(row_cache, 0, sizeof(row_cache));
+   memset(row_cache, 0, (DeceptusU32)row_sets * ROW_CACHE_WAYS * sizeof(*row_cache));
+   memset(row_cursors, 0, sizeof(row_cursors));
    animation.previous_pose = 255;
 }
 
@@ -199,12 +261,14 @@ static const DeceptusU8 *tilePixels(DeceptusU16 pattern)
 static DeceptusU16 mapCell(DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 column, DeceptusU16 row)
 {
    AmigaRowCache *entry;
-   DeceptusU8 slot;
+   DeceptusU8 slot, set, first;
    if (column >= columns || row >= rows)
    {
       return 0;
    }
-   for (slot = 0; slot < ROW_CACHE_SLOTS; ++slot)
+   set = (DeceptusU8)((map ^ (map >> 8) ^ row) & (row_sets - 1));
+   first = set * ROW_CACHE_WAYS;
+   for (slot = first; slot < first + ROW_CACHE_WAYS; ++slot)
    {
       entry = &row_cache[slot];
       if (entry->valid && entry->map == map && entry->row == row && entry->columns == columns && entry->rows == rows)
@@ -212,7 +276,7 @@ static DeceptusU16 mapCell(DeceptusU32 map, DeceptusU16 columns, DeceptusU16 row
          return entry->cells[column];
       }
    }
-   entry = &row_cache[row_cursor++ % ROW_CACHE_SLOTS];
+   entry = &row_cache[first + (row_cursors[set]++ & (ROW_CACHE_WAYS - 1))];
    entry->valid = 0;
    if (!amigaGraphicsRow(graphics, map, columns, rows, row, entry->cells))
    {
@@ -470,7 +534,7 @@ static DeceptusU8 requestSprite(void *context, const DeceptusSpriteAppearance *a
       return 0;
    }
    resource = amiga_sprite_families[appearance->family] + appearance->frame;
-   if (!amigaGraphicsSpriteInfo(graphics, resource, &request.graphic))
+   if (!amigaGraphicsSpriteInfo(graphics, resource, appearance->flip_x, &request.graphic))
    {
       return 0;
    }
@@ -486,7 +550,6 @@ static DeceptusU8 requestSprite(void *context, const DeceptusSpriteAppearance *a
    }
    request.x += engine->camera_x - origin_x;
    request.y += engine->camera_y - origin_y;
-   request.flip = appearance->flip_x;
    requests[request_count++] = request;
    return 1;
 }
@@ -547,14 +610,10 @@ static void drawSprite(const AmigaSpriteRequest *request)
    const DeceptusU8 *pixels, *mask;
    DeceptusU16 *destination;
    waitBlitter();
-   if (!amigaGraphicsSpriteDecode(graphics, &request->graphic, (DeceptusU8 *)sprite_pixels, sizeof(sprite_pixels)))
+   if (!amigaSpriteCacheDecode(&sprite_cache, graphics, &request->graphic, (DeceptusU8 *)sprite_pixels, sizeof(sprite_pixels)))
    {
       error = 1;
       return;
-   }
-   if (request->flip)
-   {
-      amigaGraphicsSpriteFlip((DeceptusU8 *)sprite_pixels, &request->graphic);
    }
    first = request->x < 0 ? -((-request->x + 15) / 16) : request->x / 16;
    words = request->graphic.row_bytes / 2;

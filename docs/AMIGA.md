@@ -62,21 +62,79 @@ static sizes; the OS, loader and largest free block in each bank must also fit.
 The prototype's measured frame rate below does not establish opening performance.
 The opening title has now been
 verified under cycle-exact WinUAE with the same 512 KiB Chip + 512 KiB slow RAM
-configuration and built-in AROS. Its static footprint is approximately 690 KiB,
+configuration and built-in AROS. Its static footprint is approximately 693 KiB,
 including 467 KiB of Chip RAM. A local normal-input replay now passes all 56 opening checkpoints through the
 rubies, crypt return, altar and sword acquisition/attack under accelerated
 68000 emulation with the same RAM budget. This verifies progression/resource
 loading, not cycle-exact performance or complete source cutscene fidelity.
-Action-scene frame rates remain under verification. Room loading lends the unused end of its resident sprite
-buffer to the tile cache. A directory provides constant-time cache lookup;
-changing rooms or body variants invalidates the lease and cache together.
+Action-scene frame rates remain under verification. Room loading lends the unused
+ends of both resource banks to the graphics caches. A directory provides
+constant-time tile lookup; changing rooms or body variants invalidates both
+leases and caches together.
 Row maps decode directly into native words, avoiding an intermediate byte buffer.
-A short cycle-exact moving-Cell check after this change measured 2.75 displayed
-frames/s and 15 simulation ticks/s at the 1 MiB configuration. This remains far
+A short cycle-exact moving-Cell check with the resource caches measured about
+4.5 displayed frames/s and 27 simulation ticks/s at the 1 MiB configuration
+(previously 2.75 frames/s and 15 ticks/s before these caches). This remains far
 below the target rate; the complete opening is not performance-ready. The
 renderer also avoids restoring background pixels that the next opaque UI box
 will cover. These changes retain fixed ownership and add no runtime heap.
 
+
+## Opening sprite resources and cache ownership
+
+`tools/amiga_opening_assets.py` emits `AG03` world archives (`.agp`) and
+compressed sprite blocks (`.asp`). Rebuild assets after a format/converter
+change; `--reuse-assets` rejects stale converter identities and altered files.
+The decoder rejects older archive versions rather than interpreting their
+sprite descriptors with the new layout.
+
+The 48-byte big-endian header retains room dimensions/counts and the palette,
+tile, row-map, clip and sprite-table offsets. Sprite descriptors are now 28
+bytes: resource ID (`u16`), normal/flip X trim and Y trim (`i16` each), width and
+height (`u16` each), then normal offset/length and mirrored offset/length (`u32`
+each). A zero mirrored length requests runtime fallback. Both orientations use
+independent LZ4 blocks, five planar colour planes and one mask plane, with
+word-aligned rows and a trailing guard word for shifted blits. Identical blocks
+share storage. Dimensions, trimming, transparent padding and pixels are retained.
+
+Conversion adds mirrored blocks in resource order while they fit. It aims to
+leave 24 KiB of resource-bank headroom beyond the largest decoded sprite;
+rooms whose base data already exceeds that target retain their smaller budget.
+Missing offline mirrors do not omit sprites or change gameplay. The loader splits
+only at complete normal or mirrored block boundaries between the 360 KiB Chip
+and 88 KiB normal resource banks.
+
+`prepareCaches` borrows the unused tails of both resource banks until the next
+graphics load. The larger tail holds the tile directory and up to 128 decoded
+tile groups, capped by the room's group count. The other tail holds up to 24 KiB
+of decoded sprites; unused space after the tile cache can serve it instead when
+that gives a larger cache. Regions never overlap resident resources or one
+another. Neither cache allocates memory at runtime. A bank too small for a tile
+group causes a checked renderer failure; a small sprite cache remains usable
+through direct decoding. These are opportunistic graphics leases, not an audio
+budget: future sound/music storage must be excluded before cache partitioning.
+
+`AmigaSpriteCache` owns only metadata; its caller owns the supplied byte buffer.
+Initialize it whenever room/body-variant resources change. Source graphics must
+remain immutable for that lease. Sixteen entries identify decoded blocks by
+source offset/length, dimensions, stride and orientation. A bounded ring evicts
+entries overlapping a new frame. Cache misses decode and, when necessary,
+mirror once. Oversized frames decode directly into the existing Chip staging
+buffer. Every draw copies cached bytes into that staging buffer before blitting.
+Cache addresses are never given directly to the blitter. The renderer waits for the
+previous blit before reusing staging. Errors still propagate to the renderer.
+
+Decoded row maps retain four ways per set. Rooms with spare cache space borrow
+up to sixteen sets (64 rows); large rooms fall back to four static rows. A hash
+of map offset and row selects a set, bounding each lookup to four comparisons.
+Unused tile-bank space or space beyond the sprite-cache cap supplies the extra
+rows, without taking away resident tiles or decoded-sprite capacity. This lease
+is also invalidated on every graphics reload.
+
+Local verification covers both orientations of every sprite in all 52 archives,
+including odd widths and split-bank reads, plus cache hits, overlapping eviction,
+room reset, malformed resources and guarded output. Target performance is measured
+separately from accelerated full-route checks; see the opening scope above.
 
 ## Verified prototype scope
 

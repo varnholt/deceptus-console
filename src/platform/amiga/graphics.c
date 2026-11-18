@@ -42,7 +42,7 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
    DeceptusU16 index, resource;
    AmigaGraphicsSprite sprite;
    memset(graphics, 0, sizeof(*graphics));
-   if (!world || !sprites || world_size < 48 || world[0] != 'A' || world[1] != 'G' || world[2] != '0' || world[3] != '2' ||
+   if (!world || !sprites || world_size < 48 || world[0] != 'A' || world[1] != 'G' || world[2] != '0' || world[3] != '3' ||
        first_size > sprite_size || (first_size < sprite_size && !tail) || readWord(world + 14) != AMIGA_TILE_GROUP ||
        readLong(world + 44) != sprite_size)
    {
@@ -70,7 +70,7 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
        (graphics->height & 7) || !graphics->pattern_count || graphics->sprite_count > AMIGA_GRAPHICS_RESOURCES ||
        !worldRange(graphics, graphics->palette, 64) ||
        !worldRange(graphics, graphics->tile_table, (((DeceptusU32)graphics->pattern_count + 15) / 16 + 1) * 4) ||
-       !worldRange(graphics, graphics->sprite_table, (DeceptusU32)graphics->sprite_count * 20) ||
+       !worldRange(graphics, graphics->sprite_table, (DeceptusU32)graphics->sprite_count * 28) ||
        !worldRange(graphics, graphics->clips, (DeceptusU32)graphics->clip_count * 26))
    {
       return 0;
@@ -78,13 +78,13 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
    memset(graphics->resources, 255, sizeof(graphics->resources));
    for (index = 0; index < graphics->sprite_count; ++index)
    {
-      resource = readWord(world + graphics->sprite_table + (DeceptusU32)index * 20);
+      resource = readWord(world + graphics->sprite_table + (DeceptusU32)index * 28);
       if (resource >= AMIGA_GRAPHICS_RESOURCES || graphics->resources[resource] != 65535U)
       {
          return 0;
       }
       graphics->resources[resource] = index;
-      if (!amigaGraphicsSpriteInfo(graphics, resource, &sprite))
+      if (!amigaGraphicsSpriteInfo(graphics, resource, 0, &sprite) || !amigaGraphicsSpriteInfo(graphics, resource, 1, &sprite))
       {
          return 0;
       }
@@ -102,18 +102,22 @@ DeceptusU32 amigaGraphicsSpriteSplit(const DeceptusU8 *world, DeceptusU32 size, 
    }
    count = readWord(world + 10);
    table = readLong(world + 40);
-   if (table > size || (DeceptusU32)count * 20 > size - table)
+   if (table > size || (DeceptusU32)count * 28 > size - table)
    {
       return 0;
    }
    split = 0;
    for (index = 0; index < count; ++index)
    {
-      offset = readLong(world + table + (DeceptusU32)index * 20 + 12);
-      bytes = readLong(world + table + (DeceptusU32)index * 20 + 16);
-      if (offset <= available && bytes <= available - offset && offset + bytes > split)
+      DeceptusU8 orientation;
+      for (orientation = 0; orientation < 2; ++orientation)
       {
-         split = offset + bytes;
+         offset = readLong(world + table + (DeceptusU32)index * 28 + 12 + orientation * 8);
+         bytes = readLong(world + table + (DeceptusU32)index * 28 + 16 + orientation * 8);
+         if (bytes && offset <= available && bytes <= available - offset && offset + bytes > split)
+         {
+            split = offset + bytes;
+         }
       }
    }
    return split;
@@ -195,7 +199,7 @@ DeceptusU8 amigaGraphicsClip(const AmigaGraphics *graphics, DeceptusU16 index, A
           (!clip->durations || worldRange(graphics, clip->durations, (DeceptusU32)clip->frames * 2));
 }
 
-DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 resource, AmigaGraphicsSprite *sprite)
+DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 resource, DeceptusU8 flip, AmigaGraphicsSprite *sprite)
 {
    const DeceptusU8 *bytes;
    DeceptusU16 index;
@@ -204,21 +208,34 @@ DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 re
       return 0;
    }
    index = graphics->resources[resource];
-   if (index >= graphics->sprite_count || !worldRange(graphics, graphics->sprite_table, ((DeceptusU32)index + 1) * 20))
+   if (index >= graphics->sprite_count || !worldRange(graphics, graphics->sprite_table, ((DeceptusU32)index + 1) * 28))
    {
       return 0;
    }
-   bytes = graphics->world + graphics->sprite_table + (DeceptusU32)index * 20;
+   bytes = graphics->world + graphics->sprite_table + (DeceptusU32)index * 28;
    sprite->trim_x = (DeceptusI16)readWord(bytes + 2);
    sprite->flip_trim_x = (DeceptusI16)readWord(bytes + 4);
    sprite->trim_y = (DeceptusI16)readWord(bytes + 6);
    sprite->width = readWord(bytes + 8);
    sprite->height = readWord(bytes + 10);
    sprite->row_bytes = ((sprite->width + 15) / 16 + 1) * 2;
-   sprite->offset = readLong(bytes + 12);
-   sprite->bytes = readLong(bytes + 16);
-   return sprite->width && sprite->height && sprite->width <= 256 && sprite->height <= 256 && sprite->offset <= graphics->sprite_size &&
-          sprite->bytes <= graphics->sprite_size - sprite->offset;
+   if (!readLong(bytes + 24) && readLong(bytes + 20))
+   {
+      return 0;
+   }
+   sprite->flip = flip && !readLong(bytes + 24);
+   if (flip && !sprite->flip)
+   {
+      sprite->offset = readLong(bytes + 20);
+      sprite->bytes = readLong(bytes + 24);
+   }
+   else
+   {
+      sprite->offset = readLong(bytes + 12);
+      sprite->bytes = readLong(bytes + 16);
+   }
+   return sprite->bytes && sprite->width && sprite->height && sprite->width <= 256 && sprite->height <= 256 &&
+          sprite->offset <= graphics->sprite_size && sprite->bytes <= graphics->sprite_size - sprite->offset;
 }
 
 DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,

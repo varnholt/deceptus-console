@@ -10,4 +10,5 @@ DeceptusU8 amigaRoomSwordGraphics(void);
 DeceptusU16 amigaRoomLoads(void);
 /* scratch remains valid until the next graphics load and never overlaps resident sprites. */
 DeceptusU8 *amigaRoomScratch(DeceptusU32 *size);
+DeceptusU8 *amigaRoomChipScratch(DeceptusU32 *size);
 #endif

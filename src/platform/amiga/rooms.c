@@ -21,6 +21,7 @@ static AmigaGraphics graphics;
 static DeceptusU16 room_loads;
 static DeceptusU8 sword_graphics;
 static DeceptusU32 tile_cache_offset;
+static DeceptusU32 chip_cache_offset;
 
 const AmigaGraphics *amigaRoomGraphics(void)
 {
@@ -36,6 +37,12 @@ DeceptusU8 *amigaRoomScratch(DeceptusU32 *size)
 {
    *size = sizeof(resource_normal) - tile_cache_offset;
    return resource_normal + tile_cache_offset;
+}
+
+DeceptusU8 *amigaRoomChipScratch(DeceptusU32 *size)
+{
+   *size = sizeof(resource_chip) - chip_cache_offset;
+   return (DeceptusU8 *)resource_chip + chip_cache_offset;
 }
 
 static void roomPath(char *destination, const char *prefix, DeceptusU8 room, const char *suffix, DeceptusU8 two_digits)
@@ -87,6 +94,7 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
       return 0;
    }
    tile_cache_offset = (sprite_size - split + 3) & ~3UL;
+   chip_cache_offset = (world_size + split + 3) & ~3UL;
    if (tile_cache_offset > sizeof(resource_normal))
    {
       return 0;

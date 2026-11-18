@@ -29,6 +29,8 @@ typedef struct AmigaGraphicsSprite
    DeceptusI16 trim_x, flip_trim_x, trim_y;
    DeceptusU16 width, height, row_bytes;
    DeceptusU32 offset, bytes;
+   /* missing offline orientation: mirror once when populating the decoded cache. */
+   DeceptusU8 flip;
 } AmigaGraphicsSprite;
 
 DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, DeceptusU32 world_size, const DeceptusU8 *sprites,
@@ -40,7 +42,8 @@ DeceptusU8 amigaGraphicsRow(const AmigaGraphics *graphics, DeceptusU32 map, Dece
                             DeceptusU16 *cells);
 DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics *graphics, DeceptusU16 group, DeceptusU8 *destination);
 DeceptusU8 amigaGraphicsClip(const AmigaGraphics *graphics, DeceptusU16 index, AmigaGraphicsClip *clip);
-DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 resource, AmigaGraphicsSprite *sprite);
+/* selects an offline orientation when available; trim offsets retain both facings. */
+DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 resource, DeceptusU8 flip, AmigaGraphicsSprite *sprite);
 DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
                                      DeceptusU32 capacity);
 void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *sprite);

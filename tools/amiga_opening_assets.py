@@ -151,31 +151,54 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
     tile_data = archive.append(packed_tiles)
     sprite_entries, packed_sprites, unique = [], bytearray(), {}
     maximum_sprite = 0
+    mirrors = []
+
+    def sprite_block(raw):
+        packed = encode_block(raw)
+        if packed not in unique:
+            unique[packed] = len(packed_sprites)
+            packed_sprites.extend(packed)
+        return unique[packed], len(packed)
+
     for index in resources:
         original = images[index]
         bounds = original.getchannel('A').getbbox() or (0, 0, 1, 1)
         trimmed = original.crop(bounds)
         visible = np.asarray(trimmed.getchannel('A')) >= 128
-        pixels = np.asarray(map_image(trimmed, colors))
+        pixels = np.where(visible, np.asarray(map_image(trimmed, colors)), 0)
         width = ((trimmed.width + 15) // 16 + 1) * 16
         pad = ((0, 0), (0, width - trimmed.width))
-        raw = (planar(np.pad(np.where(visible, pixels, 0), pad))
+        raw = (planar(np.pad(pixels, pad))
                + np.packbits(np.pad(visible, pad), axis=1).tobytes())
         maximum_sprite = max(maximum_sprite, len(raw))
+        offset, size = sprite_block(raw)
+        trim_x, trim_y = records[index].get('trim_offset', [0, 0])
+        sprite_entries.append([
+            index, trim_x + bounds[0], trim_x + original.width - bounds[2],
+            trim_y + bounds[1], trimmed.width, trimmed.height, offset, size, 0, 0])
+        mirrors.append(planar(np.pad(pixels[:, ::-1], pad))
+                       + np.packbits(np.pad(visible[:, ::-1], pad), axis=1).tobytes())
+    # preserve cache headroom; large base archives may leave less than this target.
+    budget = (RESOURCE_NORMAL_BYTES + RESOURCE_CHIP_BYTES - len(archive.data)
+              - len(sprite_entries) * 28 - max(maximum_sprite, 16 * 48) - 24 * 1024)
+    budget = max(budget, len(packed_sprites))
+    mirrored_count = 0
+    for entry, raw in zip(sprite_entries, mirrors):
         packed = encode_block(raw)
+        if packed not in unique and len(packed_sprites) + len(packed) > budget:
+            continue
         if packed not in unique:
             unique[packed] = len(packed_sprites)
             packed_sprites.extend(packed)
-        trim_x, trim_y = records[index].get('trim_offset', [0, 0])
-        sprite_entries.append(struct.pack(
-            '>H3h2H2I', index, trim_x + bounds[0], trim_x + original.width - bounds[2],
-            trim_y + bounds[1], trimmed.width, trimmed.height, unique[packed], len(packed)))
-    sprite_table = archive.append(b''.join(sprite_entries))
+        entry[-2:] = unique[packed], len(packed)
+        mirrored_count += 1
+    sprite_table = archive.append(b''.join(struct.pack('>H3h2H4I', *entry)
+                                          for entry in sprite_entries))
     sprite_bytes = len(packed_sprites)
     (output / (basename + '.asp')).write_bytes(packed_sprites)
     if len(patterns) > 65535:
         raise ValueError('Amiga tile index exceeds a word')
-    struct.pack_into('>4s6H8I', archive.data, 0, b'AG02', image.width, image.height,
+    struct.pack_into('>4s6H8I', archive.data, 0, b'AG03', image.width, image.height,
                      len(patterns), len(resources), len(clips), 16,
                      palette_offset, tile_table, tile_data, background_offset,
                      foreground_offset, clip_offset, sprite_table, sprite_bytes)
@@ -183,7 +206,7 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
     (output / (basename + '.agp')).write_bytes(payload)
     return dict(basename=basename, bytes=len(payload) + sprite_bytes, world_bytes=len(payload), patterns=len(patterns), sprites=len(resources),
                 sprite_bytes=len(packed_sprites), tile_bytes=len(packed_tiles),
-                max_sprite_bytes=maximum_sprite, families=sorted(selected),
+                max_sprite_bytes=maximum_sprite, mirrored_sprites=mirrored_count, families=sorted(selected),
                 clips=len(clips), color_error=color_error(image, background),
                 sha256=hashlib.sha256(payload).hexdigest(),
                 sprites_sha256=hashlib.sha256(packed_sprites).hexdigest())
@@ -277,7 +300,7 @@ def compile_opening(data, output, room_indices=None):
     write_common(data, output, recipes, simulation, families,
                  max(variant['max_sprite_bytes'] for room in reports for variant in (room, room['sword'])),
                  max(room['clips'] for room in reports))
-    report = dict(source_identity=identity, full_game=False, format='AG02',
+    report = dict(source_identity=identity, full_game=False, format='AG03',
                   converter_sha256=converter_identity(),
                   pixel_scale=1, dithering=False, families=families,
                   simulation=simulation['capacities'], rooms=reports)
