@@ -69,7 +69,11 @@ rubies, crypt return, altar and sword acquisition/attack under accelerated
 loading, not cycle-exact performance or complete source cutscene fidelity.
 Action-scene frame rates remain under verification. Room loading lends the unused end of its resident sprite
 buffer to the tile cache. A directory provides constant-time cache lookup;
-changing rooms or body variants invalidates the lease and cache together. The
+changing rooms or body variants invalidates the lease and cache together.
+Row maps decode directly into native words, avoiding an intermediate byte buffer.
+A short cycle-exact moving-Cell check after this change measured 2.75 displayed
+frames/s and 15 simulation ticks/s at the 1 MiB configuration. This remains far
+below the target rate; the complete opening is not performance-ready. The
 renderer also avoids restoring background pixels that the next opaque UI box
 will cover. These changes retain fixed ownership and add no runtime heap.
 

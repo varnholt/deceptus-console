@@ -51,6 +51,58 @@ DeceptusU8 deceptusRleDecode(const DeceptusU8 *source, DeceptusU32 source_size, 
    return output == destination_size;
 }
 
+DeceptusU8 deceptusRleDecodeWords(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU16 *destination, DeceptusU16 word_count)
+{
+   const DeceptusU8 *end;
+   DeceptusU16 count, value;
+   DeceptusU8 control;
+   if (!source_size)
+   {
+      return word_count == 0;
+   }
+   if (!source || (word_count && !destination))
+   {
+      return 0;
+   }
+   end = source + source_size;
+   while (source < end)
+   {
+      control = *source++;
+      count = (control & 127) + 1;
+      if (count > word_count)
+      {
+         return 0;
+      }
+      word_count -= count;
+      if (control & 128)
+      {
+         if (end - source < 2)
+         {
+            return 0;
+         }
+         value = (DeceptusU16)((DeceptusU16)source[0] << 8) | source[1];
+         source += 2;
+         while (count--)
+         {
+            *destination++ = value;
+         }
+      }
+      else
+      {
+         if ((DeceptusU32)(end - source) < (DeceptusU32)count * 2)
+         {
+            return 0;
+         }
+         while (count--)
+         {
+            *destination++ = (DeceptusU16)((DeceptusU16)source[0] << 8) | source[1];
+            source += 2;
+         }
+      }
+   }
+   return word_count == 0;
+}
+
 /* independent blocks: https://github.com/lz4/lz4/blob/dev/doc/lz4_Block_format.md */
 static DeceptusU8 lz4Length(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU32 *input, DeceptusU32 *length, DeceptusU32 limit)
 {

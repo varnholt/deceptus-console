@@ -140,19 +140,17 @@ DeceptusU8 amigaGraphicsPalette(const AmigaGraphics *graphics, DeceptusU16 *pale
 DeceptusU8 amigaGraphicsRow(const AmigaGraphics *graphics, DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 row,
                             DeceptusU16 *cells)
 {
-   DeceptusU8 bytes[512];
    DeceptusU16 index;
    DeceptusU32 offset, size, table_size;
    table_size = ((DeceptusU32)rows + 1) * 4;
    if (!columns || columns > 256 || row >= rows || !worldRange(graphics, map, table_size) ||
        !blockRange(graphics, map, row, map + table_size, &offset, &size) ||
-       !deceptusRleDecode(graphics->world + offset, size, bytes, (DeceptusU32)columns * 2, 2))
+       !deceptusRleDecodeWords(graphics->world + offset, size, cells, columns))
    {
       return 0;
    }
    for (index = 0; index < columns; ++index)
    {
-      cells[index] = readWord(bytes + index * 2);
       if (cells[index] >= graphics->pattern_count)
       {
          return 0;
