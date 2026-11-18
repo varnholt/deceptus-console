@@ -62,8 +62,8 @@ static sizes; the OS, loader and largest free block in each bank must also fit.
 The prototype's measured frame rate below does not establish opening performance.
 The opening title has now been
 verified under cycle-exact WinUAE with the same 512 KiB Chip + 512 KiB slow RAM
-configuration and built-in AROS. Its static footprint is approximately 696 KiB,
-including 467 KiB of Chip RAM. A local normal-input replay now passes all 56 opening checkpoints through the
+configuration and built-in AROS. Its static footprint is approximately 698 KiB,
+including 470 KiB of Chip RAM. A local normal-input replay now passes all 56 opening checkpoints through the
 rubies, crypt return, altar and sword acquisition/attack under accelerated
 68000 emulation with the same RAM budget. This verifies progression/resource
 loading, not cycle-exact performance or complete source cutscene fidelity.
@@ -86,11 +86,20 @@ will cover. These changes retain fixed ownership and add no runtime heap.
 The walking-only measurement above is insufficient to establish playability.
 Repeated full jumps in the same Cell on the earlier shallow-cache build measured
 2.2 displayed frames/s and 12.25 simulation ticks/s, with large frame stalls.
-The 512x312 cache and directional headroom improve that sample to 15.1 displayed
-frames/s and 52.1 simulation ticks/s. This still fails the smooth-movement target:
-ordinary walking and jump frame pacing remain blocking work, not a completed
-optimization milestone. Further changes require both movement cases and their
-stall distributions, in addition to the full logical route.
+The taller cache alone improved that sample to 15.1 displayed frames/s and
+52.1 simulation ticks/s. Cached foreground restoration and temporary blitter
+priority during CPU waits now improve the cycle-exact Cell samples further:
+
+| Normal-input movement | Displayed frames/s | Simulation ticks/s | Presentation intervals in PAL frames |
+| --- | ---: | ---: | --- |
+| Alternating left/right walking | 45.8 | 59.97 | 614 at one, 26 at two, 17 at three to five |
+| Walking with repeated full jumps | 41.8 | 60.02 | 696 at one, 112 at two, 26 at three to five |
+
+Samples cover 717 and 998 PAL frames respectively, after startup, with no
+additional dropped-time count in either. These are warmed Cell measurements
+on the same 512 KiB Chip + 512 KiB slow-RAM machine, not all-room results.
+Both still miss the steady 50 fps target. Walking and jump frame pacing remain
+part of the playability gate; average simulation speed alone is insufficient.
 
 ## Adaptive scrolling windows
 
@@ -108,7 +117,12 @@ In a larger mode, the inactive compact buffers become one opaque background
 reference (99,840 or 81,920 bytes, within their combined 102,080-byte capacity).
 It follows a shared scroll-window origin, scrolling and rebuilding only exposed
 background strips from the tile archive. Both display buffers use that reference
-for sprite/UI cleanup; animated clips and foregrounds stay separate. Directional
+for sprite/UI cleanup. Rooms without animated clips can additionally lease one
+bitplane for a static foreground mask (19,968 bytes in the larger mode). Their
+reference contains the background and foreground together: opaque cleanup copies
+that image, and masked blits restore foreground occlusion after sprites. The mask
+scrolls with the reference and exposed strips rebuild both together. Rooms with
+clips or insufficient Chip space retain the original tile drawing order. Directional
 rebases leave more space ahead of movement and above the camera, with vertical
 origins clamped to the room extent, and coarse bitplane pointers
 are derived from the actual buffer origin together with fine scrolling.
@@ -118,13 +132,22 @@ cache lease together. The loader reserves viewport storage before handing the
 remaining bank tails to caches. Compact mode can use the native background file
 below; larger modes use their retained background reference instead.
 
-Local checks exercise 300,000 camera moves and compare 6,000 complete rendered
+Local checks exercise 300,000 camera moves and compare 12,000 complete rendered
 frames against the original tile path across all three sizes. They include
 scroll directions, clipping, clip-frame transitions, old-sprite cleanup and
-foreground occlusion. UI pixels and dirty rectangles also match the previous
-renderer at every supported horizontal cache offset. Complete accelerated route
+foreground occlusion, with both static-mask and animated-clip paths. UI pixels
+and dirty rectangles also match the previous renderer at every supported
+horizontal cache offset. Complete accelerated route
 checks establish logical correctness; the Cell measurement above does not prove
 all-room performance, hardware compatibility or complete game readiness.
+
+Pending blits receive priority only while the CPU waits for completion; the
+previous priority bit is restored before independent CPU work resumes. This
+avoids spending Chip bus slots polling a blit that must finish first. See the
+[hardware reference on blitter DMA arbitration](https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node012B.html).
+The source font's 3,420 bytes reside in Chip RAM to leave room for the executable
+in the slow-RAM bank. Generated read-only Chip data stays outside LTO's writable
+Chip section. Actual AROS loading is checked in addition to static bank totals.
 
 ## Native background restoration
 

@@ -10,7 +10,7 @@ Updated for the engine/game separation and four-platform opening milestone,
 | GBA tutorial | Twenty-six imported rooms; prison, headtorch, graveyard rubies, crypt return, owl altar and sword progression |
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
 | SNES | Same 26-room opening in an 8 MiB ExHiROM; retained one-room test is explicit `--scene prototype`; performance remains substantially below target |
-| Amiga | Verified PAL OCS one-room prototype at nominal 50 fps; separate experimental streamed opening with UI and equipment is under memory/workflow verification |
+| Amiga | Verified PAL OCS one-room prototype at nominal 50 fps; experimental 26-room opening passes accelerated progression checks, with frame pacing and presentation still unfinished |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
 | Mega Drive | Same 26-room opening in a flat 4 MiB cartridge budget; normal-input route passes, performance remains experimental; separate small prototype retains its measured 60 Hz result |
 
@@ -33,7 +33,9 @@ use `game.h`. Adventure and original enemy behaviors live under `src/game/`.
 A local executable links the complete engine archive without the game library.
 All 13 existing native/converter groups pass, all four platform builds pass, and
 the 56-checkpoint existing opening route passes on the actual GBA, SNES and Mega
-Drive ROMs after the separation. The Amiga result remains the prototype only.
+Drive ROMs after the separation. The streamed Amiga opening also passes the
+56 checkpoints under accelerated emulation with the 1 MiB RAM budget; this
+separate check does not establish cycle-exact playability.
 
 Sword appearance selection and timing now live in the shared game layer;
 GBA, SNES and Mega Drive render the resulting source poses. Headtorch equipment
@@ -41,8 +43,8 @@ checks also belong to the game layer. A local comparison matches 2,000 source
 frames against the previous renderer, and all three existing ROM opening
 replays still pass after the change.
 
-Next work closes game-layer presentation/timing gaps and implements Amiga
-opening resources and room loading. Existing route success does not establish
+Next work closes game-layer presentation/timing gaps and improves performance
+across all four opening backends. Existing route success does not establish
 source-faithful cutscenes, whole-opening frame rate, audio, saves or a complete
 original-game port.
 
@@ -173,14 +175,15 @@ The active opening milestone targets all four platforms through a shared game
 layer. GBA is furthest along; SNES and Mega Drive still require substantial
 performance work, and the Amiga opening passes the accelerated logical traversal but still requires cycle-exact performance and visual-fidelity work. The prototype frame
 rates do not establish whole-opening performance.
-The Amiga moving-Cell check now sustains 60 simulation ticks/s with roughly
-18 displayed frames/s in the 1 MiB cycle-exact configuration. Adaptive scroll
-windows, background references and Chip sprite caching are backend services;
+The Amiga moving-Cell checks now sustain 60 simulation ticks/s with roughly
+46 displayed frames/s walking and 42 during repeated full jumps in the 1 MiB
+cycle-exact configuration. Adaptive scroll windows, cached foreground masks,
+background references and Chip sprite caching are backend services;
 all-room speed and the remaining source cutscene/effect differences stay open.
 See [Amiga implementation and verification](AMIGA.md).
-The walking-only Amiga result does not establish smooth play. Repeated jumps
-revealed major stalls and slowed simulation; the current taller-cache change
-helps but still fails the playability gate. Walking and jumping frame pacing
+Earlier walking-only Amiga results hid severe jump stalls. The current renderer
+avoids additional dropped game time in both Cell samples, but still misses
+steady 50 fps. Walking and jumping frame pacing across the opening
 remain blocking work before the shared milestone can advance.
 
 The Mines entrance is connected. Its farther iron door supports its reusable

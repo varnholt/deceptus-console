@@ -278,7 +278,8 @@ def write_common(data, output, recipes, simulation, families, sprite_bytes, clip
         glyphs.append([sum(int(bit) << (15 - x) for x, bit in enumerate(row))
                        for row in visible])
         advances.append(round(font.metrics.getlength(chr(code))))
-    lines.append('const DeceptusU16 amiga_font[95][18] = {')
+    lines.append('const DeceptusU16 amiga_font[95][18] '
+                 '__attribute__((section(".MEMF_CHIP"))) = {')
     lines.extend('   {' + ','.join(map(str, glyph)) + '},' for glyph in glyphs)
     lines.extend(['};', 'const DeceptusU8 amiga_font_advances[95] = {'
                   + ','.join(map(str, advances)) + '};'])

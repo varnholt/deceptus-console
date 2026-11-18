@@ -41,7 +41,7 @@ def build_program(sdk, output, sources, report, generated):
         platform_flags = ['-Wno-volatile-register-var'] if 'platform' in source.parts else []
         # keep read-only graphics outside LTO's writable Chip RAM section.
         source_flags = flags
-        if source.name == 'amiga_assets.c':
+        if source.name in ('amiga_assets.c', 'opening_content.c'):
             source_flags = [flag for flag in flags if flag != '-flto']
         command = [compiler, *source_flags, *platform_flags, '-std=c90',
                    '-Wall', '-Wextra', '-Werror',

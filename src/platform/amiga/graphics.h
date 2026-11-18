@@ -15,7 +15,7 @@ typedef struct AmigaGraphics
 {
    const DeceptusU8 *world, *sprites, *sprite_tail;
    const DeceptusU16 *background_pixels;
-   DeceptusU16 *viewport_pixels;
+   DeceptusU16 *viewport_pixels, *foreground_pixels;
    DeceptusU16 viewport_width, viewport_height;
    DeceptusU32 world_size, sprite_size, sprite_first_size;
    DeceptusU32 palette, tile_table, tile_data, background, foreground, clips, sprite_table;

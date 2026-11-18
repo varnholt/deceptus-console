@@ -146,6 +146,10 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
       graphics.viewport_pixels =
          (DeceptusU16 *)reserveChipScratch((DeceptusU32)(graphics.viewport_width / 8) * graphics.viewport_height * 5 * 2);
    }
+   if (graphics.viewport_pixels && !graphics.clip_count)
+   {
+      graphics.foreground_pixels = (DeceptusU16 *)reserveChipScratch((DeceptusU32)(graphics.viewport_width / 8) * graphics.viewport_height);
+   }
    if (!graphics.viewport_pixels)
    {
       graphics.viewport_width = graphics.viewport_height = 0;

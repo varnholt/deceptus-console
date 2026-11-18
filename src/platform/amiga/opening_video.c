@@ -7,6 +7,7 @@
 #include "system.h"
 #include <hardware/blit.h>
 #include <hardware/custom.h>
+#include <hardware/dmabits.h>
 #include <hardware/intbits.h>
 #include <stddef.h>
 #include <string.h>
@@ -14,7 +15,8 @@
 #define BASE_CACHE_WIDTH 352
 #define BASE_CACHE_HEIGHT 232
 #define BASE_BUFFER_WORDS ((BASE_CACHE_WIDTH / 16) * BASE_CACHE_HEIGHT * 5)
-#if (AMIGA_LARGE_CACHE_WIDTH / 8) * AMIGA_LARGE_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4
+#if (AMIGA_LARGE_CACHE_WIDTH / 8) * AMIGA_LARGE_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4 ||                                                \
+   (AMIGA_WIDE_CACHE_WIDTH / 8) * AMIGA_WIDE_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4
 #error the background reference must fit the inactive compact buffers
 #endif
 #define SPRITE_CAPACITY 96
@@ -51,8 +53,9 @@ static DeceptusU16 *buffers[2];
 static DeceptusU16 *background_cache;
 static DeceptusI16 background_origin_x, background_origin_y, window_origin_x, window_origin_y;
 static DeceptusU8 background_valid, window_valid;
-static DeceptusU16 cache_width, cache_height, row_bytes, row_words;
-static DeceptusU32 plane_bytes, plane_words;
+static DeceptusU16 cache_width, cache_height;
+/* word-sized strides let the 68000 use native multiplication in the draw path. */
+static DeceptusI16 row_bytes, row_words, plane_bytes, plane_words;
 static DeceptusU16 copper[2][128] CHIP;
 static DeceptusU16 blank_copper[6] CHIP = {0x0100, 0, 0x0180, 0, 0xffff, 0xfffe};
 static DeceptusU16 sprite_pixels[(AMIGA_SPRITE_SCRATCH_BYTES + 1) / 2] CHIP;
@@ -112,9 +115,17 @@ static void waitFrame(void)
 
 static void waitBlitter(void)
 {
+   DeceptusU16 previous_priority;
    (void)hardware->dmaconr;
+   previous_priority = hardware->dmaconr & DMAF_BLITHOG;
+   /* give pending DMA the bus while the CPU has no independent work to do. */
+   hardware->dmacon = DMAF_SETCLR | DMAF_BLITHOG;
    while (hardware->dmaconr & 0x4000)
    {
+   }
+   if (!previous_priority)
+   {
+      hardware->dmacon = DMAF_BLITHOG;
    }
 }
 
@@ -282,7 +293,8 @@ static const DeceptusU8 *tilePixels(DeceptusU16 pattern)
    return tile_cache + (DeceptusU32)slot * AMIGA_TILE_GROUP_BYTES + (pattern % AMIGA_TILE_GROUP) * AMIGA_TILE_BYTES;
 }
 
-static DeceptusU16 mapCell(DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 column, DeceptusU16 row)
+static DeceptusU16 __attribute__((noinline, noclone)) mapCell(DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 column,
+                                                              DeceptusU16 row)
 {
    AmigaRowCache *entry;
    DeceptusU8 slot, set, first;
@@ -462,7 +474,42 @@ static DeceptusU8 drawNativeBackground(DeceptusI16 left, DeceptusI16 top, Decept
    return 1;
 }
 
-static void paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_only)
+static DeceptusU8 __attribute__((noinline, noclone)) drawNativeForeground(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right,
+                                                                          DeceptusI16 bottom)
+{
+   DeceptusI16 source_x, source_y;
+   DeceptusU16 plane, width, height;
+   DeceptusU32 offset;
+   DeceptusU16 *destination;
+   source_x = origin_x + left - background_origin_x;
+   source_y = origin_y + top - background_origin_y;
+   if (source_x < 0 || source_y < 0 || source_x + right - left > cache_width || source_y + bottom - top > cache_height)
+   {
+      return 0;
+   }
+   width = (right - left) / 16;
+   height = bottom - top;
+   offset = (DeceptusU32)source_y * row_words + source_x / 16;
+   destination = buffers[draw_buffer] + top * row_words + left / 16;
+   waitBlitter();
+   hardware->bltcon0 = SRCA | SRCB | SRCC | DEST | 0xca;
+   hardware->bltcon1 = 0;
+   hardware->bltafwm = hardware->bltalwm = 65535U;
+   hardware->bltamod = hardware->bltbmod = hardware->bltcmod = hardware->bltdmod = row_bytes - width * 2;
+   for (plane = 0; plane < 5; ++plane)
+   {
+      waitBlitter();
+      hardware->bltapt = graphics->foreground_pixels + offset;
+      hardware->bltbpt = background_cache + plane * plane_words + offset;
+      hardware->bltcpt = destination + plane * plane_words;
+      hardware->bltdpt = destination + plane * plane_words;
+      hardware->bltsize = (height << 6) | width;
+   }
+   waitBlitter();
+   return 1;
+}
+
+static void __attribute__((noinline, noclone)) paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_only)
 {
    DeceptusI16 x, y, left, right, top, bottom;
    DeceptusU8 base_ready;
@@ -483,7 +530,8 @@ static void paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_
       bottom = cache_height;
    }
    base_ready = 0;
-   if (!foreground_only && (graphics->background_pixels || background_valid))
+   if ((!foreground_only && (graphics->background_pixels || background_valid)) ||
+       (graphics->foreground_pixels && background_valid && !graphics->clip_count))
    {
       left = left / 16 * 16;
       right = (right + 15) / 16 * 16;
@@ -495,6 +543,11 @@ static void paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_
    if (!foreground_only && (graphics->background_pixels || background_valid))
    {
       base_ready = drawNativeBackground(left, top, right, bottom);
+   }
+   if (graphics->foreground_pixels && background_valid && !graphics->clip_count &&
+       (foreground_only ? drawNativeForeground(left, top, right, bottom) : base_ready))
+   {
+      return;
    }
    for (y = top; y < bottom; y += 8)
    {
@@ -581,7 +634,7 @@ static void updateClips(const DeceptusAdventure *game)
    }
 }
 
-static void scrollBuffer(DeceptusU16 *pixels, DeceptusI16 dx, DeceptusI16 dy)
+static void __attribute__((noinline, noclone)) scrollBuffer(DeceptusU16 *pixels, DeceptusU8 planes, DeceptusI16 dx, DeceptusI16 dy)
 {
    DeceptusI16 source_x, source_y, target_x, target_y, width, height;
    DeceptusU16 plane;
@@ -599,7 +652,7 @@ static void scrollBuffer(DeceptusU16 *pixels, DeceptusI16 dx, DeceptusI16 dy)
    hardware->bltcon1 = reverse ? BLITREVERSE : 0;
    hardware->bltafwm = hardware->bltalwm = 65535U;
    hardware->bltamod = hardware->bltdmod = row_bytes - width * 2;
-   for (plane = 0; plane < 5; ++plane)
+   for (plane = 0; plane < planes; ++plane)
    {
       source = pixels + plane * plane_words + source_y * row_words + source_x;
       destination = pixels + plane * plane_words + target_y * row_words + target_x;
@@ -622,6 +675,9 @@ static void __attribute__((noinline, noclone)) paintBackgroundStrip(DeceptusI16 
 {
    DeceptusI16 x, y, world_x, world_y;
    DeceptusU16 pattern;
+   DeceptusU8 row;
+   const DeceptusU8 *mask;
+   DeceptusU8 *destination;
    for (y = top; y < top + height; y += 8)
    {
       for (x = left; x < left + width; x += 8)
@@ -634,6 +690,27 @@ static void __attribute__((noinline, noclone)) paintBackgroundStrip(DeceptusI16 
             pattern = mapCell(graphics->background, graphics->width / 8, graphics->height / 8, world_x / 8, world_y / 8);
          }
          paintPattern(background_cache, x, y, pattern, 0);
+         if (graphics->foreground_pixels)
+         {
+            pattern = 0;
+            if (world_x >= 0 && world_y >= 0 && world_x < graphics->width && world_y < graphics->height)
+            {
+               pattern = mapCell(graphics->foreground, graphics->width / 8, graphics->height / 8, world_x / 8, world_y / 8);
+            }
+            paintPattern(background_cache, x, y, pattern, 1);
+            mask = tilePixels(pattern);
+            if (!mask)
+            {
+               return;
+            }
+            mask += 40;
+            destination = (DeceptusU8 *)graphics->foreground_pixels + y * row_bytes + x / 8;
+            for (row = 0; row < 8; ++row)
+            {
+               *destination = mask[row];
+               destination += row_bytes;
+            }
+         }
       }
    }
 }
@@ -653,7 +730,11 @@ static void updateBackgroundCache(void)
    }
    else if (dx || dy)
    {
-      scrollBuffer(background_cache, dx, dy);
+      scrollBuffer(background_cache, 5, dx, dy);
+      if (graphics->foreground_pixels)
+      {
+         scrollBuffer(graphics->foreground_pixels, 1, dx, dy);
+      }
       if (dx)
       {
          paintBackgroundStrip(dx > 0 ? cache_width - dx : 0, 0, dx > 0 ? dx : -dx, cache_height);
@@ -705,7 +786,8 @@ static void clippedSprite(const AmigaSpriteRequest *request, const DeceptusU8 *p
    DeceptusU8 *destination;
    DeceptusU16 x, y, plane;
    DeceptusI16 px, py;
-   DeceptusU32 plane_size, offset;
+   DeceptusI16 plane_size;
+   DeceptusU32 offset;
    DeceptusU8 bit, target_bit;
    plane_size = (DeceptusU32)request->graphic.row_bytes * request->graphic.height;
    mask = pixels + plane_size * 5;
@@ -750,7 +832,7 @@ static void drawSprite(const AmigaSpriteRequest *request)
 {
    DeceptusI16 first, top, height;
    DeceptusU16 plane, words, shift;
-   DeceptusU32 plane_size;
+   DeceptusI16 plane_size;
    const DeceptusU8 *pixels, *mask;
    DeceptusU16 *destination;
    waitBlitter();
@@ -848,7 +930,7 @@ static DeceptusI16 scrollOrigin(DeceptusI16 current, DeceptusI16 camera, Deceptu
 DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFrame *frame)
 {
    DeceptusI16 next_x, next_y, dx, dy, maximum_y;
-   DeceptusU8 horizontal_headroom;
+   DeceptusU8 horizontal_headroom, vertical_headroom;
    DeceptusU16 index;
    DeceptusRect rectangle;
    DeceptusU8 was_valid, ui_layout;
@@ -902,7 +984,8 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    }
    horizontal_headroom = frame->camera_x < previous_camera_x[draw_buffer] ? 3 : 1;
    next_x = scrollOrigin(window_origin_x, frame->camera_x, cache_width - 320, 16, 16, horizontal_headroom, window_valid);
-   next_y = scrollOrigin(window_origin_y, frame->camera_y, cache_height - 224, 8, 0, 3, window_valid);
+   vertical_headroom = window_valid && frame->camera_y > previous_camera_y[draw_buffer] ? 1 : 4;
+   next_y = scrollOrigin(window_origin_y, frame->camera_y, cache_height - 224, 8, 0, vertical_headroom, window_valid);
    maximum_y = graphics->height > cache_height ? graphics->height - cache_height : 0;
    if (next_y < 0)
    {
@@ -923,7 +1006,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    }
    else if (dx || dy)
    {
-      scrollBuffer(buffers[draw_buffer], dx, dy);
+      scrollBuffer(buffers[draw_buffer], 5, dx, dy);
    }
    origin_x = origins_x[draw_buffer] = next_x;
    origin_y = origins_y[draw_buffer] = next_y;
