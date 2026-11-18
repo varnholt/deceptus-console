@@ -1,8 +1,9 @@
-# Amiga 500 prototype
+# Amiga 500 backend
 
 The Amiga backend runs the existing one-room catacombs scene with the shared
-portable C simulation. It is an experimental platform spike; the opening
-campaign is not available on Amiga yet.
+portable C simulation. The default launcher retains this verified prototype. An experimental
+26-room opening is available as a separate scene; its complete workflow and
+performance are still being verified.
 
 ## Run
 
@@ -34,7 +35,38 @@ The configured machine has 512 KiB Chip RAM and a 512 KiB slow-RAM expansion.
 fails to load the executable under AROS because too little memory remains.
 A 512 KiB machine with original Kickstart has not been verified.
 
-## Verified scope
+## Experimental opening
+
+```powershell
+python run_amiga.py --scene tutorial --build
+```
+
+Subsequent launches can omit `--build`. `--scene prototype` selects the original
+single room. The executables and assets live separately under `build/amiga/`
+and `build/amiga-opening/`.
+
+The opening uses the shared game controller for portals, dialogue, inventory,
+headtorch, ruby/altar progression and sword behavior. Hardware code loads the
+requested room and presents its source frames. Up interacts, Return confirms,
+Tab opens inventory, Space attacks and Esc pauses or returns from a menu.
+Cursor keys and right Ctrl retain movement and jump controls. The source font
+is rendered at its authored size. Audio, persistent saves and complete source
+cutscene fidelity remain unfinished.
+
+Room graphics are disk-backed files on WinUAE's mounted filesystem. This is an
+AmigaDOS executable, not a bootable floppy image. Both normal and sword body
+variants are prepared offline; only the currently used variant is resident.
+Fixed buffers divide resources between CPU-accessible and Chip RAM, alongside
+two scrolling display buffers. `build/amiga-opening/build.json` records exact
+static sizes; the OS, loader and largest free block in each bank must also fit.
+The prototype's measured frame rate below does not establish opening performance. The opening title has now been
+verified under cycle-exact WinUAE with the same 512 KiB Chip + 512 KiB slow RAM
+configuration and built-in AROS. Its static footprint is approximately 690 KiB,
+including 467 KiB of Chip RAM. Full traversal and action-scene frame rates remain
+under verification.
+
+
+## Verified prototype scope
 
 Cycle-exact WinUAE checks used a PAL 68000 machine, OCS graphics, 512 KiB Chip
 RAM, 512 KiB slow RAM and no fast RAM. A local scripted-input replay verified

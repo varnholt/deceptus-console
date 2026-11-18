@@ -308,7 +308,6 @@ static void videoLoad(void)
 int main(void)
 {
    DeceptusU16 scenery_flags;
-   DeceptusI16 cage;
    deceptus_debug[0] = 0xD3CE;
    deceptus_debug[11] = 1;
    deceptusAdventureInit(&adventure, &snes_tutorial_definition, &video);
@@ -326,15 +325,7 @@ int main(void)
       /* one simulation update per presentation keeps input edges deterministic. */
       deceptusRender(&adventure.campaign.engine, &frame);
       deceptus_debug[11] = 10;
-      scenery_flags = adventure.flags;
-      cage = deceptusMechanismFind(&adventure.campaign.engine.mechanisms, 1386);
-      if (cage >= 0)
-      {
-         if (adventure.campaign.engine.mechanisms.states[cage].enabled)
-         {
-            scenery_flags |= 8192;
-         }
-      }
+      scenery_flags = deceptusAdventurePresentationFlags(&adventure);
       snesBackgroundSetFlags(scenery_flags);
       snesBackgroundPrepare(frame.camera_x, frame.camera_y);
       deceptus_debug[11] = 11;

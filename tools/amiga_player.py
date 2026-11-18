@@ -19,10 +19,11 @@ def prepare_drive(executable, output):
     return drive
 
 
-def write_config(executable, output, kickstart=None, slowmem=512):
+def write_config(executable, output, kickstart=None, slowmem=512, scene="prototype"):
     drive = prepare_drive(executable, output)
     settings = dict(
-        config_description='Deceptus Amiga 500 one-room prototype',
+        config_description=('Deceptus Amiga 500 opening' if scene == 'tutorial'
+                            else 'Deceptus Amiga 500 one-room prototype'),
         use_gui='no', quickstart='a500,1',
         kickstart_rom_file=str(kickstart) if kickstart else ':AROS',
         cpu_model='68000', cpu_cycle_exact='true',
@@ -49,6 +50,8 @@ def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', action='store_true')
     parser.add_argument('--prepare', action='store_true')
+    parser.add_argument('--scene', choices=('prototype', 'tutorial'), default='prototype')
+    parser.add_argument('--reuse-assets', action='store_true')
     parser.add_argument('--sdk', type=Path)
     parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
     parser.add_argument('--kickstart', type=Path,
@@ -58,7 +61,7 @@ def main(arguments=None):
     args = parser.parse_args(arguments)
     if args.kickstart and not args.kickstart.is_file():
         parser.error('Kickstart ROM file does not exist')
-    output = ROOT / 'build/amiga'
+    output = ROOT / ('build/amiga-opening' if args.scene == 'tutorial' else 'build/amiga')
     executable = output / 'deceptus-amiga.exe'
     building = args.build or not executable.is_file()
     result = ensure_python('amiga', arguments, building)
@@ -66,14 +69,20 @@ def main(arguments=None):
         return result
     sdk = args.sdk.resolve() if args.sdk else ensure_sdk()
     if building:
-        from build_amiga import build
-        build(sdk, args.data.resolve(), output)
+        if args.scene == 'tutorial':
+            from build_amiga_opening import build_opening
+            build_opening(sdk, args.data.resolve(), output, args.reuse_assets)
+        else:
+            from build_amiga import build
+            build(sdk, args.data.resolve(), output)
     kickstart = args.kickstart.resolve() if args.kickstart else None
-    config = write_config(executable, output, kickstart, args.slowmem)
+    config = write_config(executable, output, kickstart, args.slowmem, args.scene)
     print(f'Executable: {executable}', flush=True)
     if args.prepare:
         return 0
     print('Cursor keys move, right Ctrl jumps. Hold both mouse buttons to exit.',
           flush=True)
+    if args.scene == 'tutorial':
+        print('Up interacts, Space attacks, Tab opens inventory, Esc pauses/backs, Return accepts.', flush=True)
     return subprocess.call([str(sdk / 'winuae-gdb.exe'), '-f', str(config)],
                            cwd=output)

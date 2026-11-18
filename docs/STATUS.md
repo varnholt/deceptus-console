@@ -1,7 +1,7 @@
 # Current status
 
 Updated for the engine/game separation and four-platform opening milestone,
-17 November 2026.
+18 November 2026.
 
 ## Available targets
 
@@ -10,7 +10,7 @@ Updated for the engine/game separation and four-platform opening milestone,
 | GBA tutorial | Twenty-six imported rooms; prison, headtorch, graveyard rubies, crypt return, owl altar and sword progression |
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
 | SNES | Same 26-room opening in an 8 MiB ExHiROM; retained one-room test is explicit `--scene prototype`; performance remains substantially below target |
-| Amiga | PAL OCS one-room prototype at nominal 50 fps; opening streaming, UI and equipment support remain to be implemented |
+| Amiga | Verified PAL OCS one-room prototype at nominal 50 fps; separate experimental streamed opening with UI and equipment is under memory/workflow verification |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
 | Mega Drive | Same 26-room opening in a flat 4 MiB cartridge budget; normal-input route passes, performance remains experimental; separate small prototype retains its measured 60 Hz result |
 

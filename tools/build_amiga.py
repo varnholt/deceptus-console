@@ -18,16 +18,15 @@ SOURCES = (
     'src/engine/logic.c', 'src/game/enemies.c', 'src/game/deceptus.c',
     'src/platform/amiga/runtime.c', 'src/platform/amiga/main.c',
     'src/platform/amiga/input.c', 'src/platform/amiga/video.c',
+    'src/platform/amiga/system.c',
 )
 
 
-def build(sdk, data, output):
+def build_program(sdk, output, sources, report, generated):
     sdk, output = sdk.resolve(), output.resolve()
     compiler = sdk / 'opt/bin/m68k-amiga-elf-gcc.exe'
     if not compiler.is_file():
         raise SystemExit('Amiga SDK missing; run python tools/bootstrap_amiga.py')
-    generated = output / 'generated'
-    report = convert(data, generated)
     objects_dir = output / 'obj'
     objects_dir.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
@@ -35,10 +34,9 @@ def build(sdk, data, output):
     flags = ['-m68000', '-O3', '-flto', '-g', '-nostdlib', '-ffreestanding',
              '-fno-builtin', '-fno-tree-loop-distribute-patterns',
              '-ffunction-sections', '-fdata-sections', '-fomit-frame-pointer',
-                          '-I' + str(ROOT / 'include'), '-I' + str(generated)]
+             '-I' + str(ROOT / 'include'), '-I' + str(generated)]
     objects = []
-    for source in [ROOT / name for name in SOURCES] + [
-            generated / 'room.c', generated / 'amiga_assets.c']:
+    for source in sources:
         target = objects_dir / (source.stem + '.o')
         platform_flags = ['-Wno-volatile-register-var'] if 'platform' in source.parts else []
         # keep read-only graphics outside LTO's writable Chip RAM section.
@@ -83,11 +81,25 @@ def build(sdk, data, output):
     print(executable)
 
 
+def build(sdk, data, output):
+    generated = output.resolve() / 'generated'
+    report = convert(data, generated)
+    sources = [ROOT / name for name in SOURCES] + [
+        generated / 'room.c', generated / 'amiga_assets.c']
+    return build_program(sdk, output, sources, report, generated)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sdk', type=Path, default=ROOT /
                         '.tools/amiga-debug/extension/bin/win32')
     parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
-    parser.add_argument('--output-dir', type=Path, default=ROOT / 'build/amiga')
+    parser.add_argument('--output-dir', type=Path)
+    parser.add_argument('--scene', choices=('prototype', 'tutorial'), default='prototype')
+    parser.add_argument('--reuse-assets', action='store_true')
     args = parser.parse_args()
-    build(args.sdk, args.data, args.output_dir)
+    if args.scene == 'tutorial':
+        from build_amiga_opening import build_opening
+        build_opening(args.sdk, args.data, args.output_dir or ROOT / 'build/amiga-opening', args.reuse_assets)
+    else:
+        build(args.sdk, args.data, args.output_dir or ROOT / 'build/amiga')

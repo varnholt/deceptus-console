@@ -1052,15 +1052,7 @@ int __attribute__((section(".iwram"))) main(void)
       deceptusTick(&engine, inputRead());
 #endif
 #if GBA_TUTORIAL
-      {
-         DeceptusI16 cage;
-         scenery_flags = adventure.flags;
-         cage = deceptusMechanismFind(&engine.mechanisms, 1386);
-         if (cage >= 0 && engine.mechanisms.states[cage].enabled)
-         {
-            scenery_flags |= 8192;
-         }
-      }
+      scenery_flags = deceptusAdventurePresentationFlags(&adventure);
 #endif
       deceptus_debug[80] = (DeceptusU16)(REG16(0x04000108) - phase_start);
       phase_start = REG16(0x04000108);

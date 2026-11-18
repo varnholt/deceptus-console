@@ -22,6 +22,22 @@ DeceptusU8 deceptusInventoryRemove(DeceptusInventory *inventory, DeceptusU8 item
    return 1;
 }
 
+DeceptusU16 deceptusAdventurePresentationFlags(const DeceptusAdventure *game)
+{
+   /* the original owl ward controls the altar ring independently of inventory flags. */
+   const DeceptusU16 sword_ward_source_id = 1386;
+   const DeceptusU16 sword_ward_visible = 8192;
+   DeceptusI16 ward;
+   DeceptusU16 flags;
+   flags = game->flags;
+   ward = deceptusMechanismFind(&game->campaign.engine.mechanisms, sword_ward_source_id);
+   if (ward >= 0 && game->campaign.engine.mechanisms.states[ward].enabled)
+   {
+      flags |= sword_ward_visible;
+   }
+   return flags;
+}
+
 static DeceptusU8 overlaps(const DeceptusRect *bounds, DeceptusI16 x, DeceptusI16 y)
 {
    return x + 8 > bounds->x && x - 8 < bounds->x + bounds->width && y > bounds->y && y - 30 < bounds->y + bounds->height;

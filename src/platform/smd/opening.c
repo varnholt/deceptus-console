@@ -1,5 +1,5 @@
-#include "deceptus/game.h"
 #include "deceptus/adventure.h"
+#include "deceptus/game.h"
 #include "opening_video.h"
 #include <genesis.h>
 
@@ -143,7 +143,6 @@ static void debugWrite(DeceptusU16 buttons, DeceptusU8 blank)
 int main(bool hard_reset)
 {
    DeceptusU16 buttons, flags;
-   DeceptusI16 cage;
    DeceptusU8 blank;
    (void)hard_reset;
    VDP_setEnable(FALSE);
@@ -167,12 +166,7 @@ int main(bool hard_reset)
          videoLoad();
       }
       deceptusRender(&adventure.campaign.engine, &frame);
-      flags = adventure.flags;
-      cage = deceptusMechanismFind(&adventure.campaign.engine.mechanisms, 1386);
-      if (cage >= 0 && adventure.campaign.engine.mechanisms.states[cage].enabled)
-      {
-         flags |= 8192;
-      }
+      flags = deceptusAdventurePresentationFlags(&adventure);
       smdBackgroundSetFlags(flags);
       smdBackgroundPrepare(frame.camera_x, frame.camera_y);
       smdSpritesPrepare(&adventure, &frame);

@@ -10,6 +10,7 @@
 - Keep reusable collision, entity allocation, event queues and mechanism services in `src/engine/`, Deceptus rules in `src/game/`, and build-time conversions in `tools/`.
 - Story progression, item requirements, enemy behaviors, quest flags, cutscene sequences and equipment rules belong in the game layer or imported game content. Platform backends implement hardware and presentation; they must not decide progression. The engine library must build and link without the game library.
 - Use caller-owned memory, fixed-capacity pools and bounded event/render queues. Do not add heap allocation or floating point to frame-time runtime code.
+- For constrained targets, verify executable loading with the actual OS and RAM-bank configuration. Static byte totals alone do not prove that the required contiguous blocks fit.
 - Positions are signed 12.4 fixed point in room coordinates. Velocities must stay below one 8px collision cell per tick. Larger worlds must use room/chunk origins, not overflow local coordinates.
 - Treat logical frames and palette roles as game assets. Encode SNES/GBA/Mega Drive tile, palette, DMA and sprite details in converters and backends.
 - GBA, SNES, Mega Drive and Amiga are active parity targets. Implement the original opening workflow in the shared game layer and verify each backend independently. DOS and STM32 are later targets. Preserve the working Amiga prototype until opening support is verified; do not report a prototype or slow but logically correct replay as complete-game readiness.

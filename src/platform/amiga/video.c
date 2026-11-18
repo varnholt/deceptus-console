@@ -1,5 +1,6 @@
 #include "video.h"
 #include "amiga_assets.h"
+#include "system.h"
 #include <exec/execbase.h>
 #include <graphics/gfxbase.h>
 #include <hardware/blit.h>
@@ -16,16 +17,11 @@
 #define BUFFER_WORDS (PLANE_WORDS * AMIGA_PLANES)
 #define CHIP __attribute__((section(".MEMF_CHIP")))
 
-struct ExecBase *SysBase;
-struct GfxBase *GfxBase;
 static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
 static DeceptusU16 buffers[2][BUFFER_WORDS] CHIP;
 static DeceptusU16 copper[2][128] CHIP;
 static DeceptusFrame previous[2];
-static struct View *saved_view;
-static APTR saved_interrupt;
-static APTR volatile *volatile level_three_vector = (APTR volatile *)0x6c;
-static DeceptusU16 saved_dma, saved_ints, draw_buffer;
+static DeceptusU16 draw_buffer;
 static volatile DeceptusU32 video_frames;
 
 static void __attribute__((interrupt)) verticalBlank(void)
@@ -88,20 +84,8 @@ static void prepareCopper(DeceptusU16 buffer, DeceptusI16 camera)
 int amigaVideoInit(void)
 {
    DeceptusU16 buffer;
-   __asm__ volatile("move.l 4.w,%0" : "=a"(SysBase));
-   /* this first backend deliberately supports only the baseline 68000. */
-   if (SysBase->AttnFlags & AFF_68010)
+   if (!amigaSystemOpen())
    {
-      return 0;
-   }
-   GfxBase = (struct GfxBase *)OpenLibrary((CONST_STRPTR) "graphics.library", 0);
-   if (!GfxBase)
-   {
-      return 0;
-   }
-   if (!(GfxBase->DisplayFlags & PAL))
-   {
-      CloseLibrary((struct Library *)GfxBase);
       return 0;
    }
    for (buffer = 0; buffer < 2; ++buffer)
@@ -109,47 +93,14 @@ int amigaVideoInit(void)
       memcpy(buffers[buffer], amiga_background, sizeof(buffers[buffer]));
       prepareCopper(buffer, 0);
    }
-   Forbid();
-   saved_dma = hardware->dmaconr;
-   saved_ints = hardware->intenar;
-   saved_view = GfxBase->ActiView;
-   LoadView(0);
-   WaitTOF();
-   WaitTOF();
-   OwnBlitter();
-   WaitBlit();
-   Disable();
-   saved_interrupt = *level_three_vector;
-   hardware->intena = 0x7fff;
-   hardware->dmacon = 0x7fff;
-   hardware->intreq = 0x7fff;
-   *level_three_vector = (APTR)verticalBlank;
-   hardware->cop1lc = (ULONG)copper[0];
-   hardware->copjmp1 = 0;
-   hardware->dmacon = DMAF_SETCLR | DMAF_MASTER | DMAF_RASTER | DMAF_COPPER | DMAF_BLITTER;
-   hardware->intena = INTF_SETCLR | INTF_INTEN | INTF_VERTB;
+   amigaSystemTakeDisplay(verticalBlank, copper[0]);
    return 1;
 }
 
 void amigaVideoClose(void)
 {
    amigaVideoWait();
-   hardware->intena = 0x7fff;
-   hardware->dmacon = 0x7fff;
-   hardware->intreq = 0x7fff;
-   *level_three_vector = saved_interrupt;
-   hardware->cop1lc = (ULONG)GfxBase->copinit;
-   hardware->cop2lc = (ULONG)GfxBase->LOFlist;
-   hardware->copjmp1 = 0;
-   hardware->dmacon = saved_dma | DMAF_SETCLR;
-   hardware->intena = saved_ints | INTF_SETCLR;
-   DisownBlitter();
-   Enable();
-   LoadView(saved_view);
-   WaitTOF();
-   WaitTOF();
-   Permit();
-   CloseLibrary((struct Library *)GfxBase);
+   amigaSystemClose();
 }
 
 static void waitBlitter(void)

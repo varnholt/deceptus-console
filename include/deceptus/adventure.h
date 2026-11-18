@@ -103,5 +103,6 @@ void deceptusAdventureInit(DeceptusAdventure *game, const DeceptusAdventureDef *
 void deceptusAdventureInitWithRoomProvider(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video,
                                            const DeceptusRoomProvider *provider);
 DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons);
+DeceptusU16 deceptusAdventurePresentationFlags(const DeceptusAdventure *game);
 DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure *game, const DeceptusInteraction *interaction);
 #endif
