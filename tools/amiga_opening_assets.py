@@ -105,6 +105,9 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
     background = map_image(image, colors)
     output.mkdir(parents=True, exist_ok=True)
     background.save(output / ('background-sword-preview.png' if sword else 'background-preview.png'))
+    native_background = planar(np.pad(np.asarray(background),
+                                     ((0, 0), (0, -image.width % 16))))
+    (output / (basename + '.abg')).write_bytes(native_background)
     archive = Archive()
     palette = [(int(r) // 17) << 8 | (int(g) // 17) << 4 | int(b) // 17
                for r, g, b in colors]
@@ -206,6 +209,8 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
     (output / (basename + '.agp')).write_bytes(payload)
     return dict(basename=basename, bytes=len(payload) + sprite_bytes, world_bytes=len(payload), patterns=len(patterns), sprites=len(resources),
                 sprite_bytes=len(packed_sprites), tile_bytes=len(packed_tiles),
+                background_bytes=len(native_background),
+                background_sha256=hashlib.sha256(native_background).hexdigest(),
                 max_sprite_bytes=maximum_sprite, mirrored_sprites=mirrored_count, families=sorted(selected),
                 clips=len(clips), color_error=color_error(image, background),
                 sha256=hashlib.sha256(payload).hexdigest(),

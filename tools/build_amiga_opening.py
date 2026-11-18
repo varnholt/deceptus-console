@@ -33,7 +33,8 @@ def validate_assets(data, generated):
         raise ValueError('Amiga opening assets are stale or partial; rebuild without --reuse-assets')
     for room in report['rooms']:
         for variant in (room, room['sword']):
-            for extension, key in (('.agp', 'sha256'), ('.asp', 'sprites_sha256')):
+            for extension, key in (('.agp', 'sha256'), ('.asp', 'sprites_sha256'),
+                                   ('.abg', 'background_sha256')):
                 path = generated / f"area{room['room']}" / (variant['basename'] + extension)
                 if hashlib.sha256(path.read_bytes()).hexdigest() != variant[key]:
                     raise ValueError(f'Amiga opening graphics changed: {path}')

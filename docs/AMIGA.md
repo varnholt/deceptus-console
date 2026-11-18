@@ -73,12 +73,38 @@ constant-time tile lookup; changing rooms or body variants invalidates both
 leases and caches together.
 Row maps decode directly into native words, avoiding an intermediate byte buffer.
 A short cycle-exact moving-Cell check with the resource caches measured about
-4.5 displayed frames/s and 27 simulation ticks/s at the 1 MiB configuration
+6.5 displayed frames/s and 40 simulation ticks/s at the 1 MiB configuration
 (previously 2.75 frames/s and 15 ticks/s before these caches). This remains far
 below the target rate; the complete opening is not performance-ready. The
 renderer also avoids restoring background pixels that the next opaque UI box
 will cover. These changes retain fixed ownership and add no runtime heap.
 
+
+## Native background restoration
+
+Each room/body variant also exports an `.abg` file containing its opaque
+background as five uncompressed native bitplanes. Rows are padded to a 16-pixel
+word boundary; the byte count is `ceil(width / 16) * 2 * height * 5`. This uses
+the same palette indices and pixel grid as the tile archive. The converter
+records its hash, and asset reuse validates the file with the other resources.
+
+After loading the compressed room resources, the loader optionally places this
+bitmap in the Chip bank's unused tail. It keeps enough space for at least one
+decoded tile group in one of the banks. Rooms that cannot fit the bitmap retain
+the tile renderer. Missing/truncated/oversized bitmap files fail loading when the
+native path is selected, rather than silently changing presentation.
+
+Opaque dirty rectangles and newly exposed scroll strips can then use five
+word-aligned A-to-D blits with independent source/destination strides. Horizontal
+restoration expands to word boundaries before all actors and UI are redrawn.
+Out-of-world rectangles use the checked tile path. Animated background clips,
+foreground occlusion and foreground clips retain their original drawing order;
+only the opaque base copy changes. All cache leases exclude the resident bitmap.
+
+Local checks compare every bitmap byte against independent tile reconstruction
+for all 52 variants, and check 10,000 blit rectangles against a CPU reference,
+including edge fallback, strides and destination guards. These checks complement
+the actual emulator replay and cycle-exact measurement.
 
 ## Opening sprite resources and cache ownership
 

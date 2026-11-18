@@ -345,7 +345,7 @@ static DeceptusU16 clipCell(const AmigaClipState *state, DeceptusI16 world_x, De
    return mapCell(clip->map, clip->bounds.width / 8, (DeceptusU16)rows, x / 8, state->frame * (clip->bounds.height / 8) + y / 8);
 }
 
-static void paintTile(DeceptusI16 x, DeceptusI16 y, DeceptusU8 foreground_only)
+static void paintTile(DeceptusI16 x, DeceptusI16 y, DeceptusU8 foreground_only, DeceptusU8 base_ready)
 {
    DeceptusI16 world_x, world_y;
    DeceptusU16 pattern;
@@ -355,11 +355,14 @@ static void paintTile(DeceptusI16 x, DeceptusI16 y, DeceptusU8 foreground_only)
    pattern = 0;
    if (!foreground_only)
    {
-      if (world_x >= 0 && world_y >= 0 && world_x < graphics->width && world_y < graphics->height)
+      if (!base_ready)
       {
-         pattern = mapCell(graphics->background, graphics->width / 8, graphics->height / 8, world_x / 8, world_y / 8);
+         if (world_x >= 0 && world_y >= 0 && world_x < graphics->width && world_y < graphics->height)
+         {
+            pattern = mapCell(graphics->background, graphics->width / 8, graphics->height / 8, world_x / 8, world_y / 8);
+         }
+         paintPattern(x, y, pattern, 0);
       }
-      paintPattern(x, y, pattern, 0);
       for (index = 0; index < graphics->clip_count; ++index)
       {
          if (!clips[index].clip.plane)
@@ -384,9 +387,43 @@ static void paintTile(DeceptusI16 x, DeceptusI16 y, DeceptusU8 foreground_only)
    }
 }
 
+static DeceptusU8 drawNativeBackground(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, DeceptusI16 bottom)
+{
+   DeceptusU16 plane, width, height, source_words;
+   DeceptusU32 source_plane;
+   const DeceptusU16 *source;
+   DeceptusU16 *destination;
+   if (origin_x + left < 0 || origin_y + top < 0 || origin_x + right > graphics->width || origin_y + bottom > graphics->height)
+   {
+      return 0;
+   }
+   width = (right - left) / 16;
+   height = bottom - top;
+   source_words = (graphics->width + 15) / 16;
+   source_plane = (DeceptusU32)source_words * graphics->height;
+   source = graphics->background_pixels + (DeceptusU32)(origin_y + top) * source_words + (origin_x + left) / 16;
+   destination = buffers[draw_buffer] + top * ROW_WORDS + left / 16;
+   waitBlitter();
+   hardware->bltcon0 = SRCA | DEST | A_TO_D;
+   hardware->bltcon1 = 0;
+   hardware->bltafwm = hardware->bltalwm = 65535U;
+   hardware->bltamod = source_words * 2 - width * 2;
+   hardware->bltdmod = ROW_BYTES - width * 2;
+   for (plane = 0; plane < 5; ++plane)
+   {
+      waitBlitter();
+      hardware->bltapt = (APTR)(source + plane * source_plane);
+      hardware->bltdpt = destination + plane * PLANE_WORDS;
+      hardware->bltsize = (height << 6) | width;
+   }
+   waitBlitter();
+   return 1;
+}
+
 static void paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_only)
 {
    DeceptusI16 x, y, left, right, top, bottom;
+   DeceptusU8 base_ready;
    if (rectangle->width <= 0 || rectangle->height <= 0)
    {
       return;
@@ -403,11 +440,25 @@ static void paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_
    {
       bottom = CACHE_HEIGHT;
    }
+   base_ready = 0;
+   if (!foreground_only && graphics->background_pixels)
+   {
+      left = left / 16 * 16;
+      right = (right + 15) / 16 * 16;
+   }
+   if (left >= right || top >= bottom)
+   {
+      return;
+   }
+   if (!foreground_only && graphics->background_pixels)
+   {
+      base_ready = drawNativeBackground(left, top, right, bottom);
+   }
    for (y = top; y < bottom; y += 8)
    {
       for (x = left; x < right; x += 8)
       {
-         paintTile(x, y, foreground_only);
+         paintTile(x, y, foreground_only, base_ready);
       }
    }
 }
@@ -692,7 +743,7 @@ static void prepareCopper(DeceptusU16 buffer, const DeceptusFrame *frame)
 
 DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFrame *frame)
 {
-   DeceptusI16 x, y, next_x, next_y, dx, dy;
+   DeceptusI16 next_x, next_y, dx, dy;
    DeceptusU16 index;
    DeceptusRect rectangle;
    DeceptusU8 was_valid, ui_layout;
@@ -758,17 +809,30 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    }
    origin_x = origins_x[draw_buffer] = next_x;
    origin_y = origins_y[draw_buffer] = next_y;
-   if (!was_valid || dx || dy)
+   if (!was_valid)
    {
-      for (y = 0; y < CACHE_HEIGHT; y += 8)
+      rectangle.x = rectangle.y = 0;
+      rectangle.width = CACHE_WIDTH;
+      rectangle.height = CACHE_HEIGHT;
+      paintRectangle(&rectangle, 0);
+   }
+   else
+   {
+      if (dx)
       {
-         for (x = 0; x < CACHE_WIDTH; x += 8)
-         {
-            if (!was_valid || x + dx < 0 || x + dx >= CACHE_WIDTH || y + dy < 0 || y + dy >= CACHE_HEIGHT)
-            {
-               paintTile(x, y, 0);
-            }
-         }
+         rectangle.x = dx > 0 ? CACHE_WIDTH - dx : 0;
+         rectangle.y = 0;
+         rectangle.width = dx > 0 ? dx : -dx;
+         rectangle.height = CACHE_HEIGHT;
+         paintRectangle(&rectangle, 0);
+      }
+      if (dy)
+      {
+         rectangle.x = 0;
+         rectangle.y = dy > 0 ? CACHE_HEIGHT - dy : 0;
+         rectangle.width = CACHE_WIDTH;
+         rectangle.height = dy > 0 ? dy : -dy;
+         paintRectangle(&rectangle, 0);
       }
    }
    for (index = 0; index < graphics->clip_count; ++index)

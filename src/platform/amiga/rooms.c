@@ -68,6 +68,30 @@ DeceptusU8 amigaRoomSwordGraphics(void)
    return sword_graphics;
 }
 
+static DeceptusU8 loadNativeBackground(DeceptusU8 room, DeceptusU8 sword)
+{
+   DeceptusU32 bytes, minimum, chip_free, normal_free;
+   DeceptusU8 *pixels;
+   char path[64];
+   bytes = (DeceptusU32)((graphics.width + 15) / 16) * 2 * graphics.height * 5;
+   minimum = ((DeceptusU32)graphics.pattern_count + 15) / 16 + 3 + AMIGA_TILE_GROUP_BYTES;
+   chip_free = sizeof(resource_chip) - chip_cache_offset;
+   normal_free = sizeof(resource_normal) - tile_cache_offset;
+   if (bytes > chip_free || (normal_free < minimum && chip_free - bytes < minimum))
+   {
+      return 1;
+   }
+   pixels = (DeceptusU8 *)resource_chip + chip_cache_offset;
+   roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.abg" : "/graphics.abg", 0);
+   if (amigaSystemReadFile(path, pixels, bytes) != bytes)
+   {
+      return 0;
+   }
+   graphics.background_pixels = (const DeceptusU16 *)pixels;
+   chip_cache_offset += bytes;
+   return 1;
+}
+
 DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
 {
    char path[64];
@@ -95,7 +119,7 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    }
    tile_cache_offset = (sprite_size - split + 3) & ~3UL;
    chip_cache_offset = (world_size + split + 3) & ~3UL;
-   if (tile_cache_offset > sizeof(resource_normal))
+   if (tile_cache_offset > sizeof(resource_normal) || !loadNativeBackground(room, sword))
    {
       return 0;
    }
