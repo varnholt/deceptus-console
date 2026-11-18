@@ -3,6 +3,10 @@
 #include "deceptus/mechanisms.h"
 
 #define AMIGA_GRAPHICS_RESOURCES 1065
+#define AMIGA_WIDE_CACHE_WIDTH 512
+#define AMIGA_WIDE_CACHE_HEIGHT 256
+#define AMIGA_LARGE_CACHE_WIDTH 640
+#define AMIGA_LARGE_CACHE_HEIGHT 248
 #define AMIGA_TILE_GROUP 16
 #define AMIGA_TILE_BYTES 48
 #define AMIGA_TILE_GROUP_BYTES (AMIGA_TILE_GROUP * AMIGA_TILE_BYTES)
@@ -11,6 +15,8 @@ typedef struct AmigaGraphics
 {
    const DeceptusU8 *world, *sprites, *sprite_tail;
    const DeceptusU16 *background_pixels;
+   DeceptusU16 *viewport_pixels;
+   DeceptusU16 viewport_width, viewport_height;
    DeceptusU32 world_size, sprite_size, sprite_first_size;
    DeceptusU32 palette, tile_table, tile_data, background, foreground, clips, sprite_table;
    DeceptusU16 width, height, pattern_count, sprite_count, clip_count;

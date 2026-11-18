@@ -62,7 +62,7 @@ static sizes; the OS, loader and largest free block in each bank must also fit.
 The prototype's measured frame rate below does not establish opening performance.
 The opening title has now been
 verified under cycle-exact WinUAE with the same 512 KiB Chip + 512 KiB slow RAM
-configuration and built-in AROS. Its static footprint is approximately 693 KiB,
+configuration and built-in AROS. Its static footprint is approximately 696 KiB,
 including 467 KiB of Chip RAM. A local normal-input replay now passes all 56 opening checkpoints through the
 rubies, crypt return, altar and sword acquisition/attack under accelerated
 68000 emulation with the same RAM budget. This verifies progression/resource
@@ -72,13 +72,47 @@ ends of both resource banks to the graphics caches. A directory provides
 constant-time tile lookup; changing rooms or body variants invalidates both
 leases and caches together.
 Row maps decode directly into native words, avoiding an intermediate byte buffer.
-A short cycle-exact moving-Cell check with the resource caches measured about
-6.5 displayed frames/s and 40 simulation ticks/s at the 1 MiB configuration
-(previously 2.75 frames/s and 15 ticks/s before these caches). This remains far
+A cycle-exact moving-Cell check with the larger cache and direct Chip sprite
+access measured 18.4 displayed frames/s and 60 simulation ticks/s over 709 PAL
+frames at the 1 MiB configuration, with no additional dropped-time count during
+the sample (previously 2.75 frames/s and 15 ticks/s before these caches). This remains far
 below the target rate; the complete opening is not performance-ready. The
 renderer also avoids restoring background pixels that the next opaque UI box
 will cover. These changes retain fixed ownership and add no runtime heap.
 
+
+## Adaptive scrolling windows
+
+The visible game viewport remains 320x224 with the original pixel grid. Larger
+backing buffers reduce how often camera motion requires copying the whole
+viewport; they do not widen or scale the player's view.
+
+After resident world/sprite resources, the Chip bank can lend 198,400 bytes for
+two 640x248 backing buffers, or 163,840 bytes for two 512x256 buffers. If neither
+fits while retaining a tile-cache minimum, rendering keeps the static 352x232
+buffers. Selection can change with the room and normal/sword graphics variant.
+These are subregions of the existing 360 KiB resource bank, not new allocations.
+
+In a larger mode, the inactive compact buffers become one opaque background
+reference (99,200 or 81,920 bytes, within their combined 102,080-byte capacity).
+It follows a shared scroll-window origin, scrolling and rebuilding only exposed
+background strips from the tile archive. Both display buffers use that reference
+for sprite/UI cleanup; animated clips and foregrounds stay separate. Centered
+rebases leave space on both sides of the camera, and coarse bitplane pointers
+are derived from the actual buffer origin together with fine scrolling.
+
+Room/body reloads invalidate display buffers, the background reference and every
+cache lease together. The loader reserves viewport storage before handing the
+remaining bank tails to caches. Compact mode can use the native background file
+below; larger modes use their retained background reference instead.
+
+Local checks exercise 300,000 camera moves and compare 6,000 complete rendered
+frames against the original tile path across all three sizes. They include
+scroll directions, clipping, clip-frame transitions, old-sprite cleanup and
+foreground occlusion. UI pixels and dirty rectangles also match the previous
+renderer at every supported horizontal cache offset. Complete accelerated route
+checks establish logical correctness; the Cell measurement above does not prove
+all-room performance, hardware compatibility or complete game readiness.
 
 ## Native background restoration
 
@@ -88,7 +122,7 @@ word boundary; the byte count is `ceil(width / 16) * 2 * height * 5`. This uses
 the same palette indices and pixel grid as the tile archive. The converter
 records its hash, and asset reuse validates the file with the other resources.
 
-After loading the compressed room resources, the loader optionally places this
+In compact mode, after loading compressed resources, the loader optionally places this
 bitmap in the Chip bank's unused tail. It keeps enough space for at least one
 decoded tile group in one of the banks. Rooms that cannot fit the bitmap retain
 the tile renderer. Missing/truncated/oversized bitmap files fail loading when the
@@ -132,23 +166,27 @@ and 88 KiB normal resource banks.
 
 `prepareCaches` borrows the unused tails of both resource banks until the next
 graphics load. The larger tail holds the tile directory and up to 128 decoded
-tile groups, capped by the room's group count. The other tail holds up to 24 KiB
+tile groups, capped by the room's group count. The other tail holds up to 32 KiB
 of decoded sprites; unused space after the tile cache can serve it instead when
 that gives a larger cache. Regions never overlap resident resources or one
-another. Neither cache allocates memory at runtime. A bank too small for a tile
+another. Neither cache allocates memory at runtime. The planar writer and strip rebuild
+keep a single compiled implementation to bound executable code size as well. A bank too small for a tile
 group causes a checked renderer failure; a small sprite cache remains usable
 through direct decoding. These are opportunistic graphics leases, not an audio
 budget: future sound/music storage must be excluded before cache partitioning.
 
 `AmigaSpriteCache` owns only metadata; its caller owns the supplied byte buffer.
 Initialize it whenever room/body-variant resources change. Source graphics must
-remain immutable for that lease. Sixteen entries identify decoded blocks by
+remain immutable for that lease. Thirty-two entries identify decoded blocks by
 source offset/length, dimensions, stride and orientation. A bounded ring evicts
 entries overlapping a new frame. Cache misses decode and, when necessary,
-mirror once. Oversized frames decode directly into the existing Chip staging
-buffer. Every draw copies cached bytes into that staging buffer before blitting.
-Cache addresses are never given directly to the blitter. The renderer waits for the
-previous blit before reusing staging. Errors still propagate to the renderer.
+mirror once. Frames in Chip cache storage feed the blitter directly; frames in
+CPU-only storage copy into the existing Chip staging buffer. Oversized frames
+decode directly into staging. `amigaSpriteCachePixels` returns pixels valid until
+the next cache call or graphics load. The renderer waits for the previous blit
+before any subsequent cache mutation or staging reuse, including the clipped
+CPU path. Bank selection explicitly tracks DMA accessibility; CPU-only addresses
+are never submitted to the blitter. Decode errors still propagate to the renderer.
 
 Decoded row maps retain four ways per set. Rooms with spare cache space borrow
 up to sixteen sets (64 rows); large rooms fall back to four static rows. A hash
@@ -222,4 +260,4 @@ CMake also exposes an optional `amiga_poc` target after SDK setup. The normal
 host, GBA, SNES and Mega Drive builds do not require the Amiga toolchain.
 
 New verification harnesses, captures and generated files remain local under
-`build/amiga/`; they are not part of the source publication.
+`build/`; they are not part of the source publication.

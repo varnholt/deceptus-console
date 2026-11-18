@@ -68,27 +68,39 @@ DeceptusU8 amigaRoomSwordGraphics(void)
    return sword_graphics;
 }
 
-static DeceptusU8 loadNativeBackground(DeceptusU8 room, DeceptusU8 sword)
+static DeceptusU8 *reserveChipScratch(DeceptusU32 bytes)
 {
-   DeceptusU32 bytes, minimum, chip_free, normal_free;
+   DeceptusU32 minimum, chip_free, normal_free;
    DeceptusU8 *pixels;
-   char path[64];
-   bytes = (DeceptusU32)((graphics.width + 15) / 16) * 2 * graphics.height * 5;
    minimum = ((DeceptusU32)graphics.pattern_count + 15) / 16 + 3 + AMIGA_TILE_GROUP_BYTES;
    chip_free = sizeof(resource_chip) - chip_cache_offset;
    normal_free = sizeof(resource_normal) - tile_cache_offset;
    if (bytes > chip_free || (normal_free < minimum && chip_free - bytes < minimum))
    {
-      return 1;
+      return 0;
    }
    pixels = (DeceptusU8 *)resource_chip + chip_cache_offset;
+   chip_cache_offset += bytes;
+   return pixels;
+}
+
+static DeceptusU8 loadNativeBackground(DeceptusU8 room, DeceptusU8 sword)
+{
+   DeceptusU32 bytes;
+   DeceptusU8 *pixels;
+   char path[64];
+   bytes = (DeceptusU32)((graphics.width + 15) / 16) * 2 * graphics.height * 5;
+   pixels = reserveChipScratch(bytes);
+   if (!pixels)
+   {
+      return 1;
+   }
    roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.abg" : "/graphics.abg", 0);
    if (amigaSystemReadFile(path, pixels, bytes) != bytes)
    {
       return 0;
    }
    graphics.background_pixels = (const DeceptusU16 *)pixels;
-   chip_cache_offset += bytes;
    return 1;
 }
 
@@ -119,9 +131,28 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    }
    tile_cache_offset = (sprite_size - split + 3) & ~3UL;
    chip_cache_offset = (world_size + split + 3) & ~3UL;
-   if (tile_cache_offset > sizeof(resource_normal) || !loadNativeBackground(room, sword))
+   if (tile_cache_offset > sizeof(resource_normal))
    {
       return 0;
+   }
+   graphics.viewport_width = AMIGA_LARGE_CACHE_WIDTH;
+   graphics.viewport_height = AMIGA_LARGE_CACHE_HEIGHT;
+   graphics.viewport_pixels =
+      (DeceptusU16 *)reserveChipScratch((DeceptusU32)(graphics.viewport_width / 8) * graphics.viewport_height * 5 * 2);
+   if (!graphics.viewport_pixels)
+   {
+      graphics.viewport_width = AMIGA_WIDE_CACHE_WIDTH;
+      graphics.viewport_height = AMIGA_WIDE_CACHE_HEIGHT;
+      graphics.viewport_pixels =
+         (DeceptusU16 *)reserveChipScratch((DeceptusU32)(graphics.viewport_width / 8) * graphics.viewport_height * 5 * 2);
+   }
+   if (!graphics.viewport_pixels)
+   {
+      graphics.viewport_width = graphics.viewport_height = 0;
+      if (!loadNativeBackground(room, sword))
+      {
+         return 0;
+      }
    }
    sword_graphics = sword;
    amigaOpeningVideoReset();

@@ -169,6 +169,11 @@ The active opening milestone targets all four platforms through a shared game
 layer. GBA is furthest along; SNES and Mega Drive still require substantial
 performance work, and the Amiga opening passes the accelerated logical traversal but still requires cycle-exact performance and visual-fidelity work. The prototype frame
 rates do not establish whole-opening performance.
+The Amiga moving-Cell check now sustains 60 simulation ticks/s with roughly
+18 displayed frames/s in the 1 MiB cycle-exact configuration. Adaptive scroll
+windows, background references and Chip sprite caching are backend services;
+all-room speed and the remaining source cutscene/effect differences stay open.
+See [Amiga implementation and verification](AMIGA.md).
 
 The Mines entrance is connected. Its farther iron door supports its reusable
 source red-key requirement; red-key and wetsuit acquisition are not yet connected.
