@@ -5,6 +5,49 @@ Amiga, with reusable engine services kept separate from game rules. A buildable
 backend or passing scripted route does not establish feature parity. DOS and
 STM32 remain later targets.
 
+## Equivalent progress across supported platforms
+
+GBA, SNES, Mega Drive and Amiga share one milestone sequence. Complete each
+playable slice on all four before advancing new game content. Reusable engine
+services and shared game rules provide the same behavior; backends provide the
+required controls, presentation and platform resources. Platform optimizations
+are catch-up work for that common milestone, not separate feature roadmaps.
+
+Equivalent progress includes gameplay timing, usable performance, presentation
+and documentation, not just reaching identical quest flags in a slow replay.
+Hardware representations may differ while retaining the authored behavior and
+pixel grid. Record unavoidable differences explicitly; do not mark an unverified
+or missing capability complete by treating it as a platform exception.
+
+Record the build/content identity and scope of every backend check. Refresh all
+four route checks when shared runtime, game rules or authoritative content
+changes. A backend-only change must be verified on that backend; prior results
+for other targets apply only while their tested dependencies remain unchanged.
+
+The following is the recorded baseline, not a claim that the current milestone
+is complete. Traversal passes are normal-input logical checks; performance and
+source fidelity require separate evidence.
+
+| Check | GBA | SNES | Mega Drive | Amiga |
+| --- | --- | --- | --- | --- |
+| Scripted opening progression through sword acquisition/attack | Passed | Passed | Passed | Passed, accelerated replay in 1 MiB |
+| Whole-opening real-time playability | Needs route-wide timing evidence | Below target | Below target | Cell has 60 Hz simulation and 18.4 fps drawing; route-wide evidence pending |
+| Complete original cutscenes/effects/presentation | Partial | Partial | Partial | Partial |
+| Sound effects and music playback | Missing | Missing | Missing | Missing |
+| Persistent save storage | Missing | Missing | Missing | Missing |
+| Full original-game workflow beyond the curated opening | Incomplete | Incomplete | Incomplete | Incomplete |
+| Physical-hardware verification | Not established | Not established | Not established | Not established |
+
+First close the SNES and Mega Drive playability gaps and establish comparable
+opening-wide timing/visual evidence on all four. Then advance source-fidelity
+and audio slices across all four together. Each slice includes its platform
+instructions and authoring/API documentation. Current evidence and conditions
+live in the linked platform guides and [status](STATUS.md).
+
+DOS and STM32 are future targets. An initial implementation remains a prototype
+until it reaches the shared milestone and passes the same acceptance criteria;
+it is not described as an equally supported backend while still catching up.
+
 ## What counts as complete
 
 For each feature, record the original asset, object property or script behavior;

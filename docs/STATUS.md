@@ -140,19 +140,23 @@ palettes; conflicting OBJ indices relocate without changing source colours.
 
 ## Remaining work
 
-1. Close remaining opening presentation and behavior differences: timed lever
+1. Close the cross-platform opening playability gap first: SNES and Mega Drive
+   need performance work, and every backend needs comparable route-wide timing
+   and visual evidence. Follow the common milestone gate in [PARITY.md](PARITY.md);
+   do not advance one platform to later game content while others lag.
+2. Close remaining opening presentation and behavior differences: timed lever
    camera sequences, monk encounter, graveyard weather/ghosts and sinkhole effects.
    The headtorch currently turns on automatically when acquired.
-2. Refine swimming/entry/exit fidelity and add remaining traversal abilities;
+3. Refine swimming/entry/exit fidelity and add remaining traversal abilities;
    refine collision fidelity and profile demanding rooms.
-3. Complete cutscenes, dialogue presentation and original menu/inventory behavior.
-4. Port additional enemies and mechanisms to reusable C services, retaining
+4. Complete cutscenes, dialogue presentation and original menu/inventory behavior.
+5. Port additional enemies and mechanisms to reusable C services, retaining
    source settings and differential checks where possible. Rat, arrow trap and
    normal ground blob are implemented; blob jump/drop variants and other enemy
    families remain unsupported. Cannon, generated-contour orb and blue frog are
    also implemented. Three authored orb placements have no matching source
    physics contour and remain explicitly reported; see `SEALED_ENEMIES.md`.
-5. Convert source music/SFX offline and add platform playback. Event ids have
+6. Convert source music/SFX offline and add platform playback. Event ids have
    begun to be exposed, but no sound currently plays in the ROM or project player.
    Keep music-zone/checkpoint selection and effect cues in game content. The
    planned engine interface owns bounded voices, priorities, volume, looping and
@@ -162,8 +166,8 @@ palettes; conflicting OBJ indices relocate without changing source colours.
    to tracker/module, native sequenced or streamed resources; tracker arrangements
    require authored instruments/patterns, not a simple transcode of the Ogg files.
    Feature and documentation gaps are mapped in [Original-game parity](PARITY.md).
-6. Add persistent save storage and versioned progression serialization.
-7. Extend complete-level/game verification, hardware testing and release packaging.
+7. Add persistent save storage and versioned progression serialization.
+8. Extend complete-level/game verification, hardware testing and release packaging.
 
 The active opening milestone targets all four platforms through a shared game
 layer. GBA is furthest along; SNES and Mega Drive still require substantial
