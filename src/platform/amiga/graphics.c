@@ -12,6 +12,59 @@ static DeceptusU32 readLong(const DeceptusU8 *bytes)
    return ((DeceptusU32)readWord(bytes) << 16) | readWord(bytes + 2);
 }
 
+DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size)
+{
+   DeceptusU16 columns, column;
+   DeceptusU32 start, previous, next;
+   graphics->raster = 0;
+   graphics->raster_size = 0;
+   columns = (graphics->width + 15) / 16;
+   start = 12 + ((DeceptusU32)columns + 1) * 4;
+   if (!pixels || size < start || graphics->clip_count || pixels[0] != 'A' || pixels[1] != 'C' || pixels[2] != '0' || pixels[3] != '1' ||
+       readWord(pixels + 4) != graphics->width || readWord(pixels + 6) != graphics->height || readWord(pixels + 8) != 16 ||
+       readWord(pixels + 10) != columns || readLong(pixels + 12))
+   {
+      return 0;
+   }
+   previous = 0;
+   for (column = 0; column < columns; ++column)
+   {
+      next = readLong(pixels + 16 + (DeceptusU32)column * 4);
+      if (next <= previous || next > size - start)
+      {
+         return 0;
+      }
+      previous = next;
+   }
+   if (previous != size - start)
+   {
+      return 0;
+   }
+   graphics->raster = pixels;
+   graphics->raster_size = size;
+   return 1;
+}
+
+DeceptusU8 amigaGraphicsRasterColumn(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU8 *pixels, DeceptusU32 capacity)
+{
+   DeceptusU16 columns;
+   DeceptusU32 start, first, last, bytes;
+   columns = (graphics->width + 15) / 16;
+   bytes = (DeceptusU32)graphics->height * 12;
+   start = 12 + ((DeceptusU32)columns + 1) * 4;
+   if (!graphics->raster || column >= columns || capacity < bytes || graphics->raster_size < start)
+   {
+      return 0;
+   }
+   first = readLong(graphics->raster + 12 + (DeceptusU32)column * 4);
+   last = readLong(graphics->raster + 16 + (DeceptusU32)column * 4);
+   if (first >= last || last > graphics->raster_size - start)
+   {
+      return 0;
+   }
+   return deceptusLz4Decode(graphics->raster + start + first, last - first, pixels, bytes);
+}
+
 static DeceptusU8 worldRange(const AmigaGraphics *graphics, DeceptusU32 offset, DeceptusU32 size)
 {
    return offset <= graphics->world_size && size <= graphics->world_size - offset;

@@ -49,6 +49,26 @@ def planar(pixels, planes=5):
                     for plane in range(planes))
 
 
+def raster_columns(patterns, background, foreground):
+    tiles = np.frombuffer(b''.join(patterns), dtype=np.uint8).reshape(-1, 6, 8)
+    layers = [tiles[grid].transpose(2, 0, 3, 1).reshape(
+        6, grid.shape[0] * 8, grid.shape[1])
+        for grid in (background, foreground)]
+    base, front = layers
+    mask = front[5:6]
+    pixels = np.concatenate(((base[:5] & ~mask) | (front[:5] & mask), mask))
+    pixels = np.pad(pixels, ((0, 0), (0, 0), (0, pixels.shape[2] % 2)))
+    blocks = [encode_block(pixels[:, :, x:x + 2].tobytes())
+              for x in range(0, pixels.shape[2], 2)]
+    offsets = [0]
+    for block in blocks:
+        offsets.append(offsets[-1] + len(block))
+    return (struct.pack('>4s4H', b'AC01', background.shape[1] * 8,
+                        background.shape[0] * 8, 16, len(blocks))
+            + struct.pack(f'>{len(offsets)}I', *offsets) + b''.join(blocks),
+            pixels.tobytes())
+
+
 def room_families(source, recipe, sword):
     mechanisms = json.loads((source / 'mechanisms.json').read_text())
     enemies = json.loads((source / 'enemies.json').read_text())
@@ -130,8 +150,10 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
                 result[y // 8, x // 8] = lookup[packed]
         return result
 
-    background_offset = archive.rows(cells(image, True))
-    foreground_offset = archive.rows(cells(foreground, False))
+    background_cells = cells(image, True)
+    foreground_cells = cells(foreground, False)
+    background_offset = archive.rows(background_cells)
+    foreground_offset = archive.rows(foreground_cells)
     clip_entries = []
     for clip in clips:
         frames = np.concatenate([cells(frame, not clip.get('plane', 0))
@@ -207,10 +229,16 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
                      foreground_offset, clip_offset, sprite_table, sprite_bytes)
     payload = bytes(archive.data)
     (output / (basename + '.agp')).write_bytes(payload)
+    raster, composite = (raster_columns(patterns, background_cells, foreground_cells)
+                         if not clips else (b'', b''))
+    (output / (basename + '.acr')).write_bytes(raster)
+    (output / (basename + '.acp')).write_bytes(composite)
     return dict(basename=basename, bytes=len(payload) + sprite_bytes, world_bytes=len(payload), patterns=len(patterns), sprites=len(resources),
                 sprite_bytes=len(packed_sprites), tile_bytes=len(packed_tiles),
                 background_bytes=len(native_background),
                 background_sha256=hashlib.sha256(native_background).hexdigest(),
+                raster_bytes=len(raster), raster_sha256=hashlib.sha256(raster).hexdigest(),
+                composite_bytes=len(composite), composite_sha256=hashlib.sha256(composite).hexdigest(),
                 max_sprite_bytes=maximum_sprite, mirrored_sprites=mirrored_count, families=sorted(selected),
                 clips=len(clips), color_error=color_error(image, background),
                 sha256=hashlib.sha256(payload).hexdigest(),
@@ -224,7 +252,7 @@ def converter_identity():
                                   for name in names)).hexdigest()
 
 
-def write_common(data, output, recipes, simulation, families, sprite_bytes, clip_count):
+def write_common(data, output, recipes, simulation, families, sprite_bytes, clip_count, rooms):
     from pixel_font import NativePixelFont
 
     limits = simulation['capacities']
@@ -245,6 +273,7 @@ def write_common(data, output, recipes, simulation, families, sprite_bytes, clip
               'extern const DeceptusAppearanceDef amiga_appearance_definition;',
               'extern const DeceptusU16 amiga_sprite_families[DECEPTUS_SPRITE_FAMILY_COUNT];',
               'extern const char *const amiga_room_titles[AMIGA_OPENING_ROOMS];',
+              'extern const DeceptusU32 amiga_raster_sizes[AMIGA_OPENING_ROOMS][2];',
               'extern const DeceptusU16 amiga_font[95][18];',
               'extern const DeceptusU8 amiga_font_advances[95];', '#endif']
     (output / 'amiga_opening_assets.h').write_text('\n'.join(header) + '\n')
@@ -256,6 +285,12 @@ def write_common(data, output, recipes, simulation, families, sprite_bytes, clip
     lines = ['#include "amiga_opening_assets.h"',
              'static const DeceptusCampaignDef amiga_campaign_definition = {0,0,'
              + str(len(recipes)) + '};', bindings]
+    lines.append('const DeceptusU32 amiga_raster_sizes[AMIGA_OPENING_ROOMS][2] = {')
+    sizes = {room['room']: (room['raster_bytes'], room['sword']['raster_bytes'])
+             for room in rooms}
+    lines.extend('   {' + ','.join(map(str, sizes.get(index, (0, 0)))) + '},'
+                 for index in range(len(recipes)))
+    lines.append('};')
     for stem in ('sword', 'headtorch'):
         source = (ROOT / 'assets/generated/gba/area0' / f'gba_{stem}_resources.h').read_text()
         source = source.replace('GBA_', 'AMIGA_').replace('gba_', 'amiga_').replace('Gba', 'Amiga')
@@ -278,8 +313,7 @@ def write_common(data, output, recipes, simulation, families, sprite_bytes, clip
         glyphs.append([sum(int(bit) << (15 - x) for x, bit in enumerate(row))
                        for row in visible])
         advances.append(round(font.metrics.getlength(chr(code))))
-    lines.append('const DeceptusU16 amiga_font[95][18] '
-                 '__attribute__((section(".MEMF_CHIP"))) = {')
+    lines.append('const DeceptusU16 amiga_font[95][18] = {')
     lines.extend('   {' + ','.join(map(str, glyph)) + '},' for glyph in glyphs)
     lines.extend(['};', 'const DeceptusU8 amiga_font_advances[95] = {'
                   + ','.join(map(str, advances)) + '};'])
@@ -305,7 +339,7 @@ def compile_opening(data, output, room_indices=None):
               f"{report['patterns']} tiles, {report['sprites']} sprites; sword {sword['bytes']} bytes", flush=True)
     write_common(data, output, recipes, simulation, families,
                  max(variant['max_sprite_bytes'] for room in reports for variant in (room, room['sword'])),
-                 max(room['clips'] for room in reports))
+                 max(room['clips'] for room in reports), reports)
     report = dict(source_identity=identity, full_game=False, format='AG03',
                   converter_sha256=converter_identity(),
                   pixel_scale=1, dithering=False, families=families,

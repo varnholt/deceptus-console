@@ -121,6 +121,14 @@ are immutable imported data; mutable instances live in the caller-owned
 state to those instances. Collision queries and logical visual state are shared;
 the backend selects console graphics without implementing mechanism rules.
 
+Binding also builds a fixed spatial index for solid mechanism candidates. Two
+arrays of 32 bitsets cover 64px columns and rows; a query intersects their masks
+before checking the original collision rules. Enabled, timed and destroyed
+states remain live checks. Unusual or out-of-range rectangles conservatively
+retain all relevant candidates. The index belongs to the caller-owned set and
+allocates no memory; changing definition bounds or kinds requires reinitializing
+the set. This optimization serves every backend and contains no story rules.
+
 Use matching source basenames for future enemy ports, such as `blob_2.c` for
 `blob_2.lua`. Keep source object ids, properties and state meanings. The C90,
 fixed-point and fixed-capacity constraints can change representation, but should

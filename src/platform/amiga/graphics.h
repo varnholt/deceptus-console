@@ -3,10 +3,12 @@
 #include "deceptus/mechanisms.h"
 
 #define AMIGA_GRAPHICS_RESOURCES 1065
-#define AMIGA_WIDE_CACHE_WIDTH 512
-#define AMIGA_WIDE_CACHE_HEIGHT 256
+#define AMIGA_WIDE_CACHE_WIDTH 448
+#define AMIGA_WIDE_CACHE_HEIGHT 304
 #define AMIGA_LARGE_CACHE_WIDTH 512
 #define AMIGA_LARGE_CACHE_HEIGHT 312
+#define AMIGA_TALL_CACHE_WIDTH 400
+#define AMIGA_TALL_CACHE_HEIGHT 312
 #define AMIGA_TILE_GROUP 16
 #define AMIGA_TILE_BYTES 48
 #define AMIGA_TILE_GROUP_BYTES (AMIGA_TILE_GROUP * AMIGA_TILE_BYTES)
@@ -14,7 +16,11 @@
 typedef struct AmigaGraphics
 {
    const DeceptusU8 *world, *sprites, *sprite_tail;
+   const DeceptusU8 *raster;
+   DeceptusU16 *raster_scratch;
+   DeceptusU32 raster_size;
    const DeceptusU16 *background_pixels;
+   const DeceptusU16 *native_foreground;
    DeceptusU16 *viewport_pixels, *foreground_pixels;
    DeceptusU16 viewport_width, viewport_height;
    DeceptusU32 world_size, sprite_size, sprite_first_size;
@@ -54,4 +60,6 @@ DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 re
 DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
                                      DeceptusU32 capacity);
 void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *sprite);
+DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size);
+DeceptusU8 amigaGraphicsRasterColumn(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU8 *pixels, DeceptusU32 capacity);
 #endif

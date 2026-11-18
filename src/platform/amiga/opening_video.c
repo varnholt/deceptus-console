@@ -12,16 +12,23 @@
 #include <stddef.h>
 #include <string.h>
 
-#define BASE_CACHE_WIDTH 352
+#define BASE_CACHE_WIDTH 368
 #define BASE_CACHE_HEIGHT 232
 #define BASE_BUFFER_WORDS ((BASE_CACHE_WIDTH / 16) * BASE_CACHE_HEIGHT * 5)
 #if (AMIGA_LARGE_CACHE_WIDTH / 8) * AMIGA_LARGE_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4 ||                                                \
-   (AMIGA_WIDE_CACHE_WIDTH / 8) * AMIGA_WIDE_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4
+   (AMIGA_WIDE_CACHE_WIDTH / 8) * AMIGA_WIDE_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4 ||                                                   \
+   (AMIGA_TALL_CACHE_WIDTH / 8) * AMIGA_TALL_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4
 #error the background reference must fit the inactive compact buffers
 #endif
 #define SPRITE_CAPACITY 96
+#define SPRITE_IDENTITY_MASK 0x0fff
+#define SPRITE_FLIPPED 0x0800
+#define SPRITE_REDRAW 0x8000
+#if AMIGA_GRAPHICS_RESOURCES > 2048
+#error sprite identities require resources below 2048
+#endif
 #define TILE_CACHE_SLOTS 128
-#define SPRITE_CACHE_BYTES (32UL * 1024)
+#define SPRITE_CACHE_BYTES (64UL * 1024)
 #define ROW_CACHE_WAYS 4
 #define ROW_CACHE_SETS 16
 #define CHIP __attribute__((section(".MEMF_CHIP")))
@@ -38,6 +45,7 @@ typedef struct AmigaSpriteRequest
 {
    AmigaGraphicsSprite graphic;
    DeceptusI16 x, y;
+   DeceptusU16 identity_flags;
 } AmigaSpriteRequest;
 
 typedef struct AmigaClipState
@@ -65,16 +73,19 @@ static DeceptusU8 *tile_cache, *tile_directory;
 static DeceptusU16 tile_directory_count;
 static DeceptusU16 tile_slots;
 static DeceptusU16 tile_groups[TILE_CACHE_SLOTS];
-static AmigaRowCache base_rows[ROW_CACHE_WAYS];
+static AmigaRowCache base_rows[ROW_CACHE_WAYS] CHIP;
 static AmigaRowCache *row_cache = base_rows;
 static DeceptusU8 row_sets, row_cursors[ROW_CACHE_SETS];
 static DeceptusU8 tile_cursor;
 static AmigaClipState clips[AMIGA_OPENING_CLIPS];
 static DeceptusU16 previous_clip_frames[2][AMIGA_OPENING_CLIPS];
 static DeceptusU8 previous_clip_enabled[2][AMIGA_OPENING_CLIPS];
+static DeceptusU16 cached_clip_frames[AMIGA_OPENING_CLIPS];
+static DeceptusU8 cached_clip_enabled[AMIGA_OPENING_CLIPS];
 static AmigaSpriteRequest requests[SPRITE_CAPACITY];
 static DeceptusU16 request_count;
 static DeceptusRect previous_sprites[2][SPRITE_CAPACITY];
+static DeceptusU16 previous_sprite_keys[2][SPRITE_CAPACITY] CHIP;
 static DeceptusU16 previous_counts[2];
 static DeceptusRect previous_ui[2][2];
 static DeceptusU8 previous_ui_count[2], previous_ui_mode[2], previous_ui_layout[2];
@@ -152,7 +163,7 @@ static DeceptusU8 prepareCaches(void)
    DeceptusU16 slot;
    DeceptusU8 *sprite_memory, *chip_memory, *row_memory;
    DeceptusU32 row_cache_bytes;
-   DeceptusU8 rows_in_sprite_bank, sprite_in_chip, tile_in_chip;
+   DeceptusU8 rows_in_sprite_bank, sprite_in_chip, tile_in_chip, swap_banks;
    row_cache = base_rows;
    row_sets = 1;
    rows_in_sprite_bank = 0;
@@ -162,7 +173,15 @@ static DeceptusU8 prepareCaches(void)
    chip_memory = amigaRoomChipScratch(&chip_size);
    sprite_memory = chip_memory;
    sprite_size = chip_size;
-   if (chip_size > size)
+   tile_directory_count = (DeceptusU16)(((DeceptusU32)graphics->pattern_count + 15) / 16);
+   offset = ((DeceptusU32)tile_directory_count + 3) & ~3UL;
+   swap_banks = chip_size > size;
+   if (graphics->foreground_pixels || graphics->native_foreground)
+   {
+      /* retained layers make sprite reuse more valuable than extra tile groups. */
+      swap_banks = size > chip_size && chip_size >= offset + AMIGA_TILE_GROUP_BYTES;
+   }
+   if (swap_banks)
    {
       sprite_memory = tile_directory;
       sprite_size = size;
@@ -171,8 +190,6 @@ static DeceptusU8 prepareCaches(void)
       tile_directory = chip_memory;
       size = chip_size;
    }
-   tile_directory_count = (DeceptusU16)(((DeceptusU32)graphics->pattern_count + 15) / 16);
-   offset = ((DeceptusU32)tile_directory_count + 3) & ~3UL;
    if (!tile_directory || size < offset + AMIGA_TILE_GROUP_BYTES)
    {
       return 0;
@@ -256,6 +273,7 @@ void amigaOpeningVideoReset(void)
    previous_ui_count[0] = previous_ui_count[1] = 0;
    memset(row_cache, 0, (DeceptusU32)row_sets * ROW_CACHE_WAYS * sizeof(*row_cache));
    memset(row_cursors, 0, sizeof(row_cursors));
+   memset(requests, 0, sizeof(requests));
    animation.previous_pose = 255;
 }
 
@@ -474,33 +492,40 @@ static DeceptusU8 drawNativeBackground(DeceptusI16 left, DeceptusI16 top, Decept
    return 1;
 }
 
-static DeceptusU8 __attribute__((noinline, noclone)) drawNativeForeground(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right,
-                                                                          DeceptusI16 bottom)
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) drawNativeForeground(DeceptusI16 left, DeceptusI16 top,
+                                                                                          DeceptusI16 right, DeceptusI16 bottom)
 {
    DeceptusI16 source_x, source_y;
-   DeceptusU16 plane, width, height;
-   DeceptusU32 offset;
+   DeceptusU16 plane, width, height, source_words, source_height;
+   DeceptusU32 offset, source_plane;
+   const DeceptusU16 *source, *mask;
    DeceptusU16 *destination;
-   source_x = origin_x + left - background_origin_x;
-   source_y = origin_y + top - background_origin_y;
-   if (source_x < 0 || source_y < 0 || source_x + right - left > cache_width || source_y + bottom - top > cache_height)
+   source = graphics->native_foreground ? graphics->background_pixels : background_cache;
+   mask = graphics->native_foreground ? graphics->native_foreground : graphics->foreground_pixels;
+   source_words = graphics->native_foreground ? (graphics->width + 15) / 16 : row_words;
+   source_height = graphics->native_foreground ? graphics->height : cache_height;
+   source_x = origin_x + left - (graphics->native_foreground ? 0 : background_origin_x);
+   source_y = origin_y + top - (graphics->native_foreground ? 0 : background_origin_y);
+   if (source_x < 0 || source_y < 0 || source_x + right - left > source_words * 16 || source_y + bottom - top > source_height)
    {
       return 0;
    }
    width = (right - left) / 16;
    height = bottom - top;
-   offset = (DeceptusU32)source_y * row_words + source_x / 16;
+   offset = (DeceptusU32)source_y * source_words + source_x / 16;
+   source_plane = (DeceptusU32)source_words * source_height;
    destination = buffers[draw_buffer] + top * row_words + left / 16;
    waitBlitter();
    hardware->bltcon0 = SRCA | SRCB | SRCC | DEST | 0xca;
    hardware->bltcon1 = 0;
    hardware->bltafwm = hardware->bltalwm = 65535U;
-   hardware->bltamod = hardware->bltbmod = hardware->bltcmod = hardware->bltdmod = row_bytes - width * 2;
+   hardware->bltamod = hardware->bltbmod = source_words * 2 - width * 2;
+   hardware->bltcmod = hardware->bltdmod = row_bytes - width * 2;
    for (plane = 0; plane < 5; ++plane)
    {
       waitBlitter();
-      hardware->bltapt = graphics->foreground_pixels + offset;
-      hardware->bltbpt = background_cache + plane * plane_words + offset;
+      hardware->bltapt = (APTR)(mask + offset);
+      hardware->bltbpt = (APTR)(source + plane * source_plane + offset);
       hardware->bltcpt = destination + plane * plane_words;
       hardware->bltdpt = destination + plane * plane_words;
       hardware->bltsize = (height << 6) | width;
@@ -509,7 +534,7 @@ static DeceptusU8 __attribute__((noinline, noclone)) drawNativeForeground(Decept
    return 1;
 }
 
-static void __attribute__((noinline, noclone)) paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_only)
+static void __attribute__((noinline, noclone, optimize("Os"))) paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_only)
 {
    DeceptusI16 x, y, left, right, top, bottom;
    DeceptusU8 base_ready;
@@ -530,8 +555,8 @@ static void __attribute__((noinline, noclone)) paintRectangle(const DeceptusRect
       bottom = cache_height;
    }
    base_ready = 0;
-   if ((!foreground_only && (graphics->background_pixels || background_valid)) ||
-       (graphics->foreground_pixels && background_valid && !graphics->clip_count))
+   if ((!foreground_only && (graphics->background_pixels || background_valid)) || (graphics->foreground_pixels && background_valid) ||
+       graphics->native_foreground)
    {
       left = left / 16 * 16;
       right = (right + 15) / 16 * 16;
@@ -544,7 +569,7 @@ static void __attribute__((noinline, noclone)) paintRectangle(const DeceptusRect
    {
       base_ready = drawNativeBackground(left, top, right, bottom);
    }
-   if (graphics->foreground_pixels && background_valid && !graphics->clip_count &&
+   if ((graphics->native_foreground || (graphics->foreground_pixels && background_valid)) &&
        (foreground_only ? drawNativeForeground(left, top, right, bottom) : base_ready))
    {
       return;
@@ -670,14 +695,74 @@ static void __attribute__((noinline, noclone)) scrollBuffer(DeceptusU16 *pixels,
 }
 
 /* share the strip rebuild code to stay within the executable RAM-bank budget. */
+static void __attribute__((noinline, noclone)) paintRasterStrip(DeceptusI16 left, DeceptusI16 top, DeceptusI16 width, DeceptusI16 height)
+{
+   DeceptusI16 x, y, world_x, world_y;
+   DeceptusU8 plane, inside;
+   const DeceptusU16 *source;
+   DeceptusU16 *destination;
+   waitBlitter();
+   /* decoded columns use the room's normal-RAM lease, outside display DMA. */
+   for (x = left; x < left + width; x += 16)
+   {
+      world_x = origin_x + x;
+      inside = world_x >= 0 && world_x < graphics->width;
+      if (inside &&
+          !amigaGraphicsRasterColumn(graphics, world_x / 16, (DeceptusU8 *)graphics->raster_scratch, (DeceptusU32)graphics->height * 12))
+      {
+         error = 1;
+         return;
+      }
+      for (plane = 0; plane < 6; ++plane)
+      {
+         source = graphics->raster_scratch + (DeceptusU32)plane * graphics->height;
+         destination = plane < 5 ? background_cache + plane * plane_words : graphics->foreground_pixels;
+         destination += top * row_words + x / 16;
+         for (y = top; y < top + height; ++y)
+         {
+            world_y = origin_y + y;
+            *destination = inside && world_y >= 0 && world_y < graphics->height ? source[world_y] : 0;
+            destination += row_words;
+         }
+      }
+   }
+}
+
+static void __attribute__((noinline, noclone, optimize("Os"))) cacheForegroundTile(DeceptusI16 x, DeceptusI16 y, DeceptusU16 pattern,
+                                                                                   DeceptusU8 append)
+{
+   const DeceptusU8 *mask;
+   DeceptusU8 *destination, row;
+   if (!pattern && append)
+   {
+      return;
+   }
+   paintPattern(background_cache, x, y, pattern, 1);
+   mask = tilePixels(pattern);
+   if (!mask)
+   {
+      return;
+   }
+   mask += 40;
+   destination = (DeceptusU8 *)graphics->foreground_pixels + y * row_bytes + x / 8;
+   for (row = 0; row < 8; ++row)
+   {
+      *destination = append ? (*destination | mask[row]) : mask[row];
+      destination += row_bytes;
+   }
+}
+
 static void __attribute__((noinline, noclone)) paintBackgroundStrip(DeceptusI16 left, DeceptusI16 top, DeceptusI16 width,
                                                                     DeceptusI16 height)
 {
    DeceptusI16 x, y, world_x, world_y;
    DeceptusU16 pattern;
-   DeceptusU8 row;
-   const DeceptusU8 *mask;
-   DeceptusU8 *destination;
+   DeceptusU16 index;
+   if (graphics->raster)
+   {
+      paintRasterStrip(left, top, width, height);
+      return;
+   }
    for (y = top; y < top + height; y += 8)
    {
       for (x = left; x < left + width; x += 8)
@@ -692,26 +777,57 @@ static void __attribute__((noinline, noclone)) paintBackgroundStrip(DeceptusI16 
          paintPattern(background_cache, x, y, pattern, 0);
          if (graphics->foreground_pixels)
          {
+            for (index = 0; index < graphics->clip_count; ++index)
+            {
+               if (!clips[index].clip.plane)
+               {
+                  paintPattern(background_cache, x, y, clipCell(&clips[index], world_x, world_y), 1);
+               }
+            }
             pattern = 0;
             if (world_x >= 0 && world_y >= 0 && world_x < graphics->width && world_y < graphics->height)
             {
                pattern = mapCell(graphics->foreground, graphics->width / 8, graphics->height / 8, world_x / 8, world_y / 8);
             }
-            paintPattern(background_cache, x, y, pattern, 1);
-            mask = tilePixels(pattern);
-            if (!mask)
+            cacheForegroundTile(x, y, pattern, 0);
+            for (index = 0; index < graphics->clip_count; ++index)
             {
-               return;
-            }
-            mask += 40;
-            destination = (DeceptusU8 *)graphics->foreground_pixels + y * row_bytes + x / 8;
-            for (row = 0; row < 8; ++row)
-            {
-               *destination = mask[row];
-               destination += row_bytes;
+               if (clips[index].clip.plane)
+               {
+                  cacheForegroundTile(x, y, clipCell(&clips[index], world_x, world_y), 1);
+               }
             }
          }
       }
+   }
+}
+
+static void __attribute__((noinline, noclone, optimize("Os"))) updateCachedClips(void)
+{
+   DeceptusU16 index;
+   DeceptusI16 left, top, right, bottom;
+   const AmigaClipState *state;
+   for (index = 0; index < graphics->clip_count; ++index)
+   {
+      state = &clips[index];
+      if (background_valid && graphics->foreground_pixels &&
+          (cached_clip_frames[index] != state->frame || cached_clip_enabled[index] != state->enabled))
+      {
+         left = state->clip.bounds.x - origin_x;
+         top = state->clip.bounds.y - origin_y;
+         right = left + state->clip.bounds.width;
+         bottom = top + state->clip.bounds.height;
+         left = left < 0 ? 0 : left / 16 * 16;
+         right = right > cache_width ? cache_width : (right + 15) / 16 * 16;
+         top = top < 0 ? 0 : top;
+         bottom = bottom > cache_height ? cache_height : bottom;
+         if (left < right && top < bottom)
+         {
+            paintBackgroundStrip(left, top, right - left, bottom - top);
+         }
+      }
+      cached_clip_frames[index] = state->frame;
+      cached_clip_enabled[index] = state->enabled;
    }
 }
 
@@ -744,6 +860,7 @@ static void updateBackgroundCache(void)
          paintBackgroundStrip(0, dy > 0 ? cache_height - dy : 0, cache_width, dy > 0 ? dy : -dy);
       }
    }
+   updateCachedClips();
    background_origin_x = origin_x;
    background_origin_y = origin_y;
    background_valid = 1;
@@ -751,22 +868,31 @@ static void updateBackgroundCache(void)
 
 static DeceptusU8 requestSprite(void *context, const DeceptusSpriteAppearance *appearance)
 {
-   AmigaSpriteRequest request;
+   AmigaSpriteRequest overflow, *request;
    const DeceptusEngine *engine;
-   DeceptusU16 resource;
+   DeceptusU16 resource, identity;
    engine = (const DeceptusEngine *)context;
    if (appearance->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
    {
       return 0;
    }
    resource = amiga_sprite_families[appearance->family] + appearance->frame;
-   if (!amigaGraphicsSpriteInfo(graphics, resource, appearance->flip_x, &request.graphic))
+   if (resource >= AMIGA_GRAPHICS_RESOURCES)
    {
       return 0;
    }
-   request.x = appearance->x + (appearance->flip_x ? request.graphic.flip_trim_x : request.graphic.trim_x);
-   request.y = appearance->y + request.graphic.trim_y;
-   if (request.x >= 320 || request.y >= 224 || request.x + request.graphic.width <= 0 || request.y + request.graphic.height <= 0)
+   identity = resource | (appearance->flip_x ? SPRITE_FLIPPED : 0);
+   request = request_count < SPRITE_CAPACITY ? &requests[request_count] : &overflow;
+   /* descriptors are immutable until reset; keep the previous slot's metadata. */
+   if ((request_count >= SPRITE_CAPACITY || !request->graphic.bytes || (request->identity_flags & SPRITE_IDENTITY_MASK) != identity) &&
+       !amigaGraphicsSpriteInfo(graphics, resource, appearance->flip_x, &request->graphic))
+   {
+      return 0;
+   }
+   request->identity_flags = identity | SPRITE_REDRAW;
+   request->x = appearance->x + (appearance->flip_x ? request->graphic.flip_trim_x : request->graphic.trim_x);
+   request->y = appearance->y + request->graphic.trim_y;
+   if (request->x >= 320 || request->y >= 224 || request->x + request->graphic.width <= 0 || request->y + request->graphic.height <= 0)
    {
       return 1;
    }
@@ -774,10 +900,133 @@ static DeceptusU8 requestSprite(void *context, const DeceptusSpriteAppearance *a
    {
       return 0;
    }
-   request.x += engine->camera_x - origin_x;
-   request.y += engine->camera_y - origin_y;
-   requests[request_count++] = request;
+   request->x += engine->camera_x - origin_x;
+   request->y += engine->camera_y - origin_y;
+   ++request_count;
    return 1;
+}
+
+static void requestBounds(const AmigaSpriteRequest *request, DeceptusRect *bounds)
+{
+   bounds->x = request->x;
+   bounds->y = request->y;
+   bounds->width = request->graphic.width;
+   bounds->height = request->graphic.height;
+}
+
+static void __attribute__((noinline, noclone, optimize("Os"))) includeDamage(DeceptusRect *damage, DeceptusRect bounds, DeceptusU8 restore)
+{
+   DeceptusI16 right, bottom;
+   right = bounds.x + bounds.width;
+   bottom = bounds.y + bounds.height;
+   if (restore)
+   {
+      bounds.x = bounds.x < 0 ? 0 : bounds.x / 16 * 16;
+      bounds.y = bounds.y < 0 ? 0 : bounds.y / 8 * 8;
+      right = right > cache_width ? cache_width : (right + 15) / 16 * 16;
+      bottom = bottom > cache_height ? cache_height : (bottom + 7) / 8 * 8;
+      bounds.width = right - bounds.x;
+      bounds.height = bottom - bounds.y;
+   }
+   if (bounds.width <= 0 || bounds.height <= 0)
+   {
+      return;
+   }
+   if (!damage->width)
+   {
+      *damage = bounds;
+      return;
+   }
+   if (right < damage->x + damage->width)
+   {
+      right = damage->x + damage->width;
+   }
+   if (bottom < damage->y + damage->height)
+   {
+      bottom = damage->y + damage->height;
+   }
+   if (bounds.x < damage->x)
+   {
+      damage->x = bounds.x;
+   }
+   if (bounds.y < damage->y)
+   {
+      damage->y = bounds.y;
+   }
+   damage->width = right - damage->x;
+   damage->height = bottom - damage->y;
+}
+
+static void __attribute__((noinline, noclone, optimize("Os"))) planSpriteRedraws(DeceptusU8 reuse)
+{
+   DeceptusRect damage, bounds;
+   const DeceptusRect *old;
+   DeceptusU16 index;
+   DeceptusU8 changed;
+   memset(&damage, 0, sizeof(damage));
+   for (index = 0; index < request_count; ++index)
+   {
+      requestBounds(&requests[index], &bounds);
+      old = &previous_sprites[draw_buffer][index];
+      if (reuse && index < previous_counts[draw_buffer] &&
+          (requests[index].identity_flags & SPRITE_IDENTITY_MASK) == previous_sprite_keys[draw_buffer][index] && bounds.x == old->x &&
+          bounds.y == old->y && bounds.width == old->width && bounds.height == old->height)
+      {
+         requests[index].identity_flags &= ~SPRITE_REDRAW;
+      }
+      else
+      {
+         includeDamage(&damage, bounds, 0);
+      }
+   }
+   for (index = 0; index < previous_counts[draw_buffer]; ++index)
+   {
+      if (index >= request_count || (requests[index].identity_flags & SPRITE_REDRAW))
+      {
+         bounds = previous_sprites[draw_buffer][index];
+         includeDamage(&damage, bounds, 1);
+         paintRectangle(&bounds, 0);
+      }
+   }
+   if (!reuse)
+   {
+      return;
+   }
+   for (index = 0; index < previous_ui_count[draw_buffer]; ++index)
+   {
+      includeDamage(&damage, previous_ui[draw_buffer][index], 1);
+   }
+   for (index = 0; index < graphics->clip_count; ++index)
+   {
+      if (previous_clip_frames[draw_buffer][index] != clips[index].frame ||
+          previous_clip_enabled[draw_buffer][index] != clips[index].enabled)
+      {
+         bounds = clips[index].clip.bounds;
+         bounds.x -= origin_x;
+         bounds.y -= origin_y;
+         includeDamage(&damage, bounds, 1);
+      }
+   }
+   /* expand through overlapping sprites so the original draw order is retained. */
+   do
+   {
+      changed = 0;
+      for (index = 0; damage.width && index < request_count; ++index)
+      {
+         if (requests[index].identity_flags & SPRITE_REDRAW)
+         {
+            continue;
+         }
+         requestBounds(&requests[index], &bounds);
+         if (bounds.x < damage.x + damage.width && bounds.x + bounds.width > damage.x && bounds.y < damage.y + damage.height &&
+             bounds.y + bounds.height > damage.y)
+         {
+            requests[index].identity_flags |= SPRITE_REDRAW;
+            includeDamage(&damage, bounds, 0);
+            changed = 1;
+         }
+      }
+   } while (changed);
 }
 
 static void clippedSprite(const AmigaSpriteRequest *request, const DeceptusU8 *pixels)
@@ -922,14 +1171,19 @@ static DeceptusI16 scrollOrigin(DeceptusI16 current, DeceptusI16 camera, Deceptu
 {
    if (!valid_origin || camera - current < minimum || camera - current > maximum)
    {
-      return (camera / quantum) * quantum - ((minimum + (maximum - minimum) * headroom / 4) / quantum) * quantum;
+      current = (camera / quantum) * quantum - ((minimum + (maximum - minimum) * headroom / 4) / quantum) * quantum;
+      /* rounding the origin down must not expose rows beyond the backing buffer. */
+      if (camera - current > maximum)
+      {
+         current += quantum;
+      }
    }
    return current;
 }
 
 DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFrame *frame)
 {
-   DeceptusI16 next_x, next_y, dx, dy, maximum_y;
+   DeceptusI16 next_x, next_y, dx, dy, maximum_x, maximum_y;
    DeceptusU8 horizontal_headroom, vertical_headroom;
    DeceptusU16 index;
    DeceptusRect rectangle;
@@ -960,30 +1214,17 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    was_valid = valid[draw_buffer];
    ui_layout =
       (game->room_label_ticks != 0) | (game->prompt < game->definition->rooms[game->campaign.room_index].interaction_count ? 2 : 0);
-   if (was_valid)
-   {
-      for (index = 0; index < previous_counts[draw_buffer]; ++index)
-      {
-         paintRectangle(&previous_sprites[draw_buffer][index], 0);
-      }
-      for (index = 0; index < previous_ui_count[draw_buffer]; ++index)
-      {
-         if (previous_ui_mode[draw_buffer] == game->campaign.mode && previous_ui_layout[draw_buffer] == ui_layout)
-         {
-            /* the next opaque UI box covers this intersection after the camera scroll. */
-            covered = previous_ui[draw_buffer][index];
-            covered.x += frame->camera_x - previous_camera_x[draw_buffer];
-            covered.y += frame->camera_y - previous_camera_y[draw_buffer];
-            restoreOutside(&previous_ui[draw_buffer][index], &covered);
-         }
-         else
-         {
-            paintRectangle(&previous_ui[draw_buffer][index], 0);
-         }
-      }
-   }
    horizontal_headroom = frame->camera_x < previous_camera_x[draw_buffer] ? 3 : 1;
    next_x = scrollOrigin(window_origin_x, frame->camera_x, cache_width - 320, 16, 16, horizontal_headroom, window_valid);
+   maximum_x = graphics->width > cache_width ? ((graphics->width - cache_width + 15) / 16) * 16 : 0;
+   if (next_x < -16)
+   {
+      next_x = -16;
+   }
+   if (next_x > maximum_x)
+   {
+      next_x = maximum_x;
+   }
    vertical_headroom = window_valid && frame->camera_y > previous_camera_y[draw_buffer] ? 1 : 4;
    next_y = scrollOrigin(window_origin_y, frame->camera_y, cache_height - 224, 8, 0, vertical_headroom, window_valid);
    maximum_y = graphics->height > cache_height ? graphics->height - cache_height : 0;
@@ -1000,6 +1241,30 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    window_valid = 1;
    dx = next_x - origin_x;
    dy = next_y - origin_y;
+   request_count = 0;
+   if (!deceptusAppearanceVisit(game, frame, &amiga_appearance_definition, &animation, requestSprite, (void *)&game->campaign.engine))
+   {
+      error = 1;
+   }
+   if (was_valid)
+   {
+      planSpriteRedraws(!dx && !dy);
+      for (index = 0; index < previous_ui_count[draw_buffer]; ++index)
+      {
+         if (previous_ui_mode[draw_buffer] == game->campaign.mode && previous_ui_layout[draw_buffer] == ui_layout)
+         {
+            /* the next opaque UI box covers this intersection after the camera scroll. */
+            covered = previous_ui[draw_buffer][index];
+            covered.x += frame->camera_x - previous_camera_x[draw_buffer];
+            covered.y += frame->camera_y - previous_camera_y[draw_buffer];
+            restoreOutside(&previous_ui[draw_buffer][index], &covered);
+         }
+         else
+         {
+            paintRectangle(&previous_ui[draw_buffer][index], 0);
+         }
+      }
+   }
    if (!was_valid || dx <= -cache_width || dx >= cache_width || dy <= -cache_height || dy >= cache_height)
    {
       was_valid = 0;
@@ -1007,6 +1272,11 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    else if (dx || dy)
    {
       scrollBuffer(buffers[draw_buffer], 5, dx, dy);
+   }
+   for (index = 0; index < request_count; ++index)
+   {
+      requests[index].x -= dx;
+      requests[index].y -= dy;
    }
    origin_x = origins_x[draw_buffer] = next_x;
    origin_y = origins_y[draw_buffer] = next_y;
@@ -1050,14 +1320,12 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       previous_clip_frames[draw_buffer][index] = clips[index].frame;
       previous_clip_enabled[draw_buffer][index] = clips[index].enabled;
    }
-   request_count = 0;
-   if (!deceptusAppearanceVisit(game, frame, &amiga_appearance_definition, &animation, requestSprite, (void *)&game->campaign.engine))
-   {
-      error = 1;
-   }
    for (index = request_count; index; --index)
    {
-      drawSprite(&requests[index - 1]);
+      if (requests[index - 1].identity_flags & SPRITE_REDRAW)
+      {
+         drawSprite(&requests[index - 1]);
+      }
    }
    waitBlitter();
    for (index = 0; index < request_count; ++index)
@@ -1067,7 +1335,11 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       rectangle.width = requests[index].graphic.width;
       rectangle.height = requests[index].graphic.height;
       previous_sprites[draw_buffer][index] = rectangle;
-      paintRectangle(&rectangle, 1);
+      previous_sprite_keys[draw_buffer][index] = requests[index].identity_flags & SPRITE_IDENTITY_MASK;
+      if (requests[index].identity_flags & SPRITE_REDRAW)
+      {
+         paintRectangle(&rectangle, 1);
+      }
    }
    previous_counts[draw_buffer] = request_count;
    previous_ui_count[draw_buffer] = amigaOpeningUiDraw(game, (DeceptusU8 *)buffers[draw_buffer], row_bytes, plane_bytes,

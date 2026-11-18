@@ -175,15 +175,19 @@ The active opening milestone targets all four platforms through a shared game
 layer. GBA is furthest along; SNES and Mega Drive still require substantial
 performance work, and the Amiga opening passes the accelerated logical traversal but still requires cycle-exact performance and visual-fidelity work. The prototype frame
 rates do not establish whole-opening performance.
-The Amiga moving-Cell checks now sustain 60 simulation ticks/s with roughly
-46 displayed frames/s walking and 42 during repeated full jumps in the 1 MiB
-cycle-exact configuration. Adaptive scroll windows, cached foreground masks,
-background references and Chip sprite caching are backend services;
-all-room speed and the remaining source cutscene/effect differences stay open.
+The earlier short Amiga Cell samples hid second-long cache-refill freezes during
+longer runs and reversals. The full static background/mask now fits in Chip RAM
+for the Cell; a longer reversal check measures roughly 32 displayed frames/s
+and 60 simulation ticks/s without those freezes or added dropped time in the
+1 MiB cycle-exact configuration. Native room images, adaptive scroll windows,
+cached foreground masks, background references and Chip sprite caching are backend services;
+the current Lower Cells jump/reversal check reaches 24.8 actual frames/s,
+while Crossroads reaches only 15.4. Both sustain the 60 Hz simulation in those
+samples. All-room speed and the remaining source cutscene/effect differences
+stay open. Quantized camera bounds now prevent bottom-edge buffer overreads.
 See [Amiga implementation and verification](AMIGA.md).
-Earlier walking-only Amiga results hid severe jump stalls. The current renderer
-avoids additional dropped game time in both Cell samples, but still misses
-steady 50 fps. Walking and jumping frame pacing across the opening
+This remains below steady 50 fps, and other rooms can select different paths.
+Walking, reversals and jumping frame pacing across the opening
 remain blocking work before the shared milestone can advance.
 
 The Mines entrance is connected. Its farther iron door supports its reusable

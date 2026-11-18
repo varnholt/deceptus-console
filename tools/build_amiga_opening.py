@@ -34,7 +34,8 @@ def validate_assets(data, generated):
     for room in report['rooms']:
         for variant in (room, room['sword']):
             for extension, key in (('.agp', 'sha256'), ('.asp', 'sprites_sha256'),
-                                   ('.abg', 'background_sha256')):
+                                   ('.abg', 'background_sha256'), ('.acr', 'raster_sha256'),
+                                   ('.acp', 'composite_sha256')):
                 path = generated / f"area{room['room']}" / (variant['basename'] + extension)
                 if hashlib.sha256(path.read_bytes()).hexdigest() != variant[key]:
                     raise ValueError(f'Amiga opening graphics changed: {path}')
@@ -50,7 +51,7 @@ def build_opening(sdk, data, output, reuse_assets=False):
         simulation = compile_rooms(recipes, generated / 'rooms')
         write_common(data, generated, recipes, simulation, report['families'],
                      max(variant['max_sprite_bytes'] for room in report['rooms'] for variant in (room, room['sword'])),
-                     max(room['clips'] for room in report['rooms']))
+                     max(room['clips'] for room in report['rooms']), report['rooms'])
     else:
         report = compile_opening(data, generated)
     # partition only at independent sprite-block boundaries; no frame-time allocation.

@@ -62,8 +62,8 @@ static sizes; the OS, loader and largest free block in each bank must also fit.
 The prototype's measured frame rate below does not establish opening performance.
 The opening title has now been
 verified under cycle-exact WinUAE with the same 512 KiB Chip + 512 KiB slow RAM
-configuration and built-in AROS. Its static footprint is approximately 698 KiB,
-including 470 KiB of Chip RAM. A local normal-input replay now passes all 56 opening checkpoints through the
+configuration and built-in AROS. Its static footprint is approximately 702 KiB,
+including approximately 474 KiB of Chip RAM. A local normal-input replay now passes all 56 opening checkpoints through the
 rubies, crypt return, altar and sword acquisition/attack under accelerated
 68000 emulation with the same RAM budget. This verifies progression/resource
 loading, not cycle-exact performance or complete source cutscene fidelity.
@@ -88,7 +88,7 @@ Repeated full jumps in the same Cell on the earlier shallow-cache build measured
 2.2 displayed frames/s and 12.25 simulation ticks/s, with large frame stalls.
 The taller cache alone improved that sample to 15.1 displayed frames/s and
 52.1 simulation ticks/s. Cached foreground restoration and temporary blitter
-priority during CPU waits now improve the cycle-exact Cell samples further:
+priority during CPU waits produced the following earlier, short Cell samples:
 
 | Normal-input movement | Displayed frames/s | Simulation ticks/s | Presentation intervals in PAL frames |
 | --- | ---: | ---: | --- |
@@ -101,6 +101,44 @@ on the same 512 KiB Chip + 512 KiB slow-RAM machine, not all-room results.
 Both still miss the steady 50 fps target. Walking and jump frame pacing remain
 part of the playability gate; average simulation speed alone is insufficient.
 
+Longer runs followed by reversals exposed a separate failure: moving the backing
+window rebuilt a large strip on the CPU, causing pauses of roughly one second
+even with no sprite-cache miss. The short warmed samples above missed this.
+
+Static rooms now first try to keep their complete composited background and
+foreground mask in Chip RAM. The Cell uses 220,320 bytes for these six planes;
+its world/sprite archives and this image fit the existing resource bank. Two
+368x232 display buffers then scroll against that source, without reconstructing
+background strips or moving a third reference buffer. The 320x224 visible view,
+original pixels and machine settings are unchanged.
+
+A cycle-exact 1 MiB Cell check with 90-tick runs and repeated reversals measures
+32.4 displayed frames/s and 60.01 simulation ticks/s over 994 PAL frames. Its
+645 presentation intervals comprise 396 at one PAL frame, 154 at two, and 95
+at three to five, with none above five and no additional dropped game time.
+This removes the previous long refill freezes in that sample, but does not
+establish steady 50 fps or all-room playability. Jumping, cold animation loads
+and rooms that cannot retain a full image need separate timing checks.
+
+The current Lower Cells (monk room) movement check measures 24.8 displayed
+frames/s and 60.01 simulation ticks/s over 999 PAL frames, with no additional
+dropped game time. Of 495 presentation intervals, 488 take two PAL frames and
+seven take three to five. The same repeated-jump/reversal check in Crossroads
+measures 15.4 displayed frames/s and 60.02 simulation ticks/s over 998 PAL frames.
+These original-speed, 1 MiB results remain below the target; a stable simulation
+clock does not establish smooth presentation. WinUAE's 50 Hz display counter
+must not be reported as the game's rendered frame rate.
+
+The `.acp` file stores five composited colour planes followed by one foreground
+mask plane, with word-aligned rows. Build reports hash it alongside the original
+archives and native background. Animated-clip rooms use a scrolling composite
+reference whose changed clips are rebuilt in the original layer order.
+When a full static image cannot fit, larger windows can instead borrow compressed
+`.acr` columns from normal RAM. Each `AC01` column decodes five colour planes and
+one mask, using a bounded normal-RAM staging lease. Its header records dimensions,
+16-pixel columns and a checked offset table. Space-constrained rooms retain the
+tile path; this fallback does not establish equivalent performance.
+
 ## Adaptive scrolling windows
 
 The visible game viewport remains 320x224 with the original pixel grid. Larger
@@ -108,21 +146,25 @@ backing buffers reduce how often camera motion requires copying the whole
 viewport; they do not widen or scale the player's view.
 
 After resident world/sprite resources, the Chip bank can lend 199,680 bytes for
-two 512x312 backing buffers, or 163,840 bytes for two 512x256 buffers. If neither
-fits while retaining a tile-cache minimum, rendering keeps the static 352x232
-buffers. Selection can change with the room and normal/sword graphics variant.
+two 512x312 backing buffers, 170,240 bytes for two 448x304 buffers, or
+156,000 bytes for two 400x312 buffers. Each masked candidate also reserves
+one foreground bitplane and at least 16 KiB of remaining Chip storage.
+If none fits, an unmasked larger pair or the static
+368x232 buffers are used. Full static images take priority over these larger windows.
+Selection can change with the room and normal/sword graphics variant.
 These are subregions of the existing 360 KiB resource bank, not new allocations.
 
 In a larger mode, the inactive compact buffers become one opaque background
-reference (99,840 or 81,920 bytes, within their combined 102,080-byte capacity).
+reference (at most 99,840 bytes, within their combined 106,720-byte capacity).
 It follows a shared scroll-window origin, scrolling and rebuilding only exposed
-background strips from the tile archive. Both display buffers use that reference
-for sprite/UI cleanup. Rooms without animated clips can additionally lease one
-bitplane for a static foreground mask (19,968 bytes in the larger mode). Their
-reference contains the background and foreground together: opaque cleanup copies
-that image, and masked blits restore foreground occlusion after sprites. The mask
-scrolls with the reference and exposed strips rebuild both together. Rooms with
-clips or insufficient Chip space retain the original tile drawing order. Directional
+background strips from the tile archive or compressed columns. Both display buffers use that reference
+for sprite/UI cleanup. A leased foreground mask (at most 19,968 bytes)
+tracks static foreground and foreground clips. The reference contains the
+background, background clips, foreground and foreground clips in source order.
+Opaque cleanup copies that image; masked blits restore foreground occlusion
+after sprites. Changed clips rebuild only their affected reference rectangles.
+The mask scrolls with the reference and exposed strips rebuild both together.
+Rooms without mask storage retain the original tile drawing path. Directional
 rebases leave more space ahead of movement and above the camera, with vertical
 origins clamped to the room extent, and coarse bitplane pointers
 are derived from the actual buffer origin together with fine scrolling.
@@ -132,10 +174,10 @@ cache lease together. The loader reserves viewport storage before handing the
 remaining bank tails to caches. Compact mode can use the native background file
 below; larger modes use their retained background reference instead.
 
-Local checks exercise 300,000 camera moves and compare 12,000 complete rendered
-frames against the original tile path across all three sizes. They include
+Local checks exercise 385,312 camera moves and compare 50,000 complete rendered
+frames against the original tile path across current and boundary geometries. They include
 scroll directions, clipping, clip-frame transitions, old-sprite cleanup and
-foreground occlusion, with both static-mask and animated-clip paths. UI pixels
+foreground occlusion, with full-room, compressed-column, static-mask and animated-clip paths. UI pixels
 and dirty rectangles also match the previous renderer at every supported
 horizontal cache offset. Complete accelerated route
 checks establish logical correctness; the Cell measurement above does not prove
@@ -145,9 +187,11 @@ Pending blits receive priority only while the CPU waits for completion; the
 previous priority bit is restored before independent CPU work resumes. This
 avoids spending Chip bus slots polling a blit that must finish first. See the
 [hardware reference on blitter DMA arbitration](https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node012B.html).
-The source font's 3,420 bytes reside in Chip RAM to leave room for the executable
-in the slow-RAM bank. Generated read-only Chip data stays outside LTO's writable
-Chip section. Actual AROS loading is checked in addition to static bank totals.
+The source font resides in CPU-accessible RAM. Resource loading, archive helpers
+and UI code use size optimization to leave room for AmigaDOS. Generated read-only
+Chip data stays outside LTO's writable Chip section. Actual AROS loading is
+checked in addition to static bank totals; larger buffer candidates that fail
+to load are not usable configurations.
 
 ## Native background restoration
 
@@ -175,6 +219,17 @@ for all 52 variants, and check 10,000 blit rectangles against a CPU reference,
 including edge fallback, strides and destination guards. These checks complement
 the actual emulator replay and cycle-exact measurement.
 
+Sprites whose resource, orientation, position and layer slot are unchanged
+can remain in their display buffer. Changed sprite, clip and UI rectangles
+propagate damage through overlapping actors before drawing in source order.
+Scrolling invalidates this reuse. Local checks compare 8,000 complete frames
+against full redraws, including overlap chains, removal, reordering and clips.
+Immutable sprite descriptors reuse their request slots until a room/body reload.
+Aligned memory copies and fills use native long transfers in one compiled
+implementation, with byte fallbacks for alignment and tails.
+Camera offsets also stay within each backing buffer after quantized rebases;
+this fixes bottom-edge reads beyond the buffer.
+
 ## Opening sprite resources and cache ownership
 
 `tools/amiga_opening_assets.py` emits `AG03` world archives (`.agp`) and
@@ -200,10 +255,11 @@ only at complete normal or mirrored block boundaries between the 360 KiB Chip
 and 88 KiB normal resource banks.
 
 `prepareCaches` borrows the unused tails of both resource banks until the next
-graphics load. The larger tail holds the tile directory and up to 128 decoded
-tile groups, capped by the room's group count. The other tail holds up to 32 KiB
-of decoded sprites; unused space after the tile cache can serve it instead when
-that gives a larger cache. Regions never overlap resident resources or one
+graphics load. Tile storage holds a directory and up to 128 decoded groups,
+capped by the room's group count. Decoded sprites can use up to 64 KiB. When a
+retained composite handles background/foreground restoration, the larger tail
+prioritizes sprites if the other bank can hold the tile minimum. Otherwise the
+original tile-first partition applies; unused space can enlarge the sprite lease. Regions never overlap resident resources or one
 another. Neither cache allocates memory at runtime. The planar writer and strip rebuild
 keep a single compiled implementation to bound executable code size as well. A bank too small for a tile
 group causes a checked renderer failure; a small sprite cache remains usable

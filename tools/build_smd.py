@@ -61,6 +61,16 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     else:
         sources += [generated / 'room.c', generated / 'smd_assets.c']
     objects = []
+    if opening:
+        # Keep SDK startup calls external so LTO cannot inline away DMA_init's
+        # linker wrapper and allocate an unused DMA queue in the 64KiB RAM.
+        target = folder / 'sdk_sys.o'
+        sdk_flags = [flag for flag in flags
+                     if flag != '-flto' and not flag.startswith('-I')]
+        run([compiler, *sdk_flags, '-I' + str(sdk / 'inc'),
+             '-I' + str(sdk / 'res'), '-c', sdk / 'src/sys.c',
+             '-o', target], output)
+        objects.append(target)
     for source in sources:
         target = folder / (source.stem + '.o')
         run([compiler, *flags, '-std=gnu90' if 'platform' in source.parts else '-std=c90', '-Wall', '-Wextra', '-Werror', '-Wno-main',

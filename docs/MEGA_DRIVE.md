@@ -83,6 +83,13 @@ Sewers. This covers tile capacity, not frame rate or hardware validation.
 
 ## Verification and profiling
 
+The opening owns its bounded, direct presentation transfers and skips SGDK's
+unused DMA queue allocation. Its build compiles the SDK startup translation
+unit separately without LTO, so the linker wrapper for `DMA_init` remains
+effective. Allowing startup to inline that call can unexpectedly allocate the
+queue and prevent boot within the 64 KiB RAM budget. The SDK files themselves
+remain unchanged; actual cartridge startup is part of the opening replay.
+
 `verify_smd_opening.py` compares the same ordinary inputs against desktop C and
 the actual cartridge, including positions, inventory, flags, projectiles and
 damage. It does not patch emulator RAM. Reports and screenshots are written to
