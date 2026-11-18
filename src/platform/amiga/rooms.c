@@ -20,6 +20,7 @@ static DeceptusRoomContent content = {
 static AmigaGraphics graphics;
 static DeceptusU16 room_loads;
 static DeceptusU8 sword_graphics;
+static DeceptusU32 tile_cache_offset;
 
 const AmigaGraphics *amigaRoomGraphics(void)
 {
@@ -29,6 +30,12 @@ const AmigaGraphics *amigaRoomGraphics(void)
 DeceptusU16 amigaRoomLoads(void)
 {
    return room_loads;
+}
+
+DeceptusU8 *amigaRoomScratch(DeceptusU32 *size)
+{
+   *size = sizeof(resource_normal) - tile_cache_offset;
+   return resource_normal + tile_cache_offset;
 }
 
 static void roomPath(char *destination, const char *prefix, DeceptusU8 room, const char *suffix, DeceptusU8 two_digits)
@@ -76,6 +83,11 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.asp" : "/graphics.asp", 0);
    sprite_size = amigaSystemReadFilePair(path, world + world_size, split, resource_normal, sizeof(resource_normal));
    if (!sprite_size || !amigaGraphicsInit(&graphics, world, world_size, world + world_size, sprite_size, split, resource_normal))
+   {
+      return 0;
+   }
+   tile_cache_offset = (sprite_size - split + 3) & ~3UL;
+   if (tile_cache_offset > sizeof(resource_normal))
    {
       return 0;
    }

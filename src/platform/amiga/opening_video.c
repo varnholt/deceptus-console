@@ -18,7 +18,7 @@
 #define PLANE_WORDS (PLANE_BYTES / 2)
 #define BUFFER_WORDS (PLANE_WORDS * 5)
 #define SPRITE_CAPACITY 96
-#define TILE_CACHE_SLOTS 4
+#define TILE_CACHE_SLOTS 128
 #define ROW_CACHE_SLOTS 4
 #define CHIP __attribute__((section(".MEMF_CHIP")))
 
@@ -47,9 +47,12 @@ typedef struct AmigaClipState
 static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
 static DeceptusU16 buffers[2][BUFFER_WORDS] CHIP;
 static DeceptusU16 copper[2][128] CHIP;
+static DeceptusU16 blank_copper[6] CHIP = {0x0100, 0, 0x0180, 0, 0xffff, 0xfffe};
 static DeceptusU16 sprite_pixels[(AMIGA_SPRITE_SCRATCH_BYTES + 1) / 2] CHIP;
 static DeceptusU16 palette[32];
-static DeceptusU8 tile_cache[TILE_CACHE_SLOTS][AMIGA_TILE_GROUP_BYTES];
+static DeceptusU8 *tile_cache, *tile_directory;
+static DeceptusU16 tile_directory_count;
+static DeceptusU16 tile_slots;
 static DeceptusU16 tile_groups[TILE_CACHE_SLOTS];
 static AmigaRowCache row_cache[ROW_CACHE_SLOTS];
 static DeceptusU8 tile_cursor, row_cursor;
@@ -61,11 +64,13 @@ static DeceptusU16 request_count;
 static DeceptusRect previous_sprites[2][SPRITE_CAPACITY];
 static DeceptusU16 previous_counts[2];
 static DeceptusRect previous_ui[2][2];
-static DeceptusU8 previous_ui_count[2];
+static DeceptusU8 previous_ui_count[2], previous_ui_mode[2], previous_ui_layout[2];
+static DeceptusI16 previous_camera_x[2], previous_camera_y[2];
 static DeceptusI16 origins_x[2], origins_y[2], origin_x, origin_y;
 static DeceptusU8 valid[2], active, draw_buffer, error;
 static const AmigaGraphics *graphics;
 static volatile DeceptusU32 video_frames;
+static volatile DeceptusU8 loading;
 static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
 static DeceptusU16 last_ticks, last_flags;
 static DeceptusU8 last_mode, last_selection, last_page, last_prompt, last_label;
@@ -73,7 +78,10 @@ static const DeceptusInteraction *last_dialogue;
 
 static void __attribute__((interrupt)) verticalBlank(void)
 {
-   ++video_frames;
+   if (!loading)
+   {
+      ++video_frames;
+   }
    hardware->intreq = INTF_VERTB;
    hardware->intreq = INTF_VERTB;
 }
@@ -104,6 +112,7 @@ void amigaOpeningVideoSuspend(void)
 {
    if (active)
    {
+      loading = 0;
       waitFrame();
       amigaSystemReleaseDisplay();
       active = 0;
@@ -116,19 +125,40 @@ void amigaOpeningVideoClose(void)
    amigaSystemClose();
 }
 
+static DeceptusU8 prepareTileCache(void)
+{
+   DeceptusU32 size, offset;
+   DeceptusU16 slot;
+   tile_directory = amigaRoomScratch(&size);
+   tile_directory_count = (DeceptusU16)(((DeceptusU32)graphics->pattern_count + 15) / 16);
+   offset = ((DeceptusU32)tile_directory_count + 3) & ~3UL;
+   if (!tile_directory || size < offset + AMIGA_TILE_GROUP_BYTES)
+   {
+      return 0;
+   }
+   tile_cache = tile_directory + offset;
+   tile_slots = (DeceptusU16)((size - offset) / AMIGA_TILE_GROUP_BYTES);
+   if (tile_slots > TILE_CACHE_SLOTS)
+   {
+      tile_slots = TILE_CACHE_SLOTS;
+   }
+   memset(tile_directory, 255, tile_directory_count);
+   for (slot = 0; slot < tile_slots; ++slot)
+   {
+      tile_groups[slot] = 65535U;
+   }
+   tile_cursor = 0;
+   return 1;
+}
+
 void amigaOpeningVideoReset(void)
 {
-   DeceptusU8 index;
    graphics = amigaRoomGraphics();
-   error = !amigaGraphicsPalette(graphics, palette) || graphics->clip_count > AMIGA_OPENING_CLIPS;
+   error = !prepareTileCache() || !amigaGraphicsPalette(graphics, palette) || graphics->clip_count > AMIGA_OPENING_CLIPS;
    valid[0] = valid[1] = 0;
    previous_counts[0] = previous_counts[1] = 0;
    previous_ui_count[0] = previous_ui_count[1] = 0;
    memset(row_cache, 0, sizeof(row_cache));
-   for (index = 0; index < TILE_CACHE_SLOTS; ++index)
-   {
-      tile_groups[index] = 65535U;
-   }
    animation.previous_pose = 255;
 }
 
@@ -137,21 +167,33 @@ static const DeceptusU8 *tilePixels(DeceptusU16 pattern)
    DeceptusU16 group;
    DeceptusU8 slot;
    group = pattern / AMIGA_TILE_GROUP;
-   for (slot = 0; slot < TILE_CACHE_SLOTS; ++slot)
+   if (group >= tile_directory_count)
    {
-      if (tile_groups[slot] == group)
-      {
-         return tile_cache[slot] + (pattern % AMIGA_TILE_GROUP) * AMIGA_TILE_BYTES;
-      }
+      error = 1;
+      return 0;
    }
-   slot = tile_cursor++ % TILE_CACHE_SLOTS;
-   if (!amigaGraphicsTileGroup(graphics, group, tile_cache[slot]))
+   slot = tile_directory[group];
+   if (slot != 255)
+   {
+      return tile_cache + (DeceptusU32)slot * AMIGA_TILE_GROUP_BYTES + (pattern % AMIGA_TILE_GROUP) * AMIGA_TILE_BYTES;
+   }
+   slot = tile_cursor;
+   if (++tile_cursor >= tile_slots)
+   {
+      tile_cursor = 0;
+   }
+   if (tile_groups[slot] != 65535U)
+   {
+      tile_directory[tile_groups[slot]] = 255;
+   }
+   if (!amigaGraphicsTileGroup(graphics, group, tile_cache + (DeceptusU32)slot * AMIGA_TILE_GROUP_BYTES))
    {
       error = 1;
       return 0;
    }
    tile_groups[slot] = group;
-   return tile_cache[slot] + (pattern % AMIGA_TILE_GROUP) * AMIGA_TILE_BYTES;
+   tile_directory[group] = slot;
+   return tile_cache + (DeceptusU32)slot * AMIGA_TILE_GROUP_BYTES + (pattern % AMIGA_TILE_GROUP) * AMIGA_TILE_BYTES;
 }
 
 static DeceptusU16 mapCell(DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 column, DeceptusU16 row)
@@ -281,6 +323,10 @@ static void paintTile(DeceptusI16 x, DeceptusI16 y, DeceptusU8 foreground_only)
 static void paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_only)
 {
    DeceptusI16 x, y, left, right, top, bottom;
+   if (rectangle->width <= 0 || rectangle->height <= 0)
+   {
+      return;
+   }
    left = rectangle->x < 0 ? 0 : (rectangle->x / 8) * 8;
    top = rectangle->y < 0 ? 0 : (rectangle->y / 8) * 8;
    right = (rectangle->x + rectangle->width + 7) / 8 * 8;
@@ -300,6 +346,34 @@ static void paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_
          paintTile(x, y, foreground_only);
       }
    }
+}
+
+static void restoreOutside(const DeceptusRect *old, const DeceptusRect *covered)
+{
+   DeceptusRect rectangle;
+   DeceptusI16 left, right, top, bottom;
+   left = old->x > covered->x ? old->x : covered->x;
+   top = old->y > covered->y ? old->y : covered->y;
+   right = old->x + old->width < covered->x + covered->width ? old->x + old->width : covered->x + covered->width;
+   bottom = old->y + old->height < covered->y + covered->height ? old->y + old->height : covered->y + covered->height;
+   if (left >= right || top >= bottom)
+   {
+      paintRectangle(old, 0);
+      return;
+   }
+   rectangle = *old;
+   rectangle.height = top - old->y;
+   paintRectangle(&rectangle, 0);
+   rectangle.y = bottom;
+   rectangle.height = old->y + old->height - bottom;
+   paintRectangle(&rectangle, 0);
+   rectangle.y = top;
+   rectangle.height = bottom - top;
+   rectangle.width = left - old->x;
+   paintRectangle(&rectangle, 0);
+   rectangle.x = right;
+   rectangle.width = old->x + old->width - right;
+   paintRectangle(&rectangle, 0);
 }
 
 static void updateClips(const DeceptusAdventure *game)
@@ -562,12 +636,20 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    DeceptusI16 x, y, next_x, next_y, dx, dy;
    DeceptusU16 index;
    DeceptusRect rectangle;
-   DeceptusU8 was_valid;
+   DeceptusU8 was_valid, ui_layout;
+   DeceptusRect covered;
    if (error)
    {
       return 0;
    }
-   if (active && game->campaign.mode != DECEPTUS_CAMPAIGN_PLAYING && last_ticks == game->campaign.engine.ticks &&
+   if (!active)
+   {
+      /* own the blitter before any room draws, while preserving a paused load clock. */
+      loading = 1;
+      amigaSystemTakeDisplay(verticalBlank, blank_copper);
+      active = 1;
+   }
+   if (active && valid[draw_buffer] && game->campaign.mode != DECEPTUS_CAMPAIGN_PLAYING && last_ticks == game->campaign.engine.ticks &&
        last_mode == game->campaign.mode && last_selection == game->selection && last_page == game->page && last_flags == game->flags &&
        last_dialogue == game->dialogue && last_prompt == game->prompt && last_label == (game->room_label_ticks != 0))
    {
@@ -579,6 +661,8 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    origin_y = origins_y[draw_buffer];
    updateClips(game);
    was_valid = valid[draw_buffer];
+   ui_layout =
+      (game->room_label_ticks != 0) | (game->prompt < game->definition->rooms[game->campaign.room_index].interaction_count ? 2 : 0);
    if (was_valid)
    {
       for (index = 0; index < previous_counts[draw_buffer]; ++index)
@@ -587,7 +671,18 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       }
       for (index = 0; index < previous_ui_count[draw_buffer]; ++index)
       {
-         paintRectangle(&previous_ui[draw_buffer][index], 0);
+         if (previous_ui_mode[draw_buffer] == game->campaign.mode && previous_ui_layout[draw_buffer] == ui_layout)
+         {
+            /* the next opaque UI box covers this intersection after the camera scroll. */
+            covered = previous_ui[draw_buffer][index];
+            covered.x += frame->camera_x - previous_camera_x[draw_buffer];
+            covered.y += frame->camera_y - previous_camera_y[draw_buffer];
+            restoreOutside(&previous_ui[draw_buffer][index], &covered);
+         }
+         else
+         {
+            paintRectangle(&previous_ui[draw_buffer][index], 0);
+         }
       }
    }
    next_x = (frame->camera_x / 16) * 16 - 16;
@@ -652,23 +747,20 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    previous_counts[draw_buffer] = request_count;
    previous_ui_count[draw_buffer] = amigaOpeningUiDraw(game, (DeceptusU8 *)buffers[draw_buffer], ROW_BYTES, PLANE_BYTES,
                                                        frame->camera_x - origin_x, frame->camera_y - origin_y, previous_ui[draw_buffer]);
+   previous_ui_mode[draw_buffer] = game->campaign.mode;
+   previous_ui_layout[draw_buffer] = ui_layout;
+   previous_camera_x[draw_buffer] = frame->camera_x;
+   previous_camera_y[draw_buffer] = frame->camera_y;
    valid[draw_buffer] = 1;
+   loading = 0;
    if (error)
    {
       return 0;
    }
    prepareCopper(draw_buffer, frame);
-   if (active)
-   {
-      waitFrame();
-      hardware->cop1lc = (ULONG)copper[draw_buffer];
-      hardware->copjmp1 = 0;
-   }
-   else
-   {
-      amigaSystemTakeDisplay(verticalBlank, copper[draw_buffer]);
-      active = 1;
-   }
+   waitFrame();
+   hardware->cop1lc = (ULONG)copper[draw_buffer];
+   hardware->copjmp1 = 0;
    last_ticks = game->campaign.engine.ticks;
    last_flags = game->flags;
    last_mode = game->campaign.mode;

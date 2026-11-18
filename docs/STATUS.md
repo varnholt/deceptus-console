@@ -154,12 +154,17 @@ palettes; conflicting OBJ indices relocate without changing source colours.
    physics contour and remain explicitly reported; see `SEALED_ENEMIES.md`.
 5. Convert source music/SFX offline and add platform playback. Event ids have
    begun to be exposed, but no sound currently plays in the ROM or project player.
+   Keep music-zone/checkpoint selection and effect cues in game content. The
+   planned engine interface owns bounded voices, priorities, volume, looping and
+   fades; platform backends own playback formats and timing. Music must continue
+   independently of gameplay presentation. Reserve audio RAM and CPU time before
+   increasing graphics caches.
 6. Add persistent save storage and versioned progression serialization.
 7. Extend complete-level/game verification, hardware testing and release packaging.
 
 The active opening milestone targets all four platforms through a shared game
 layer. GBA is furthest along; SNES and Mega Drive still require substantial
-performance work, and Amiga still requires opening support. The prototype frame
+performance work, and the Amiga opening passes the accelerated logical traversal but still requires cycle-exact performance and visual-fidelity work. The prototype frame
 rates do not establish whole-opening performance.
 
 The Mines entrance is connected. Its farther iron door supports its reusable

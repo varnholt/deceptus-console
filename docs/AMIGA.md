@@ -59,11 +59,19 @@ variants are prepared offline; only the currently used variant is resident.
 Fixed buffers divide resources between CPU-accessible and Chip RAM, alongside
 two scrolling display buffers. `build/amiga-opening/build.json` records exact
 static sizes; the OS, loader and largest free block in each bank must also fit.
-The prototype's measured frame rate below does not establish opening performance. The opening title has now been
+The prototype's measured frame rate below does not establish opening performance.
+The opening title has now been
 verified under cycle-exact WinUAE with the same 512 KiB Chip + 512 KiB slow RAM
 configuration and built-in AROS. Its static footprint is approximately 690 KiB,
-including 467 KiB of Chip RAM. Full traversal and action-scene frame rates remain
-under verification.
+including 467 KiB of Chip RAM. A local normal-input replay now passes all 56 opening checkpoints through the
+rubies, crypt return, altar and sword acquisition/attack under accelerated
+68000 emulation with the same RAM budget. This verifies progression/resource
+loading, not cycle-exact performance or complete source cutscene fidelity.
+Action-scene frame rates remain under verification. Room loading lends the unused end of its resident sprite
+buffer to the tile cache. A directory provides constant-time cache lookup;
+changing rooms or body variants invalidates the lease and cache together. The
+renderer also avoids restoring background pixels that the next opaque UI box
+will cover. These changes retain fixed ownership and add no runtime heap.
 
 
 ## Verified prototype scope
