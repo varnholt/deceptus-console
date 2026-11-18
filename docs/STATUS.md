@@ -181,9 +181,10 @@ for the Cell; a longer reversal check measures roughly 32 displayed frames/s
 and 60 simulation ticks/s without those freezes or added dropped time in the
 1 MiB cycle-exact configuration. Native room images, adaptive scroll windows,
 cached foreground masks, background references and Chip sprite caching are backend services;
-the current Lower Cells jump/reversal check reaches 24.8 actual frames/s,
+a narrow Lower Cells jump/reversal check reached 24.8 actual frames/s,
 while Crossroads reaches only 15.4. Both sustain the 60 Hz simulation in those
-samples. All-room speed and the remaining source cutscene/effect differences
+samples, but longer runs with camera scrolling reproduced 2.36-second stalls.
+The opening remains unplayable; those averages missed the worst case. All-room speed and the remaining source cutscene/effect differences
 stay open. Quantized camera bounds now prevent bottom-edge buffer overreads.
 See [Amiga implementation and verification](AMIGA.md).
 This remains below steady 50 fps, and other rooms can select different paths.

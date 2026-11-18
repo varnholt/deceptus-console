@@ -120,11 +120,15 @@ This removes the previous long refill freezes in that sample, but does not
 establish steady 50 fps or all-room playability. Jumping, cold animation loads
 and rooms that cannot retain a full image need separate timing checks.
 
-The current Lower Cells (monk room) movement check measures 24.8 displayed
+A narrow Lower Cells (monk room) movement check measured 24.8 displayed
 frames/s and 60.01 simulation ticks/s over 999 PAL frames, with no additional
 dropped game time. Of 495 presentation intervals, 488 take two PAL frames and
 seven take three to five. The same repeated-jump/reversal check in Crossroads
 measures 15.4 displayed frames/s and 60.02 simulation ticks/s over 998 PAL frames.
+Longer runs with camera scrolling subsequently reproduced a 118-PAL-frame
+(2.36-second) stall. The narrow sample above does not establish playability. A corrected cache
+partition retains tile capacity for scrolling rooms, but the broader rerun
+still exceeds one second per frame in some cases. Further work is required.
 These original-speed, 1 MiB results remain below the target; a stable simulation
 clock does not establish smooth presentation. WinUAE's 50 Hz display counter
 must not be reported as the game's rendered frame rate.
@@ -256,9 +260,8 @@ and 88 KiB normal resource banks.
 
 `prepareCaches` borrows the unused tails of both resource banks until the next
 graphics load. Tile storage holds a directory and up to 128 decoded groups,
-capped by the room's group count. Decoded sprites can use up to 64 KiB. When a
-retained composite handles background/foreground restoration, the larger tail
-prioritizes sprites if the other bank can hold the tile minimum. Otherwise the
+capped by the room's group count. Decoded sprites can use up to 64 KiB. Only when a full room composite avoids scroll-strip tile reconstruction does
+the larger tail prioritize sprites if the other bank can hold the tile minimum. Otherwise the
 original tile-first partition applies; unused space can enlarge the sprite lease. Regions never overlap resident resources or one
 another. Neither cache allocates memory at runtime. The planar writer and strip rebuild
 keep a single compiled implementation to bound executable code size as well. A bank too small for a tile

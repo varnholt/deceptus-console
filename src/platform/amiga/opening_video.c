@@ -176,9 +176,9 @@ static DeceptusU8 prepareCaches(void)
    tile_directory_count = (DeceptusU16)(((DeceptusU32)graphics->pattern_count + 15) / 16);
    offset = ((DeceptusU32)tile_directory_count + 3) & ~3UL;
    swap_banks = chip_size > size;
-   if (graphics->foreground_pixels || graphics->native_foreground)
+   if (graphics->native_foreground)
    {
-      /* retained layers make sprite reuse more valuable than extra tile groups. */
+      /* only a full room image avoids tile-cache pressure during scroll refills. */
       swap_banks = size > chip_size && chip_size >= offset + AMIGA_TILE_GROUP_BYTES;
    }
    if (swap_banks)
