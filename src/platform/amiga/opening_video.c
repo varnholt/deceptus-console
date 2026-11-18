@@ -836,18 +836,19 @@ static void prepareCopper(DeceptusU16 buffer, const DeceptusFrame *frame)
 }
 
 static DeceptusI16 scrollOrigin(DeceptusI16 current, DeceptusI16 camera, DeceptusU16 maximum, DeceptusU8 quantum, DeceptusU8 minimum,
-                                DeceptusU8 valid_origin)
+                                DeceptusU8 headroom, DeceptusU8 valid_origin)
 {
    if (!valid_origin || camera - current < minimum || camera - current > maximum)
    {
-      return (camera / quantum) * quantum - ((maximum + minimum) / 2 / quantum) * quantum;
+      return (camera / quantum) * quantum - ((minimum + (maximum - minimum) * headroom / 4) / quantum) * quantum;
    }
    return current;
 }
 
 DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFrame *frame)
 {
-   DeceptusI16 next_x, next_y, dx, dy;
+   DeceptusI16 next_x, next_y, dx, dy, maximum_y;
+   DeceptusU8 horizontal_headroom;
    DeceptusU16 index;
    DeceptusRect rectangle;
    DeceptusU8 was_valid, ui_layout;
@@ -899,8 +900,18 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
          }
       }
    }
-   next_x = scrollOrigin(window_origin_x, frame->camera_x, cache_width - 320, 16, 16, window_valid);
-   next_y = scrollOrigin(window_origin_y, frame->camera_y, cache_height - 224, 8, 0, window_valid);
+   horizontal_headroom = frame->camera_x < previous_camera_x[draw_buffer] ? 3 : 1;
+   next_x = scrollOrigin(window_origin_x, frame->camera_x, cache_width - 320, 16, 16, horizontal_headroom, window_valid);
+   next_y = scrollOrigin(window_origin_y, frame->camera_y, cache_height - 224, 8, 0, 3, window_valid);
+   maximum_y = graphics->height > cache_height ? graphics->height - cache_height : 0;
+   if (next_y < 0)
+   {
+      next_y = 0;
+   }
+   if (next_y > maximum_y)
+   {
+      next_y = maximum_y;
+   }
    window_origin_x = next_x;
    window_origin_y = next_y;
    window_valid = 1;

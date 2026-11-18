@@ -81,24 +81,36 @@ renderer also avoids restoring background pixels that the next opaque UI box
 will cover. These changes retain fixed ownership and add no runtime heap.
 
 
+## Walking and jumping regression
+
+The walking-only measurement above is insufficient to establish playability.
+Repeated full jumps in the same Cell on the earlier shallow-cache build measured
+2.2 displayed frames/s and 12.25 simulation ticks/s, with large frame stalls.
+The 512x312 cache and directional headroom improve that sample to 15.1 displayed
+frames/s and 52.1 simulation ticks/s. This still fails the smooth-movement target:
+ordinary walking and jump frame pacing remain blocking work, not a completed
+optimization milestone. Further changes require both movement cases and their
+stall distributions, in addition to the full logical route.
+
 ## Adaptive scrolling windows
 
 The visible game viewport remains 320x224 with the original pixel grid. Larger
 backing buffers reduce how often camera motion requires copying the whole
 viewport; they do not widen or scale the player's view.
 
-After resident world/sprite resources, the Chip bank can lend 198,400 bytes for
-two 640x248 backing buffers, or 163,840 bytes for two 512x256 buffers. If neither
+After resident world/sprite resources, the Chip bank can lend 199,680 bytes for
+two 512x312 backing buffers, or 163,840 bytes for two 512x256 buffers. If neither
 fits while retaining a tile-cache minimum, rendering keeps the static 352x232
 buffers. Selection can change with the room and normal/sword graphics variant.
 These are subregions of the existing 360 KiB resource bank, not new allocations.
 
 In a larger mode, the inactive compact buffers become one opaque background
-reference (99,200 or 81,920 bytes, within their combined 102,080-byte capacity).
+reference (99,840 or 81,920 bytes, within their combined 102,080-byte capacity).
 It follows a shared scroll-window origin, scrolling and rebuilding only exposed
 background strips from the tile archive. Both display buffers use that reference
-for sprite/UI cleanup; animated clips and foregrounds stay separate. Centered
-rebases leave space on both sides of the camera, and coarse bitplane pointers
+for sprite/UI cleanup; animated clips and foregrounds stay separate. Directional
+rebases leave more space ahead of movement and above the camera, with vertical
+origins clamped to the room extent, and coarse bitplane pointers
 are derived from the actual buffer origin together with fine scrolling.
 
 Room/body reloads invalidate display buffers, the background reference and every

@@ -178,6 +178,10 @@ The Amiga moving-Cell check now sustains 60 simulation ticks/s with roughly
 windows, background references and Chip sprite caching are backend services;
 all-room speed and the remaining source cutscene/effect differences stay open.
 See [Amiga implementation and verification](AMIGA.md).
+The walking-only Amiga result does not establish smooth play. Repeated jumps
+revealed major stalls and slowed simulation; the current taller-cache change
+helps but still fails the playability gate. Walking and jumping frame pacing
+remain blocking work before the shared milestone can advance.
 
 The Mines entrance is connected. Its farther iron door supports its reusable
 source red-key requirement; red-key and wetsuit acquisition are not yet connected.
