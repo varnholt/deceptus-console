@@ -9,7 +9,10 @@ GBA, SNES and Mega Drive build the same 26-room opening; SNES and Mega Drive
 remain experimental and run substantially below the desired frame rate.
 Mega Drive retains its faster [one-room prototype](docs/MEGA_DRIVE.md).
 The experimental [Amiga 500 backend](docs/AMIGA.md) currently runs a separate
-one-room prototype; the opening campaign is still being developed.
+one-room prototype and a separate streamed 26-room opening. The opening passes
+logical traversal but still needs substantial performance and fidelity work.
+Feature and documentation coverage against the original repo is tracked in
+[Original-game parity](docs/PARITY.md).
 The local folder currently keeps the name `deceptus-snes`.
 
 The latest development build is the original prison opening, with twenty-six

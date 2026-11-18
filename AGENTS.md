@@ -16,6 +16,7 @@
 - GBA, SNES, Mega Drive and Amiga are active parity targets. Implement the original opening workflow in the shared game layer and verify each backend independently. DOS and STM32 are later targets. Preserve the working Amiga prototype until opening support is verified; do not report a prototype or slow but logically correct replay as complete-game readiness.
 - Verify changes with native engine/converter tests and the actual ROM integration routes: `tools/gba_emulator.py` for GBA and `tools/emulator.py` for SNES. Shared changes must preserve both.
 - Keep unsupported mechanisms and Lua constructs explicit in content reports and build errors. A passing prototype build does not establish full-game support. Compare compiled callbacks against original Lua execution where possible.
+- Feature and documentation parity with the original repo are explicit goals. Update the relevant authoring, API, build/control and platform-limit guides with each feature; use `docs/PARITY.md` to track missing behavior and guide coverage. Distinguish logical traversal, visual fidelity, target performance and hardware verification.
 - Preserve ownership and dependency notices. Do not add attribution trailers to commits.
 
 ## C naming and formatting

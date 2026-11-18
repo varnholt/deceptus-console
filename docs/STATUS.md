@@ -158,7 +158,10 @@ palettes; conflicting OBJ indices relocate without changing source colours.
    planned engine interface owns bounded voices, priorities, volume, looping and
    fades; platform backends own playback formats and timing. Music must continue
    independently of gameplay presentation. Reserve audio RAM and CPU time before
-   increasing graphics caches.
+   increasing graphics caches. Backends may resolve the same logical track ID
+   to tracker/module, native sequenced or streamed resources; tracker arrangements
+   require authored instruments/patterns, not a simple transcode of the Ogg files.
+   Feature and documentation gaps are mapped in [Original-game parity](PARITY.md).
 6. Add persistent save storage and versioned progression serialization.
 7. Extend complete-level/game verification, hardware testing and release packaging.
 
