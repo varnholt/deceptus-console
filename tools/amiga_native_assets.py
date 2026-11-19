@@ -10,6 +10,7 @@ import numpy as np
 
 from asset_decode import decode_lz4, unpackbits
 from amiga_room_tiles import room_tiles
+from asset_resources import pack_resources
 
 
 def native_layers(world):
@@ -87,12 +88,27 @@ def compact_world(world):
     return bytes(result), sorted(set(boundaries))
 
 
+def native_sprites(metadata, sprites):
+    """Retain one orientation per frame; the native backend mirrors decoded pixels."""
+    header = struct.unpack_from('>4s6H8I', metadata)
+    count, table = header[4], header[13]
+    spans = [struct.unpack_from('>2I', metadata, table + index * 28 + 12)
+             for index in range(count)]
+    payload, relocated = pack_resources(sprites, spans)
+    result = bytearray(metadata)
+    for index, (offset, size) in enumerate(relocated):
+        struct.pack_into('>4I', result, table + index * 28 + 12,
+                         offset, size, 0, 0)
+    struct.pack_into('>I', result, 44, len(payload))
+    return bytes(result), payload
+
+
 def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
     generated = Path(generated)
     identity = hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes()
                                      for name in ('amiga_native_assets.py', 'asset_decode.py',
                                                   'amiga_room_tiles.py', 'amiga_tiles.py',
-                                                  'lz4_block.py'))).hexdigest()
+                                                  'lz4_block.py', 'asset_resources.py'))).hexdigest()
     manifest_path = generated / 'native-layers.json'
     previous = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     records = []
@@ -104,7 +120,8 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
             basename = variant['basename']
             key = f"area{room['room']}/{basename}"
             old = previous.get('records', {}).get(key, {})
-            paths = [folder / (basename + extension) for extension in ('.acb', '.aco', '.agn', '.atg')]
+            paths = [folder / (basename + extension)
+                     for extension in ('.acb', '.aco', '.agn', '.atg', '.ans', '.asb')]
             valid = (previous.get('converter') == identity and old.get('source') == variant['sha256']
                      and all(path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() == digest
                              for path, digest in zip(paths, old.get('hashes', []))) and len(old.get('hashes', [])) == len(paths))
@@ -113,12 +130,14 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
             if not valid:
                 base, overlays = native_layers(world)
                 width, height = struct.unpack_from('>2H', world, 4)
-                payloads = ((base, overlays, metadata, room_tiles(base, width, height))
-                            if base else (b'', b'', b'', b''))
+                sprite_metadata, sprites = native_sprites(metadata, (folder / (basename + '.asp')).read_bytes())
+                payloads = ((base, overlays, metadata, room_tiles(base, width, height), sprite_metadata, sprites)
+                            if base else (b'',) * len(paths))
                 for path, payload in zip(paths, payloads):
                     path.write_bytes(payload)
             hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in paths]
-            records.append((key, dict(source=variant['sha256'], hashes=hashes)))
+            records.append((key, dict(source=variant['sha256'], hashes=hashes,
+                                      native_static_sprite_bytes=sum(path.stat().st_size for path in paths[3:]))))
             required = max(0, variant['sprite_bytes'] - normal_capacity)
             prefix = next((offset for offset in boundaries if offset >= required), 0) if required else 0
             room_sizes.append([paths[0].stat().st_size, paths[1].stat().st_size if variant['clips'] else 0,

@@ -591,6 +591,20 @@ resource placement must be designed together before full-opening integration.
 Conversion and runtime integration remain separate steps; existing
 `.agp`/`.acb`/`.aco` resources remain available during the migration.
 
+The native conversion also emits `.ans` compact AN01 sprite metadata and `.asb`
+compressed sprite blocks. These retain one canonical orientation per frame and
+deduplicate identical referenced blocks through `tools/asset_resources.py`.
+The existing C sprite decoder can restore the other orientation using its mirror
+operation. All sprites, both orientations and all trim offsets in all 52 variants
+match the original archives through the actual C decoder. The derived archives
+remove 2,281,930 duplicate sprite bytes across the opening. They are additional
+migration assets; the current opening still reads its original sprite archives.
+The worst room/body set remains 544,689 bytes because its source sprite archive
+already has no removable orientation copies. This step is not a solution to that
+room's memory budget. The per-variant `native_static_sprite_bytes` value in
+`native-layers.json` records the combined derived footprint without animations,
+BOB backgrounds or staging memory.
+
 The additional Z jump binding is present in both scenes. Lost held-arrow input
 was reported to recover on release/repress; its cause remains unverified. The
 input investigation is deferred at the user's request in favor of full-game
