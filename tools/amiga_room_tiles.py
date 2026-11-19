@@ -5,6 +5,22 @@ import struct
 import numpy as np
 
 from amiga_tiles import native_tiles
+from lz4_block import encode_block
+
+
+TILES_PER_BANK = 16
+
+
+def tile_banks(tiles):
+    """Bound each independent decode to sixteen native tiles."""
+    payload, offsets = bytearray(), [0]
+    for first in range(0, len(tiles), TILES_PER_BANK):
+        words = [word for tile in tiles[first:first + TILES_PER_BANK]
+                 for word in tile]
+        payload.extend(encode_block(b''.join(word.to_bytes(2, 'big')
+                                            for word in words)))
+        offsets.append(len(payload))
+    return bytes(payload), offsets
 
 
 def room_tiles(base, width, height):
@@ -24,12 +40,14 @@ def room_tiles(base, width, height):
     header_size = struct.calcsize('>4s6H4I')
     color_map = header_size
     mask_map = color_map + len(cells) * 2
-    color_tiles = mask_map + len(mask_cells) * 2
-    mask_tiles = color_tiles + len(colors) * 160
-    header = struct.pack('>4s6H4I', b'AT01', width, height, columns, rows,
+    color_data, color_offsets = tile_banks(colors)
+    mask_data, mask_offsets = tile_banks(masks)
+    color_table = mask_map + len(mask_cells) * 2
+    mask_table = color_table + len(color_offsets) * 4
+    header = struct.pack('>4s6H4I', b'AT02', width, height, columns, rows,
                          len(colors), len(masks), color_map, mask_map,
-                         color_tiles, mask_tiles)
-    words = cells + mask_cells
-    words += [word for tile in colors for word in tile]
-    words += [word for mask in masks for word in mask]
-    return header + b''.join(word.to_bytes(2, 'big') for word in words)
+                         color_table, mask_table)
+    maps = b''.join(word.to_bytes(2, 'big') for word in cells + mask_cells)
+    offsets = color_offsets + [offset + len(color_data) for offset in mask_offsets]
+    tables = struct.pack(f'>{len(offsets)}I', *offsets)
+    return header + maps + tables + color_data + mask_data

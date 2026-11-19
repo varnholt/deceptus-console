@@ -91,7 +91,8 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
     generated = Path(generated)
     identity = hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes()
                                      for name in ('amiga_native_assets.py', 'asset_decode.py',
-                                                  'amiga_room_tiles.py', 'amiga_tiles.py'))).hexdigest()
+                                                  'amiga_room_tiles.py', 'amiga_tiles.py',
+                                                  'lz4_block.py'))).hexdigest()
     manifest_path = generated / 'native-layers.json'
     previous = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     records = []

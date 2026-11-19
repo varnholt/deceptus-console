@@ -550,7 +550,7 @@ prototype step. Local experiments preceding the redesign are preserved under
 
 ### Full-opening native tile assets
 
-Every room/body variant now additionally exports an `AT01` `.atg` archive through
+Every room/body variant now additionally exports an `AT02` `.atg` archive through
 `tools/amiga_room_tiles.py`. Static background and foreground are flattened
 offline; foreground coverage remains in a separate deduplicated mask dictionary.
 The unchanged animation archives stay separate. The opening runtime does not yet
@@ -558,17 +558,38 @@ consume `.atg`, so this conversion does not improve its current frame rate.
 
 The 32-byte big-endian header is `4s6H4I`: magic, original pixel width/height,
 map columns/rows, color/mask tile counts, then byte offsets of the color map,
-mask map, color dictionary and mask dictionary. Both maps use 16-bit ids.
-Color tiles contain 16 interleaved five-plane scanlines (160 bytes); mask tiles
-contain 16 one-plane scanlines (32 bytes). Bottom/right padding is transparent.
-All 52 variants reconstruct every static pixel and foreground mask bit exactly.
-The existing Amiga opening also builds with these additional outputs.
+mask map, color-bank offset table and mask-bank offset table. Both maps use
+16-bit ids. Each dictionary is partitioned into independent LZ4 banks of up to
+16 tiles; each offset table contains bank-count + 1 big-endian 32-bit offsets.
+Offsets in both tables are relative to the shared compressed payload immediately
+after the mask table. The color stream starts at zero; the mask stream starts
+at the end of the color stream. A partial final bank contains only its remaining
+tiles, without padding.
 
-The largest raw package is 501,280 bytes. These raw dictionaries must not simply
-be made resident alongside the existing opening buffers. The scrolling backend
-needs bounded native tile banks/staging and a measured memory budget. Conversion
-and runtime integration remain separate steps; existing `.agp`/`.acb`/`.aco`
-resources remain available while the new backend is developed.
+Decoded color tiles contain 16 interleaved five-plane scanlines (160 bytes);
+mask tiles contain 16 one-plane scanlines (32 bytes). Bottom/right image padding
+is transparent. `src/platform/amiga/tilearchive.c` validates dimensions, layout,
+map ids and every compressed-bank boundary before exposing the archive. Its
+caller-owned staging requirement is bounded at 2,560 bytes for color banks and
+512 bytes for mask banks. The decoded bytes are ready for a 68000 blitter source;
+there is no layer composition or pixel conversion in the decoder.
+
+A local host check ran the actual C decoder over all 4,533 banks in all 52
+variants, reconstructed every static pixel and mask bit, checked output guards
+and rejected short output buffers, invalid banks/cells, malformed archive
+headers/maps/offsets and truncated files. Both the converter and runtime reader
+build for the Amiga target. This does not yet establish a cycle-exact render
+performance result.
+
+The largest package is now 321,770 bytes, down from 501,280 bytes for the raw
+AT01 layout. All 52 packages total 6,319,772 bytes. The largest combination of
+native tiles, existing compressed sprites and compact metadata is 544,689 bytes
+(room 14, sword variant), exceeding the current 448 KiB resource banks before
+BOB/animation/staging reservations. Do not make the full packages resident and
+claim that the memory budget is solved. Native sprite/animation storage and
+resource placement must be designed together before full-opening integration.
+Conversion and runtime integration remain separate steps; existing
+`.agp`/`.acb`/`.aco` resources remain available during the migration.
 
 The additional Z jump binding is present in both scenes. Lost held-arrow input
 was reported to recover on release/repress; its cause remains unverified. The
