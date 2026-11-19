@@ -9,9 +9,18 @@
 #define AMIGA_LARGE_CACHE_HEIGHT 312
 #define AMIGA_TALL_CACHE_WIDTH 400
 #define AMIGA_TALL_CACHE_HEIGHT 312
+#define AMIGA_SMALL_CACHE_WIDTH 384
+#define AMIGA_SMALL_CACHE_HEIGHT 256
+#define AMIGA_BASE_CACHE_WIDTH 368
+#define AMIGA_BASE_CACHE_HEIGHT 232
+#define AMIGA_TILE_CACHE_GROUPS 254
+#define AMIGA_RASTER_TILE_GROUPS 16
+#define AMIGA_DECODED_SPRITE_BYTES (64UL * 1024)
 #define AMIGA_TILE_GROUP 16
 #define AMIGA_TILE_BYTES 48
 #define AMIGA_TILE_GROUP_BYTES (AMIGA_TILE_GROUP * AMIGA_TILE_BYTES)
+#define AMIGA_RASTER_ROWS 32
+#define AMIGA_RASTER_BYTES (AMIGA_RASTER_ROWS * 12)
 
 typedef struct AmigaGraphics
 {
@@ -61,5 +70,6 @@ DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaG
                                      DeceptusU32 capacity);
 void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *sprite);
 DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size);
-DeceptusU8 amigaGraphicsRasterColumn(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU8 *pixels, DeceptusU32 capacity);
+DeceptusU8 amigaGraphicsRasterBlock(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8 *pixels,
+                                    DeceptusU32 capacity);
 #endif

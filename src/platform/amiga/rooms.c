@@ -4,6 +4,7 @@
 #include "keyboard.h"
 #include "opening_video.h"
 #include "system.h"
+#include <string.h>
 
 #define CHIP __attribute__((section(".MEMF_CHIP")))
 
@@ -132,36 +133,69 @@ static DeceptusU8 loadNativeComposite(DeceptusU8 room, DeceptusU8 sword)
 
 static DeceptusU8 loadRasterColumns(DeceptusU8 room, DeceptusU8 sword)
 {
-   DeceptusU32 bytes, reserved, minimum;
-   DeceptusU8 *pixels;
+   DeceptusU32 bytes, reserved, minimum, chip_free;
+   DeceptusU8 *pixels, in_chip;
    char path[64];
    bytes = amiga_raster_sizes[room][sword != 0];
-   reserved = ((bytes + 3) & ~3UL) + (DeceptusU32)graphics.height * 12;
-   minimum = ((DeceptusU32)graphics.pattern_count + 15) / 16 + 3 + AMIGA_TILE_GROUP_BYTES;
-   if (!bytes || !graphics.foreground_pixels || reserved > sizeof(resource_normal) - tile_cache_offset ||
-       (sizeof(resource_normal) - tile_cache_offset - reserved < minimum && sizeof(resource_chip) - chip_cache_offset < minimum))
+   if (!bytes || graphics.native_foreground)
    {
       return 1;
    }
-   pixels = resource_normal + tile_cache_offset;
+   reserved = ((bytes + 3) & ~3UL) + AMIGA_RASTER_BYTES;
+   minimum = ((DeceptusU32)graphics.pattern_count + 15) / 16 + 3 + AMIGA_TILE_GROUP_BYTES;
+   chip_free = sizeof(resource_chip) - chip_cache_offset;
+   in_chip = 0;
+   if (reserved <= sizeof(resource_normal) - tile_cache_offset &&
+       (sizeof(resource_normal) - tile_cache_offset - reserved >= minimum || chip_free >= minimum))
+   {
+      pixels = resource_normal + tile_cache_offset;
+   }
+   else if (chip_free >= reserved + (DeceptusU32)(AMIGA_BASE_CACHE_WIDTH / 8) * AMIGA_BASE_CACHE_HEIGHT * 11 + 16UL * 1024)
+   {
+      pixels = (DeceptusU8 *)resource_chip + chip_cache_offset;
+      in_chip = 1;
+   }
+   else
+   {
+      return 1;
+   }
    roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.acr" : "/graphics.acr", 0);
    if (amigaSystemReadFile(path, pixels, bytes) != bytes || !amigaGraphicsSetRaster(&graphics, pixels, bytes))
    {
       return 0;
    }
-   tile_cache_offset += reserved;
+   if (in_chip)
+   {
+      chip_cache_offset += reserved;
+   }
+   else
+   {
+      tile_cache_offset += reserved;
+   }
    graphics.raster_scratch = (DeceptusU16 *)(pixels + ((bytes + 3) & ~3UL));
    return 1;
 }
 
 static DeceptusU8 reserveWindow(DeceptusU16 width, DeceptusU16 height)
 {
-   DeceptusU32 checkpoint, mask_bytes;
+   DeceptusU32 checkpoint, mask_bytes, tile_bytes, smallest_window, normal_free;
    checkpoint = chip_cache_offset;
+   tile_bytes = ((DeceptusU32)graphics.pattern_count + 15) / 16;
+   if (graphics.raster && tile_bytes > AMIGA_RASTER_TILE_GROUPS)
+   {
+      tile_bytes = AMIGA_RASTER_TILE_GROUPS;
+   }
+   tile_bytes = tile_bytes <= AMIGA_TILE_CACHE_GROUPS ? ((tile_bytes + 3) & ~3UL) + tile_bytes * AMIGA_TILE_GROUP_BYTES : 0;
+   smallest_window = (DeceptusU32)(AMIGA_BASE_CACHE_WIDTH / 8) * AMIGA_BASE_CACHE_HEIGHT * 11;
+   normal_free = sizeof(resource_normal) - tile_cache_offset;
    mask_bytes = (DeceptusU32)(width / 8) * height;
    graphics.viewport_pixels = (DeceptusU16 *)reserveChipScratch(mask_bytes * 10);
    graphics.foreground_pixels = graphics.viewport_pixels ? (DeceptusU16 *)reserveChipScratch(mask_bytes) : 0;
-   if (!graphics.foreground_pixels || sizeof(resource_chip) - chip_cache_offset < 16UL * 1024)
+   if (!graphics.foreground_pixels || sizeof(resource_chip) - chip_cache_offset < 16UL * 1024 ||
+       (tile_bytes && sizeof(resource_chip) - checkpoint >= smallest_window + tile_bytes &&
+        sizeof(resource_chip) - chip_cache_offset < tile_bytes) ||
+       (tile_bytes && sizeof(resource_chip) - checkpoint + normal_free >= smallest_window + tile_bytes + AMIGA_DECODED_SPRITE_BYTES &&
+        sizeof(resource_chip) - chip_cache_offset + normal_free < tile_bytes + AMIGA_DECODED_SPRITE_BYTES))
    {
       chip_cache_offset = checkpoint;
       graphics.viewport_pixels = 0;
@@ -194,7 +228,17 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    split = amigaGraphicsSpriteSplit(world, world_size, sizeof(resource_chip) - world_size);
    roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.asp" : "/graphics.asp", 0);
    sprite_size = amigaSystemReadFilePair(path, world + world_size, split, resource_normal, sizeof(resource_normal));
-   if (!sprite_size || !amigaGraphicsInit(&graphics, world, world_size, world + world_size, sprite_size, split, resource_normal))
+   if (!sprite_size)
+   {
+      return 0;
+   }
+   if (split == sprite_size && sprite_size <= sizeof(resource_normal))
+   {
+      /* compressed sprites need CPU access; leave Chip RAM for native graphics. */
+      memcpy(resource_normal, world + world_size, sprite_size);
+      split = 0;
+   }
+   if (!amigaGraphicsInit(&graphics, world, world_size, world + world_size, sprite_size, split, resource_normal))
    {
       return 0;
    }
@@ -204,12 +248,13 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    {
       return 0;
    }
-   if (!loadNativeComposite(room, sword))
+   if (!loadNativeComposite(room, sword) || !loadRasterColumns(room, sword))
    {
       return 0;
    }
    if (!graphics.native_foreground && !reserveWindow(AMIGA_LARGE_CACHE_WIDTH, AMIGA_LARGE_CACHE_HEIGHT) &&
-       !reserveWindow(AMIGA_WIDE_CACHE_WIDTH, AMIGA_WIDE_CACHE_HEIGHT) && !reserveWindow(AMIGA_TALL_CACHE_WIDTH, AMIGA_TALL_CACHE_HEIGHT))
+       !reserveWindow(AMIGA_WIDE_CACHE_WIDTH, AMIGA_WIDE_CACHE_HEIGHT) && !reserveWindow(AMIGA_TALL_CACHE_WIDTH, AMIGA_TALL_CACHE_HEIGHT) &&
+       !reserveWindow(AMIGA_SMALL_CACHE_WIDTH, AMIGA_SMALL_CACHE_HEIGHT) && !reserveWindow(AMIGA_BASE_CACHE_WIDTH, AMIGA_BASE_CACHE_HEIGHT))
    {
       graphics.viewport_width = AMIGA_LARGE_CACHE_WIDTH;
       graphics.viewport_height = AMIGA_LARGE_CACHE_HEIGHT;
@@ -231,9 +276,9 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
          return 0;
       }
    }
-   if (!loadRasterColumns(room, sword))
+   if (!graphics.foreground_pixels)
    {
-      return 0;
+      graphics.raster = 0;
    }
    sword_graphics = sword;
    amigaOpeningVideoReset();

@@ -14,22 +14,24 @@ static DeceptusU32 readLong(const DeceptusU8 *bytes)
 
 DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size)
 {
-   DeceptusU16 columns, column;
+   DeceptusU16 columns;
+   DeceptusU32 blocks, block;
    DeceptusU32 start, previous, next;
    graphics->raster = 0;
    graphics->raster_size = 0;
    columns = (graphics->width + 15) / 16;
-   start = 12 + ((DeceptusU32)columns + 1) * 4;
-   if (!pixels || size < start || graphics->clip_count || pixels[0] != 'A' || pixels[1] != 'C' || pixels[2] != '0' || pixels[3] != '1' ||
+   blocks = (DeceptusU32)columns * ((graphics->height + AMIGA_RASTER_ROWS - 1) / AMIGA_RASTER_ROWS);
+   start = 12 + (blocks + 1) * 4;
+   if (!pixels || size < start || pixels[0] != 'A' || pixels[1] != 'C' || pixels[2] != '0' || pixels[3] != '2' ||
        readWord(pixels + 4) != graphics->width || readWord(pixels + 6) != graphics->height || readWord(pixels + 8) != 16 ||
        readWord(pixels + 10) != columns || readLong(pixels + 12))
    {
       return 0;
    }
    previous = 0;
-   for (column = 0; column < columns; ++column)
+   for (block = 0; block < blocks; ++block)
    {
-      next = readLong(pixels + 16 + (DeceptusU32)column * 4);
+      next = readLong(pixels + 16 + block * 4);
       if (next <= previous || next > size - start)
       {
          return 0;
@@ -45,24 +47,26 @@ DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pix
    return 1;
 }
 
-DeceptusU8 amigaGraphicsRasterColumn(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU8 *pixels, DeceptusU32 capacity)
+DeceptusU8 amigaGraphicsRasterBlock(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8 *pixels,
+                                    DeceptusU32 capacity)
 {
-   DeceptusU16 columns;
-   DeceptusU32 start, first, last, bytes;
+   DeceptusU16 columns, bands;
+   DeceptusU32 start, first, last, block;
    columns = (graphics->width + 15) / 16;
-   bytes = (DeceptusU32)graphics->height * 12;
-   start = 12 + ((DeceptusU32)columns + 1) * 4;
-   if (!graphics->raster || column >= columns || capacity < bytes || graphics->raster_size < start)
+   bands = (graphics->height + AMIGA_RASTER_ROWS - 1) / AMIGA_RASTER_ROWS;
+   start = 12 + ((DeceptusU32)columns * bands + 1) * 4;
+   if (!graphics->raster || column >= columns || band >= bands || capacity < AMIGA_RASTER_BYTES || graphics->raster_size < start)
    {
       return 0;
    }
-   first = readLong(graphics->raster + 12 + (DeceptusU32)column * 4);
-   last = readLong(graphics->raster + 16 + (DeceptusU32)column * 4);
+   block = (DeceptusU32)column * bands + band;
+   first = readLong(graphics->raster + 12 + block * 4);
+   last = readLong(graphics->raster + 16 + block * 4);
    if (first >= last || last > graphics->raster_size - start)
    {
       return 0;
    }
-   return deceptusLz4Decode(graphics->raster + start + first, last - first, pixels, bytes);
+   return deceptusLz4Decode(graphics->raster + start + first, last - first, pixels, AMIGA_RASTER_BYTES);
 }
 
 static DeceptusU8 worldRange(const AmigaGraphics *graphics, DeceptusU32 offset, DeceptusU32 size)

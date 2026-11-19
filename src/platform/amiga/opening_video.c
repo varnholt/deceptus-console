@@ -12,8 +12,8 @@
 #include <stddef.h>
 #include <string.h>
 
-#define BASE_CACHE_WIDTH 368
-#define BASE_CACHE_HEIGHT 232
+#define BASE_CACHE_WIDTH AMIGA_BASE_CACHE_WIDTH
+#define BASE_CACHE_HEIGHT AMIGA_BASE_CACHE_HEIGHT
 #define BASE_BUFFER_WORDS ((BASE_CACHE_WIDTH / 16) * BASE_CACHE_HEIGHT * 5)
 #if (AMIGA_LARGE_CACHE_WIDTH / 8) * AMIGA_LARGE_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4 ||                                                \
    (AMIGA_WIDE_CACHE_WIDTH / 8) * AMIGA_WIDE_CACHE_HEIGHT * 5 > BASE_BUFFER_WORDS * 4 ||                                                   \
@@ -27,8 +27,8 @@
 #if AMIGA_GRAPHICS_RESOURCES > 2048
 #error sprite identities require resources below 2048
 #endif
-#define TILE_CACHE_SLOTS 128
-#define SPRITE_CACHE_BYTES (64UL * 1024)
+#define TILE_CACHE_SLOTS AMIGA_TILE_CACHE_GROUPS
+#define SPRITE_CACHE_BYTES AMIGA_DECODED_SPRITE_BYTES
 #define ROW_CACHE_WAYS 4
 #define ROW_CACHE_SETS 16
 #define CHIP __attribute__((section(".MEMF_CHIP")))
@@ -176,10 +176,10 @@ static DeceptusU8 prepareCaches(void)
    tile_directory_count = (DeceptusU16)(((DeceptusU32)graphics->pattern_count + 15) / 16);
    offset = ((DeceptusU32)tile_directory_count + 3) & ~3UL;
    swap_banks = chip_size > size;
-   if (graphics->native_foreground)
+   if (graphics->native_foreground && size >= offset + AMIGA_TILE_GROUP_BYTES && chip_size >= offset + AMIGA_TILE_GROUP_BYTES)
    {
       /* only a full room image avoids tile-cache pressure during scroll refills. */
-      swap_banks = size > chip_size && chip_size >= offset + AMIGA_TILE_GROUP_BYTES;
+      swap_banks = size > chip_size;
    }
    if (swap_banks)
    {
@@ -204,9 +204,18 @@ static DeceptusU8 prepareCaches(void)
    {
       tile_slots = tile_directory_count;
    }
+   if (graphics->raster && tile_slots > AMIGA_RASTER_TILE_GROUPS)
+   {
+      tile_slots = AMIGA_RASTER_TILE_GROUPS;
+   }
    unused = size - offset - (DeceptusU32)tile_slots * AMIGA_TILE_GROUP_BYTES;
    row_memory = tile_cache + (DeceptusU32)tile_slots * AMIGA_TILE_GROUP_BYTES;
    row_cache_bytes = unused;
+   if ((graphics->raster || tile_slots == tile_directory_count) && unused > sprite_size)
+   {
+      /* retain decoded actors before enlarging the optional row lookup cache. */
+      row_cache_bytes = 0;
+   }
    if (sprite_size > SPRITE_CACHE_BYTES && sprite_size - SPRITE_CACHE_BYTES > row_cache_bytes)
    {
       rows_in_sprite_bank = 1;
@@ -245,6 +254,16 @@ static DeceptusU8 prepareCaches(void)
    for (slot = 0; slot < tile_slots; ++slot)
    {
       tile_groups[slot] = 65535U;
+      if (tile_slots == tile_directory_count)
+      {
+         /* a complete tile working set never needs decompression during play. */
+         if (!amigaGraphicsTileGroup(graphics, slot, tile_cache + (DeceptusU32)slot * AMIGA_TILE_GROUP_BYTES))
+         {
+            return 0;
+         }
+         tile_groups[slot] = slot;
+         tile_directory[slot] = (DeceptusU8)slot;
+      }
    }
    tile_cursor = 0;
    return 1;
@@ -349,9 +368,9 @@ static DeceptusU16 __attribute__((noinline, noclone)) mapCell(DeceptusU32 map, D
 static void __attribute__((noinline, noclone)) paintPattern(DeceptusU16 *buffer, DeceptusI16 x, DeceptusI16 y, DeceptusU16 pattern,
                                                             DeceptusU8 masked)
 {
-   const DeceptusU8 *pixels;
-   DeceptusU8 *destination;
-   DeceptusU8 plane, row, mask;
+   const DeceptusU8 *pixels, *mask;
+   DeceptusU8 *destination, *plane_start;
+   DeceptusU8 plane, row;
    if (!pattern && masked)
    {
       return;
@@ -361,22 +380,29 @@ static void __attribute__((noinline, noclone)) paintPattern(DeceptusU16 *buffer,
    {
       return;
    }
+   mask = pixels + 40;
+   plane_start = (DeceptusU8 *)buffer + y * row_bytes + x / 8;
    for (plane = 0; plane < 5; ++plane)
    {
-      destination = (DeceptusU8 *)buffer + (DeceptusU32)plane * plane_bytes + y * row_bytes + x / 8;
-      for (row = 0; row < 8; ++row)
+      destination = plane_start;
+      if (masked)
       {
-         mask = pixels[40 + row];
-         if (masked)
+         for (row = 0; row < 8; ++row)
          {
-            *destination = (DeceptusU8)((*destination & ~mask) | (pixels[plane * 8 + row] & mask));
+            *destination = (DeceptusU8)((*destination & ~mask[row]) | (pixels[row] & mask[row]));
+            destination += row_bytes;
          }
-         else
-         {
-            *destination = pixels[plane * 8 + row];
-         }
-         destination += row_bytes;
       }
+      else
+      {
+         for (row = 0; row < 8; ++row)
+         {
+            *destination = pixels[row];
+            destination += row_bytes;
+         }
+      }
+      pixels += 8;
+      plane_start += plane_bytes;
    }
 }
 
@@ -697,33 +723,51 @@ static void __attribute__((noinline, noclone)) scrollBuffer(DeceptusU16 *pixels,
 /* share the strip rebuild code to stay within the executable RAM-bank budget. */
 static void __attribute__((noinline, noclone)) paintRasterStrip(DeceptusI16 left, DeceptusI16 top, DeceptusI16 width, DeceptusI16 height)
 {
-   DeceptusI16 x, y, world_x, world_y;
+   DeceptusI16 x, y, row, world_x, world_y, count, source_y;
    DeceptusU8 plane, inside;
    const DeceptusU16 *source;
    DeceptusU16 *destination;
    waitBlitter();
-   /* decoded columns use the room's normal-RAM lease, outside display DMA. */
    for (x = left; x < left + width; x += 16)
    {
       world_x = origin_x + x;
-      inside = world_x >= 0 && world_x < graphics->width;
-      if (inside &&
-          !amigaGraphicsRasterColumn(graphics, world_x / 16, (DeceptusU8 *)graphics->raster_scratch, (DeceptusU32)graphics->height * 12))
+      y = top;
+      while (y < top + height)
       {
-         error = 1;
-         return;
-      }
-      for (plane = 0; plane < 6; ++plane)
-      {
-         source = graphics->raster_scratch + (DeceptusU32)plane * graphics->height;
-         destination = plane < 5 ? background_cache + plane * plane_words : graphics->foreground_pixels;
-         destination += top * row_words + x / 16;
-         for (y = top; y < top + height; ++y)
+         world_y = origin_y + y;
+         inside = world_x >= 0 && world_x < graphics->width && world_y >= 0 && world_y < graphics->height;
+         source_y = inside ? world_y % AMIGA_RASTER_ROWS : 0;
+         count = AMIGA_RASTER_ROWS - source_y;
+         if (world_y < 0 && count > -world_y)
          {
-            world_y = origin_y + y;
-            *destination = inside && world_y >= 0 && world_y < graphics->height ? source[world_y] : 0;
-            destination += row_words;
+            count = -world_y;
          }
+         if (inside && count > graphics->height - world_y)
+         {
+            count = graphics->height - world_y;
+         }
+         if (count > top + height - y)
+         {
+            count = top + height - y;
+         }
+         if (inside && !amigaGraphicsRasterBlock(graphics, world_x / 16, world_y / AMIGA_RASTER_ROWS,
+                                                 (DeceptusU8 *)graphics->raster_scratch, AMIGA_RASTER_BYTES))
+         {
+            error = 1;
+            return;
+         }
+         for (plane = 0; plane < 6; ++plane)
+         {
+            source = graphics->raster_scratch + plane * AMIGA_RASTER_ROWS + source_y;
+            destination = plane < 5 ? background_cache + plane * plane_words : graphics->foreground_pixels;
+            destination += y * row_words + x / 16;
+            for (row = 0; row < count; ++row)
+            {
+               *destination = inside ? source[row] : 0;
+               destination += row_words;
+            }
+         }
+         y += count;
       }
    }
 }
@@ -752,15 +796,49 @@ static void __attribute__((noinline, noclone, optimize("Os"))) cacheForegroundTi
    }
 }
 
-static void __attribute__((noinline, noclone)) paintBackgroundStrip(DeceptusI16 left, DeceptusI16 top, DeceptusI16 width,
-                                                                    DeceptusI16 height)
+static void __attribute__((noinline, noclone, optimize("Os"))) paintBackgroundStrip(DeceptusI16 left, DeceptusI16 top, DeceptusI16 width,
+                                                                                    DeceptusI16 height)
 {
    DeceptusI16 x, y, world_x, world_y;
    DeceptusU16 pattern;
    DeceptusU16 index;
+   DeceptusU8 background_clip;
    if (graphics->raster)
    {
       paintRasterStrip(left, top, width, height);
+      for (y = top; y < top + height; y += 8)
+      {
+         for (x = left; x < left + width; x += 8)
+         {
+            world_x = origin_x + x;
+            world_y = origin_y + y;
+            background_clip = 0;
+            for (index = 0; index < graphics->clip_count; ++index)
+            {
+               if (!clips[index].clip.plane)
+               {
+                  pattern = clipCell(&clips[index], world_x, world_y);
+                  if (pattern)
+                  {
+                     paintPattern(background_cache, x, y, pattern, 1);
+                     background_clip = 1;
+                  }
+               }
+            }
+            if (background_clip && world_x >= 0 && world_y >= 0 && world_x < graphics->width && world_y < graphics->height)
+            {
+               pattern = mapCell(graphics->foreground, graphics->width / 8, graphics->height / 8, world_x / 8, world_y / 8);
+               cacheForegroundTile(x, y, pattern, 0);
+            }
+            for (index = 0; index < graphics->clip_count; ++index)
+            {
+               if (clips[index].clip.plane)
+               {
+                  cacheForegroundTile(x, y, clipCell(&clips[index], world_x, world_y), 1);
+               }
+            }
+         }
+      }
       return;
    }
    for (y = top; y < top + height; y += 8)
@@ -1246,8 +1324,37 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    {
       error = 1;
    }
+   if (!was_valid || dx <= -cache_width || dx >= cache_width || dy <= -cache_height || dy >= cache_height)
+   {
+      was_valid = 0;
+   }
+   else if (dx || dy)
+   {
+      scrollBuffer(buffers[draw_buffer], 5, dx, dy);
+   }
+   for (index = 0; index < request_count; ++index)
+   {
+      requests[index].x -= dx;
+      requests[index].y -= dy;
+   }
+   origin_x = origins_x[draw_buffer] = next_x;
+   origin_y = origins_y[draw_buffer] = next_y;
+   updateBackgroundCache();
    if (was_valid)
    {
+      if (dx || dy)
+      {
+         for (index = 0; index < previous_counts[draw_buffer]; ++index)
+         {
+            previous_sprites[draw_buffer][index].x -= dx;
+            previous_sprites[draw_buffer][index].y -= dy;
+         }
+         for (index = 0; index < previous_ui_count[draw_buffer]; ++index)
+         {
+            previous_ui[draw_buffer][index].x -= dx;
+            previous_ui[draw_buffer][index].y -= dy;
+         }
+      }
       planSpriteRedraws(!dx && !dy);
       for (index = 0; index < previous_ui_count[draw_buffer]; ++index)
       {
@@ -1265,22 +1372,6 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
          }
       }
    }
-   if (!was_valid || dx <= -cache_width || dx >= cache_width || dy <= -cache_height || dy >= cache_height)
-   {
-      was_valid = 0;
-   }
-   else if (dx || dy)
-   {
-      scrollBuffer(buffers[draw_buffer], 5, dx, dy);
-   }
-   for (index = 0; index < request_count; ++index)
-   {
-      requests[index].x -= dx;
-      requests[index].y -= dy;
-   }
-   origin_x = origins_x[draw_buffer] = next_x;
-   origin_y = origins_y[draw_buffer] = next_y;
-   updateBackgroundCache();
    if (!was_valid)
    {
       rectangle.x = rectangle.y = 0;

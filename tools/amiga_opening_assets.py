@@ -58,13 +58,16 @@ def raster_columns(patterns, background, foreground):
     mask = front[5:6]
     pixels = np.concatenate(((base[:5] & ~mask) | (front[:5] & mask), mask))
     pixels = np.pad(pixels, ((0, 0), (0, 0), (0, pixels.shape[2] % 2)))
-    blocks = [encode_block(pixels[:, :, x:x + 2].tobytes())
-              for x in range(0, pixels.shape[2], 2)]
+    band_rows = 32
+    padded = np.pad(pixels, ((0, 0), (0, -pixels.shape[1] % band_rows), (0, 0)))
+    blocks = [encode_block(padded[:, y:y + band_rows, x:x + 2].tobytes())
+              for x in range(0, pixels.shape[2], 2)
+              for y in range(0, padded.shape[1], band_rows)]
     offsets = [0]
     for block in blocks:
         offsets.append(offsets[-1] + len(block))
-    return (struct.pack('>4s4H', b'AC01', background.shape[1] * 8,
-                        background.shape[0] * 8, 16, len(blocks))
+    return (struct.pack('>4s4H', b'AC02', background.shape[1] * 8,
+                        background.shape[0] * 8, 16, pixels.shape[2] // 2)
             + struct.pack(f'>{len(offsets)}I', *offsets) + b''.join(blocks),
             pixels.tobytes())
 
@@ -229,8 +232,9 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
                      foreground_offset, clip_offset, sprite_table, sprite_bytes)
     payload = bytes(archive.data)
     (output / (basename + '.agp')).write_bytes(payload)
-    raster, composite = (raster_columns(patterns, background_cells, foreground_cells)
-                         if not clips else (b'', b''))
+    raster, composite = raster_columns(patterns, background_cells, foreground_cells)
+    if clips:
+        composite = b''
     (output / (basename + '.acr')).write_bytes(raster)
     (output / (basename + '.acp')).write_bytes(composite)
     return dict(basename=basename, bytes=len(payload) + sprite_bytes, world_bytes=len(payload), patterns=len(patterns), sprites=len(resources),

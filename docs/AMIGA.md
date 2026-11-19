@@ -137,11 +137,30 @@ The `.acp` file stores five composited colour planes followed by one foreground
 mask plane, with word-aligned rows. Build reports hash it alongside the original
 archives and native background. Animated-clip rooms use a scrolling composite
 reference whose changed clips are rebuilt in the original layer order.
-When a full static image cannot fit, larger windows can instead borrow compressed
-`.acr` columns from normal RAM. Each `AC01` column decodes five colour planes and
-one mask, using a bounded normal-RAM staging lease. Its header records dimensions,
-16-pixel columns and a checked offset table. Space-constrained rooms retain the
-tile path; this fallback does not establish equivalent performance.
+When a full static image cannot fit, scrolling references can instead use
+`.acr` blocks for the static background/foreground composite. `AC02` stores
+independent 16x32-pixel blocks, each containing five colour planes and one mask
+plane. Blocks are column-major, then top to bottom; edge blocks are zero-padded.
+The 12-byte header retains dimensions, column width and column count. A checked
+32-bit offset table covers every block, followed by independent LZ4 data. Each
+decode needs only 384 bytes of caller-owned staging storage. Old `AC01` files
+are rejected and must be rebuilt.
+
+Native blocks also support animated-clip rooms. Background clips are overlaid
+before restoring static foreground in their affected tiles; foreground clips
+then append their colours and occlusion masks. Frame/enable changes rebuild
+only the affected reference area. The loader can retain the compressed blocks
+in either resource bank, excludes them and staging from cache leases, and keeps
+the checked tile path when the native representation cannot fit.
+
+The final broad Lower Cells run in the time-limited investigation repeatedly
+traversed x=100..550 while jumping and acknowledged source dialogue through
+ordinary inputs. Over 2,120 PAL refreshes it measured approximately 4.6 displayed
+frames/s and 22.9 simulation ticks/s, with a worst presentation gap of 41 PAL
+frames (0.82 seconds) and additional dropped game time. This is a failed
+playability result. The narrow warmed samples above must not be used to describe
+the opening as playable. Further optimization work has stopped at the requested
+time limit.
 
 ## Adaptive scrolling windows
 
@@ -151,7 +170,8 @@ viewport; they do not widen or scale the player's view.
 
 After resident world/sprite resources, the Chip bank can lend 199,680 bytes for
 two 512x312 backing buffers, 170,240 bytes for two 448x304 buffers, or
-156,000 bytes for two 400x312 buffers. Each masked candidate also reserves
+156,000 bytes for two 400x312 buffers. Smaller 384x256 and 368x232
+pairs are also candidates when decoded caches need the remaining space. Each masked candidate also reserves
 one foreground bitplane and at least 16 KiB of remaining Chip storage.
 If none fits, an unmasked larger pair or the static
 368x232 buffers are used. Full static images take priority over these larger windows.
@@ -162,7 +182,9 @@ In a larger mode, the inactive compact buffers become one opaque background
 reference (at most 99,840 bytes, within their combined 106,720-byte capacity).
 It follows a shared scroll-window origin, scrolling and rebuilding only exposed
 background strips from the tile archive or compressed columns. Both display buffers use that reference
-for sprite/UI cleanup. A leased foreground mask (at most 19,968 bytes)
+for sprite/UI cleanup. Cleanup follows scrolling and reference updates, with
+old rectangles translated into the new buffer coordinates; this avoids tile
+reconstruction for stale portions of the old reference. A leased foreground mask (at most 19,968 bytes)
 tracks static foreground and foreground clips. The reference contains the
 background, background clips, foreground and foreground clips in source order.
 Opaque cleanup copies that image; masked blits restore foreground occlusion
@@ -178,8 +200,10 @@ cache lease together. The loader reserves viewport storage before handing the
 remaining bank tails to caches. Compact mode can use the native background file
 below; larger modes use their retained background reference instead.
 
-Local checks exercise 385,312 camera moves and compare 50,000 complete rendered
-frames against the original tile path across current and boundary geometries. They include
+Local checks exercise 385,312 camera moves and compare 72,000 complete rendered
+frames against the original tile path across six current/boundary geometries.
+All 52 native-block variants match independent tile reconstruction, including
+block boundaries, padded edges, malformed offsets and destination guards. They include
 scroll directions, clipping, clip-frame transitions, old-sprite cleanup and
 foreground occlusion, with full-room, compressed-column, static-mask and animated-clip paths. UI pixels
 and dirty rectangles also match the previous renderer at every supported
@@ -256,14 +280,19 @@ leave 24 KiB of resource-bank headroom beyond the largest decoded sprite;
 rooms whose base data already exceeds that target retain their smaller budget.
 Missing offline mirrors do not omit sprites or change gameplay. The loader splits
 only at complete normal or mirrored block boundaries between the 360 KiB Chip
-and 88 KiB normal resource banks.
+and 88 KiB normal resource banks. Compressed sprites that fit wholly in normal
+RAM move there during loading, leaving Chip space for native graphics and
+decoded caches.
 
 `prepareCaches` borrows the unused tails of both resource banks until the next
-graphics load. Tile storage holds a directory and up to 128 decoded groups,
+graphics load. Tile storage holds a directory and up to 254 decoded groups,
 capped by the room's group count. Decoded sprites can use up to 64 KiB. Only when a full room composite avoids scroll-strip tile reconstruction does
 the larger tail prioritize sprites if the other bank can hold the tile minimum. Otherwise the
 original tile-first partition applies; unused space can enlarge the sprite lease. Regions never overlap resident resources or one
-another. Neither cache allocates memory at runtime. The planar writer and strip rebuild
+another. A complete tile working set is decoded during loading when it fits. Native-block
+rooms bound the remaining tile lease to 16 groups for clip overlays. Decoded
+actors take priority over optional extra row-map cache storage. Neither cache
+allocates memory at runtime. The planar writer and strip rebuild
 keep a single compiled implementation to bound executable code size as well. A bank too small for a tile
 group causes a checked renderer failure; a small sprite cache remains usable
 through direct decoding. These are opportunistic graphics leases, not an audio
