@@ -223,6 +223,26 @@ static DeceptusU8 reserveWindow(DeceptusU16 width, DeceptusU16 height)
    return 1;
 }
 
+static DeceptusU8 reserveNativeWindow(DeceptusU16 width, DeceptusU16 height)
+{
+   DeceptusU32 bytes;
+   /* reuse the compact buffer pair for one larger page; the other borrows a resource-bank tail. */
+   bytes = (DeceptusU32)(width / 8) * height * 5;
+   if (bytes > (DeceptusU32)(AMIGA_BASE_CACHE_WIDTH / 8) * AMIGA_BASE_CACHE_HEIGHT * 10)
+   {
+      return 0;
+   }
+   graphics.viewport_pixels = (DeceptusU16 *)reserveChipScratch(bytes);
+   if (!graphics.viewport_pixels)
+   {
+      return 0;
+   }
+   graphics.viewport_width = width;
+   graphics.viewport_height = height;
+   graphics.viewport_split = 1;
+   return 1;
+}
+
 DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
 {
    char path[64];
@@ -274,6 +294,10 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    if (!loadNativeComposite(room, sword) || (graphics.native_only && !graphics.native_foreground) || !loadRasterColumns(room, sword))
    {
       return 0;
+   }
+   if (graphics.native_only)
+   {
+      reserveNativeWindow(AMIGA_NATIVE_CACHE_WIDTH, AMIGA_NATIVE_CACHE_HEIGHT);
    }
    if (!graphics.native_foreground && !reserveWindow(AMIGA_LARGE_CACHE_WIDTH, AMIGA_LARGE_CACHE_HEIGHT) &&
        !reserveWindow(AMIGA_WIDE_CACHE_WIDTH, AMIGA_WIDE_CACHE_HEIGHT) && !reserveWindow(AMIGA_TALL_CACHE_WIDTH, AMIGA_TALL_CACHE_HEIGHT) &&

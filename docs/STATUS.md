@@ -194,6 +194,11 @@ incremental asset repacking and bounded block caching preserve the generic
 backend and original pixels. A slower ring-buffer experiment is excluded.
 All-room speed and the remaining source cutscene/effect differences stay open.
 Quantized camera bounds prevent bottom-edge buffer overreads.
+A subsequent controlled frame-stage comparison reaches 12.5 actual frames/s
+with split 448x288 backing pages and CPU-RAM sprite staging, versus 11.1 in its
+starting sample. It still drops simulation time and records a 0.34-second worst
+gap. Scrolling copies improve, while the smaller decoded sprite cache increases
+sprite work. These are performance checkpoints, not completion of the target.
 See [Amiga implementation and verification](AMIGA.md).
 This remains below steady 50 fps, and other rooms can select different paths.
 Walking, reversals and jumping frame pacing across the opening

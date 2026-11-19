@@ -213,6 +213,11 @@ static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) prepareCach
          return 0;
       }
       tile_directory_count = tile_slots = 0;
+      if (graphics->viewport_split && sizeof(base_buffers) - plane_bytes * 5 > chip_size)
+      {
+         chip_memory = (DeceptusU8 *)base_buffers + plane_bytes * 5;
+         chip_size = sizeof(base_buffers) - plane_bytes * 5;
+      }
       if (chip_size >= size)
       {
          amigaSpriteCacheInit(&sprite_cache, chip_memory, chip_size < 96UL * 1024 ? chip_size : 96UL * 1024, 1);
@@ -220,6 +225,10 @@ static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) prepareCach
       else
       {
          amigaSpriteCacheInit(&sprite_cache, tile_directory, size < 96UL * 1024 ? size : 96UL * 1024, 0);
+      }
+      if (sprite_cache.chip_memory)
+      {
+         amigaSpriteCacheSetScratch(&sprite_cache, tile_directory, size);
       }
       amigaRasterCacheInit(&raster_cache, 0, 0, 0, 0);
       return 1;
@@ -356,10 +365,17 @@ void __attribute__((optimize("Os"))) amigaOpeningVideoReset(void)
    plane_words = plane_bytes / 2;
    for (buffer = 0; buffer < 2; ++buffer)
    {
-      buffers[buffer] = graphics->viewport_pixels ? graphics->viewport_pixels + (DeceptusU32)buffer * plane_words * 5
-                                                  : base_buffers + (DeceptusU32)buffer * BASE_BUFFER_WORDS;
+      if (graphics->viewport_split)
+      {
+         buffers[buffer] = buffer ? graphics->viewport_pixels : base_buffers;
+      }
+      else
+      {
+         buffers[buffer] = graphics->viewport_pixels ? graphics->viewport_pixels + (DeceptusU32)buffer * plane_words * 5
+                                                     : base_buffers + (DeceptusU32)buffer * BASE_BUFFER_WORDS;
+      }
    }
-   background_cache = graphics->viewport_pixels ? base_buffers : 0;
+   background_cache = graphics->viewport_pixels && !graphics->viewport_split ? base_buffers : 0;
    background_valid = window_valid = 0;
    error = !prepareCaches() || !amigaGraphicsPalette(graphics, palette) || graphics->clip_count > AMIGA_OPENING_CLIPS;
    valid[0] = valid[1] = 0;

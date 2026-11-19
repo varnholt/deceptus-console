@@ -11,6 +11,8 @@
 #define AMIGA_TALL_CACHE_HEIGHT 312
 #define AMIGA_SMALL_CACHE_WIDTH 384
 #define AMIGA_SMALL_CACHE_HEIGHT 256
+#define AMIGA_NATIVE_CACHE_WIDTH 448
+#define AMIGA_NATIVE_CACHE_HEIGHT 288
 #define AMIGA_BASE_CACHE_WIDTH 368
 #define AMIGA_BASE_CACHE_HEIGHT 232
 #define AMIGA_TILE_CACHE_GROUPS 254
@@ -31,7 +33,8 @@ typedef struct AmigaGraphics
    const DeceptusU16 *background_pixels;
    const DeceptusU16 *native_foreground;
    const DeceptusU8 *native_clips;
-   DeceptusU8 native_only;
+   /* split pages borrow the compact display region and one resource-bank tail. */
+   DeceptusU8 native_only, viewport_split;
    DeceptusU16 *viewport_pixels, *foreground_pixels;
    DeceptusU16 viewport_width, viewport_height;
    DeceptusU32 world_size, sprite_size, sprite_first_size;

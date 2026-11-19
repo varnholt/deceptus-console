@@ -197,6 +197,52 @@ decodes invalidate their victim entry. Full-native rooms leave tile and block
 caches disabled and lend available space to decoded sprites. The shared LZ4
 decoder also uses bounded forward copies, preserving overlapping-match semantics.
 
+### Frame-stage profiling checkpoint
+
+An instrumented cycle-exact Lower Cells comparison uses the same ordinary-input
+x=100..550 walking, reversals and repeated jumping route. Stage timers combine
+the PAL refresh counter and beam position; their accumulated time agrees with
+the refresh interval within 1%. These are separate short samples from the
+6,081-refresh checkpoint above, not interchangeable all-room benchmarks.
+
+| Frame stage | Starting checkpoint, mean ms/presentation | Split buffers and CPU staging, mean ms/presentation |
+| --- | ---: | ---: |
+| Gameplay updates | 29.8 | 26.3 |
+| Scrolling buffer copies | 16.3 | 9.4 |
+| Exposed background strips | 6.3 | 4.5 |
+| Previous sprite/UI cleanup | 4.9 | 4.7 |
+| Sprite decode and drawing | 9.7 | 13.3 |
+| Foreground restoration | 3.9 | 3.5 |
+| UI drawing | 4.4 | 3.7 |
+| Vertical-refresh wait | 11.0 | 10.9 |
+
+The starting sample presents 389 frames across 1,754 PAL refreshes: 11.1 actual
+frames/s and 53.3 simulation ticks/s. Splitting the two display pages across
+existing storage raises this to 12.0 frames/s. Optional CPU-RAM sprite staging
+raises it to 12.5 frames/s (443 presentations over 1,772 PAL refreshes), with
+52.6 simulation ticks/s. The worst recorded gap is 17 PAL refreshes (0.34 s),
+versus 16 in the starting sample. Both still drop simulation time; the steady
+25–30 frames/s target is unmet. Changing cadence changes simulation work per
+presentation, so the gameplay row is not an independent gameplay optimization.
+
+A fresh CPU sample also attributes approximately 22% to blitter waits, 17% to
+LZ4 decoding and 11% to solid-mechanism queries. CPU sample shares and frame-stage
+elapsed time answer different questions and must not be added together. In
+particular, WinUAE's display refresh counter is not the presentation rate.
+Copying a complete fresh native view on each camera rebase was tested and was
+slower; that experiment is excluded.
+
+Native-only rooms can now borrow one 448x288 display page from the compact
+buffer pair and another from the resource-bank tail. Each page occupies 80,640
+bytes. The compact region's remaining 26,080 bytes can hold decoded sprites;
+its active page is excluded from that lease. This increases scroll headroom
+without changing the 320x224 viewport or total allocated RAM. If the resource
+page cannot fit, the existing compact layout remains available. The smaller
+sprite cache explains the increased sprite cost in the table. Its optional
+CPU-only scratch area comes from a separate unused resource tail, avoiding
+repeated LZ4 byte accesses to Chip RAM before copying completed pixels there.
+Room reloads reset both the cache and its scratch lease.
+
 ## Adaptive scrolling windows
 
 The visible game viewport remains 320x224 with the original pixel grid. Larger

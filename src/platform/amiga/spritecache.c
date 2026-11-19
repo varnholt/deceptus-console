@@ -9,16 +9,31 @@ void amigaSpriteCacheInit(AmigaSpriteCache *cache, DeceptusU8 *storage, Deceptus
    cache->chip_memory = storage && chip_memory;
 }
 
-static DeceptusU8 decodeSprite(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
-                               DeceptusU32 capacity)
+void amigaSpriteCacheSetScratch(AmigaSpriteCache *cache, DeceptusU8 *storage, DeceptusU32 capacity)
 {
-   if (!amigaGraphicsSpriteDecode(graphics, sprite, destination, capacity))
+   cache->decode_pixels = storage;
+   cache->decode_capacity = storage ? capacity : 0;
+}
+
+static DeceptusU8 decodeSprite(const AmigaSpriteCache *cache, const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite,
+                               DeceptusU8 *destination, DeceptusU32 capacity)
+{
+   DeceptusU8 *pixels;
+   DeceptusU32 size;
+   size = (DeceptusU32)sprite->row_bytes * sprite->height * 6;
+   pixels = cache->chip_memory && size <= cache->decode_capacity ? cache->decode_pixels : destination;
+   if (!amigaGraphicsSpriteDecode(graphics, sprite, pixels, pixels == destination ? capacity : cache->decode_capacity))
    {
       return 0;
    }
    if (sprite->flip)
    {
-      amigaGraphicsSpriteFlip(destination, sprite);
+      amigaGraphicsSpriteFlip(pixels, sprite);
+   }
+   if (pixels != destination)
+   {
+      /* CPU-only LZ4 matches avoid repeated byte accesses through the display DMA bus. */
+      memcpy(destination, pixels, size);
    }
    return 1;
 }
@@ -46,7 +61,7 @@ const DeceptusU8 *amigaSpriteCachePixels(AmigaSpriteCache *cache, const AmigaGra
    }
    if (size > cache->capacity)
    {
-      return decodeSprite(graphics, sprite, destination, capacity) ? destination : 0;
+      return decodeSprite(cache, graphics, sprite, destination, capacity) ? destination : 0;
    }
    for (slot = 0; slot < AMIGA_SPRITE_CACHE_ENTRIES; ++slot)
    {
@@ -70,7 +85,7 @@ const DeceptusU8 *amigaSpriteCachePixels(AmigaSpriteCache *cache, const AmigaGra
          entry->size = 0;
       }
    }
-   if (!decodeSprite(graphics, sprite, cache->pixels + cache->cursor, size))
+   if (!decodeSprite(cache, graphics, sprite, cache->pixels + cache->cursor, size))
    {
       return 0;
    }
