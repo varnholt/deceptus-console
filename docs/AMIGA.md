@@ -18,7 +18,8 @@ and verifies the pinned 200 MB compiler/emulator bundle, builds a missing
 executable and starts WinUAE. Use `--build` to rebuild or `--prepare` to prepare
 everything without opening the emulator.
 
-Cursor keys move and right Ctrl jumps using WinUAE's keyboard joystick layout.
+Cursor keys move; Z or right Ctrl jumps. Z uses the Amiga keyboard directly.
+WinUAE starts with input captured; F12 opens its settings.
 A joystick in Amiga port 2 uses left/right and the fire button. Hold both mouse
 buttons to exit and restore the operating system. A focus click keeps the game
 running.
@@ -49,7 +50,7 @@ The opening uses the shared game controller for portals, dialogue, inventory,
 headtorch, ruby/altar progression and sword behavior. Hardware code loads the
 requested room and presents its source frames. Up interacts, Return confirms,
 Tab opens inventory, Space attacks and Esc pauses or returns from a menu.
-Cursor keys and right Ctrl retain movement and jump controls. The source font
+Cursor keys and Z/right Ctrl retain movement and jump controls. The source font
 is rendered at its authored size. Audio, persistent saves and complete source
 cutscene fidelity remain unfinished.
 
@@ -514,7 +515,7 @@ ticks. This establishes 50 presentations/s for that sample, not a worst-case
 frame-time guarantee or a full-opening result. Interactive feedback described
 the prototype as almost smooth. All 52 actor orientations and their masks match
 the converted previews; the interleaved background also reconstructs exactly.
-The new build uses 378,752 bytes of Chip RAM and 425,520 static bytes. Replicated
+The saved-background build uses 377,152 bytes of Chip RAM and 425,188 static bytes. Replicated
 masks cost 59,904 more bytes than the earlier single-plane masks.
 
 `tools/amiga_tiles.py` also exports a deduplicated native 16x16 tile dictionary
@@ -522,19 +523,23 @@ and row-major map through the prototype converter. Each five-plane tile is 160
 bytes, ordered by scanline, plane, then big-endian word. Map entries are
 big-endian 16-bit tile ids. `native-tiles.bin` and `native-map.bin` contain 394
 tiles and 448 cells for this room, totalling 63,936 bytes. Reconstruction matches
-all 114,688 indexed source pixels. These files prepare the streaming asset path;
-the prototype currently retains its full-room background for restoration.
+all 114,688 indexed source pixels. The prototype initializes both display buffers by blitting these tiles.
+Its full-room source bitmap has been removed. Four bounded BOB slots per buffer
+retain the pixels beneath each actor; restoring in reverse drawing order also
+handles overlapping actors. Camera movement still uses full-room display storage,
+so exposed-strip streaming remains the next runtime step.
 
 The full opening still uses the earlier renderer and fails its performance gate.
 Stop enlarging its caches as the main optimization strategy. Continue the new
 pipeline in the prototype before replacing the opening backend:
 
-1. Consume offline flattened native room tiles, keeping animated cells and a
-   foreground occlusion mask separate.
+1. Consume the full-opening native room tile packages described below. Convert
+   animated cells to the same native layout while retaining separate masks.
 2. Replace full-room display storage with hardware-scrolled buffers. Update only
    newly exposed 16px columns/rows in both buffers.
-3. Save and restore BOB backgrounds; apply foreground masks only at overlapping
-   flagged cells. Re-blit animated cells only when their frames change.
+3. Carry the prototype BOB save/restore path into the opening; apply foreground
+   masks only at overlapping flagged cells. Re-blit animated cells only when
+   their frames change.
 4. Measure worst individual frame times on fixed walking/jumping routes through
    Main Hall, altar, water and graveyard under cycle-exact emulation.
 
@@ -542,6 +547,33 @@ Rope work is deferred. PAL simulation frequency and any hardware-sprite palette
 compromise remain user decisions. No shared gameplay changes are needed for this
 prototype step. Local experiments preceding the redesign are preserved under
 `build/portable-opening/pre-redesign-experiments/` and are excluded from the build.
+
+### Full-opening native tile assets
+
+Every room/body variant now additionally exports an `AT01` `.atg` archive through
+`tools/amiga_room_tiles.py`. Static background and foreground are flattened
+offline; foreground coverage remains in a separate deduplicated mask dictionary.
+The unchanged animation archives stay separate. The opening runtime does not yet
+consume `.atg`, so this conversion does not improve its current frame rate.
+
+The 32-byte big-endian header is `4s6H4I`: magic, original pixel width/height,
+map columns/rows, color/mask tile counts, then byte offsets of the color map,
+mask map, color dictionary and mask dictionary. Both maps use 16-bit ids.
+Color tiles contain 16 interleaved five-plane scanlines (160 bytes); mask tiles
+contain 16 one-plane scanlines (32 bytes). Bottom/right padding is transparent.
+All 52 variants reconstruct every static pixel and foreground mask bit exactly.
+The existing Amiga opening also builds with these additional outputs.
+
+The largest raw package is 501,280 bytes. These raw dictionaries must not simply
+be made resident alongside the existing opening buffers. The scrolling backend
+needs bounded native tile banks/staging and a measured memory budget. Conversion
+and runtime integration remain separate steps; existing `.agp`/`.acb`/`.aco`
+resources remain available while the new backend is developed.
+
+The additional Z jump binding is present in both scenes. Lost held-arrow input
+was reported to recover on release/repress; its cause remains unverified. The
+input investigation is deferred at the user's request in favor of full-game
+renderer work. Captured startup and the Z alternative are not a confirmed fix.
 
 ### Earlier prototype verification
 

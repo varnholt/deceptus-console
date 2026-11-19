@@ -15,6 +15,7 @@
 #define KEY_RIGHT 0x4e
 #define KEY_LEFT 0x4f
 #define KEY_CONTROL 0x63
+#define KEY_Z 0x31
 
 static volatile struct CIA *const cia = (struct CIA *)0xbfe001;
 static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
@@ -77,7 +78,7 @@ DeceptusU16 amigaKeyboardRead(void)
    {
       buttons |= DECEPTUS_DOWN;
    }
-   if (keys[KEY_CONTROL])
+   if (keys[KEY_CONTROL] || keys[KEY_Z])
    {
       buttons |= DECEPTUS_JUMP;
    }

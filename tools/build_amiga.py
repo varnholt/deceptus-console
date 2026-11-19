@@ -17,7 +17,8 @@ SOURCES = (
     'src/engine/world.c', 'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c',
     'src/engine/logic.c', 'src/game/enemies.c', 'src/game/deceptus.c',
     'src/platform/amiga/runtime.c', 'src/platform/amiga/main.c',
-    'src/platform/amiga/input.c', 'src/platform/amiga/video.c',
+    'src/platform/amiga/input.c', 'src/platform/amiga/keyboard.c',
+    'src/platform/amiga/video.c',
     'src/platform/amiga/system.c',
 )
 

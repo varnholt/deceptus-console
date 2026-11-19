@@ -10,7 +10,6 @@
 #include <proto/exec.h>
 #include <proto/graphics.h>
 #include <stddef.h>
-#include <string.h>
 
 #define ROW_WORDS ((AMIGA_ROOM_WIDTH + 32) / 16)
 #define PLANE_WORDS (ROW_WORDS * AMIGA_ROOM_HEIGHT)
@@ -23,7 +22,19 @@
 static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
 static DeceptusU16 buffers[2][BUFFER_WORDS] CHIP;
 static DeceptusU16 copper[2][128] CHIP;
-static DeceptusFrame previous[2];
+typedef struct AmigaSavedBob
+{
+   DeceptusU16 offset;
+   DeceptusU16 width;
+   DeceptusU16 height;
+} AmigaSavedBob;
+
+static DeceptusU16 saved_pixels[2][AMIGA_BOB_CAPACITY][ACTOR_FRAME_WORDS] CHIP;
+static AmigaSavedBob saved_bobs[2][AMIGA_BOB_CAPACITY];
+static DeceptusU16 saved_counts[2];
+
+static void waitBlitter(void);
+static void initializeRoom(DeceptusU16 *destination);
 static DeceptusU16 draw_buffer;
 static volatile DeceptusU32 video_frames;
 
@@ -93,10 +104,14 @@ int amigaVideoInit(void)
    }
    for (buffer = 0; buffer < 2; ++buffer)
    {
-      memcpy(buffers[buffer], amiga_background, sizeof(buffers[buffer]));
       prepareCopper(buffer, 0);
    }
    amigaSystemTakeDisplay(verticalBlank, copper[0]);
+   for (buffer = 0; buffer < 2; ++buffer)
+   {
+      initializeRoom(buffers[buffer]);
+   }
+   waitBlitter();
    return 1;
 }
 
@@ -115,10 +130,38 @@ static void waitBlitter(void)
    }
 }
 
-static void restoreActor(DeceptusU16 *destination, DeceptusI16 x, DeceptusI16 y)
+static void initializeRoom(DeceptusU16 *destination)
+{
+   DeceptusU16 x, y, tile;
+   for (y = 0; y < AMIGA_ROOM_HEIGHT / 16; ++y)
+   {
+      for (x = 0; x < AMIGA_ROOM_WIDTH / 16; ++x)
+      {
+         tile = amiga_tile_map[y * (AMIGA_ROOM_WIDTH / 16) + x];
+         waitBlitter();
+         hardware->bltcon0 = SRCA | DEST | A_TO_D;
+         hardware->bltcon1 = 0;
+         hardware->bltafwm = 0xffff;
+         hardware->bltalwm = 0xffff;
+         hardware->bltamod = 0;
+         hardware->bltdmod = ROW_WORDS * 2 - 2;
+         hardware->bltapt = (APTR)(amiga_tiles + tile * 16 * AMIGA_PLANES);
+         hardware->bltdpt = destination + y * 16 * AMIGA_PLANES * ROW_WORDS + x + 1;
+         hardware->bltsize = ((16 * AMIGA_PLANES) << 6) | 1;
+      }
+   }
+}
+
+static void saveActor(DeceptusU16 buffer, DeceptusU16 index, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusI16 first, last, top, bottom;
-   DeceptusU16 offset, width;
+   AmigaSavedBob *saved;
+   saved = &saved_bobs[buffer][index];
+   saved->height = 0;
+   if (x <= -32 || x >= AMIGA_ROOM_WIDTH || y <= -ACTOR_HEIGHT || y >= AMIGA_ROOM_HEIGHT)
+   {
+      return;
+   }
    first = x < 0 ? 0 : x / 16;
    last = (x + 31) / 16;
    if (last >= AMIGA_ROOM_WIDTH / 16)
@@ -126,24 +169,40 @@ static void restoreActor(DeceptusU16 *destination, DeceptusI16 x, DeceptusI16 y)
       last = AMIGA_ROOM_WIDTH / 16 - 1;
    }
    top = y < 0 ? 0 : y;
-   bottom = y + 48 > AMIGA_ROOM_HEIGHT ? AMIGA_ROOM_HEIGHT : y + 48;
-   if (first > last || top >= bottom)
-   {
-      return;
-   }
-   width = last - first + 1;
-   offset = top * ROW_WORDS * AMIGA_PLANES + first + 1;
+   bottom = y + ACTOR_HEIGHT > AMIGA_ROOM_HEIGHT ? AMIGA_ROOM_HEIGHT : y + ACTOR_HEIGHT;
+   saved->width = last - first + 1;
+   saved->height = (bottom - top) * AMIGA_PLANES;
+   saved->offset = top * ROW_WORDS * AMIGA_PLANES + first + 1;
    waitBlitter();
-   hardware->bltcon0 = SRCA | DEST | (A_TO_D);
+   hardware->bltcon0 = SRCA | DEST | A_TO_D;
    hardware->bltcon1 = 0;
    hardware->bltafwm = 0xffff;
    hardware->bltalwm = 0xffff;
-   hardware->bltamod = ROW_WORDS * 2 - width * 2;
-   hardware->bltdmod = ROW_WORDS * 2 - width * 2;
-   /* each blitter row advances to the next plane of this image scanline. */
-   hardware->bltapt = (APTR)(amiga_background + offset);
-   hardware->bltdpt = destination + offset;
-   hardware->bltsize = (((bottom - top) * AMIGA_PLANES) << 6) | width;
+   hardware->bltamod = ROW_WORDS * 2 - saved->width * 2;
+   hardware->bltdmod = ACTOR_ROW_WORDS * 2 - saved->width * 2;
+   hardware->bltapt = buffers[buffer] + saved->offset;
+   hardware->bltdpt = saved_pixels[buffer][index];
+   hardware->bltsize = (saved->height << 6) | saved->width;
+}
+
+static void restoreActor(DeceptusU16 buffer, DeceptusU16 index)
+{
+   const AmigaSavedBob *saved;
+   saved = &saved_bobs[buffer][index];
+   if (!saved->height)
+   {
+      return;
+   }
+   waitBlitter();
+   hardware->bltcon0 = SRCA | DEST | A_TO_D;
+   hardware->bltcon1 = 0;
+   hardware->bltafwm = 0xffff;
+   hardware->bltalwm = 0xffff;
+   hardware->bltamod = ACTOR_ROW_WORDS * 2 - saved->width * 2;
+   hardware->bltdmod = ROW_WORDS * 2 - saved->width * 2;
+   hardware->bltapt = saved_pixels[buffer][index];
+   hardware->bltdpt = buffers[buffer] + saved->offset;
+   hardware->bltsize = (saved->height << 6) | saved->width;
 }
 
 static void drawClippedActor(DeceptusU16 *destination, const DeceptusDraw *draw, DeceptusI16 x, DeceptusI16 y)
@@ -245,23 +304,25 @@ static void drawActor(DeceptusU16 *destination, const DeceptusDraw *draw, Decept
 
 void amigaVideoDraw(const DeceptusFrame *frame)
 {
-   DeceptusU16 index;
+   DeceptusU16 index, count;
    const DeceptusDraw *draw;
-   DeceptusFrame *old;
    draw_buffer ^= 1;
-   old = &previous[draw_buffer];
-   for (index = 0; index < old->count; ++index)
+   /* undo in reverse order because a later BOB may have saved an earlier one. */
+   index = saved_counts[draw_buffer];
+   while (index)
    {
-      draw = &old->draws[index];
-      restoreActor(buffers[draw_buffer], draw->x + old->camera_x, draw->y + old->camera_y);
+      --index;
+      restoreActor(draw_buffer, index);
    }
-   for (index = 0; index < frame->count; ++index)
+   count = frame->count < AMIGA_BOB_CAPACITY ? frame->count : AMIGA_BOB_CAPACITY;
+   for (index = 0; index < count; ++index)
    {
       draw = &frame->draws[index];
+      saveActor(draw_buffer, index, draw->x + frame->camera_x, draw->y + frame->camera_y);
       drawActor(buffers[draw_buffer], draw, draw->x + frame->camera_x, draw->y + frame->camera_y);
    }
+   saved_counts[draw_buffer] = count;
    waitBlitter();
-   *old = *frame;
    prepareCopper(draw_buffer, frame->camera_x);
    amigaVideoWait();
    hardware->cop1lc = (ULONG)copper[draw_buffer];

@@ -9,6 +9,7 @@ import struct
 import numpy as np
 
 from asset_decode import decode_lz4, unpackbits
+from amiga_room_tiles import room_tiles
 
 
 def native_layers(world):
@@ -88,7 +89,9 @@ def compact_world(world):
 
 def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
     generated = Path(generated)
-    identity = hashlib.sha256(Path(__file__).read_bytes() + Path(__file__).with_name('asset_decode.py').read_bytes()).hexdigest()
+    identity = hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes()
+                                     for name in ('amiga_native_assets.py', 'asset_decode.py',
+                                                  'amiga_room_tiles.py', 'amiga_tiles.py'))).hexdigest()
     manifest_path = generated / 'native-layers.json'
     previous = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     records = []
@@ -100,15 +103,17 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
             basename = variant['basename']
             key = f"area{room['room']}/{basename}"
             old = previous.get('records', {}).get(key, {})
-            paths = [folder / (basename + extension) for extension in ('.acb', '.aco', '.agn')]
+            paths = [folder / (basename + extension) for extension in ('.acb', '.aco', '.agn', '.atg')]
             valid = (previous.get('converter') == identity and old.get('source') == variant['sha256']
                      and all(path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() == digest
-                             for path, digest in zip(paths, old.get('hashes', []))) and len(old.get('hashes', [])) == 3)
+                             for path, digest in zip(paths, old.get('hashes', []))) and len(old.get('hashes', [])) == len(paths))
             world = (folder / (basename + '.agp')).read_bytes()
             metadata, boundaries = compact_world(world)
             if not valid:
                 base, overlays = native_layers(world)
-                payloads = (base, overlays, metadata) if base else (b'', b'', b'')
+                width, height = struct.unpack_from('>2H', world, 4)
+                payloads = ((base, overlays, metadata, room_tiles(base, width, height))
+                            if base else (b'', b'', b'', b''))
                 for path, payload in zip(paths, payloads):
                     path.write_bytes(payload)
             hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in paths]

@@ -1,11 +1,12 @@
 #include "deceptus/game.h"
 #include "input.h"
+#include "keyboard.h"
 #include "video.h"
 
 extern const DeceptusRoom deceptus_scene;
 static DeceptusEngine engine;
 static DeceptusFrame frame;
-static const DeceptusVideoCaps video = {320, 224, 12};
+static const DeceptusVideoCaps video = {320, 224, AMIGA_BOB_CAPACITY};
 volatile DeceptusU32 amiga_debug[12];
 
 int main(void)
@@ -18,11 +19,12 @@ int main(void)
       return 20;
    }
    start = amigaVideoFrames();
+   amigaKeyboardReset();
    previous_frame = start - 1;
    phase = 0;
    while (!amigaInputQuit())
    {
-      buttons = amigaInputRead();
+      buttons = amigaInputRead() | amigaKeyboardRead();
       /* the portable simulation runs at 60 Hz on the 50 Hz PAL display. */
       now = amigaVideoFrames();
       elapsed = now - previous_frame;

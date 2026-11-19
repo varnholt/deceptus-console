@@ -43,7 +43,6 @@ def convert(data, output):
     actor_preview.putalpha(original_actors.getchannel('A'))
     background.save(output / 'background-preview.png')
     actor_preview.save(output / 'actors-preview.png')
-    pixels = np.pad(np.asarray(background, dtype=np.uint8), ((0, 0), (16, 16)))
     width, height = background.size
     if width % 16 or not 320 <= width <= 512 or height != 224:
         raise ValueError(
@@ -70,17 +69,19 @@ def convert(data, output):
                for red, green, blue in colors]
     payload = '#include "amiga_assets.h"\n'
     for name, values in (
-            ('amiga_background', interleaved_words(pixels, 5)),
+            ('amiga_tiles', [word for tile in tiles for word in tile]),
+            ('amiga_tile_map', cells),
             ('amiga_actors', actor_words), ('amiga_masks', masks),
             ('amiga_palette', palette)):
-        payload += write_array(name, values, name != 'amiga_palette')
+        payload += write_array(name, values, name not in ('amiga_palette', 'amiga_tile_map'))
     (output / 'amiga_assets.c').write_text(payload)
     (output / 'amiga_assets.h').write_text(
         '#ifndef DECEPTUS_AMIGA_ASSETS_H\n#define DECEPTUS_AMIGA_ASSETS_H\n'
         '#include "deceptus/types.h"\n'
         f'#define AMIGA_ROOM_WIDTH {width}\n#define AMIGA_ROOM_HEIGHT {height}\n'
         f'#define AMIGA_PLANES 5\n#define AMIGA_ACTOR_FRAMES {ACTOR_FRAME_COUNT}\n'
-        'extern const DeceptusU16 amiga_background[];\n'
+        'extern const DeceptusU16 amiga_tiles[];\n'
+        'extern const DeceptusU16 amiga_tile_map[];\n'
         'extern const DeceptusU16 amiga_actors[];\n'
         'extern const DeceptusU16 amiga_masks[];\n'
         'extern const DeceptusU16 amiga_palette[];\n#endif\n')
@@ -92,8 +93,9 @@ def convert(data, output):
                                     tile_bytes=len(tiles) * 160,
                                     map_size=[width // 16, height // 16],
                                     map_bytes=len(cells) * 2,
+                                    runtime_initialization=True,
                                     runtime_streaming=False),
-                  background_bytes=(width + 32) * height * 5 // 8,
+                  background_bytes=len(tiles) * 160 + len(cells) * 2,
                   framebuffer_bytes=(width + 32) * height * 5 // 4,
                   actor_bytes=(len(actor_words) + len(masks)) * 2,
                   palette_mode='shared RGB444',

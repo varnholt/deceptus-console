@@ -38,7 +38,7 @@ def write_config(executable, output, kickstart=None, slowmem=512, scene="prototy
     )
     config = output / 'deceptus-amiga.uae'
     lines = [f'{key}={value}' for key, value in settings.items()]
-    lines += ['win32.start_not_captured=yes',
+    lines += ['win32.start_not_captured=no',
               'win32.active_not_captured_pause=false',
               'win32.inactive_pause=false', 'input.config=0']
     config.write_text('\n'.join(lines) + '\n')
@@ -80,7 +80,7 @@ def main(arguments=None):
     print(f'Executable: {executable}', flush=True)
     if args.prepare:
         return 0
-    print('Cursor keys move, right Ctrl jumps. Hold both mouse buttons to exit.',
+    print('Cursor keys move, Z or right Ctrl jumps. Hold both mouse buttons to exit.',
           flush=True)
     if args.scene == 'tutorial':
         print('Up interacts, Space attacks, Tab opens inventory, Esc pauses/backs, Return accepts.', flush=True)
