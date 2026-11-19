@@ -498,6 +498,53 @@ separately from accelerated full-route checks; see the opening scope above.
 
 ## Verified prototype scope
 
+### Interleaved renderer starting point
+
+The one-room prototype now stores the background, both display buffers, actor
+pixels and actor masks in scanline-interleaved order: five plane rows for each
+image row. Copper plane pointers start one row apart; the display modulo skips
+the other four plane rows. Actor drawing and background restoration each issue
+one blit across all five planes, replacing five separate blits. Actor masks are
+repeated per plane so the cookie-cut operation can run without CPU intervention.
+The palette and simulation timing are unchanged.
+
+On the PAL cycle-exact 512 KiB Chip / 512 KiB slow-RAM configuration, a short
+movement sample recorded 151 presentations in 151 video frames and 181 simulation
+ticks. This establishes 50 presentations/s for that sample, not a worst-case
+frame-time guarantee or a full-opening result. Interactive feedback described
+the prototype as almost smooth. All 52 actor orientations and their masks match
+the converted previews; the interleaved background also reconstructs exactly.
+The new build uses 378,752 bytes of Chip RAM and 425,520 static bytes. Replicated
+masks cost 59,904 more bytes than the earlier single-plane masks.
+
+`tools/amiga_tiles.py` also exports a deduplicated native 16x16 tile dictionary
+and row-major map through the prototype converter. Each five-plane tile is 160
+bytes, ordered by scanline, plane, then big-endian word. Map entries are
+big-endian 16-bit tile ids. `native-tiles.bin` and `native-map.bin` contain 394
+tiles and 448 cells for this room, totalling 63,936 bytes. Reconstruction matches
+all 114,688 indexed source pixels. These files prepare the streaming asset path;
+the prototype currently retains its full-room background for restoration.
+
+The full opening still uses the earlier renderer and fails its performance gate.
+Stop enlarging its caches as the main optimization strategy. Continue the new
+pipeline in the prototype before replacing the opening backend:
+
+1. Consume offline flattened native room tiles, keeping animated cells and a
+   foreground occlusion mask separate.
+2. Replace full-room display storage with hardware-scrolled buffers. Update only
+   newly exposed 16px columns/rows in both buffers.
+3. Save and restore BOB backgrounds; apply foreground masks only at overlapping
+   flagged cells. Re-blit animated cells only when their frames change.
+4. Measure worst individual frame times on fixed walking/jumping routes through
+   Main Hall, altar, water and graveyard under cycle-exact emulation.
+
+Rope work is deferred. PAL simulation frequency and any hardware-sprite palette
+compromise remain user decisions. No shared gameplay changes are needed for this
+prototype step. Local experiments preceding the redesign are preserved under
+`build/portable-opening/pre-redesign-experiments/` and are excluded from the build.
+
+### Earlier prototype verification
+
 Cycle-exact WinUAE checks used a PAL 68000 machine, OCS graphics, 512 KiB Chip
 RAM, 512 KiB slow RAM and no fast RAM. A local scripted-input replay verified
 movement in both directions, jumping, camera movement, sprite masking and
