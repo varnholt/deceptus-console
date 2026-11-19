@@ -285,9 +285,10 @@ inputs, events, dynamic solids, jumping, crouching and custom/fractional gravity
 All 13 native groups, the GBA/SNES/Mega Drive builds and their full progression
 routes pass after that shared change. Another 36,000 clipped-sprite cases match
 the original pixels and guards; complete-frame comparisons also cover the final
-432x304 native geometry and independent origins. The complete accelerated Amiga
-route passes with interrupt-scheduled swaps; the combined final checkpoint is
-also being checked with the same ordinary-input replay.
+432x304 native geometry and independent origins. The combined final Amiga checkpoint passes all 56 ordinary-input checkpoints
+in the accelerated 1 MiB opening replay, including the final native geometry,
+interrupt-scheduled swaps and clipped-sprite path. This verifies logical
+progression and resource loading, not all-room cycle-exact performance.
 
 ## Adaptive scrolling windows
 
