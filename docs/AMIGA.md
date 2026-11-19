@@ -243,6 +243,52 @@ CPU-only scratch area comes from a separate unused resource tail, avoiding
 repeated LZ4 byte accesses to Chip RAM before copying completed pixels there.
 Room reloads reset both the cache and its scratch lease.
 
+### Pipelined presentation checkpoint
+
+Further controlled comparisons measure 18.0 actual frames/s with interrupt-
+scheduled swaps, 20.8 after deferring unused wall queries, 21.6 with independent
+native-page origins, and 23.2 with byte-based clipped sprites. A taller 432x304
+native layout reaches 27.9 in the short instrumented sample. A longer repeated
+walking/jumping run presents 3,121 actual page swaps across 5,766 PAL refreshes:
+27.1 actual frames/s and 58.5 simulation ticks/s. The swaps are counted in the
+vertical-blank handler, independently of render calls. The requested average
+range is reached in this room; all-room performance remains unverified.
+
+The final native pages each occupy 82,080 bytes, leaving 24,640 bytes at the
+end of the compact display region for decoded sprites. The 320x224 visible
+viewport and original pixels remain unchanged. Native pages retain independent
+origins while their contents still cover the camera; shared scrolling references
+continue using their common origin. The larger vertical headroom avoids many
+copies during jumps. These size-based backend policies contain no progression
+or room-identity rules.
+
+The completed copper list is published through a volatile page index and swapped
+by the vertical-blank interrupt. The next draw waits before reusing the previous
+display page, allowing simulation work to overlap that wait. Compiler barriers
+protect the handoff. Room suspension still waits for a refresh before restoring
+the OS display. Clipped sprites combine source bytes and masks instead of
+iterating through individual pixels; padding and partial edge bits are preserved.
+The game layer queries wall collision only when wall jumping or sliding can use
+its result. Query coordinates and gameplay outcomes remain unchanged.
+
+The average is not a steady-frame guarantee. A separate steady-play run, with
+startup counters cleared inside the diagnostic build, reaches 27.4 actual
+frames/s and records a slowest frame of about 183 ms. In one such frame,
+scrolling takes 28 ms, cleanup 20 ms, sprite decode/drawing 41 ms, UI 40 ms,
+and simulation 31 ms. Large startup/dialogue UI costs must be separated from
+these gameplay measurements. Earlier maximum counters include startup and
+are not directly comparable to the reset steady-play counter. Frame-time spikes
+and all-room speed remain open; the opening is not declared performance-complete.
+
+Local checks compare 200,000 old/new player updates byte-for-byte, including
+inputs, events, dynamic solids, jumping, crouching and custom/fractional gravity.
+All 13 native groups, the GBA/SNES/Mega Drive builds and their full progression
+routes pass after that shared change. Another 36,000 clipped-sprite cases match
+the original pixels and guards; complete-frame comparisons also cover the final
+432x304 native geometry and independent origins. The complete accelerated Amiga
+route passes with interrupt-scheduled swaps; the combined final checkpoint is
+also being checked with the same ordinary-input replay.
+
 ## Adaptive scrolling windows
 
 The visible game viewport remains 320x224 with the original pixel grid. Larger

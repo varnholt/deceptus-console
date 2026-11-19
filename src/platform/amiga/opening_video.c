@@ -97,6 +97,7 @@ static DeceptusU8 valid[2], active, draw_buffer, error;
 static const AmigaGraphics *graphics;
 static volatile DeceptusU32 video_frames;
 static volatile DeceptusU8 loading;
+static volatile DeceptusI16 pending_buffer = -1;
 static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
 static DeceptusU16 last_ticks, last_flags;
 static DeceptusU8 last_mode, last_selection, last_page, last_prompt, last_label;
@@ -104,6 +105,12 @@ static const DeceptusInteraction *last_dialogue;
 
 static void __attribute__((interrupt)) verticalBlank(void)
 {
+   if (pending_buffer >= 0)
+   {
+      hardware->cop1lc = (ULONG)copper[pending_buffer];
+      hardware->copjmp1 = 0;
+      pending_buffer = -1;
+   }
    if (!loading)
    {
       ++video_frames;
@@ -1356,49 +1363,73 @@ static void __attribute__((noinline, noclone, optimize("Os"))) planSpriteRedraws
    } while (changed);
 }
 
+static DeceptusU8 shiftedSpriteByte(const DeceptusU8 *row, DeceptusI16 column, DeceptusU8 shift)
+{
+   DeceptusU16 word;
+   /* validated rows include a guard word; a partial leading byte starts transparent. */
+   word = column < 0 ? 0 : (DeceptusU16)row[column] << 8;
+   word |= row[column + 1];
+   return (DeceptusU8)((DeceptusU16)(word << shift) >> 8);
+}
+
 static void clippedSprite(const AmigaSpriteRequest *request, const DeceptusU8 *pixels)
 {
-   const DeceptusU8 *mask;
+   const DeceptusU8 *mask, *source;
    DeceptusU8 *destination;
-   DeceptusU16 x, y, plane;
-   DeceptusI16 px, py;
-   DeceptusI16 plane_size;
-   DeceptusU32 offset;
-   DeceptusU8 bit, target_bit;
-   plane_size = (DeceptusU32)request->graphic.row_bytes * request->graphic.height;
-   mask = pixels + plane_size * 5;
-   for (y = 0; y < request->graphic.height; ++y)
+   DeceptusI16 left, right, top, bottom, first, last, column, source_first, source_column, y;
+   DeceptusU16 plane_size, source_offset;
+   DeceptusU8 shift, alpha, first_mask, last_mask, plane;
+   left = request->x < 0 ? 0 : request->x;
+   right = request->x + request->graphic.width;
+   top = request->y < 0 ? 0 : request->y;
+   bottom = request->y + request->graphic.height;
+   if (right > cache_width)
    {
-      py = request->y + y;
-      if (py < 0 || py >= cache_height)
+      right = cache_width;
+   }
+   if (bottom > cache_height)
+   {
+      bottom = cache_height;
+   }
+   if (left >= right || top >= bottom)
+   {
+      return;
+   }
+   first = left / 8;
+   last = (right - 1) / 8;
+   source_first = first * 8 - request->x;
+   shift = (DeceptusU8)(source_first < 0 ? source_first + 8 : source_first & 7);
+   source_first = source_first < 0 ? -1 : source_first / 8;
+   first_mask = (DeceptusU8)(255U >> (left & 7));
+   last_mask = (DeceptusU8)(255U << (7 - ((right - 1) & 7)));
+   plane_size = request->graphic.row_bytes * request->graphic.height;
+   mask = pixels + plane_size * 5;
+   for (y = top; y < bottom; ++y)
+   {
+      source_offset = (y - request->y) * request->graphic.row_bytes;
+      source_column = source_first;
+      for (column = first; column <= last; ++column, ++source_column)
       {
-         continue;
-      }
-      for (x = 0; x < request->graphic.width; ++x)
-      {
-         px = request->x + x;
-         if (px < 0 || px >= cache_width)
+         alpha = shiftedSpriteByte(mask + source_offset, source_column, shift);
+         if (column == first)
+         {
+            alpha &= first_mask;
+         }
+         if (column == last)
+         {
+            alpha &= last_mask;
+         }
+         if (!alpha)
          {
             continue;
          }
-         offset = y * request->graphic.row_bytes + x / 8;
-         bit = (DeceptusU8)(128U >> (x & 7));
-         if (!(mask[offset] & bit))
-         {
-            continue;
-         }
-         target_bit = (DeceptusU8)(128U >> (px & 7));
+         source = pixels + source_offset;
+         destination = (DeceptusU8 *)buffers[draw_buffer] + y * row_bytes + column;
          for (plane = 0; plane < 5; ++plane)
          {
-            destination = (DeceptusU8 *)buffers[draw_buffer] + plane * plane_bytes + py * row_bytes + px / 8;
-            if (pixels[plane * plane_size + offset] & bit)
-            {
-               *destination |= target_bit;
-            }
-            else
-            {
-               *destination &= (DeceptusU8)~target_bit;
-            }
+            *destination = (*destination & (DeceptusU8)~alpha) | (shiftedSpriteByte(source, source_column, shift) & alpha);
+            source += plane_size;
+            destination += plane_bytes;
          }
       }
    }
@@ -1534,11 +1565,23 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       waitFrame();
       return 1;
    }
+   /* let simulation overlap the previous page's refresh wait, then release its buffer. */
+   while (pending_buffer >= 0)
+   {
+   }
+   __asm__ volatile("" ::: "memory");
    draw_buffer ^= 1;
    origin_x = origins_x[draw_buffer];
    origin_y = origins_y[draw_buffer];
    updateClips(game);
    was_valid = valid[draw_buffer];
+   if (graphics->native_foreground)
+   {
+      /* native pages have their own complete source; keep a usable origin until it needs rebasing. */
+      window_origin_x = origin_x;
+      window_origin_y = origin_y;
+      window_valid = was_valid;
+   }
    ui_layout =
       (game->room_label_ticks != 0) | (game->prompt < game->definition->rooms[game->campaign.room_index].interaction_count ? 2 : 0);
    horizontal_headroom = frame->camera_x < previous_camera_x[draw_buffer] ? 3 : 1;
@@ -1695,9 +1738,9 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       return 0;
    }
    prepareCopper(draw_buffer, frame);
-   waitFrame();
-   hardware->cop1lc = (ULONG)copper[draw_buffer];
-   hardware->copjmp1 = 0;
+   /* publish a complete list; the interrupt swaps pages at the next vertical blank. */
+   __asm__ volatile("" ::: "memory");
+   pending_buffer = draw_buffer;
    last_ticks = game->campaign.engine.ticks;
    last_flags = game->flags;
    last_mode = game->campaign.mode;
