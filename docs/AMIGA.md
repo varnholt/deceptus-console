@@ -290,6 +290,51 @@ in the accelerated 1 MiB opening replay, including the final native geometry,
 interrupt-scheduled swaps and clipped-sprite path. This verifies logical
 progression and resource loading, not all-room cycle-exact performance.
 
+### Broader playtest: performance target failed
+
+The user reports unusable frame rates during vertical traversal, swimming,
+graveyard play and rope use despite acceptable visuals. The Lower Cells result
+must not be used as evidence of a playable opening. A subsequent cycle-exact
+normal-input route, with host throttling disabled but the original CPU/memory
+settings retained, samples about 2–3 presentations/s in Main Hall and sometimes
+below 1 presentation/s near the altar. It reaches only checkpoint 17 before its
+measurement deadline. The accelerated 56-checkpoint pass remains a logical
+correctness check and does not override this performance failure.
+
+A final local experiment removed redundant offline sprite orientations,
+reserved separate decoded working sets and stored deduplicated native tile
+planes instead of retaining compressed tiles plus a partial decoded cache.
+Every sprite orientation and every decoded tile matched the originals across
+52 room/body variants. However, the difficult-room rates remained unacceptable
+and some samples regressed. The experimental code and formats were removed
+from the working tree, not shipped. Its source patch, binaries and diagnostics
+remain ignored local artifacts under `build/portable-opening/last-shot/` and
+`build/amiga-budget/`.
+
+An isolated Main Hall diagnostic separates simulation from rendering. Its
+120 simulation updates take about 0.48 seconds, while drawing the animated
+scene is much more expensive. A CPU sample in that experimental renderer
+attributes about 59% to tile painting and 13% to map lookup. Removing tile
+LZ4 work alone does not remove repeated software layer composition. This
+supports redesigning the backend around bounded caches of composited native
+regions and current animation frames, with hardware transfers replacing
+repeated per-tile CPU blending. It does not establish a validated replacement
+architecture or an all-room performance result.
+
+There is also a shared simulation issue. In a separate isolated Mausoleum
+fixture the player remains attached for all 120 measured rope ticks. Those
+updates consume 141,329 PAL scanlines, about 9.06 seconds: approximately 75.5 ms
+per simulation tick, even without drawing during that interval. That exceeds
+the 16.7 ms budget for 60 Hz. Its CPU sample is dominated by rope collision
+probes, constraint solving and integer multiplication. This synthetic fixture
+is not a progression replay, but demonstrates that rendering changes alone
+cannot fix attached-rope play. Any shared solver optimization must preserve
+behavior and be checked on GBA, SNES and Mega Drive as well as Amiga.
+
+The final attempt did not deliver a playable full Amiga opening. Preserve the
+existing visuals and generic engine/game/backend boundaries; do not promote
+the milestone or claim success from a favorable room or average frame rate.
+
 ## Adaptive scrolling windows
 
 The visible game viewport remains 320x224 with the original pixel grid. Larger

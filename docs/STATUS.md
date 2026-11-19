@@ -207,6 +207,15 @@ sprites and 432x304 backing pages improve the average into the requested range;
 frame-time spikes and all-room performance remain unresolved. This does not
 establish performance-complete gameplay. Shared gameplay checks and all three
 console progression routes pass.
+The broader user playtest rejects the Amiga opening as unplayable: vertical
+rooms, water, graveyard and rope use remain very slow. A cycle-exact route
+samples roughly 2–3 fps in Main Hall and sometimes below 1 fps near the altar;
+it does not complete within the measurement deadline. The final experimental
+asset/cache rewrite was rejected and removed because it did not solve these
+cases. Isolated measurements identify both CPU tile composition and shared
+rope simulation as budget problems; held-rope simulation alone measures about
+75.5 ms/tick in a synthetic A500 fixture. The full opening remains a failed
+performance milestone despite passing accelerated logical traversal.
 See [Amiga implementation and verification](AMIGA.md).
 This remains below steady 50 fps, and other rooms can select different paths.
 Walking, reversals and jumping frame pacing across the opening
