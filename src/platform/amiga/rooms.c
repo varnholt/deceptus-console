@@ -1,4 +1,5 @@
 #include "rooms.h"
+#include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
 #include "deceptus/roomcontent.h"
 #include "keyboard.h"
@@ -107,24 +108,39 @@ static DeceptusU8 loadNativeBackground(DeceptusU8 room, DeceptusU8 sword)
 
 static DeceptusU8 loadNativeComposite(DeceptusU8 room, DeceptusU8 sword)
 {
-   DeceptusU32 plane_bytes, bytes;
+   DeceptusU32 plane_bytes, bytes, clips_size;
    DeceptusU8 *pixels;
    char path[64];
-   if (graphics.clip_count)
-   {
-      return 1;
-   }
    plane_bytes = (DeceptusU32)((graphics.width + 15) / 16) * 2 * graphics.height;
    bytes = plane_bytes * 6;
-   pixels = reserveChipScratch(bytes);
+   clips_size = 0;
+   if (graphics.clip_count)
+   {
+      if (amiga_native_sizes[room][sword != 0][0] != bytes || !amiga_native_sizes[room][sword != 0][1])
+      {
+         return 1;
+      }
+      clips_size = amiga_native_sizes[room][sword != 0][1];
+   }
+   pixels = reserveChipScratch(bytes + clips_size);
    if (!pixels)
    {
       return 1;
    }
-   roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.acp" : "/graphics.acp", 0);
+   roomPath(path, "Build:assets/area", room,
+            graphics.clip_count ? (sword ? "/graphics-sword.acb" : "/graphics.acb") : (sword ? "/graphics-sword.acp" : "/graphics.acp"), 0);
    if (amigaSystemReadFile(path, pixels, bytes) != bytes)
    {
       return 0;
+   }
+   if (clips_size)
+   {
+      roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.aco" : "/graphics.aco", 0);
+      if (amigaSystemReadFile(path, pixels + bytes, clips_size) != clips_size ||
+          !amigaGraphicsSetNativeClips(&graphics, pixels + bytes, clips_size))
+      {
+         return 0;
+      }
    }
    graphics.background_pixels = (const DeceptusU16 *)pixels;
    graphics.native_foreground = (const DeceptusU16 *)(pixels + plane_bytes * 5);
@@ -211,7 +227,8 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
 {
    char path[64];
    DeceptusU8 *world;
-   DeceptusU32 world_size, sprite_size, split;
+   DeceptusU32 world_size, sprite_size, split, native_bytes;
+   DeceptusU8 native_only;
    if (room >= AMIGA_OPENING_ROOMS)
    {
       return 0;
@@ -219,13 +236,19 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    amigaOpeningVideoSuspend();
    amigaKeyboardReset();
    world = (DeceptusU8 *)resource_chip;
-   roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.agp" : "/graphics.agp", 0);
+   native_bytes = amiga_native_sizes[room][sword != 0][0] + amiga_native_sizes[room][sword != 0][1] +
+                  amiga_native_sizes[room][sword != 0][2] + amiga_native_sizes[room][sword != 0][3] + 3;
+   native_only = amiga_native_sizes[room][sword != 0][0] && amiga_native_sizes[room][sword != 0][2] &&
+                 native_bytes <= sizeof(resource_chip) && sizeof(resource_chip) - native_bytes >= AMIGA_SPRITE_SCRATCH_BYTES;
+   roomPath(path, "Build:assets/area", room,
+            native_only ? (sword ? "/graphics-sword.agn" : "/graphics.agn") : (sword ? "/graphics-sword.agp" : "/graphics.agp"), 0);
    world_size = amigaSystemReadFile(path, world, sizeof(resource_chip));
    if (!world_size || world_size >= sizeof(resource_chip))
    {
       return 0;
    }
-   split = amigaGraphicsSpriteSplit(world, world_size, sizeof(resource_chip) - world_size);
+   split = native_only ? amiga_native_sizes[room][sword != 0][3]
+                       : amigaGraphicsSpriteSplit(world, world_size, sizeof(resource_chip) - world_size);
    roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.asp" : "/graphics.asp", 0);
    sprite_size = amigaSystemReadFilePair(path, world + world_size, split, resource_normal, sizeof(resource_normal));
    if (!sprite_size)
@@ -248,7 +271,7 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    {
       return 0;
    }
-   if (!loadNativeComposite(room, sword) || !loadRasterColumns(room, sword))
+   if (!loadNativeComposite(room, sword) || (graphics.native_only && !graphics.native_foreground) || !loadRasterColumns(room, sword))
    {
       return 0;
    }

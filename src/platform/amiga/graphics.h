@@ -30,6 +30,8 @@ typedef struct AmigaGraphics
    DeceptusU32 raster_size;
    const DeceptusU16 *background_pixels;
    const DeceptusU16 *native_foreground;
+   const DeceptusU8 *native_clips;
+   DeceptusU8 native_only;
    DeceptusU16 *viewport_pixels, *foreground_pixels;
    DeceptusU16 viewport_width, viewport_height;
    DeceptusU32 world_size, sprite_size, sprite_first_size;
@@ -70,6 +72,8 @@ DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaG
                                      DeceptusU32 capacity);
 void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *sprite);
 DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size);
+DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size);
+const DeceptusU16 *amigaGraphicsNativeClip(const AmigaGraphics *graphics, DeceptusU16 index, DeceptusU16 frame);
 DeceptusU8 amigaGraphicsRasterBlock(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8 *pixels,
                                     DeceptusU32 capacity);
 #endif

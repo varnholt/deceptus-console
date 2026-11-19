@@ -184,12 +184,16 @@ cached foreground masks, background references and Chip sprite caching are backe
 a narrow Lower Cells jump/reversal check reached 24.8 actual frames/s,
 while Crossroads reaches only 15.4. Both sustain the 60 Hz simulation in those
 samples, but longer runs with camera scrolling reproduced 2.36-second stalls.
-The opening remains unplayable; those averages missed the worst case. The final
-broad Lower Cells traversal measured about 4.6 actual frames/s, 22.9 simulation
-ticks/s and a worst 0.82-second presentation gap. Native image blocks, cache
-partitioning and cleanup ordering preserve pixels but do not establish decent
-performance. Optimization work stopped at the requested time limit. All-room speed and the remaining source cutscene/effect differences
-stay open. Quantized camera bounds now prevent bottom-edge buffer overreads.
+The opening remains below the requested steady 25–30 actual frames/s. A broad
+Lower Cells traversal initially measured about 4.6 actual frames/s and 22.9
+simulation ticks/s. The native-layer checkpoint improves this to 10.4 actual
+frames/s and 51.1 simulation ticks/s over 6,081 PAL refreshes, with a worst
+0.32-second presentation gap and additional dropped simulation time. This is
+still a failed playability result. Size-selected native layers, compact metadata,
+incremental asset repacking and bounded block caching preserve the generic
+backend and original pixels. A slower ring-buffer experiment is excluded.
+All-room speed and the remaining source cutscene/effect differences stay open.
+Quantized camera bounds prevent bottom-edge buffer overreads.
 See [Amiga implementation and verification](AMIGA.md).
 This remains below steady 50 fps, and other rooms can select different paths.
 Walking, reversals and jumping frame pacing across the opening

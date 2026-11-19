@@ -130,6 +130,8 @@ static DeceptusU8 lz4Length(const DeceptusU8 *source, DeceptusU32 source_size, D
 DeceptusU8 deceptusLz4Decode(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU8 *destination, DeceptusU32 destination_size)
 {
    DeceptusU32 input, output, length, offset;
+   const DeceptusU8 *literal;
+   DeceptusU8 *cursor, *match;
    DeceptusU8 token;
    if (!source || !source_size || (destination_size && !destination))
    {
@@ -148,9 +150,25 @@ DeceptusU8 deceptusLz4Decode(const DeceptusU8 *source, DeceptusU32 source_size, 
       {
          return 0;
       }
+      literal = source + input;
+      cursor = destination_size ? destination + output : destination;
+      input += length;
+      output += length;
+      while (length >= 8)
+      {
+         *cursor++ = *literal++;
+         *cursor++ = *literal++;
+         *cursor++ = *literal++;
+         *cursor++ = *literal++;
+         *cursor++ = *literal++;
+         *cursor++ = *literal++;
+         *cursor++ = *literal++;
+         *cursor++ = *literal++;
+         length -= 8;
+      }
       while (length--)
       {
-         destination[output++] = source[input++];
+         *cursor++ = *literal++;
       }
       if (input == source_size)
       {
@@ -175,10 +193,25 @@ DeceptusU8 deceptusLz4Decode(const DeceptusU8 *source, DeceptusU32 source_size, 
       {
          return 0;
       }
+      cursor = destination + output;
+      match = cursor - offset;
+      output += length;
+      /* forward byte copies retain overlapping LZ4 matches, including offset one. */
+      while (length >= 8)
+      {
+         *cursor++ = *match++;
+         *cursor++ = *match++;
+         *cursor++ = *match++;
+         *cursor++ = *match++;
+         *cursor++ = *match++;
+         *cursor++ = *match++;
+         *cursor++ = *match++;
+         *cursor++ = *match++;
+         length -= 8;
+      }
       while (length--)
       {
-         destination[output] = destination[output - offset];
-         ++output;
+         *cursor++ = *match++;
       }
    }
    return 0;

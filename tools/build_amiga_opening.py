@@ -6,6 +6,7 @@ from pathlib import Path
 
 from amiga_opening_assets import (RESOURCE_CHIP_BYTES, RESOURCE_NORMAL_BYTES,
                                   compile_opening, converter_identity, write_common)
+from amiga_native_assets import prepare_native_assets
 from assets import ROOT
 from build_amiga import SOURCES, build_program
 from room_content import compile_rooms
@@ -18,6 +19,7 @@ OPENING_SOURCES = (
     'src/game/player/playeranimation.c', 'src/game/items/itemheadtorch.c',
     'src/platform/amiga/rooms.c', 'src/platform/amiga/graphics.c',
     'src/platform/amiga/keyboard.c', 'src/platform/amiga/spritecache.c',
+    'src/platform/amiga/rastercache.c',
     'src/platform/amiga/opening.c', 'src/platform/amiga/opening_video.c',
     'src/platform/amiga/opening_ui.c',
 )
@@ -54,6 +56,7 @@ def build_opening(sdk, data, output, reuse_assets=False):
                      max(room['clips'] for room in report['rooms']), report['rooms'])
     else:
         report = compile_opening(data, generated)
+    prepare_native_assets(generated, report)
     # partition only at independent sprite-block boundaries; no frame-time allocation.
     for room in report['rooms']:
         for variant in (room, room['sword']):
@@ -64,6 +67,7 @@ def build_opening(sdk, data, output, reuse_assets=False):
                if name not in ('src/platform/amiga/main.c', 'src/platform/amiga/video.c')]
     sources.extend(ROOT / name for name in OPENING_SOURCES)
     sources.append(generated / 'opening_content.c')
+    sources.append(generated / 'amiga_native_assets.c')
     build_report = dict(scope='experimental streamed 26-room Amiga opening',
                         full_game=False, pixel_scale=1, dithering=False,
                         resource_normal_bytes=RESOURCE_NORMAL_BYTES, resource_chip_bytes=RESOURCE_CHIP_BYTES,

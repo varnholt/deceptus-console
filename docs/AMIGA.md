@@ -153,14 +153,49 @@ only the affected reference area. The loader can retain the compressed blocks
 in either resource bank, excludes them and staging from cache leases, and keeps
 the checked tile path when the native representation cannot fit.
 
-The final broad Lower Cells run in the time-limited investigation repeatedly
-traversed x=100..550 while jumping and acknowledged source dialogue through
-ordinary inputs. Over 2,120 PAL refreshes it measured approximately 4.6 displayed
-frames/s and 22.9 simulation ticks/s, with a worst presentation gap of 41 PAL
-frames (0.82 seconds) and additional dropped game time. This is a failed
-playability result. The narrow warmed samples above must not be used to describe
-the opening as playable. Further optimization work has stopped at the requested
-time limit.
+The earlier broad Lower Cells traversal measured approximately 4.6 displayed
+frames/s and 22.9 simulation ticks/s, with a worst 0.82-second presentation gap.
+A subsequent native-layer checkpoint traverses x=100..550 repeatedly while
+jumping and acknowledging dialogue through ordinary inputs. Across 6,081 PAL
+refreshes it measures 10.4 displayed frames/s and 51.1 simulation ticks/s; the
+worst presentation gap is 16 PAL frames (0.32 seconds). Simulation time is still
+dropped. This is an improvement, but remains below the requested steady 25–30
+frames/s and does not establish a playable opening. A vertical ring-buffer
+experiment regressed this measurement and is excluded from this checkpoint.
+
+### Incremental native layers
+
+`tools/amiga_native_assets.py` derives optional DMA-ready resources from the
+validated Amiga target archives. It preserves the primary import/conversion
+stage and original pixels. `tools/asset_decode.py` supplies bounded LZ4 and
+unit-based RLE decoding for build-time repacking; these helpers do not depend on
+Amiga registers or game rules and can support other target converters. Each
+platform continues to convert the original content independently.
+
+The derived `.acb` holds the static composite and foreground mask; `.aco`
+(`AL01`) contains independently addressable native clip frames with checked
+contiguous offsets. Background clips retain their order beneath static
+foreground, followed by foreground clips. The compact `.agn` (`AN01`) retains
+palette, clip timing and sprite descriptors without the unused tile/map data.
+The loader selects this representation from resource sizes and fixed bank
+capacities, with room for decoded sprite staging. Larger rooms retain the
+existing block/tile paths. No room identities or progression rules choose the
+optimization. Native image edges are clipped and outside-room pixels cleared.
+
+`native-layers.json` records source archive hashes, converter identity and all
+derived file hashes. `--reuse-assets` validates the primary archives before
+regenerating missing, stale or modified derivatives. These files stay ignored
+build products. Lower Cells uses a 273,600-byte static image, 8,656-byte clip
+archive and 2,770-byte metadata archive instead of retaining its 85,174-byte
+primary world archive alongside the native image. The font's identical glyph
+words reside in Chip RAM to keep executable loading within the original RAM
+configuration.
+
+A fixed, caller-owned two-way cache can retain decoded AC02 blocks in unused
+resource-bank tails. Leases exclude live resources and sprite storage; failed
+decodes invalidate their victim entry. Full-native rooms leave tile and block
+caches disabled and lend available space to decoded sprites. The shared LZ4
+decoder also uses bounded forward copies, preserving overlapping-match semantics.
 
 ## Adaptive scrolling windows
 
@@ -200,7 +235,7 @@ cache lease together. The loader reserves viewport storage before handing the
 remaining bank tails to caches. Compact mode can use the native background file
 below; larger modes use their retained background reference instead.
 
-Local checks exercise 385,312 camera moves and compare 72,000 complete rendered
+Local checks exercise 385,312 camera moves and compare 84,000 complete rendered
 frames against the original tile path across six current/boundary geometries.
 All 52 native-block variants match independent tile reconstruction, including
 block boundaries, padded edges, malformed offsets and destination guards. They include

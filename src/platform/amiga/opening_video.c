@@ -2,6 +2,7 @@
 #include "amiga_opening_assets.h"
 #include "deceptus/appearance.h"
 #include "opening_ui.h"
+#include "rastercache.h"
 #include "rooms.h"
 #include "spritecache.h"
 #include "system.h"
@@ -69,6 +70,7 @@ static DeceptusU16 blank_copper[6] CHIP = {0x0100, 0, 0x0180, 0, 0xffff, 0xfffe}
 static DeceptusU16 sprite_pixels[(AMIGA_SPRITE_SCRATCH_BYTES + 1) / 2] CHIP;
 static DeceptusU16 palette[32];
 static AmigaSpriteCache sprite_cache;
+static AmigaRasterCache raster_cache CHIP;
 static DeceptusU8 *tile_cache, *tile_directory;
 static DeceptusU16 tile_directory_count;
 static DeceptusU16 tile_slots;
@@ -157,12 +159,43 @@ void amigaOpeningVideoClose(void)
    amigaSystemClose();
 }
 
-static DeceptusU8 prepareCaches(void)
+static DeceptusU32 __attribute__((noinline, noclone, optimize("Os"))) cacheTail(DeceptusU8 **memory, DeceptusU32 size)
+{
+   const DeceptusU8 *regions[3];
+   DeceptusU32 sizes[3], offset, end;
+   DeceptusU8 index;
+   regions[0] = tile_directory;
+   sizes[0] = (DeceptusU32)(tile_cache - tile_directory) + (DeceptusU32)tile_slots * AMIGA_TILE_GROUP_BYTES;
+   regions[1] = (const DeceptusU8 *)row_cache;
+   sizes[1] = (DeceptusU32)row_sets * ROW_CACHE_WAYS * sizeof(*row_cache);
+   regions[2] = sprite_cache.pixels;
+   sizes[2] = sprite_cache.capacity;
+   offset = 0;
+   for (index = 0; index < 3; ++index)
+   {
+      if ((size_t)regions[index] >= (size_t)*memory && (size_t)regions[index] < (size_t)*memory + size)
+      {
+         end = (DeceptusU32)((size_t)regions[index] - (size_t)*memory) + sizes[index];
+         if (end > offset)
+         {
+            offset = end;
+         }
+      }
+   }
+   if (offset > size)
+   {
+      return 0;
+   }
+   *memory += offset;
+   return size - offset;
+}
+
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) prepareCaches(void)
 {
    DeceptusU32 size, offset, sprite_size, chip_size, unused;
    DeceptusU16 slot;
-   DeceptusU8 *sprite_memory, *chip_memory, *row_memory;
-   DeceptusU32 row_cache_bytes;
+   DeceptusU8 *sprite_memory, *chip_memory, *row_memory, *base_memory;
+   DeceptusU32 row_cache_bytes, base_size;
    DeceptusU8 rows_in_sprite_bank, sprite_in_chip, tile_in_chip, swap_banks;
    row_cache = base_rows;
    row_sets = 1;
@@ -173,6 +206,24 @@ static DeceptusU8 prepareCaches(void)
    chip_memory = amigaRoomChipScratch(&chip_size);
    sprite_memory = chip_memory;
    sprite_size = chip_size;
+   if (graphics->native_only)
+   {
+      if (!graphics->native_foreground || (graphics->clip_count && !graphics->native_clips))
+      {
+         return 0;
+      }
+      tile_directory_count = tile_slots = 0;
+      if (chip_size >= size)
+      {
+         amigaSpriteCacheInit(&sprite_cache, chip_memory, chip_size < 96UL * 1024 ? chip_size : 96UL * 1024, 1);
+      }
+      else
+      {
+         amigaSpriteCacheInit(&sprite_cache, tile_directory, size < 96UL * 1024 ? size : 96UL * 1024, 0);
+      }
+      amigaRasterCacheInit(&raster_cache, 0, 0, 0, 0);
+      return 1;
+   }
    tile_directory_count = (DeceptusU16)(((DeceptusU32)graphics->pattern_count + 15) / 16);
    offset = ((DeceptusU32)tile_directory_count + 3) & ~3UL;
    swap_banks = chip_size > size;
@@ -249,7 +300,31 @@ static DeceptusU8 prepareCaches(void)
    {
       sprite_size = SPRITE_CACHE_BYTES;
    }
+   base_memory = (DeceptusU8 *)base_buffers;
+   base_size = 0;
+   if (graphics->viewport_pixels)
+   {
+      base_size = sizeof(base_buffers) - (DeceptusU32)plane_bytes * 5;
+      base_memory += (DeceptusU32)plane_bytes * 5;
+   }
+   if (base_size > sprite_size)
+   {
+      sprite_memory = base_memory;
+      sprite_size = base_size < SPRITE_CACHE_BYTES ? base_size : SPRITE_CACHE_BYTES;
+      sprite_in_chip = 1;
+   }
    amigaSpriteCacheInit(&sprite_cache, sprite_memory, sprite_size, sprite_in_chip);
+   sprite_memory = amigaRoomScratch(&size);
+   size = cacheTail(&sprite_memory, size);
+   chip_memory = amigaRoomChipScratch(&chip_size);
+   chip_size = cacheTail(&chip_memory, chip_size);
+   base_size = cacheTail(&base_memory, base_size);
+   if (base_size > chip_size)
+   {
+      chip_memory = base_memory;
+      chip_size = base_size;
+   }
+   amigaRasterCacheInit(&raster_cache, sprite_memory, size, chip_memory, chip_size);
    memset(tile_directory, 255, tile_directory_count);
    for (slot = 0; slot < tile_slots; ++slot)
    {
@@ -269,7 +344,7 @@ static DeceptusU8 prepareCaches(void)
    return 1;
 }
 
-void amigaOpeningVideoReset(void)
+void __attribute__((optimize("Os"))) amigaOpeningVideoReset(void)
 {
    DeceptusU8 buffer;
    graphics = amigaRoomGraphics();
@@ -469,7 +544,54 @@ static void paintTile(DeceptusI16 x, DeceptusI16 y, DeceptusU8 foreground_only, 
    }
 }
 
-static DeceptusU8 drawNativeBackground(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, DeceptusI16 bottom)
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) clipNativeBounds(DeceptusI16 *left, DeceptusI16 *top,
+                                                                                      DeceptusI16 *right, DeceptusI16 *bottom)
+{
+   DeceptusI16 edge;
+   if (*left < -origin_x)
+   {
+      *left = -origin_x;
+   }
+   if (*top < -origin_y)
+   {
+      *top = -origin_y;
+   }
+   edge = ((graphics->width + 15) / 16) * 16 - origin_x;
+   if (*right > edge)
+   {
+      *right = edge;
+   }
+   edge = graphics->height - origin_y;
+   if (*bottom > edge)
+   {
+      *bottom = edge;
+   }
+   return *left < *right && *top < *bottom;
+}
+
+static void __attribute__((noinline, noclone, optimize("Os"))) clearNativeRectangle(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right,
+                                                                                    DeceptusI16 bottom)
+{
+   DeceptusU16 plane, words;
+   DeceptusU16 *destination;
+   words = (right - left) / 16;
+   destination = buffers[draw_buffer] + top * row_words + left / 16;
+   waitBlitter();
+   hardware->bltcon0 = DEST;
+   hardware->bltcon1 = 0;
+   hardware->bltdmod = row_bytes - words * 2;
+   for (plane = 0; plane < 5; ++plane)
+   {
+      waitBlitter();
+      hardware->bltdpt = destination;
+      hardware->bltsize = ((bottom - top) << 6) | words;
+      destination += plane_words;
+   }
+   waitBlitter();
+}
+
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) drawNativeBackground(DeceptusI16 left, DeceptusI16 top,
+                                                                                          DeceptusI16 right, DeceptusI16 bottom)
 {
    DeceptusU16 plane, width, height, source_words, source_height;
    DeceptusI16 source_x, source_y;
@@ -494,9 +616,26 @@ static DeceptusU8 drawNativeBackground(DeceptusI16 left, DeceptusI16 top, Decept
    }
    width = (right - left) / 16;
    height = bottom - top;
-   if (!source || source_x < 0 || source_y < 0 || source_x + right - left > source_words * 16 || source_y + height > source_height)
+   if (!source)
    {
       return 0;
+   }
+   if (source_x < 0 || source_y < 0 || source_x + right - left > source_words * 16 || source_y + height > source_height)
+   {
+      if (!graphics->native_foreground)
+      {
+         return 0;
+      }
+      /* guard words outside the room are blank; never reconstruct the whole view for them. */
+      clearNativeRectangle(left, top, right, bottom);
+      if (!clipNativeBounds(&left, &top, &right, &bottom))
+      {
+         return 1;
+      }
+      source_x = origin_x + left;
+      source_y = origin_y + top;
+      width = (right - left) / 16;
+      height = bottom - top;
    }
    source_plane = (DeceptusU32)source_words * source_height;
    source += (DeceptusU32)source_y * source_words + source_x / 16;
@@ -534,7 +673,16 @@ static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) drawNativeF
    source_y = origin_y + top - (graphics->native_foreground ? 0 : background_origin_y);
    if (source_x < 0 || source_y < 0 || source_x + right - left > source_words * 16 || source_y + bottom - top > source_height)
    {
-      return 0;
+      if (!graphics->native_foreground)
+      {
+         return 0;
+      }
+      if (!clipNativeBounds(&left, &top, &right, &bottom))
+      {
+         return 1;
+      }
+      source_x = origin_x + left;
+      source_y = origin_y + top;
    }
    width = (right - left) / 16;
    height = bottom - top;
@@ -558,6 +706,75 @@ static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) drawNativeF
    }
    waitBlitter();
    return 1;
+}
+
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) drawNativeClips(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right,
+                                                                                     DeceptusI16 bottom, DeceptusU8 foreground)
+{
+   DeceptusU16 index, plane, words, height, source_words;
+   DeceptusI16 x, y, first, last, upper, lower;
+   DeceptusU32 source_plane, offset;
+   const DeceptusU16 *pixels, *mask;
+   DeceptusU16 *destination;
+   const AmigaClipState *state;
+   DeceptusU8 drawn;
+   drawn = 0;
+   for (index = 0; index < graphics->clip_count; ++index)
+   {
+      state = &clips[index];
+      if (!state->enabled || state->clip.plane != foreground)
+      {
+         continue;
+      }
+      x = state->clip.bounds.x / 16;
+      if (state->clip.bounds.x < 0 && state->clip.bounds.x % 16)
+      {
+         --x;
+      }
+      x *= 16;
+      source_words = (state->clip.bounds.x - x + state->clip.bounds.width + 15) / 16;
+      x -= origin_x;
+      y = state->clip.bounds.y - origin_y;
+      first = left > x ? left : x;
+      last = right < x + source_words * 16 ? right : x + source_words * 16;
+      upper = top > y ? top : y;
+      lower = bottom < y + state->clip.bounds.height ? bottom : y + state->clip.bounds.height;
+      if (first >= last || upper >= lower)
+      {
+         continue;
+      }
+      pixels = amigaGraphicsNativeClip(graphics, index, state->frame);
+      if (!pixels)
+      {
+         error = 1;
+         return drawn;
+      }
+      words = (last - first) / 16;
+      height = lower - upper;
+      source_plane = (DeceptusU32)source_words * state->clip.bounds.height;
+      offset = (DeceptusU32)(upper - y) * source_words + (first - x) / 16;
+      pixels += offset;
+      mask = pixels + source_plane * 5;
+      destination = buffers[draw_buffer] + upper * row_words + first / 16;
+      waitBlitter();
+      hardware->bltcon0 = SRCA | SRCB | SRCC | DEST | 0xca;
+      hardware->bltcon1 = 0;
+      hardware->bltafwm = hardware->bltalwm = 65535U;
+      hardware->bltamod = hardware->bltbmod = source_words * 2 - words * 2;
+      hardware->bltcmod = hardware->bltdmod = row_bytes - words * 2;
+      for (plane = 0; plane < 5; ++plane)
+      {
+         waitBlitter();
+         hardware->bltapt = (APTR)mask;
+         hardware->bltbpt = (APTR)(pixels + plane * source_plane);
+         hardware->bltcpt = destination + plane * plane_words;
+         hardware->bltdpt = destination + plane * plane_words;
+         hardware->bltsize = (height << 6) | words;
+      }
+      waitBlitter();
+      drawn = 1;
+   }
+   return drawn;
 }
 
 static void __attribute__((noinline, noclone, optimize("Os"))) paintRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground_only)
@@ -594,6 +811,15 @@ static void __attribute__((noinline, noclone, optimize("Os"))) paintRectangle(co
    if (!foreground_only && (graphics->background_pixels || background_valid))
    {
       base_ready = drawNativeBackground(left, top, right, bottom);
+   }
+   if (graphics->native_clips && (foreground_only ? drawNativeForeground(left, top, right, bottom) : base_ready))
+   {
+      if (!foreground_only && drawNativeClips(left, top, right, bottom, 0))
+      {
+         drawNativeForeground(left, top, right, bottom);
+      }
+      drawNativeClips(left, top, right, bottom, 1);
+      return;
    }
    if ((graphics->native_foreground || (graphics->foreground_pixels && background_valid)) &&
        (foreground_only ? drawNativeForeground(left, top, right, bottom) : base_ready))
@@ -685,7 +911,8 @@ static void updateClips(const DeceptusAdventure *game)
    }
 }
 
-static void __attribute__((noinline, noclone)) scrollBuffer(DeceptusU16 *pixels, DeceptusU8 planes, DeceptusI16 dx, DeceptusI16 dy)
+static void __attribute__((noinline, noclone, optimize("Os"))) scrollBuffer(DeceptusU16 *pixels, DeceptusU8 planes, DeceptusI16 dx,
+                                                                            DeceptusI16 dy)
 {
    DeceptusI16 source_x, source_y, target_x, target_y, width, height;
    DeceptusU16 plane;
@@ -725,7 +952,7 @@ static void __attribute__((noinline, noclone)) paintRasterStrip(DeceptusI16 left
 {
    DeceptusI16 x, y, row, world_x, world_y, count, source_y;
    DeceptusU8 plane, inside;
-   const DeceptusU16 *source;
+   const DeceptusU16 *source, *block;
    DeceptusU16 *destination;
    waitBlitter();
    for (x = left; x < left + width; x += 16)
@@ -750,15 +977,20 @@ static void __attribute__((noinline, noclone)) paintRasterStrip(DeceptusI16 left
          {
             count = top + height - y;
          }
-         if (inside && !amigaGraphicsRasterBlock(graphics, world_x / 16, world_y / AMIGA_RASTER_ROWS,
-                                                 (DeceptusU8 *)graphics->raster_scratch, AMIGA_RASTER_BYTES))
+         block = graphics->raster_scratch;
+         if (inside)
          {
-            error = 1;
-            return;
+            block = (const DeceptusU16 *)amigaRasterCachePixels(&raster_cache, graphics, world_x / 16, world_y / AMIGA_RASTER_ROWS,
+                                                                (DeceptusU8 *)graphics->raster_scratch);
+            if (!block)
+            {
+               error = 1;
+               return;
+            }
          }
          for (plane = 0; plane < 6; ++plane)
          {
-            source = graphics->raster_scratch + plane * AMIGA_RASTER_ROWS + source_y;
+            source = block + plane * AMIGA_RASTER_ROWS + source_y;
             destination = plane < 5 ? background_cache + plane * plane_words : graphics->foreground_pixels;
             destination += y * row_words + x / 16;
             for (row = 0; row < count; ++row)
@@ -944,7 +1176,8 @@ static void updateBackgroundCache(void)
    background_valid = 1;
 }
 
-static DeceptusU8 requestSprite(void *context, const DeceptusSpriteAppearance *appearance)
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) requestSprite(void *context,
+                                                                                   const DeceptusSpriteAppearance *appearance)
 {
    AmigaSpriteRequest overflow, *request;
    const DeceptusEngine *engine;

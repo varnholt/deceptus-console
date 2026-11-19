@@ -1,4 +1,5 @@
 #include "opening_ui.h"
+#include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
 
 typedef struct AmigaUiCanvas
@@ -79,7 +80,7 @@ static void text(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, cons
             break;
          }
       }
-      glyph = amiga_font[character - 32];
+      glyph = amiga_native_font[character - 32];
       pixel_x = cursor + canvas->origin_x;
       visible = 320 - cursor;
       for (row = 0; row < 18 && y + row < 224; ++row)

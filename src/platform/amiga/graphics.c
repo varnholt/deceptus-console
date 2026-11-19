@@ -99,12 +99,13 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
    DeceptusU16 index, resource;
    AmigaGraphicsSprite sprite;
    memset(graphics, 0, sizeof(*graphics));
-   if (!world || !sprites || world_size < 48 || world[0] != 'A' || world[1] != 'G' || world[2] != '0' || world[3] != '3' ||
-       first_size > sprite_size || (first_size < sprite_size && !tail) || readWord(world + 14) != AMIGA_TILE_GROUP ||
-       readLong(world + 44) != sprite_size)
+   if (!world || !sprites || world_size < 48 || world[0] != 'A' || world[2] != '0' ||
+       !((world[1] == 'G' && world[3] == '3') || (world[1] == 'N' && world[3] == '1')) || first_size > sprite_size ||
+       (first_size < sprite_size && !tail) || readWord(world + 14) != AMIGA_TILE_GROUP || readLong(world + 44) != sprite_size)
    {
       return 0;
    }
+   graphics->native_only = world[1] == 'N';
    graphics->world = world;
    graphics->sprites = sprites;
    graphics->world_size = world_size;
@@ -124,9 +125,12 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
    graphics->clips = readLong(world + 36);
    graphics->sprite_table = readLong(world + 40);
    if (!graphics->width || !graphics->height || graphics->width > 2040 || graphics->height > 2040 || (graphics->width & 7) ||
-       (graphics->height & 7) || !graphics->pattern_count || graphics->sprite_count > AMIGA_GRAPHICS_RESOURCES ||
-       !worldRange(graphics, graphics->palette, 64) ||
-       !worldRange(graphics, graphics->tile_table, (((DeceptusU32)graphics->pattern_count + 15) / 16 + 1) * 4) ||
+       (graphics->height & 7) || (!graphics->native_only && !graphics->pattern_count) ||
+       graphics->sprite_count > AMIGA_GRAPHICS_RESOURCES || !worldRange(graphics, graphics->palette, 64) ||
+       (!graphics->native_only &&
+        !worldRange(graphics, graphics->tile_table, (((DeceptusU32)graphics->pattern_count + 15) / 16 + 1) * 4)) ||
+       (graphics->native_only &&
+        (graphics->pattern_count || graphics->tile_table || graphics->tile_data || graphics->background || graphics->foreground)) ||
        !worldRange(graphics, graphics->sprite_table, (DeceptusU32)graphics->sprite_count * 28) ||
        !worldRange(graphics, graphics->clips, (DeceptusU32)graphics->clip_count * 26))
    {
@@ -358,4 +362,68 @@ void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *spri
       }
       pixels += sprite->row_bytes;
    }
+}
+
+static DeceptusU32 nativeClipFrameBytes(const AmigaGraphicsClip *clip)
+{
+   DeceptusI16 left;
+   left = clip->bounds.x / 16;
+   if (clip->bounds.x < 0 && clip->bounds.x % 16)
+   {
+      --left;
+   }
+   return (DeceptusU32)((clip->bounds.x - left * 16 + clip->bounds.width + 15) / 16) * 2 * clip->bounds.height * 6;
+}
+
+DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size)
+{
+   DeceptusU16 index;
+   DeceptusU32 start, previous, next, bytes;
+   AmigaGraphicsClip clip;
+   graphics->native_clips = 0;
+   start = 8 + ((DeceptusU32)graphics->clip_count + 1) * 4;
+   if (!pixels || size < start || pixels[0] != 'A' || pixels[1] != 'L' || pixels[2] != '0' || pixels[3] != '1' ||
+       readWord(pixels + 4) != graphics->clip_count || readWord(pixels + 6) || readLong(pixels + 8))
+   {
+      return 0;
+   }
+   previous = 0;
+   for (index = 0; index < graphics->clip_count; ++index)
+   {
+      if (!amigaGraphicsClip(graphics, index, &clip))
+      {
+         return 0;
+      }
+      bytes = nativeClipFrameBytes(&clip);
+      if (!bytes || clip.frames > (size - start - previous) / bytes)
+      {
+         return 0;
+      }
+      bytes *= clip.frames;
+      next = readLong(pixels + 12 + (DeceptusU32)index * 4);
+      if (next < previous || next > size - start || next - previous != bytes)
+      {
+         return 0;
+      }
+      previous = next;
+   }
+   if (previous != size - start)
+   {
+      return 0;
+   }
+   graphics->native_clips = pixels;
+   return 1;
+}
+
+const DeceptusU16 *amigaGraphicsNativeClip(const AmigaGraphics *graphics, DeceptusU16 index, DeceptusU16 frame)
+{
+   AmigaGraphicsClip clip;
+   DeceptusU32 start, offset;
+   if (!graphics->native_clips || index >= graphics->clip_count || !amigaGraphicsClip(graphics, index, &clip) || frame >= clip.frames)
+   {
+      return 0;
+   }
+   start = 8 + ((DeceptusU32)graphics->clip_count + 1) * 4;
+   offset = readLong(graphics->native_clips + 8 + (DeceptusU32)index * 4);
+   return (const DeceptusU16 *)(graphics->native_clips + start + offset + (DeceptusU32)frame * nativeClipFrameBytes(&clip));
 }
