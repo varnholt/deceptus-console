@@ -148,7 +148,32 @@ static DeceptusU16 sprite_entry_count;
 static DeceptusU32 sprite_arena_bytes, sprite_arena_used;
 /* padded to whole longs and long-aligned: scans skip four unmarked cells per read. */
 #define MARK_BYTES ((TILE_CELLS + 3) & ~3)
-static DeceptusU8 dirty[MARK_BYTES] __attribute__((aligned(4))), foreground_dirty[MARK_BYTES] __attribute__((aligned(4)));
+static DeceptusU8 dirty[MARK_BYTES], foreground_dirty[MARK_BYTES];
+/* marked cells are also listed: painting visits and clearing resets only those, not the window. */
+static DeceptusU16 dirty_list[TILE_CELLS], foreground_list[TILE_CELLS];
+static DeceptusU16 dirty_count, foreground_count;
+
+static void markDirty(DeceptusU16 index)
+{
+   if (!dirty[index])
+   {
+      dirty[index] = 1;
+      dirty_list[dirty_count++] = index;
+   }
+}
+
+/* foreground marks: 1 redraws foreground animations only, 2 also restores the static foreground. */
+static void markForeground(DeceptusU16 index, DeceptusU8 value)
+{
+   if (foreground_dirty[index] < value)
+   {
+      if (!foreground_dirty[index])
+      {
+         foreground_list[foreground_count++] = index;
+      }
+      foreground_dirty[index] = value;
+   }
+}
 static DeceptusRect previous_ui[2][2];
 static DeceptusU16 ui_signature[2];
 static DeceptusI16 ui_camera_x[2], ui_camera_y[2];
@@ -746,26 +771,6 @@ static void clipTile(DeceptusI16 x, DeceptusI16 y, const DeceptusU8 *cell)
    maskedTile(x, y, colors, masks);
 }
 
-/* index of the first marked cell at or after `index`, or TILE_CELLS; four cells per long read
-   (the 68000 reads longs at any even address, and the arrays are long-aligned). */
-static DeceptusU16 nextMark(const DeceptusU8 *marks, DeceptusU16 index)
-{
-   while (index < TILE_CELLS)
-   {
-      if (!(index & 3) && !*(const DeceptusU32 *)(marks + index))
-      {
-         index += 4;
-         continue;
-      }
-      if (marks[index])
-      {
-         return index;
-      }
-      ++index;
-   }
-   return TILE_CELLS;
-}
-
 static DeceptusU8 sameClipCell(const DeceptusU8 *before, const DeceptusU8 *after)
 {
    const DeceptusU32 *first, *second;
@@ -801,7 +806,7 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
    y -= camera_row;
    if (x >= 0 && x < SURFACE_COLUMNS && y >= 0 && y < TILE_ROWS)
    {
-      foreground_dirty[y * SURFACE_COLUMNS + x] = 1;
+      markForeground((DeceptusU16)(y * SURFACE_COLUMNS + x), 1);
    }
    return !error;
 }
@@ -809,7 +814,7 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
 
 /* foreground marks: 1 redraws foreground animations only (painted tiles already hold the static
    composite), 2 also restores the static foreground over a bob. */
-static void markRectangle(const DeceptusRect *rectangle, DeceptusU8 *marks, DeceptusU8 value)
+static void markRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground, DeceptusU8 value)
 {
    DeceptusI16 x, y, left, top, right, bottom;
    DeceptusU16 index;
@@ -843,9 +848,13 @@ static void markRectangle(const DeceptusRect *rectangle, DeceptusU8 *marks, Dece
       for (x = left; x <= right; ++x)
       {
          index = (DeceptusU16)((y - window->row) * SURFACE_COLUMNS + x - window->column);
-         if (marks[index] < value)
+         if (foreground)
          {
-            marks[index] = value;
+            markForeground(index, value);
+         }
+         else
+         {
+            markDirty(index);
          }
       }
    }
@@ -860,7 +869,7 @@ static void markStrip(DeceptusI16 x, DeceptusI16 y, DeceptusI16 right, DeceptusI
       strip.y = y;
       strip.width = right - x;
       strip.height = bottom - y;
-      markRectangle(&strip, dirty, 1);
+      markRectangle(&strip, 0, 1);
    }
 }
 
@@ -933,7 +942,7 @@ static DeceptusU8 animation_rotation;
 
 static void markAnimatedCells(void)
 {
-   DeceptusU16 index, turn, count, used;
+   DeceptusU16 index, turn, count, used, cell;
    DeceptusI16 x, y, left, top, right, bottom;
    const DeceptusU8 *before, *after;
    AmigaTileClip *clip;
@@ -961,13 +970,23 @@ static void markAnimatedCells(void)
       count = 0;
       for (y = top; y < bottom; ++y)
       {
-         for (x = left; x < right; ++x)
+         /* records of one clip row are consecutive: step through both frames' rows by pointer. */
+         before = previous_enabled[draw_buffer][index] && left < right ? clipCell(clip, left, y, previous_frames[draw_buffer][index]) : 0;
+         after = clip->enabled && left < right ? clipCell(clip, left, y, clip->frame) : 0;
+         cell = (DeceptusU16)((y - window->row) * SURFACE_COLUMNS + left - window->column);
+         for (x = left; x < right; ++x, ++cell)
          {
-            before = previous_enabled[draw_buffer][index] ? clipCell(clip, x, y, previous_frames[draw_buffer][index]) : 0;
-            after = clip->enabled ? clipCell(clip, x, y, clip->frame) : 0;
             if ((before || after) && (!before || !after || !sameClipCell(before, after)))
             {
-               animation_cells[count++] = (DeceptusU16)((y - window->row) * SURFACE_COLUMNS + x - window->column);
+               animation_cells[count++] = cell;
+            }
+            if (before)
+            {
+               before += CLIP_CELL_BYTES;
+            }
+            if (after)
+            {
+               after += CLIP_CELL_BYTES;
             }
          }
       }
@@ -981,7 +1000,7 @@ static void markAnimatedCells(void)
       used += count;
       while (count)
       {
-         dirty[animation_cells[--count]] = 1;
+         markDirty(animation_cells[--count]);
       }
       previous_frames[draw_buffer][index] = clip->frame;
       previous_enabled[draw_buffer][index] = clip->enabled;
@@ -1231,7 +1250,7 @@ static void drawBob(const AmigaNativeBob *bob)
       blitPixels(amigaScrollSurfaceOffset(&surface, tileFloor(bob->x), bounds.y, 0), sprite + skip, sprite + plane_words + skip,
                  bob->graphic.row_bytes / 2, bounds.height * PLANES, (bob->x & 15) << 12, 1);
    }
-   markRectangle(&bounds, foreground_dirty, 2);
+   markRectangle(&bounds, 1, 2);
 }
 
 /* hardware sprite frames are decoded once into channel words (per channel: two words per line) in a
@@ -1890,7 +1909,7 @@ static DeceptusU16 uiSignature(const DeceptusAdventure *game)
 
 DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFrame *frame)
 {
-   DeceptusU16 index, clip, signature, color_ids[4], mask_ids[4];
+   DeceptusU16 index, count, clip, signature, color_ids[4], mask_ids[4];
    DeceptusU8 *mark;
    DeceptusU32 draw_started;
    DeceptusU8 cached;
@@ -1928,8 +1947,14 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    camera_column = tileFloor(camera_x);
    camera_row = tileFloor(camera_y);
    updateClips(game);
-   memset(dirty, 0, sizeof(dirty));
-   memset(foreground_dirty, 0, sizeof(foreground_dirty));
+   while (dirty_count)
+   {
+      dirty[dirty_list[--dirty_count]] = 0;
+   }
+   while (foreground_count)
+   {
+      foreground_dirty[foreground_list[--foreground_count]] = 0;
+   }
    while (saved_counts[draw_buffer])
    {
       saved = &saved_bobs[draw_buffer][--saved_counts[draw_buffer]];
@@ -1956,16 +1981,17 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       }
       else
       {
-         markRectangle(&previous_ui[draw_buffer][index], dirty, 1);
+         markRectangle(&previous_ui[draw_buffer][index], 0, 1);
       }
    }
    markAnimatedCells();
-   for (index = nextMark(dirty, 0); index < TILE_CELLS; index = nextMark(dirty, index + 1))
+   for (count = 0; count < dirty_count; ++count)
    {
+      index = dirty_list[count];
       y = (DeceptusI16)(index / SURFACE_COLUMNS);
       x = (DeceptusI16)(index - y * SURFACE_COLUMNS);
       paintTile(0, windows[draw_buffer].column + x, windows[draw_buffer].row + y);
-      foreground_dirty[index] = 1;
+      markForeground(index, 1);
    }
    /* cpu-painted cells may touch the ring start; bob saves can read across the guard. */
    repairGuard(0, 0);
@@ -1985,8 +2011,9 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    /* the cpu restores foreground over cells the last bob blit may still be writing. */
    waitBlitter();
    phaseEnd(3); /* PERFCOUNT */
-   for (index = nextMark(foreground_dirty, 0); index < TILE_CELLS; index = nextMark(foreground_dirty, index + 1))
+   for (count = 0; count < foreground_count; ++count)
    {
+      index = foreground_list[count];
       mark = foreground_dirty + index;
       y = (DeceptusI16)(index / SURFACE_COLUMNS);
       x = (DeceptusI16)(index - y * SURFACE_COLUMNS);

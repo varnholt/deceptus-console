@@ -19,7 +19,9 @@ DeceptusU8 deceptusCell(const DeceptusRoom *room, DeceptusI16 column, DeceptusI1
    {
       return DECEPTUS_EMPTY;
    }
-   return room->collision[(DeceptusU16)row * room->columns + column];
+   /* an explicit 16x16 -> 32-bit product: the same value everywhere, and one multiply instruction
+      instead of a library call on 16-bit cpus. */
+   return room->collision[(DeceptusU32)(DeceptusU16)row * (DeceptusU16)room->columns + (DeceptusU16)column];
 }
 
 DeceptusI16 deceptusPositionCell(DeceptusFixed position)
