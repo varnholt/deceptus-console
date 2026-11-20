@@ -56,12 +56,17 @@ def main(arguments=None):
     parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
     parser.add_argument('--kickstart', type=Path,
                         help='use your Kickstart 1.3 ROM instead of built-in AROS')
+    parser.add_argument('--renderer', choices=('legacy', 'native'), default='legacy',
+                        help='tutorial renderer: native is the streamed A500 renderer')
     parser.add_argument('--slowmem', type=int, choices=[0, 512], default=512,
                         help='A500 expansion RAM in KB (default: 512)')
     args = parser.parse_args(arguments)
     if args.kickstart and not args.kickstart.is_file():
         parser.error('Kickstart ROM file does not exist')
-    output = ROOT / ('build/amiga-opening' if args.scene == 'tutorial' else 'build/amiga')
+    if args.renderer == 'native' and args.scene != 'tutorial':
+        parser.error('the native renderer exists for the tutorial scene only')
+    output = ROOT / ('build/amiga-native-opening' if args.renderer == 'native'
+                     else 'build/amiga-opening' if args.scene == 'tutorial' else 'build/amiga')
     executable = output / 'deceptus-amiga.exe'
     building = args.build or not executable.is_file()
     result = ensure_python('amiga', arguments, building)
@@ -71,7 +76,7 @@ def main(arguments=None):
     if building:
         if args.scene == 'tutorial':
             from build_amiga_opening import build_opening
-            build_opening(sdk, args.data.resolve(), output, args.reuse_assets)
+            build_opening(sdk, args.data.resolve(), output, args.reuse_assets, args.renderer)
         else:
             from build_amiga import build
             build(sdk, args.data.resolve(), output)

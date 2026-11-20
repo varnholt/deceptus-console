@@ -103,6 +103,11 @@ static DeceptusU16 last_ticks, last_flags;
 static DeceptusU8 last_mode, last_selection, last_page, last_prompt, last_label;
 static const DeceptusInteraction *last_dialogue;
 
+DeceptusU8 amigaOpeningVideoUsesTiles(void)
+{
+   return 0;
+}
+
 static void __attribute__((interrupt)) verticalBlank(void)
 {
    if (pending_buffer >= 0)
@@ -117,6 +122,16 @@ static void __attribute__((interrupt)) verticalBlank(void)
    }
    hardware->intreq = INTF_VERTB;
    hardware->intreq = INTF_VERTB;
+}
+
+/* the legacy renderer keeps its static display buffers. */
+DeceptusU8 amigaOpeningVideoAllocate(void)
+{
+   return 1;
+}
+
+void amigaOpeningVideoRelease(void)
+{
 }
 
 DeceptusU32 amigaOpeningVideoFrames(void)

@@ -102,9 +102,11 @@ if __name__ == '__main__':
     parser.add_argument('--output-dir', type=Path)
     parser.add_argument('--scene', choices=('prototype', 'tutorial'), default='prototype')
     parser.add_argument('--reuse-assets', action='store_true')
+    parser.add_argument('--renderer', choices=('legacy', 'native'), default='legacy')
     args = parser.parse_args()
     if args.scene == 'tutorial':
         from build_amiga_opening import build_opening
-        build_opening(args.sdk, args.data, args.output_dir or ROOT / 'build/amiga-opening', args.reuse_assets)
+        output = args.output_dir or ROOT / ('build/amiga-native-opening' if args.renderer == 'native' else 'build/amiga-opening')
+        build_opening(args.sdk, args.data, output, args.reuse_assets, args.renderer)
     else:
         build(args.sdk, args.data, args.output_dir or ROOT / 'build/amiga')

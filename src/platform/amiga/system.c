@@ -9,6 +9,8 @@
 #include <proto/graphics.h>
 
 struct ExecBase *SysBase;
+/* PERFCOUNT: free memory after loading, for the resource budget (chip total, chip largest, other total, other largest). */
+volatile DeceptusU32 amiga_memory_debug[4];
 struct GfxBase *GfxBase;
 struct DosLibrary *DOSBase;
 static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
@@ -37,6 +39,11 @@ int amigaSystemOpen(void)
       return 0;
    }
    saved_view = GfxBase->ActiView;
+   amiga_memory_debug[0] = AvailMem(MEMF_CHIP); /* PERFCOUNT */
+   amiga_memory_debug[1] = AvailMem(MEMF_CHIP | MEMF_LARGEST);
+   amiga_memory_debug[2] = AvailMem(MEMF_ANY) - amiga_memory_debug[0];
+   amiga_memory_debug[3] = AvailMem(MEMF_FAST | MEMF_LARGEST) > AvailMem(MEMF_PUBLIC | MEMF_LARGEST) ? AvailMem(MEMF_FAST | MEMF_LARGEST)
+                                                                                                    : AvailMem(MEMF_PUBLIC | MEMF_LARGEST);
    return 1;
 }
 
@@ -58,7 +65,7 @@ void amigaSystemTakeDisplay(void (*interrupt_handler)(void), const DeceptusU16 *
    *level_three_vector = (APTR)interrupt_handler;
    hardware->cop1lc = (ULONG)copper;
    hardware->copjmp1 = 0;
-   hardware->dmacon = DMAF_SETCLR | DMAF_MASTER | DMAF_RASTER | DMAF_COPPER | DMAF_BLITTER;
+   hardware->dmacon = DMAF_SETCLR | DMAF_MASTER | DMAF_RASTER | DMAF_COPPER | DMAF_BLITTER | DMAF_SPRITE;
    hardware->intena = INTF_SETCLR | INTF_INTEN | INTF_VERTB;
    display_owned = 1;
 }
@@ -144,6 +151,94 @@ DeceptusU32 amigaSystemReadFilePair(const char *path, DeceptusU8 *first, Deceptu
       return 0;
    }
    return (DeceptusU32)count + (DeceptusU32)tail;
+}
+
+/* cpu-only data asks for non-chip memory first (slow or fast RAM), so it never takes Chip RAM the
+   blitter and display need while other memory exists; machines with Chip RAM only fall back to it. */
+void *amigaSystemAllocate(DeceptusU32 bytes, DeceptusU8 chip)
+{
+   void *memory;
+   if (!bytes)
+   {
+      return 0;
+   }
+   if (chip)
+   {
+      return AllocMem(bytes, MEMF_CHIP | MEMF_CLEAR);
+   }
+   /* with non-chip memory present, a request it cannot hold fails (and is reported) rather than
+      quietly taking the Chip RAM the display and blitter depend on. */
+   if (AvailMem(MEMF_FAST))
+   {
+      return AllocMem(bytes, MEMF_FAST | MEMF_CLEAR);
+   }
+   memory = AllocMem(bytes, MEMF_PUBLIC | MEMF_CLEAR);
+   return memory;
+}
+
+void amigaSystemFree(void *memory, DeceptusU32 bytes)
+{
+   if (memory && bytes)
+   {
+      FreeMem(memory, bytes);
+   }
+}
+
+DeceptusU32 amigaSystemLargest(DeceptusU8 chip)
+{
+   DeceptusU32 largest;
+   if (chip)
+   {
+      return AvailMem(MEMF_CHIP | MEMF_LARGEST);
+   }
+   largest = AvailMem(MEMF_FAST | MEMF_LARGEST);
+   return largest ? largest : AvailMem(MEMF_PUBLIC | MEMF_LARGEST);
+}
+
+static char *appendText(char *cursor, const char *text)
+{
+   while (*text)
+   {
+      *cursor++ = *text++;
+   }
+   return cursor;
+}
+
+static char *appendNumber(char *cursor, DeceptusU32 value)
+{
+   char digits[10];
+   DeceptusU8 count;
+   count = 0;
+   do
+   {
+      digits[count++] = (char)('0' + value % 10);
+      value /= 10;
+   } while (value);
+   while (count)
+   {
+      *cursor++ = digits[--count];
+   }
+   return cursor;
+}
+
+void amigaSystemReportMemory(const char *what, DeceptusU32 needed, DeceptusU8 chip)
+{
+   char line[128], *cursor;
+   if (!DOSBase)
+   {
+      DOSBase = (struct DosLibrary *)OpenLibrary((CONST_STRPTR) "dos.library", 0);
+   }
+   if (!DOSBase || !Output())
+   {
+      return;
+   }
+   cursor = appendText(line, what);
+   cursor = appendText(cursor, ": need ");
+   cursor = appendNumber(cursor, needed);
+   cursor = appendText(cursor, chip ? " bytes, largest free Chip block " : " bytes, largest free block ");
+   cursor = appendNumber(cursor, amigaSystemLargest(chip));
+   *cursor++ = '\n';
+   Write(Output(), line, cursor - line);
 }
 
 void amigaSystemClose(void)

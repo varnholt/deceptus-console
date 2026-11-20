@@ -18,8 +18,19 @@ from snes_tutorial_assets import ensure_original_imports, source_clips
 from source_sprites import source_sprites, sprite_families
 
 
-RESOURCE_NORMAL_BYTES = 88 * 1024
-RESOURCE_CHIP_BYTES = 360 * 1024
+# guaranteed room banks, allocated at startup from free memory: a stock A500 with 512 KiB Chip and
+# 512 KiB slow RAM under Kickstart 1.3 leaves ~297 KiB non-chip and ~322 KiB Chip after the display.
+RESOURCE_NORMAL_BYTES = 264 * 1024
+RESOURCE_CHIP_BYTES = 300 * 1024
+
+
+# grab rope physics runs every tick per node; on a 68000 a rope settles fine with fewer nodes.
+AMIGA_ROPE_SEGMENTS = 6
+
+
+def amiga_recipes(recipes):
+    """Room recipes with the Amiga's content limits applied."""
+    return [(dict(recipe, rope_segments_max=AMIGA_ROPE_SEGMENTS), source) for recipe, source in recipes]
 
 
 class Archive:
@@ -206,10 +217,9 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
             trim_y + bounds[1], trimmed.width, trimmed.height, offset, size, 0, 0])
         mirrors.append(planar(np.pad(pixels[:, ::-1], pad))
                        + np.packbits(np.pad(visible[:, ::-1], pad), axis=1).tobytes())
-    # preserve cache headroom; large base archives may leave less than this target.
-    budget = (RESOURCE_NORMAL_BYTES + RESOURCE_CHIP_BYTES - len(archive.data)
-              - len(sprite_entries) * 28 - max(maximum_sprite, 16 * 48) - 24 * 1024)
-    budget = max(budget, len(packed_sprites))
+    # keep only mirrors that already exist as stored blocks: renderers mirror a frame once when
+    # caching it, and duplicated orientations cost resident memory in every room.
+    budget = len(packed_sprites)
     mirrored_count = 0
     for entry, raw in zip(sprite_entries, mirrors):
         packed = encode_block(raw)
@@ -328,7 +338,7 @@ def compile_opening(data, output, room_indices=None):
     data, output = Path(data).resolve(), Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     recipes, identity = ensure_original_imports(data)
-    simulation = compile_rooms(recipes, output / 'rooms')
+    simulation = compile_rooms(amiga_recipes(recipes), output / 'rooms')
     images, records = source_sprites(data, output)
     families = sprite_families(len(images))
     reports = []

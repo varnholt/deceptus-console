@@ -2,47 +2,114 @@
 #include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
 
+void amigaPerfPhase(DeceptusU8 phase); /* PERFCOUNT */
+
 typedef struct AmigaUiCanvas
 {
    DeceptusU8 *pixels;
    DeceptusU16 stride;
    DeceptusU32 plane_stride;
    DeceptusI16 origin_x, origin_y;
+   const AmigaScrollSurface *surface;
+   AmigaUiClear clear;
+   DeceptusU32 plane_bytes;
+   /* boxes and text are optional so a backend can cache text separately; a mask canvas holds one
+      plane covering screen rows [top, bottom). */
+   DeceptusU8 boxes, glyphs, planes;
+   DeceptusI16 top, bottom;
 } AmigaUiCanvas;
+
+static DeceptusU8 *canvasAddress(const AmigaUiCanvas *canvas, DeceptusI16 column, DeceptusI16 y, DeceptusU8 plane)
+{
+   if (canvas->surface)
+   {
+      return canvas->pixels + amigaScrollSurfaceOffset(canvas->surface, column / 2, y, plane) * 2 + (column & 1);
+   }
+   return canvas->pixels + (DeceptusU32)plane * canvas->plane_stride + (DeceptusI32)(y - canvas->top) * canvas->stride + column;
+}
+
+/* whether three bytes in each plane row from here stay clear of the ring end. */
+static DeceptusU8 canvasLinear(const AmigaUiCanvas *canvas, const DeceptusU8 *address)
+{
+   if (!canvas->surface)
+   {
+      return 1;
+   }
+   return (DeceptusU32)(address - canvas->pixels) + (DeceptusU32)(canvas->planes - 1) * canvas->plane_bytes + 3 <= (DeceptusU32)canvas->surface->words * 2;
+}
+
+/* the same byte in the next bitplane; interleaved surface rows keep planes one plane-row apart. */
+static DeceptusU8 *canvasPlane(const AmigaUiCanvas *canvas, DeceptusU8 *address)
+{
+   DeceptusU32 byte, end;
+   if (!canvas->surface)
+   {
+      return address + canvas->plane_stride;
+   }
+   byte = (DeceptusU32)(address - canvas->pixels) + (DeceptusU32)canvas->surface->columns * 2;
+   end = (DeceptusU32)canvas->surface->words * 2;
+   return canvas->pixels + (byte >= end ? byte - end : byte);
+}
+
+/* the next byte along the same row; on a scroll surface this wraps at the ring end instead of
+   recomputing a full surface offset for every byte. */
+static DeceptusU8 *canvasNext(const AmigaUiCanvas *canvas, DeceptusU8 *address)
+{
+   DeceptusU32 byte, end;
+   if (!canvas->surface)
+   {
+      return address + 1;
+   }
+   byte = (DeceptusU32)(address - canvas->pixels) + 1;
+   end = (DeceptusU32)canvas->surface->words * 2;
+   return canvas->pixels + (byte >= end ? byte - end : byte);
+}
 
 static void blackBox(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, DeceptusI16 width, DeceptusI16 height,
                      DeceptusRect *rectangle)
 {
    DeceptusU8 plane, first_mask, last_mask;
    DeceptusI16 row, column, first, last;
-   DeceptusU8 *destination;
+   DeceptusU8 *address;
    rectangle->x = x + canvas->origin_x;
    rectangle->y = y + canvas->origin_y;
    rectangle->width = width;
    rectangle->height = height;
+   if (!canvas->boxes)
+   {
+      return;
+   }
+   if (canvas->clear)
+   {
+      amigaPerfPhase(5); /* PERFCOUNT */
+      canvas->clear(rectangle);
+      amigaPerfPhase(9); /* PERFCOUNT */
+      return;
+   }
    first = rectangle->x / 8;
    last = (rectangle->x + width - 1) / 8;
    first_mask = (DeceptusU8)(255U >> (rectangle->x & 7));
    last_mask = (DeceptusU8)(255U << (7 - ((rectangle->x + width - 1) & 7)));
-   for (plane = 0; plane < 5; ++plane)
+   for (plane = 0; plane < canvas->planes; ++plane)
    {
-      destination = canvas->pixels + (DeceptusU32)plane * canvas->plane_stride + rectangle->y * canvas->stride;
       for (row = 0; row < height; ++row)
       {
+         address = canvasAddress(canvas, first, rectangle->y + row, plane);
          if (first == last)
          {
-            destination[first] &= (DeceptusU8) ~(first_mask & last_mask);
+            *address &= (DeceptusU8) ~(first_mask & last_mask);
          }
          else
          {
-            destination[first] &= (DeceptusU8)~first_mask;
+            *address &= (DeceptusU8)~first_mask;
             for (column = first + 1; column < last; ++column)
             {
-               destination[column] = 0;
+               address = canvasNext(canvas, address);
+               *address = 0;
             }
-            destination[last] &= (DeceptusU8)~last_mask;
+            address = canvasNext(canvas, address);
+            *address &= (DeceptusU8)~last_mask;
          }
-         destination += canvas->stride;
       }
    }
 }
@@ -54,7 +121,12 @@ static void text(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, cons
    DeceptusU32 bits;
    DeceptusU16 word;
    const DeceptusU16 *glyph;
-   DeceptusU8 *destination;
+   DeceptusU8 *destination, *line;
+   if (!canvas->glyphs)
+   {
+      return;
+   }
+   amigaPerfPhase(5); /* PERFCOUNT */
    cursor = x;
    while (*value && lines)
    {
@@ -85,6 +157,10 @@ static void text(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, cons
       visible = 320 - cursor;
       for (row = 0; row < 18 && y + row < 224; ++row)
       {
+         if (y + row < canvas->top || y + row >= canvas->bottom)
+         {
+            continue;
+         }
          word = glyph[row];
          if (visible < 12)
          {
@@ -98,26 +174,39 @@ static void text(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, cons
          first = (DeceptusU8)(bits >> 16);
          middle = (DeceptusU8)(bits >> 8);
          last = (DeceptusU8)bits;
-         destination = canvas->pixels + (y + row + canvas->origin_y) * canvas->stride + pixel_x / 8;
-         for (plane = 0; plane < 5; ++plane)
+         line = canvasAddress(canvas, pixel_x / 8, y + row + canvas->origin_y, 0);
+         if (canvasLinear(canvas, line))
          {
+            /* all five plane rows lie before the ring end: plain stride, no per-byte wrap checks. */
+            for (plane = 0; plane < canvas->planes; ++plane, line += canvas->plane_bytes)
+            {
+               line[0] |= first;
+               line[1] |= middle;
+               line[2] |= last;
+            }
+            continue;
+         }
+         for (plane = 0; plane < canvas->planes; ++plane, line = canvasPlane(canvas, line))
+         {
+            destination = line;
             if (first)
             {
                destination[0] |= first;
             }
+            destination = canvasNext(canvas, destination);
             if (middle)
             {
-               destination[1] |= middle;
+               *destination |= middle;
             }
             if (last)
             {
-               destination[2] |= last;
+               *canvasNext(canvas, destination) |= last;
             }
-            destination += canvas->plane_stride;
          }
       }
       cursor += advance;
    }
+   amigaPerfPhase(10); /* PERFCOUNT */
 }
 
 static void option(const AmigaUiCanvas *canvas, DeceptusI16 y, const char *label, DeceptusU8 selected)
@@ -126,12 +215,17 @@ static void option(const AmigaUiCanvas *canvas, DeceptusI16 y, const char *label
    text(canvas, 92, y, label, 180, 1);
 }
 
-DeceptusU8 amigaOpeningUiDraw(const DeceptusAdventure *game, DeceptusU8 *pixels, DeceptusU16 row_bytes, DeceptusU32 plane_bytes,
-                              DeceptusI16 view_x, DeceptusI16 view_y, DeceptusRect *rectangles)
+static DeceptusU8 drawUi(AmigaUiCanvas *canvas_template, const DeceptusAdventure *game, DeceptusU8 *pixels, DeceptusU16 row_bytes,
+                         DeceptusU32 plane_bytes, DeceptusI16 view_x, DeceptusI16 view_y, const AmigaScrollSurface *surface,
+                         AmigaUiClear clear, DeceptusRect *rectangles)
 {
    DeceptusU8 mode, count;
    AmigaUiCanvas canvas;
+   canvas = *canvas_template;
    canvas.pixels = pixels;
+   canvas.surface = surface;
+   canvas.clear = clear;
+   canvas.plane_bytes = surface ? (DeceptusU32)surface->columns * 2 : plane_bytes;
    canvas.stride = row_bytes;
    canvas.plane_stride = plane_bytes;
    canvas.origin_x = view_x;
@@ -217,4 +311,40 @@ DeceptusU8 amigaOpeningUiDraw(const DeceptusAdventure *game, DeceptusU8 *pixels,
       }
    }
    return count;
+}
+
+DeceptusU8 amigaOpeningUiDraw(const DeceptusAdventure *game, DeceptusU8 *pixels, DeceptusU16 row_bytes, DeceptusU32 plane_bytes,
+                              DeceptusI16 view_x, DeceptusI16 view_y, DeceptusRect *rectangles)
+{
+   AmigaUiCanvas canvas;
+   canvas.boxes = canvas.glyphs = 1;
+   canvas.planes = 5;
+   canvas.top = 0;
+   canvas.bottom = 224;
+   return drawUi(&canvas, game, pixels, row_bytes, plane_bytes, view_x, view_y, 0, 0, rectangles);
+}
+
+DeceptusU8 amigaOpeningUiDrawSurface(const DeceptusAdventure *game, DeceptusU8 *pixels, const AmigaScrollSurface *surface,
+                                     DeceptusI16 camera_x, DeceptusI16 camera_y, AmigaUiClear clear, DeceptusU8 glyphs,
+                                     DeceptusRect *rectangles)
+{
+   AmigaUiCanvas canvas;
+   canvas.boxes = 1;
+   canvas.glyphs = glyphs;
+   canvas.planes = surface->planes;
+   canvas.top = -32767;
+   canvas.bottom = 32767;
+   return drawUi(&canvas, game, pixels, 0, 0, camera_x, camera_y, surface, clear, rectangles);
+}
+
+DeceptusU8 amigaOpeningUiDrawMask(const DeceptusAdventure *game, DeceptusU8 *rows, DeceptusU16 row_bytes, DeceptusI16 top,
+                                  DeceptusI16 bottom, DeceptusRect *rectangles)
+{
+   AmigaUiCanvas canvas;
+   canvas.boxes = 0;
+   canvas.glyphs = 1;
+   canvas.planes = 1;
+   canvas.top = top;
+   canvas.bottom = bottom;
+   return drawUi(&canvas, game, rows, row_bytes, 0, 0, 0, 0, 0, rectangles);
 }

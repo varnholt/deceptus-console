@@ -46,6 +46,9 @@ def encode_room(source, recipe):
     for mechanism in definitions:
         kind = mechanism['kind']
         values = [mechanism[name] for name in ('target_first', 'target_count', 'value')]
+        if kind in ('DECEPTUS_MECH_GRAB_ROPE', 13) and 'rope_segments_max' in recipe:
+            # a platform may cap rope nodes (physics cost grows with them); unset keeps the source.
+            values[2] = max(2, min(values[2], recipe['rope_segments_max']))
         payload.extend(struct.pack(
             '>H4h3H3B', mechanism['source_id'], *mechanism['bounds'], *values,
             constants[kind] if isinstance(kind, str) else kind,

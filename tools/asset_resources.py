@@ -2,6 +2,7 @@
 
 
 def pack_resources(payload, spans):
+    payload = bytes(payload)
     packed = bytearray()
     locations = {}
     relocated = []

@@ -6,6 +6,9 @@
 #include "rooms.h"
 #include "system.h"
 
+/* target frame time in PAL vertical blanks: 2 = 25 fps. */
+#define AMIGA_FRAME_VBLANKS 2
+
 static DeceptusAdventure adventure;
 static DeceptusFrame frame;
 static const DeceptusVideoCaps video = {320, 224, DECEPTUS_DRAW_CAPACITY};
@@ -47,6 +50,13 @@ int main(void)
    {
       return 20;
    }
+   /* display pages first, then the room banks take what remains. */
+   if (!amigaOpeningVideoAllocate() || !amigaRoomsAllocate())
+   {
+      amigaOpeningVideoRelease();
+      amigaSystemClose();
+      return 20;
+   }
    provider.load = amigaRoomLoad;
    provider.context = &adventure;
    deceptusAdventureInitWithRoomProvider(&adventure, &amiga_tutorial_definition, &video, &provider);
@@ -54,12 +64,16 @@ int main(void)
    {
       debugWrite();
       amigaSystemClose();
+      amigaRoomsRelease();
+      amigaOpeningVideoRelease();
       return 20;
    }
    deceptusRender(&adventure.campaign.engine, &frame);
    if (!amigaOpeningVideoDraw(&adventure, &frame))
    {
       amigaOpeningVideoClose();
+      amigaRoomsRelease();
+      amigaOpeningVideoRelease();
       return 20;
    }
    previous_frame = amigaOpeningVideoFrames();
@@ -69,10 +83,12 @@ int main(void)
       now = amigaOpeningVideoFrames();
       elapsed = now - previous_frame;
       previous_frame = now;
-      if (elapsed > 5)
+      /* frame-locked pacing: a late frame slows the game instead of running extra ticks, so a
+         heavy scene cannot make the next frame heavier (more ticks, more camera travel). */
+      if (elapsed > AMIGA_FRAME_VBLANKS)
       {
-         amiga_debug[11] += elapsed - 5;
-         elapsed = 5;
+         amiga_debug[11] += elapsed - AMIGA_FRAME_VBLANKS;
+         elapsed = AMIGA_FRAME_VBLANKS;
       }
       phase += elapsed * 60;
       while (phase >= 50)
@@ -97,5 +113,7 @@ int main(void)
       ++amiga_debug[10];
    }
    amigaOpeningVideoClose();
+   amigaRoomsRelease();
+   amigaOpeningVideoRelease();
    return amiga_debug[21] ? 20 : 0;
 }

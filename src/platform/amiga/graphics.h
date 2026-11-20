@@ -34,7 +34,8 @@ typedef struct AmigaGraphics
    const DeceptusU16 *native_foreground;
    const DeceptusU8 *native_clips;
    /* split pages borrow the compact display region and one resource-bank tail. */
-   DeceptusU8 native_only, viewport_split;
+   /* compact_masks: interleaved sprites store one mask plane, repeated per plane when decoded. */
+   DeceptusU8 native_only, viewport_split, interleaved_sprites, compact_masks;
    DeceptusU16 *viewport_pixels, *foreground_pixels;
    DeceptusU16 viewport_width, viewport_height;
    DeceptusU32 world_size, sprite_size, sprite_first_size;
@@ -57,7 +58,11 @@ typedef struct AmigaGraphicsSprite
    DeceptusU16 width, height, row_bytes;
    DeceptusU32 offset, bytes;
    /* missing offline orientation: mirror once when populating the decoded cache. */
-   DeceptusU8 flip;
+   DeceptusU8 flip, interleaved;
+   /* colour planes; interleaved frames hold as many mask rows after them. */
+   DeceptusU8 planes;
+   /* drawn by sprite DMA: pixels hold hardware sprite colours 1-15 (0 transparent). */
+   DeceptusU8 hardware;
 } AmigaGraphicsSprite;
 
 DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, DeceptusU32 world_size, const DeceptusU8 *sprites,
@@ -74,6 +79,10 @@ DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 re
 DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
                                      DeceptusU32 capacity);
 void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *sprite);
+/* a compact native frame as stored: `planes` colour rows per line for every line, then one mask
+   row per line, each (row_bytes - 2) bytes, unmirrored. returns its byte size, 0 on failure. */
+DeceptusU32 amigaGraphicsSpriteCompact(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
+                                       DeceptusU32 capacity);
 DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size);
 DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size);
 const DeceptusU16 *amigaGraphicsNativeClip(const AmigaGraphics *graphics, DeceptusU16 index, DeceptusU16 frame);

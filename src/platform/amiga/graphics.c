@@ -1,4 +1,5 @@
 #include "graphics.h"
+#include "amiga_native_assets.h"
 #include "deceptus/compression.h"
 #include <string.h>
 
@@ -100,12 +101,14 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
    AmigaGraphicsSprite sprite;
    memset(graphics, 0, sizeof(*graphics));
    if (!world || !sprites || world_size < 48 || world[0] != 'A' || world[2] != '0' ||
-       !((world[1] == 'G' && world[3] == '3') || (world[1] == 'N' && world[3] == '1')) || first_size > sprite_size ||
+       !((world[1] == 'G' && world[3] == '3') || (world[1] == 'N' && (world[3] == '1' || world[3] == '2' || world[3] == '3'))) || first_size > sprite_size ||
        (first_size < sprite_size && !tail) || readWord(world + 14) != AMIGA_TILE_GROUP || readLong(world + 44) != sprite_size)
    {
       return 0;
    }
    graphics->native_only = world[1] == 'N';
+   graphics->interleaved_sprites = graphics->native_only && (world[3] == '2' || world[3] == '3');
+   graphics->compact_masks = graphics->native_only && world[3] == '3';
    graphics->world = world;
    graphics->sprites = sprites;
    graphics->world_size = world_size;
@@ -280,12 +283,25 @@ DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 re
    sprite->width = readWord(bytes + 8);
    sprite->height = readWord(bytes + 10);
    sprite->row_bytes = ((sprite->width + 15) / 16 + 1) * 2;
-   if (!readLong(bytes + 24) && readLong(bytes + 20))
+   sprite->hardware = 0;
+   if (graphics->compact_masks)
+   {
+      /* compact frames are mirrored when cached; their third word holds flags instead. */
+      if (readLong(bytes + 24) || (readLong(bytes + 20) & ~1UL))
+      {
+         return 0;
+      }
+      sprite->hardware = (DeceptusU8)(readLong(bytes + 20) & 1);
+   }
+   else if (!readLong(bytes + 24) && readLong(bytes + 20))
    {
       return 0;
    }
-   sprite->flip = flip && !readLong(bytes + 24);
-   if (flip && !sprite->flip)
+   sprite->flip = flip && (graphics->compact_masks || !readLong(bytes + 24));
+   sprite->interleaved = graphics->interleaved_sprites;
+   /* compact native frames carry the build's playfield plane count; older formats have five. */
+   sprite->planes = graphics->compact_masks ? AMIGA_NATIVE_PLANES : 5;
+   if (flip && !sprite->flip && !graphics->compact_masks)
    {
       sprite->offset = readLong(bytes + 20);
       sprite->bytes = readLong(bytes + 24);
@@ -302,9 +318,12 @@ DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 re
 DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
                                      DeceptusU32 capacity)
 {
-   DeceptusU32 size, offset;
+   DeceptusU32 size, offset, compact;
+   DeceptusU16 row, plane, stored, words, index, line[20], *output;
+   DeceptusU8 *tail;
+   const DeceptusU8 *input;
    const DeceptusU8 *source;
-   size = (DeceptusU32)sprite->row_bytes * sprite->height * 6;
+   size = (DeceptusU32)sprite->row_bytes * sprite->height * (graphics->interleaved_sprites ? sprite->planes * 2 : 6);
    if (size > capacity || sprite->offset > graphics->sprite_size || sprite->bytes > graphics->sprite_size - sprite->offset)
    {
       return 0;
@@ -327,7 +346,83 @@ DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaG
       }
       source = graphics->sprite_tail + offset;
    }
-   return deceptusLz4Decode(source, sprite->bytes, destination, size);
+   if (!graphics->compact_masks)
+   {
+      return deceptusLz4Decode(source, sprite->bytes, destination, size);
+   }
+   /* compact frames omit the blitter's zero shift word and store one mask plane. decode them into
+      the tail of the frame, then widen rows front to back: every write stays below the next
+      unread compact row, and a row is staged in a buffer before its own copies are written. */
+   stored = sprite->row_bytes - 2;
+   compact = (DeceptusU32)stored * sprite->height * (sprite->planes + 1);
+   tail = destination + size - compact;
+   if (sprite->row_bytes > sizeof(line) || (sprite->row_bytes & 1) || !deceptusLz4Decode(source, sprite->bytes, tail, compact))
+   {
+      return 0;
+   }
+   /* rows are whole words (row_bytes is even), so a row moves as words; the staging buffer keeps a
+      row's own source intact while its widened copy overwrites the bytes just below it. */
+   words = sprite->row_bytes / 2;
+   line[words - 1] = 0;
+   input = tail;
+   output = (DeceptusU16 *)destination;
+   for (row = 0; row < sprite->height * sprite->planes; ++row)
+   {
+      for (index = 0; index < words - 1; ++index, input += 2)
+      {
+         line[index] = ((DeceptusU16)input[0] << 8) | input[1];
+      }
+      for (index = 0; index < words; ++index)
+      {
+         *output++ = line[index];
+      }
+   }
+   for (row = 0; row < sprite->height; ++row)
+   {
+      for (index = 0; index < words - 1; ++index, input += 2)
+      {
+         line[index] = ((DeceptusU16)input[0] << 8) | input[1];
+      }
+      for (plane = 0; plane < sprite->planes; ++plane)
+      {
+         for (index = 0; index < words; ++index)
+         {
+            *output++ = line[index];
+         }
+      }
+   }
+   return 1;
+}
+
+DeceptusU32 amigaGraphicsSpriteCompact(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
+                                       DeceptusU32 capacity)
+{
+   DeceptusU32 compact, offset;
+   const DeceptusU8 *source;
+   compact = (DeceptusU32)(sprite->row_bytes - 2) * sprite->height * (sprite->planes + 1);
+   if (!graphics->compact_masks || compact > capacity || sprite->offset > graphics->sprite_size ||
+       sprite->bytes > graphics->sprite_size - sprite->offset)
+   {
+      return 0;
+   }
+   offset = sprite->offset;
+   if (offset < graphics->sprite_first_size)
+   {
+      if (sprite->bytes > graphics->sprite_first_size - offset)
+      {
+         return 0;
+      }
+      source = graphics->sprites + offset;
+   }
+   else
+   {
+      if (!graphics->sprite_tail)
+      {
+         return 0;
+      }
+      source = graphics->sprite_tail + (offset - graphics->sprite_first_size);
+   }
+   return deceptusLz4Decode(source, sprite->bytes, destination, compact) ? compact : 0;
 }
 
 static DeceptusU8 reverseByte(DeceptusU8 value)
@@ -337,21 +432,33 @@ static DeceptusU8 reverseByte(DeceptusU8 value)
    return (DeceptusU8)(((value & 170) >> 1) | ((value & 85) << 1));
 }
 
+/* mirrored frames are flipped once when decoded; a table keeps that to one load per byte. */
+static DeceptusU8 reversed[256];
+static DeceptusU8 reversed_ready;
+
 void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *sprite)
 {
    DeceptusU16 row, left, right, bytes;
    DeceptusU8 first, last, shift;
+   if (!reversed_ready)
+   {
+      for (row = 0; row < 256; ++row)
+      {
+         reversed[row] = reverseByte((DeceptusU8)row);
+      }
+      reversed_ready = 1;
+   }
    bytes = (sprite->width + 7) / 8;
    shift = (DeceptusU8)(bytes * 8 - sprite->width);
-   for (row = 0; row < sprite->height * 6; ++row)
+   for (row = 0; row < sprite->height * (sprite->interleaved ? sprite->planes * 2 : 6); ++row)
    {
       for (left = 0; left < (bytes + 1) / 2; ++left)
       {
          right = bytes - left - 1;
          first = pixels[left];
          last = pixels[right];
-         pixels[left] = reverseByte(last);
-         pixels[right] = reverseByte(first);
+         pixels[left] = reversed[last];
+         pixels[right] = reversed[first];
       }
       if (shift)
       {

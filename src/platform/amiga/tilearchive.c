@@ -42,7 +42,7 @@ DeceptusU8 amigaTileArchiveInit(AmigaTileArchive *archive, const DeceptusU8 *byt
    AmigaTileArchive candidate;
    DeceptusU32 cells, index, previous;
    memset(archive, 0, sizeof(*archive));
-   if (!bytes || size < 32 || bytes[0] != 'A' || bytes[1] != 'T' || bytes[2] != '0' || bytes[3] != '2')
+   if (!bytes || ((DeceptusU32)bytes & 1) || size < 32 || bytes[0] != 'A' || bytes[1] != 'T' || bytes[2] != '0' || bytes[3] != '4')
    {
       return 0;
    }
@@ -62,8 +62,8 @@ DeceptusU8 amigaTileArchiveInit(AmigaTileArchive *archive, const DeceptusU8 *byt
    cells = (DeceptusU32)candidate.columns * candidate.rows;
    if (!candidate.width || !candidate.height || !candidate.colors || !candidate.masks ||
        candidate.columns != ((DeceptusU32)candidate.width + 15) / 16 || candidate.rows != ((DeceptusU32)candidate.height + 15) / 16 ||
-       candidate.color_map != 32 || cells > (size - 32) / 4 || candidate.mask_map != 32 + cells * 2 ||
-       candidate.color_table != 32 + cells * 4 ||
+       candidate.color_map != 32 || cells > (size - 32) / 10 || candidate.mask_map != 32 + cells * 8 ||
+       candidate.color_table < 32 + cells * 10 + 8 || (candidate.color_table - 32 - cells * 10) % 8 ||
        candidate.mask_table != candidate.color_table + ((DeceptusU32)bankCount(candidate.colors) + 1) * 4)
    {
       return 0;
@@ -79,10 +79,25 @@ DeceptusU8 amigaTileArchiveInit(AmigaTileArchive *archive, const DeceptusU8 *byt
    {
       return 0;
    }
+   candidate.quad_table = candidate.mask_map + cells * 2;
+   candidate.quads = (DeceptusU16)((candidate.color_table - candidate.quad_table) / 8);
+   for (index = 0; index < cells * 4; ++index)
+   {
+      if (readWord(bytes + candidate.color_map + index * 2) >= candidate.colors)
+      {
+         return 0;
+      }
+   }
    for (index = 0; index < cells; ++index)
    {
-      if (readWord(bytes + candidate.color_map + index * 2) >= candidate.colors ||
-          readWord(bytes + candidate.mask_map + index * 2) >= candidate.masks)
+      if (readWord(bytes + candidate.mask_map + index * 2) >= candidate.quads)
+      {
+         return 0;
+      }
+   }
+   for (index = 0; index < (DeceptusU32)candidate.quads * 4; ++index)
+   {
+      if (readWord(bytes + candidate.quad_table + index * 2) >= candidate.masks)
       {
          return 0;
       }
@@ -91,17 +106,54 @@ DeceptusU8 amigaTileArchiveInit(AmigaTileArchive *archive, const DeceptusU8 *byt
    return 1;
 }
 
-DeceptusU8 amigaTileArchiveCell(const AmigaTileArchive *archive, DeceptusU16 column, DeceptusU16 row, DeceptusU16 *color, DeceptusU16 *mask)
+DeceptusU8 amigaTileArchiveCell(const AmigaTileArchive *archive, DeceptusU16 column, DeceptusU16 row, DeceptusU16 *colors,
+                                DeceptusU16 *masks)
 {
-   DeceptusU32 offset;
-   if (!archive->bytes || !color || !mask || column >= archive->columns || row >= archive->rows)
+   DeceptusU32 cell;
+   const DeceptusU16 *words;
+   if (!archive->bytes || column >= archive->columns || row >= archive->rows)
    {
       return 0;
    }
-   offset = ((DeceptusU32)row * archive->columns + column) * 2;
-   *color = readWord(archive->bytes + archive->color_map + offset);
-   *mask = readWord(archive->bytes + archive->mask_map + offset);
+   cell = (DeceptusU32)(DeceptusU16)row * archive->columns + column;
+   /* the 68000 is big-endian and the archive word-aligned: its tables are read as native words. */
+   words = (const DeceptusU16 *)(archive->bytes + archive->color_map) + cell * 4;
+   colors[0] = words[0];
+   colors[1] = words[1];
+   colors[2] = words[2];
+   colors[3] = words[3];
+   /* cells name an interned mask quad; quad 0 is empty. */
+   words = (const DeceptusU16 *)(archive->bytes + archive->quad_table) +
+           (DeceptusU32)((const DeceptusU16 *)(archive->bytes + archive->mask_map))[cell] * 4;
+   masks[0] = words[0];
+   masks[1] = words[1];
+   masks[2] = words[2];
+   masks[3] = words[3];
    return 1;
+}
+
+/* a bank stored with exactly its decoded size is raw and is read in place. */
+const DeceptusU8 *amigaTileArchiveRawBank(const AmigaTileArchive *archive, DeceptusU8 mask_bank, DeceptusU16 bank)
+{
+   DeceptusU16 count, remaining;
+   DeceptusU32 table, first;
+   count = mask_bank ? archive->masks : archive->colors;
+   if (!archive->bytes || bank >= bankCount(count))
+   {
+      return 0;
+   }
+   remaining = count - bank * AMIGA_NATIVE_TILES_PER_BANK;
+   if (remaining > AMIGA_NATIVE_TILES_PER_BANK)
+   {
+      remaining = AMIGA_NATIVE_TILES_PER_BANK;
+   }
+   table = (mask_bank ? archive->mask_table : archive->color_table) + (DeceptusU32)bank * 4;
+   first = readLong(archive->bytes + table);
+   if (readLong(archive->bytes + table + 4) - first != (DeceptusU32)remaining * (mask_bank ? AMIGA_NATIVE_MASK_BYTES : AMIGA_NATIVE_TILE_BYTES))
+   {
+      return 0;
+   }
+   return archive->bytes + archive->payload + first;
 }
 
 DeceptusU8 amigaTileArchiveDecode(const AmigaTileArchive *archive, DeceptusU8 mask_bank, DeceptusU16 bank, DeceptusU8 *destination,
@@ -131,5 +183,10 @@ DeceptusU8 amigaTileArchiveDecode(const AmigaTileArchive *archive, DeceptusU8 ma
    table = (mask_bank ? archive->mask_table : archive->color_table) + (DeceptusU32)bank * 4;
    first = readLong(archive->bytes + table);
    last = readLong(archive->bytes + table + 4);
+   if (last - first == bytes)
+   {
+      memcpy(destination, archive->bytes + archive->payload + first, bytes);
+      return 1;
+   }
    return deceptusLz4Decode(archive->bytes + archive->payload + first, last - first, destination, bytes);
 }

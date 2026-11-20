@@ -3,10 +3,12 @@
 import hashlib
 import json
 from pathlib import Path
+import struct
 
-from amiga_opening_assets import (RESOURCE_CHIP_BYTES, RESOURCE_NORMAL_BYTES,
+from amiga_opening_assets import (RESOURCE_CHIP_BYTES, RESOURCE_NORMAL_BYTES, amiga_recipes,
                                   compile_opening, converter_identity, write_common)
 from amiga_native_assets import prepare_native_assets
+from amiga_room_tiles import COLOR_TILE_BYTES, MASK_TILE_BYTES, TILES_PER_BANK
 from assets import ROOT
 from build_amiga import SOURCES, build_program
 from room_content import compile_rooms
@@ -22,6 +24,7 @@ OPENING_SOURCES = (
     'src/platform/amiga/rastercache.c',
     'src/platform/amiga/opening.c', 'src/platform/amiga/opening_video.c',
     'src/platform/amiga/opening_ui.c',
+    'src/platform/amiga/scrollsurface.c',
 )
 
 
@@ -44,19 +47,76 @@ def validate_assets(data, generated):
     return report
 
 
-def build_opening(sdk, data, output, reuse_assets=False):
+# mirrors amigaOpeningVideoReset: one decoded sprite frame, four banks of each dictionary and
+# 8 KiB of saved bob backgrounds are the least Chip scratch the streamed renderer starts with.
+MIN_SAVED_BYTES = 8 * 1024
+# two cached gameplay ui text bands of 24 rows x 20 words (UI_MASK_BYTES in opening_streamed.c).
+UI_MASK_BYTES = 2 * 24 * 20 * 2
+# hardware sprite frame cache (SPRITE_CACHE_WORDS) and the minimum composed-cell sets.
+SPRITE_CACHE_BYTES = 32 * 1024
+CELL_MINIMUM_BYTES = 16 * 2 * (64 * 2 + 64 * 4)
+FIXED_CHIP_BYTES = UI_MASK_BYTES + SPRITE_CACHE_BYTES + CELL_MINIMUM_BYTES
+
+
+def _align(value):
+    return (value + 3) & ~3
+
+
+def native_chip_scratch(folder, basename):
+    """Chip and non-chip scratch left after loadTileGraphics places this room variant."""
+    atlas = (folder / (basename + '.atg')).stat().st_size
+    metadata = (folder / (basename + '.ans')).read_bytes()
+    sprites = (folder / (basename + '.asb')).stat().st_size
+    animations = (folder / (basename + '.ant')).stat().st_size
+    sprites_at = _align(_align(_align(len(metadata)) + atlas) + animations)
+    if sprites_at > RESOURCE_NORMAL_BYTES:
+        return None, None
+    available = RESOURCE_NORMAL_BYTES - sprites_at
+    split = sprites
+    if sprites > available:
+        table = struct.unpack_from('>I', metadata, 40)[0]
+        split = 0
+        for index in range(struct.unpack_from('>H', metadata, 10)[0]):
+            offset, size = struct.unpack_from('>2I', metadata, table + index * 28 + 12)
+            if split < offset + size <= available:
+                split = offset + size
+    return RESOURCE_CHIP_BYTES - _align(sprites - split), RESOURCE_NORMAL_BYTES - _align(sprites_at + split)
+
+
+def check_native_budget(generated, report):
+    """Fail the build for any room the streamed renderer could not enter."""
+    sprite_frame = max(variant['max_sprite_bytes'] for room in report['rooms']
+                       for variant in (room, room['sword'])) // 6 * 10
+    caches = 4 * TILES_PER_BANK * (COLOR_TILE_BYTES + MASK_TILE_BYTES)
+    budget, failures = [], []
+    for room in report['rooms']:
+        for variant in (room, room['sword']):
+            scratch, normal = native_chip_scratch(generated / f"area{room['room']}", variant['basename'])
+            # dictionary caches use non-chip scratch when it holds the minimum, else Chip.
+            minimum = sprite_frame + MIN_SAVED_BYTES + FIXED_CHIP_BYTES + (caches if normal is None or normal < caches else 0)
+            budget.append(dict(room=room['room'], variant=variant['basename'], chip_scratch=scratch, normal_scratch=normal))
+            if scratch is None or scratch < minimum:
+                failures.append(f"area{room['room']}/{variant['basename']}: {scratch} < {minimum} bytes")
+    minimum = sprite_frame + MIN_SAVED_BYTES + FIXED_CHIP_BYTES
+    if failures:
+        raise ValueError('rooms exceed the A500 streamed-renderer memory budget:\n  ' + '\n  '.join(failures))
+    return dict(minimum_chip_scratch=minimum, rooms=budget)
+
+
+def build_opening(sdk, data, output, reuse_assets=False, renderer='legacy'):
     data, output = Path(data).resolve(), Path(output).resolve()
     generated = output / 'assets'
     if reuse_assets:
         report = validate_assets(data, generated)
         recipes, _ = ensure_original_imports(data, refresh_metadata=True)
-        simulation = compile_rooms(recipes, generated / 'rooms')
+        simulation = compile_rooms(amiga_recipes(recipes), generated / 'rooms')
         write_common(data, generated, recipes, simulation, report['families'],
                      max(variant['max_sprite_bytes'] for room in report['rooms'] for variant in (room, room['sword'])),
                      max(room['clips'] for room in report['rooms']), report['rooms'])
     else:
         report = compile_opening(data, generated)
     prepare_native_assets(generated, report)
+    budget = check_native_budget(generated, report) if renderer == 'native' else None
     # partition only at independent sprite-block boundaries; no frame-time allocation.
     for room in report['rooms']:
         for variant in (room, room['sword']):
@@ -66,10 +126,14 @@ def build_opening(sdk, data, output, reuse_assets=False):
     sources = [ROOT / name for name in SOURCES
                if name not in ('src/platform/amiga/main.c', 'src/platform/amiga/video.c')]
     sources.extend(ROOT / name for name in OPENING_SOURCES)
+    if renderer == 'native':
+        sources = [ROOT / 'src/platform/amiga/opening_streamed.c'
+                   if source.name == 'opening_video.c' else source for source in sources]
     sources.append(generated / 'opening_content.c')
     sources.append(generated / 'amiga_native_assets.c')
     build_report = dict(scope='experimental streamed 26-room Amiga opening',
+                        renderer=renderer,
                         full_game=False, pixel_scale=1, dithering=False,
                         resource_normal_bytes=RESOURCE_NORMAL_BYTES, resource_chip_bytes=RESOURCE_CHIP_BYTES,
-                        graphics=report)
+                        graphics=report, native_budget=budget)
     build_program(sdk, output, sources, build_report, generated)
