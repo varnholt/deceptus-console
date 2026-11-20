@@ -55,7 +55,7 @@ UI_MASK_BYTES = 2 * 24 * 20 * 2
 # hardware sprite frame cache (SPRITE_CACHE_WORDS) and the minimum composed-cell sets.
 SPRITE_CACHE_BYTES = 32 * 1024
 # 16 sets each of plain and masked cells: pixels, keys and recent bytes (PLAIN/MASKED_SET_BYTES).
-CELL_MINIMUM_BYTES = 16 * ((64 * 4 + 16 + 2) + (64 * 8 + 32 + 2))
+CELL_MINIMUM_BYTES = 16 * ((64 * 4 + 16 + 2 + 4) + (64 * 8 + 32 + 2))
 FIXED_CHIP_BYTES = UI_MASK_BYTES + SPRITE_CACHE_BYTES + CELL_MINIMUM_BYTES
 
 

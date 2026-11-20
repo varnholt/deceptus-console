@@ -556,7 +556,7 @@ static DeceptusU8 quarterMasks(const DeceptusU16 *ids, const DeceptusU8 **quarte
 #define PLAIN_SETS_MAX 1024U
 #define MASKED_SETS_MAX 512U
 /* chip bytes per set: two cells, two keys and the set's recent-way byte (two, keeping words aligned). */
-#define PLAIN_SET_BYTES (CELL_WORDS * 4 + 2 * 4 * 2 + 2)
+#define PLAIN_SET_BYTES (CELL_WORDS * 4 + 2 * 4 * 2 + 2 + 4)
 #define MASKED_SET_BYTES (CELL_WORDS * 8 + 2 * 8 * 2 + 2)
 #define CELL_SETS_MIN 16U
 
@@ -565,14 +565,21 @@ typedef struct AmigaCellCache
    DeceptusU16 *pixels;
    DeceptusU16 *keys;
    DeceptusU8 *recent;
+   /* per slot, bumped whenever the slot takes a new cell (0 when not tracked). */
+   DeceptusU16 *generation;
    DeceptusU16 sets, slot_words;
    DeceptusU8 key_words;
 } AmigaCellCache;
 
+/* per map cell, the plain cache slot + 1 it was last painted from and that slot's generation:
+   a repaint of an unchanged cell skips the archive read and the hash lookup. */
+static DeceptusU16 *map_slots;
+static DeceptusU16 map_columns, map_rows;
+
 /* pixels, keys and recent ways are carved from the room's Chip scratch at reset: slow RAM holds
    the room data, and animated rooms need far more masked cells than static ones. */
-static AmigaCellCache plain_cells = {0, 0, 0, 0, CELL_WORDS, 4};
-static AmigaCellCache masked_cells = {0, 0, 0, 0, CELL_WORDS * 2, 8};
+static AmigaCellCache plain_cells = {0, 0, 0, 0, 0, CELL_WORDS, 4};
+static AmigaCellCache masked_cells = {0, 0, 0, 0, 0, CELL_WORDS * 2, 8};
 
 static void resetCells(AmigaCellCache *cache)
 {
@@ -585,7 +592,7 @@ static void resetCells(AmigaCellCache *cache)
 }
 
 /* returns the cell's slot and whether it already holds the cell; a miss claims the older way. */
-static DeceptusU16 *cellSlot(AmigaCellCache *cache, const DeceptusU16 *ids, DeceptusU8 *hit)
+static DeceptusU16 *cellSlot(AmigaCellCache *cache, const DeceptusU16 *ids, DeceptusU8 *hit, DeceptusU16 *found)
 {
    DeceptusU16 hash, set, slot, *key;
    DeceptusU8 index, way;
@@ -608,6 +615,7 @@ static DeceptusU16 *cellSlot(AmigaCellCache *cache, const DeceptusU16 *ids, Dece
       {
          cache->recent[set] = way;
          *hit = 1;
+         *found = slot;
          return cache->pixels + (DeceptusU32)slot * cache->slot_words;
       }
    }
@@ -620,6 +628,11 @@ static DeceptusU16 *cellSlot(AmigaCellCache *cache, const DeceptusU16 *ids, Dece
       key[index] = ids[index];
    }
    *hit = 0;
+   *found = slot;
+   if (cache->generation)
+   {
+      ++cache->generation[slot];
+   }
    ++amiga_debug[25]; /* PERFCOUNT: cell compositions */
    /* an earlier blit may still read the slot being replaced. */
    waitBlitter();
@@ -700,26 +713,26 @@ static void blitCell(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *slo
    }
 }
 
-static void plainTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *color_ids)
+static DeceptusU16 plainTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *color_ids)
 {
    const DeceptusU8 *colors[4];
    DeceptusU16 *slot;
+   DeceptusU16 found;
    DeceptusU8 hit;
-   amiga_debug[26] -= beamStamp(); /* PERFCOUNT: plain cell lines */
-   slot = cellSlot(&plain_cells, color_ids, &hit);
+   slot = cellSlot(&plain_cells, color_ids, &hit, &found);
    if (!hit)
    {
       quarterColors(color_ids, colors);
       composeColors(slot, colors);
    }
    blitCell(column, row, slot, 0);
-   amiga_debug[26] += beamStamp(); /* PERFCOUNT */
+   return found;
 }
 
 static void maskedTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *color_ids, const DeceptusU16 *mask_ids)
 {
    const DeceptusU8 *colors[4], *masks[4];
-   DeceptusU16 ids[8], *slot;
+   DeceptusU16 ids[8], *slot, found;
    DeceptusU8 quarter, hit;
    if (!(mask_ids[0] | mask_ids[1] | mask_ids[2] | mask_ids[3]))
    {
@@ -730,7 +743,7 @@ static void maskedTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *c
       ids[quarter] = color_ids[quarter];
       ids[quarter + 4] = mask_ids[quarter];
    }
-   slot = cellSlot(&masked_cells, ids, &hit);
+   slot = cellSlot(&masked_cells, ids, &hit, &found);
    if (!hit)
    {
       quarterMasks(mask_ids, masks);
@@ -781,16 +794,31 @@ static DeceptusU8 sameClipCell(const DeceptusU8 *before, const DeceptusU8 *after
 
 static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
 {
-   DeceptusU16 color_ids[4], mask_ids[4], index;
+   DeceptusU16 color_ids[4], mask_ids[4], index, *entry;
    const DeceptusU8 *cell;
    (void)context;
    ++amiga_debug[23]; /* PERFCOUNT */
-   if (x < 0 || y < 0 || !amigaTileArchiveCell(tiles, (DeceptusU16)x, (DeceptusU16)y, color_ids, mask_ids))
+   entry = map_slots && x >= 0 && y >= 0 && x < (DeceptusI16)map_columns && y < (DeceptusI16)map_rows
+              ? map_slots + ((DeceptusU32)(DeceptusU16)y * map_columns + (DeceptusU16)x) * 2
+              : 0;
+   if (entry && entry[0] && plain_cells.generation[entry[0] - 1] == entry[1])
    {
-      /* dictionary tile 0 is never cached as blank; colour 0 comes from an empty mask cell instead. */
-      color_ids[0] = color_ids[1] = color_ids[2] = color_ids[3] = 65534U;
+      blitCell(x, y, plain_cells.pixels + (DeceptusU32)(DeceptusU16)(entry[0] - 1) * (DeceptusU16)CELL_WORDS, 0);
    }
-   plainTile(x, y, color_ids);
+   else
+   {
+      if (x < 0 || y < 0 || !amigaTileArchiveCell(tiles, (DeceptusU16)x, (DeceptusU16)y, color_ids, mask_ids))
+      {
+         /* dictionary tile 0 is never cached as blank; colour 0 comes from an empty mask cell instead. */
+         color_ids[0] = color_ids[1] = color_ids[2] = color_ids[3] = 65534U;
+      }
+      index = plainTile(x, y, color_ids);
+      if (entry)
+      {
+         entry[0] = (DeceptusU16)(index + 1);
+         entry[1] = plain_cells.generation[index];
+      }
+   }
    for (index = 0; index < graphics->clip_count; ++index)
    {
       if (clips[index].enabled && !clips[index].clip.plane)
@@ -1698,6 +1726,20 @@ void amigaOpeningVideoReset(void)
    memory += (DeceptusU32)masked_cells.sets * 2 * 8 * 2;
    plain_cells.recent = memory;
    memory += (DeceptusU32)plain_cells.sets * 2;
+   plain_cells.generation = (DeceptusU16 *)memory;
+   memory += (DeceptusU32)plain_cells.sets * 4;
+   memset(plain_cells.generation, 0, (DeceptusU32)plain_cells.sets * 4);
+   /* the map memo takes spare Chip RAM only when the room leaves enough for it. */
+   map_columns = tiles->columns;
+   map_rows = tiles->rows;
+   map_slots = 0;
+   if (spare > (DeceptusU32)map_columns * map_rows * 4 + 16384UL)
+   {
+      map_slots = (DeceptusU16 *)memory;
+      memory += (DeceptusU32)map_columns * map_rows * 4;
+      spare -= (DeceptusU32)map_columns * map_rows * 4;
+      memset(map_slots, 0, (DeceptusU32)map_columns * map_rows * 4);
+   }
    masked_cells.recent = memory;
    memory += (DeceptusU32)masked_cells.sets * 2;
    resetCells(&plain_cells);
