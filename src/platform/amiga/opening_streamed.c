@@ -528,8 +528,11 @@ static DeceptusU8 quarterMasks(const DeceptusU16 *ids, const DeceptusU8 **quarte
    repaint is one blit; the cpu only composes a cell the first time its tile ids appear. masked cells
    keep a mask repeated per plane ahead of the colours for a cookie-cut blit. two ways per set. */
 #define CELL_WORDS (16 * PLANES)
-#define PLAIN_SETS_MAX 512U
-#define MASKED_SETS_MAX 128U
+#define PLAIN_SETS_MAX 1024U
+#define MASKED_SETS_MAX 512U
+/* chip bytes per set: two cells, two keys and the set's recent-way byte (two, keeping words aligned). */
+#define PLAIN_SET_BYTES (CELL_WORDS * 4 + 2 * 4 * 2 + 2)
+#define MASKED_SET_BYTES (CELL_WORDS * 8 + 2 * 8 * 2 + 2)
 #define CELL_SETS_MIN 16U
 
 typedef struct AmigaCellCache
@@ -541,10 +544,10 @@ typedef struct AmigaCellCache
    DeceptusU8 key_words;
 } AmigaCellCache;
 
-static DeceptusU16 plain_keys[PLAIN_SETS_MAX * 2 * 4], masked_keys[MASKED_SETS_MAX * 2 * 8];
-static DeceptusU8 plain_recent[PLAIN_SETS_MAX], masked_recent[MASKED_SETS_MAX];
-static AmigaCellCache plain_cells = {0, plain_keys, plain_recent, 0, CELL_WORDS, 4};
-static AmigaCellCache masked_cells = {0, masked_keys, masked_recent, 0, CELL_WORDS * 2, 8};
+/* pixels, keys and recent ways are carved from the room's Chip scratch at reset: slow RAM holds
+   the room data, and animated rooms need far more masked cells than static ones. */
+static AmigaCellCache plain_cells = {0, 0, 0, 0, CELL_WORDS, 4};
+static AmigaCellCache masked_cells = {0, 0, 0, 0, CELL_WORDS * 2, 8};
 
 static void resetCells(AmigaCellCache *cache)
 {
@@ -922,16 +925,28 @@ static void updateClips(const DeceptusAdventure *game)
    }
 }
 
+/* animated cells repainted per draw at most (the first clip in the rotation always advances): a
+   long animation cycle misses every cache, and unbounded it made frames spike past 1000 lines. */
+#define ANIMATION_CELL_BUDGET 32
+static DeceptusU16 animation_cells[TILE_CELLS];
+static DeceptusU8 animation_rotation;
+
 static void markAnimatedCells(void)
 {
-   DeceptusU16 index;
+   DeceptusU16 index, turn, count, used;
    DeceptusI16 x, y, left, top, right, bottom;
    const DeceptusU8 *before, *after;
    AmigaTileClip *clip;
    AmigaScrollWindow *window;
    window = &windows[draw_buffer];
-   for (index = 0; index < graphics->clip_count; ++index)
+   used = 0;
+   if (graphics->clip_count)
    {
+      animation_rotation = (DeceptusU8)((animation_rotation + 1) % graphics->clip_count);
+   }
+   for (turn = 0; turn < graphics->clip_count; ++turn)
+   {
+      index = (DeceptusU16)((animation_rotation + turn) % graphics->clip_count);
       clip = &clips[index];
       if (previous_enabled[draw_buffer][index] == clip->enabled && previous_frames[draw_buffer][index] == clip->frame)
       {
@@ -943,6 +958,7 @@ static void markAnimatedCells(void)
       right = clip->column + (DeceptusI16)clip->columns < window->column + SURFACE_COLUMNS ? clip->column + (DeceptusI16)clip->columns
                                                                                          : window->column + SURFACE_COLUMNS;
       bottom = clip->row + (DeceptusI16)clip->rows < window->row + TILE_ROWS ? clip->row + (DeceptusI16)clip->rows : window->row + TILE_ROWS;
+      count = 0;
       for (y = top; y < bottom; ++y)
       {
          for (x = left; x < right; ++x)
@@ -951,9 +967,21 @@ static void markAnimatedCells(void)
             after = clip->enabled ? clipCell(clip, x, y, clip->frame) : 0;
             if ((before || after) && (!before || !after || !sameClipCell(before, after)))
             {
-               dirty[(y - window->row) * SURFACE_COLUMNS + x - window->column] = 1;
+               animation_cells[count++] = (DeceptusU16)((y - window->row) * SURFACE_COLUMNS + x - window->column);
             }
          }
+      }
+      if (turn && used + count > ANIMATION_CELL_BUDGET)
+      {
+         /* this page keeps showing the clip's previous frame; a later draw advances it. */
+         clip->frame = previous_frames[draw_buffer][index];
+         clip->enabled = previous_enabled[draw_buffer][index];
+         continue;
+      }
+      used += count;
+      while (count)
+      {
+         dirty[animation_cells[--count]] = 1;
       }
       previous_frames[draw_buffer][index] = clip->frame;
       previous_enabled[draw_buffer][index] = clip->enabled;
@@ -1596,7 +1624,7 @@ void amigaOpeningVideoReset(void)
    mask_bytes = AMIGA_NATIVE_TILES_PER_BANK * AMIGA_NATIVE_MASK_BYTES;
    /* dictionary banks are cpu-read and prefer non-chip scratch; one cell can name four banks of each. */
    minimum = 4 * (AMIGA_NATIVE_BANK_BYTES + mask_bytes);
-   fixed = NATIVE_SPRITE_BYTES + UI_MASK_BYTES + SPRITE_CACHE_WORDS * 2 + CELL_SETS_MIN * 2 * (CELL_WORDS * 2 + CELL_WORDS * 4) +
+   fixed = NATIVE_SPRITE_BYTES + UI_MASK_BYTES + SPRITE_CACHE_WORDS * 2 + CELL_SETS_MIN * (PLAIN_SET_BYTES + MASKED_SET_BYTES) +
            (cache_size < minimum ? minimum : 0);
    if (size < fixed + 8192)
    {
@@ -1635,15 +1663,24 @@ void amigaOpeningVideoReset(void)
    memory += (DeceptusU32)saved_capacity * 4;
    /* composed cells turn repaints into blits and take most of the remaining Chip RAM; the dictionary
       banks only feed cell misses. one plain set (two cells) costs 320 bytes, one masked set 640. */
-   index = spare / 5 * 3 / 4 * 3 / (CELL_WORDS * 4);
+   /* three fifths of the spare Chip RAM: two thirds plain cells, one third masked cells. */
+   index = spare / 5 * 3 / 3 * 2 / PLAIN_SET_BYTES;
    plain_cells.sets = (DeceptusU16)(CELL_SETS_MIN + (index < PLAIN_SETS_MAX - CELL_SETS_MIN ? index : PLAIN_SETS_MAX - CELL_SETS_MIN));
-   index = spare / 5 * 3 / 4 / (CELL_WORDS * 8);
+   index = spare / 5 * 3 / 3 / MASKED_SET_BYTES;
    masked_cells.sets = (DeceptusU16)(CELL_SETS_MIN + (index < MASKED_SETS_MAX - CELL_SETS_MIN ? index : MASKED_SETS_MAX - CELL_SETS_MIN));
-   spare -= ((DeceptusU32)plain_cells.sets - CELL_SETS_MIN) * CELL_WORDS * 4 + ((DeceptusU32)masked_cells.sets - CELL_SETS_MIN) * CELL_WORDS * 8;
+   spare -= ((DeceptusU32)plain_cells.sets - CELL_SETS_MIN) * PLAIN_SET_BYTES + ((DeceptusU32)masked_cells.sets - CELL_SETS_MIN) * MASKED_SET_BYTES;
    plain_cells.pixels = (DeceptusU16 *)memory;
    memory += (DeceptusU32)plain_cells.sets * CELL_WORDS * 4;
    masked_cells.pixels = (DeceptusU16 *)memory;
    memory += (DeceptusU32)masked_cells.sets * CELL_WORDS * 8;
+   plain_cells.keys = (DeceptusU16 *)memory;
+   memory += (DeceptusU32)plain_cells.sets * 2 * 4 * 2;
+   masked_cells.keys = (DeceptusU16 *)memory;
+   memory += (DeceptusU32)masked_cells.sets * 2 * 8 * 2;
+   plain_cells.recent = memory;
+   memory += (DeceptusU32)plain_cells.sets * 2;
+   masked_cells.recent = memory;
+   memory += (DeceptusU32)masked_cells.sets * 2;
    resetCells(&plain_cells);
    resetCells(&masked_cells);
    /* the decoded-bank cache takes whichever scratch is larger; a minimal non-chip remainder must not

@@ -28,7 +28,7 @@ HEADER = '>4s6H4I'
 RAW_GROWTH_BYTES = 40 * 1024
 
 
-def tile_banks(tiles):
+def tile_banks(tiles, raw_growth=RAW_GROWTH_BYTES):
     """Bound each independent decode to TILES_PER_BANK tiles; the last bank holds only the rest.
 
     A bank stored with exactly its raw size is raw. A stored LZ4 block is always shorter than its
@@ -39,7 +39,7 @@ def tile_banks(tiles):
     growth = 0
     for index in sorted(range(len(groups)), key=lambda index: len(groups[index]) - len(blocks[index])):
         cost = len(groups[index]) - len(blocks[index])
-        if not raw[index] and growth + cost <= RAW_GROWTH_BYTES:
+        if not raw[index] and growth + cost <= raw_growth:
             raw[index] = True
             growth += cost
     payload, offsets = bytearray(), [0]
@@ -90,7 +90,7 @@ def _block_order(columns, rows):
             for y in range(top, min(top + BLOCK_CELLS, rows)) for x in range(left, min(left + BLOCK_CELLS, columns))]
 
 
-def _room_tiles(base, width, height, world=None, overlays=None):
+def _room_tiles(base, width, height, world=None, overlays=None, raw_growth=RAW_GROWTH_BYTES):
     """Keep PLANES-plane 8x8 tiles and one-plane foreground masks in separate dictionaries."""
     row_bytes = ((width + 15) // 16) * 2
     if width <= 0 or height <= 0 or len(base) != 6 * row_bytes * height:
@@ -120,7 +120,7 @@ def _room_tiles(base, width, height, world=None, overlays=None):
     color_map = header_size
     mask_map = color_map + len(color_cells) * 8
     quad_table = mask_map + len(quad_cells) * 2
-    color_data, color_offsets = tile_banks(colors.tiles)
+    color_data, color_offsets = tile_banks(colors.tiles, raw_growth)
     mask_data, mask_offsets = tile_banks(masks.tiles)
     color_table = quad_table + len(quads.tiles) * 8
     mask_table = color_table + len(color_offsets) * 4
@@ -184,6 +184,6 @@ def room_tiles(base, width, height):
     return _room_tiles(base, width, height)[0]
 
 
-def opening_tiles(base, width, height, world, overlays):
+def opening_tiles(base, width, height, world, overlays, raw_growth=RAW_GROWTH_BYTES):
     """Return a shared native atlas and its separate animation-cell catalogue."""
-    return _room_tiles(base, width, height, world, overlays)
+    return _room_tiles(base, width, height, world, overlays, raw_growth)

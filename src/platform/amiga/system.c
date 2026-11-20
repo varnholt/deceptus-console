@@ -1,4 +1,5 @@
 #include "system.h"
+#include <dos/dosextens.h>
 #include <exec/execbase.h>
 #include <graphics/gfxbase.h>
 #include <hardware/custom.h>
@@ -19,6 +20,43 @@ static struct View *saved_view;
 static APTR saved_interrupt;
 static DeceptusU16 saved_dma, saved_ints;
 static DeceptusU8 display_owned;
+/* the folder the program was started from, as the Shell named it ("DH1:Games/" or empty when it
+   was started by plain name from the current directory). */
+static char program_folder[128];
+
+static void findProgramFolder(void)
+{
+   struct Process *self;
+   struct CommandLineInterface *cli;
+   const UBYTE *name;
+   DeceptusU8 length, index, end;
+   program_folder[0] = 0;
+   self = (struct Process *)FindTask(0);
+   if (self->pr_Task.tc_Node.ln_Type != NT_PROCESS || !self->pr_CLI)
+   {
+      return;
+   }
+   cli = (struct CommandLineInterface *)BADDR(self->pr_CLI);
+   name = (const UBYTE *)BADDR(cli->cli_CommandName);
+   if (!name)
+   {
+      return;
+   }
+   length = name[0];
+   end = 0;
+   for (index = 0; index < length && index < sizeof(program_folder) - 1; ++index)
+   {
+      if (name[1 + index] == ':' || name[1 + index] == '/')
+      {
+         end = (DeceptusU8)(index + 1);
+      }
+   }
+   for (index = 0; index < end; ++index)
+   {
+      program_folder[index] = (char)name[1 + index];
+   }
+   program_folder[end] = 0;
+}
 
 int amigaSystemOpen(void)
 {
@@ -39,6 +77,7 @@ int amigaSystemOpen(void)
       return 0;
    }
    saved_view = GfxBase->ActiView;
+   findProgramFolder();
    amiga_memory_debug[0] = AvailMem(MEMF_CHIP); /* PERFCOUNT */
    amiga_memory_debug[1] = AvailMem(MEMF_CHIP | MEMF_LARGEST);
    amiga_memory_debug[2] = AvailMem(MEMF_ANY) - amiga_memory_debug[0];
@@ -122,6 +161,7 @@ DeceptusU32 amigaSystemReadFilePair(const char *path, DeceptusU8 *first, Deceptu
                                     DeceptusU32 second_capacity)
 {
    BPTR file;
+   char located[192];
    LONG count, extra, tail;
    DeceptusU8 trailing;
    if (display_owned || !GfxBase || (first_capacity && !first) || (second_capacity && !second) || first_capacity > 2147483647UL ||
@@ -137,7 +177,36 @@ DeceptusU32 amigaSystemReadFilePair(const char *path, DeceptusU8 *first, Deceptu
    {
       return 0;
    }
-   file = Open((CONST_STRPTR)path, MODE_OLDFILE);
+   /* game data paths name the Build: volume. the program's own folder comes first, then the current
+      directory, so a copy on any drive or partition runs however it is started. */
+   file = 0;
+   if (path[0] == 'B' && path[1] == 'u' && path[2] == 'i' && path[3] == 'l' && path[4] == 'd' && path[5] == ':')
+   {
+      if (program_folder[0])
+      {
+         char *cursor;
+         const char *source;
+         cursor = located;
+         for (source = program_folder; *source; ++source)
+         {
+            *cursor++ = *source;
+         }
+         for (source = path + 6; *source && cursor < located + sizeof(located) - 1; ++source)
+         {
+            *cursor++ = *source;
+         }
+         *cursor = 0;
+         file = Open((CONST_STRPTR)located, MODE_OLDFILE);
+      }
+      if (!file)
+      {
+         file = Open((CONST_STRPTR)(path + 6), MODE_OLDFILE);
+      }
+   }
+   if (!file)
+   {
+      file = Open((CONST_STRPTR)path, MODE_OLDFILE);
+   }
    if (!file)
    {
       return 0;

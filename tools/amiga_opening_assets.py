@@ -20,7 +20,7 @@ from source_sprites import source_sprites, sprite_families
 
 # guaranteed room banks, allocated at startup from free memory: a stock A500 with 512 KiB Chip and
 # 512 KiB slow RAM under Kickstart 1.3 leaves ~297 KiB non-chip and ~322 KiB Chip after the display.
-RESOURCE_NORMAL_BYTES = 264 * 1024
+RESOURCE_NORMAL_BYTES = 236 * 1024
 RESOURCE_CHIP_BYTES = 300 * 1024
 
 

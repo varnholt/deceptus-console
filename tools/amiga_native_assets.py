@@ -10,7 +10,7 @@ import struct
 import numpy as np
 
 from asset_decode import decode_lz4, unpackbits
-from amiga_room_tiles import PLANES, opening_tiles
+from amiga_room_tiles import PLANES, RAW_GROWTH_BYTES, opening_tiles
 from asset_resources import pack_resources
 from lz4_block import encode_block
 
@@ -372,7 +372,12 @@ def native_sprites(metadata, sprites, mapping=None, sprite_mapping=None, hardwar
     return bytes(result), payload
 
 
+def _aligned(value):
+    return (value + 3) & ~3
+
+
 def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
+    from amiga_opening_assets import RESOURCE_NORMAL_BYTES as normal_bank
     generated = Path(generated)
     identity = hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes()
                                      for name in ('amiga_native_assets.py', 'asset_decode.py',
@@ -420,6 +425,12 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
                     base, overlays = native_layers(world, mapping)
                 sprite_metadata, sprites = native_sprites(metadata, raw_sprites, mapping, sprite_mapping, hardware, dithered)
                 atlas, animations = opening_tiles(base, width, height, world, overlays) if base else (b'', b'')
+                # raw tile banks trade memory for speed: a room whose tables would not fit the
+                # guaranteed non-chip bank gives up exactly its overflow of raw storage.
+                overflow = _aligned(_aligned(_aligned(len(sprite_metadata)) + len(atlas)) + len(animations)) - normal_bank
+                if base and overflow > 0:
+                    atlas, animations = opening_tiles(base, width, height, world, overlays,
+                                                      max(0, RAW_GROWTH_BYTES - overflow - 1024))
                 payloads = ((base, overlays, metadata, atlas, sprite_metadata, sprites, animations)
                             if base else (b'',) * len(paths))
                 for path, payload in zip(paths, payloads):
