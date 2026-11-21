@@ -8,7 +8,7 @@ typedef char SmdEngineMemoryLength[sizeof(DeceptusEngine) < 65536UL ? 1 : -1];
 static DeceptusEngine engine;
 static DeceptusFrame frame;
 #ifndef SMD_PACING_MAX_TICKS
-#define SMD_PACING_MAX_TICKS 2
+#define SMD_PACING_MAX_TICKS 1
 #endif
 static DeceptusPacing pacing;
 static const DeceptusVideoCaps video = {320, 224, 12};

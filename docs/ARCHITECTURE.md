@@ -169,16 +169,20 @@ room load is not made up for. Below `60 / max_ticks` presentations per second
 the game slows down instead. Each backend sets the limit for its renderer: every
 extra tick is extra camera travel for the next presentation to stream, and a
 limit set too high pushes incremental background streaming into heavier updates
-until every presentation hits the limit. In the first room under Genesis Plus GX,
-walking with a limit of five dropped the Mega Drive from 26-38 to 2.5-3.5
-presentations per second; with two it keeps 20-37 while the game runs at 37-59
-ticks per second instead of 26-38.
+until every presentation hits the limit. Catching up only pays where a tick is
+cheap next to a presentation. Under Genesis Plus GX, walking in the first room
+with a limit of five dropped the Mega Drive from 26-38 to 2.5-3.5 presentations
+per second. A limit of two still helped there (20-37 presentations, 37-59 ticks
+per second), but in the Crossroads it fell from 14.6 to 6.0 presentations and
+from 14.6 to 11.9 ticks per second, and the SNES dropped to 2.2 presentations
+per second. Both therefore run one tick per presentation until their renderers
+are faster.
 
 | Backend | Display frames from | Limit |
 | --- | --- | ---: |
 | GBA | timer 2 at F/64, 4389 counts per frame | 2 |
-| SNES | `snes_vblank_count`, 50 or 60 Hz from `snes_50hz` | 2 |
-| Mega Drive | SGDK `vtimer`, 50 or 60 Hz from `IS_PAL_SYSTEM` | 2 |
+| SNES | `snes_vblank_count`, 50 or 60 Hz from `snes_50hz` | 1 |
+| Mega Drive | SGDK `vtimer`, 50 or 60 Hz from `IS_PAL_SYSTEM` | 1 |
 | Amiga | vertical blank count, PAL 50 Hz | 3 |
 
 Input is sampled once per presentation and applied to all of its ticks; button

@@ -16,7 +16,7 @@ extern const DeceptusRoom deceptus_scene;
 static DeceptusEngine engine;
 static DeceptusFrame frame;
 #ifndef SNES_PACING_MAX_TICKS
-#define SNES_PACING_MAX_TICKS 2
+#define SNES_PACING_MAX_TICKS 1
 #endif
 static DeceptusPacing pacing;
 static DeceptusVideoCaps video = {256, 224, 12};
@@ -179,7 +179,7 @@ extern const DeceptusAdventureDef snes_tutorial_definition;
 static DeceptusAdventure adventure;
 static DeceptusFrame frame;
 #ifndef SNES_PACING_MAX_TICKS
-#define SNES_PACING_MAX_TICKS 2
+#define SNES_PACING_MAX_TICKS 1
 #endif
 static DeceptusPacing pacing;
 static const DeceptusVideoCaps video = {256, 224, DECEPTUS_DRAW_CAPACITY};
