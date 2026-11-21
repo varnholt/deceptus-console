@@ -440,7 +440,7 @@ static DeceptusU16 *bankSlot(AmigaBankCache *cache, DeceptusU8 mask_bank, Decept
          oldest = slot;
       }
    }
-   ++amiga_debug[mask_bank ? 26 : 25]; /* PERFCOUNT */
+   ++amiga_debug[mask_bank ? 26 : 29]; /* PERFCOUNT: bank decodes */
    if (cache->banks[oldest] < BANK_INDEX_MAX)
    {
       cache->slot_of[cache->banks[oldest]] = 0;
@@ -882,6 +882,69 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
    return !error;
 }
 
+/* cells left up to right (exclusive) of map row y. outside every clip area, a cell the map memo
+   still holds is one blit whose constant registers stay set for the whole run, with the ring
+   offset stepped instead of recomputed; anything else goes through paintTile. */
+static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, DeceptusI16 y)
+{
+   DeceptusU16 offset, slot, *entry, *page;
+   const DeceptusU16 *generation;
+   const DeceptusU16 *pixels;
+   DeceptusI16 x;
+   if (!map_slots || left < 0 || y < 0 || right > (DeceptusI16)map_columns || y >= (DeceptusI16)map_rows ||
+       (y >= cover_top[0] && y < cover_bottom[0] && left < cover_right[0] && right > cover_left[0]) ||
+       (y >= cover_top[1] && y < cover_bottom[1] && left < cover_right[1] && right > cover_left[1]))
+   {
+      for (x = left; x < right; ++x)
+      {
+         if (!paintTile(context, x, y))
+         {
+            return 0;
+         }
+      }
+      return 1;
+   }
+   amiga_debug[23] += (DeceptusU16)(right - left); /* PERFCOUNT */
+   offset = amigaScrollSurfaceOffset(&surface, left, y * 16, 0);
+   entry = map_slots + ((DeceptusU32)(DeceptusU16)y * map_columns + (DeceptusU16)left) * 2;
+   page = pages[draw_buffer];
+   generation = plain_cells.generation;
+   pixels = plain_cells.pixels;
+   for (x = left; x < right; ++x, entry += 2)
+   {
+      slot = entry[0];
+      if (!slot || generation[slot - 1] != entry[1] || offset < FETCH_WORDS ||
+          offset >= SURFACE_WORDS - (CELL_WORDS - 1) * SURFACE_COLUMNS)
+      {
+         --amiga_debug[23]; /* PERFCOUNT: paintTile counts itself */
+         if (!paintTile(context, x, y))
+         {
+            return 0;
+         }
+      }
+      else
+      {
+         waitBlitter();
+         if (blit_setup != 1)
+         {
+            hardware->bltcon0 = SRCA | DEST | A_TO_D;
+            hardware->bltcon1 = 0;
+            hardware->bltafwm = hardware->bltalwm = 65535U;
+            hardware->bltamod = hardware->bltbmod = 0;
+            hardware->bltcmod = hardware->bltdmod = (SURFACE_COLUMNS - 1) * 2;
+            blit_setup = 1;
+         }
+         hardware->bltapt = (APTR)(pixels + (DeceptusU32)(DeceptusU16)(slot - 1) * (DeceptusU16)CELL_WORDS);
+         hardware->bltdpt = page + offset;
+         hardware->bltsize = (CELL_WORDS << 6) | 1;
+      }
+      if (++offset == SURFACE_WORDS)
+      {
+         offset = 0;
+      }
+   }
+   return 1;
+}
 
 /* while the previous page still waits for its vertical blank, composes the cells the coming
    scroll paint will need, so that paint finds them in the map memo; stops at the swap. */
@@ -994,6 +1057,23 @@ static void markUncovered(const DeceptusRect *before, const DeceptusRect *after)
    markStrip(after_right > before->x ? after_right : before->x, top, right, low);
 }
 
+/* value / divisor with the remainder, from two 32/16 divu steps instead of the library's bit loop. */
+static DeceptusU32 divideLong(DeceptusU32 value, DeceptusU16 divisor, DeceptusU16 *remainder)
+{
+#if defined(__mc68000__)
+   DeceptusU32 high, low;
+   high = value >> 16;
+   __asm__("divu.w %1,%0" : "+d"(high) : "d"(divisor) : "cc");
+   low = (high & 0xffff0000UL) | (value & 0xffffUL);
+   __asm__("divu.w %1,%0" : "+d"(low) : "d"(divisor) : "cc");
+   *remainder = (DeceptusU16)(low >> 16);
+   return (high << 16) | (low & 0xffffUL);
+#else
+   *remainder = (DeceptusU16)(value % divisor);
+   return value / divisor;
+#endif
+}
+
 static void updateClips(const DeceptusAdventure *game)
 {
    DeceptusU16 index, frame, duration, flags;
@@ -1026,7 +1106,8 @@ static void updateClips(const DeceptusAdventure *game)
       state->enabled = (flags & state->clip.required_flags) == state->clip.required_flags && !(flags & state->clip.forbidden_flags);
       if (!state->clip.durations)
       {
-         state->frame = (game->campaign.engine.ticks / state->clip.frame_ticks) % state->clip.frames;
+         (void)divideLong(divideLong(game->campaign.engine.ticks, state->clip.frame_ticks, &duration), state->clip.frames, &frame);
+         state->frame = frame;
          continue;
       }
       bytes = graphics->world + state->clip.durations;
@@ -1042,7 +1123,15 @@ static void updateClips(const DeceptusAdventure *game)
          }
          total += duration;
       }
-      phase = game->campaign.engine.ticks % total;
+      if (total <= 65535UL)
+      {
+         (void)divideLong(game->campaign.engine.ticks, (DeceptusU16)total, &duration);
+         phase = duration;
+      }
+      else
+      {
+         phase = game->campaign.engine.ticks % total;
+      }
       state->frame = 0;
       for (frame = 0; frame < state->clip.frames; ++frame)
       {
@@ -1474,7 +1563,7 @@ static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, Decept
 {
    const DeceptusU8 *line_bytes;
    DeceptusU16 *output;
-   DeceptusU8 row[PLANES][SPRITE_PAIRS * 2];
+   DeceptusU8 row[PLANES][SPRITE_PAIRS * 2 + 2];
    DeceptusU16 index, words, line, channel, stored, start;
    DeceptusU8 plane, shift;
    for (index = 0; index < sprite_frame_count; ++index)
@@ -1515,6 +1604,55 @@ static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, Decept
    shift = (DeceptusU8)(stored * 8 - graphic->width);
    /* attached pairs: the even channel shows planes 0-1, the odd one planes 2-3 of each 16 pixels. */
    line_bytes = sprite_compact;
+   if (!graphic->flip || shift < 8)
+   {
+      /* each channel word straight from its plane row: a flipped row is mirrored once and its
+         sub-byte shift taken per word from the next byte (zero past the row end). */
+      DeceptusU8 *bytes;
+      DeceptusU16 value, stride;
+      if (!graphic->flip)
+      {
+         shift = 0;
+      }
+      memset(row, 0, sizeof(row));
+      stride = (DeceptusU16)(graphic->height * 2);
+      for (line = 0; line < graphic->height; ++line, line_bytes += stored * PLANES)
+      {
+         for (plane = 0; plane < PLANES; ++plane)
+         {
+            const DeceptusU8 *source;
+            bytes = row[plane];
+            source = line_bytes + plane * stored;
+            if (graphic->flip)
+            {
+               source += stored;
+               for (index = stored; index; --index)
+               {
+                  *bytes++ = sprite_mirror[*--source];
+               }
+            }
+            else
+            {
+               for (index = stored; index; --index)
+               {
+                  *bytes++ = *source++;
+               }
+            }
+         }
+         output = sprite_cache + start + line * 2;
+         for (channel = 0; channel < pairs * 2; ++channel, output += stride)
+         {
+            plane = (DeceptusU8)((channel & 1) * 2);
+            bytes = row[plane] + (channel >> 1) * 2;
+            value = ((DeceptusU16)bytes[0] << 8) | bytes[1];
+            output[0] = shift ? (DeceptusU16)((value << shift) | (bytes[2] >> (8 - shift))) : value;
+            bytes = row[plane + 1] + (channel >> 1) * 2;
+            value = ((DeceptusU16)bytes[0] << 8) | bytes[1];
+            output[1] = shift ? (DeceptusU16)((value << shift) | (bytes[2] >> (8 - shift))) : value;
+         }
+      }
+   }
+   else
    for (line = 0; line < graphic->height; ++line, line_bytes += stored * PLANES)
    {
       for (plane = 0; plane < PLANES; ++plane)
@@ -2137,7 +2275,9 @@ static void blitUiBand(const AmigaUiBand *band, const DeceptusU16 *mask)
          last = offset + (count - 1) * SURFACE_COLUMNS * PLANES;
          repairGuardAfter(offset, last, UI_BAND_WORDS + 1);
          source += (DeceptusU32)count * UI_BAND_WORDS;
-         offset = (DeceptusU16)(((DeceptusU32)offset + (DeceptusU32)count * SURFACE_COLUMNS * PLANES) % SURFACE_WORDS);
+         /* count never passes the ring end by more than one row: one subtraction wraps it. */
+         last = (DeceptusU16)(offset + count * (SURFACE_COLUMNS * PLANES));
+         offset = last >= SURFACE_WORDS ? (DeceptusU16)(last - SURFACE_WORDS) : last;
          rows -= count;
       }
    }
@@ -2161,7 +2301,7 @@ static DeceptusU16 uiSignature(const DeceptusAdventure *game)
 
 DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFrame *frame)
 {
-   DeceptusU16 index, count, clip, signature, color_ids[4], mask_ids[4];
+   DeceptusU16 index, count, clip, signature, run_end, run_cell, color_ids[4], mask_ids[4];
    DeceptusU8 *mark;
    DeceptusU32 draw_started;
    DeceptusU8 cached;
@@ -2230,7 +2370,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    }
    saved_used[draw_buffer] = 0;
    amigaPerfPhase(13); /* PERFCOUNT: bob restore */
-   if (!amigaScrollSurfaceVisit(&surface, &windows[draw_buffer], camera_x, camera_y, paintTile, 0))
+   if (!amigaScrollSurfaceVisitRuns(&surface, &windows[draw_buffer], camera_x, camera_y, paintRun, 0))
    {
       return 0;
    }
@@ -2252,15 +2392,23 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       }
    }
    markAnimatedCells();
-   for (count = 0; count < dirty_count; ++count)
+   for (count = 0; count < dirty_count; count = run_end)
    {
+      /* marks come from rectangles: neighbours later in the list paint as one run. */
       index = dirty_list[count];
       y = (DeceptusI16)(index / SURFACE_COLUMNS);
       x = (DeceptusI16)(index - y * SURFACE_COLUMNS);
-      paintTile(0, windows[draw_buffer].column + x, windows[draw_buffer].row + y);
-      if (clipCovered(1, windows[draw_buffer].column + x, windows[draw_buffer].row + y))
+      for (run_end = count + 1; run_end < dirty_count && dirty_list[run_end] == index + (run_end - count) && x + (DeceptusI16)(run_end - count) < SURFACE_COLUMNS;
+           ++run_end)
       {
-         markForeground(index, 1);
+      }
+      paintRun(0, windows[draw_buffer].column + x, windows[draw_buffer].column + x + (DeceptusI16)(run_end - count), windows[draw_buffer].row + y);
+      for (run_cell = count; run_cell < run_end; ++run_cell)
+      {
+         if (clipCovered(1, windows[draw_buffer].column + x + (DeceptusI16)(run_cell - count), windows[draw_buffer].row + y))
+         {
+            markForeground(dirty_list[run_cell], 1);
+         }
       }
    }
    /* cpu-painted cells may touch the ring start; bob saves can read across the guard. */

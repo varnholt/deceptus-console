@@ -121,3 +121,41 @@ DeceptusU8 amigaScrollSurfaceVisit(const AmigaScrollSurface *surface, AmigaScrol
    window->valid = 1;
    return 1;
 }
+
+DeceptusU8 amigaScrollSurfaceVisitRuns(const AmigaScrollSurface *surface, AmigaScrollWindow *window, DeceptusI16 camera_x,
+                                       DeceptusI16 camera_y, AmigaScrollRunVisitor visitor, void *context)
+{
+   DeceptusI16 first_x, first_y, y, height, left, right;
+   first_x = tileFloor(camera_x) - 1;
+   first_y = tileFloor(camera_y);
+   height = surface->height / 16;
+   if (window->valid && first_x == window->column && first_y == window->row)
+   {
+      return 1;
+   }
+   for (y = first_y; y < first_y + height; ++y)
+   {
+      left = first_x;
+      right = first_x + (DeceptusI16)surface->columns;
+      if (window->valid && y >= window->row && y < window->row + height)
+      {
+         if (first_x < window->column)
+         {
+            right = right < window->column ? right : window->column;
+         }
+         else
+         {
+            left = window->column + (DeceptusI16)surface->columns > left ? window->column + (DeceptusI16)surface->columns : left;
+         }
+      }
+      if (left < right && !visitor(context, left, right, y))
+      {
+         window->valid = 0;
+         return 0;
+      }
+   }
+   window->column = first_x;
+   window->row = first_y;
+   window->valid = 1;
+   return 1;
+}
