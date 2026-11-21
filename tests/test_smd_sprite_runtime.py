@@ -74,8 +74,13 @@ int main(void)
       if(whole) {
        /* the whole-piece path the request emitter takes under the fast budget. */
        if(!fast||!(quads==15||((quads&5)&&(quads&10)))) {continue;}
-       smdObjWhole((DeceptusI16)xs[x],(DeceptusI16)ys[y],(DeceptusU16)TILE_ATTR_FULL(2,0,0,flip,0));
+       smdObjHardware(smd_obj_count++,(DeceptusI16)xs[x],(DeceptusI16)ys[y],SPRITE_SIZE(2,2),(DeceptusU16)TILE_ATTR_FULL(2,0,0,flip,0));
+       smdObjBudgetAdd((DeceptusI16)ys[y],16,1,2);
        assert(smd_obj_count==1);
+      }
+      else if(fast&&!(quads==15||((quads&5)&&(quads&10)))) {
+       /* the emitter's inline split of partial pieces under the fast budget. */
+       smd_obj_count=smdObjSplit(0,(DeceptusI16)xs[x],(DeceptusI16)ys[y],(DeceptusU16)TILE_ATTR_FULL(2,0,0,flip,0),(DeceptusU16)quads);
       }
       else {
        smdObjQuads(xs[x],ys[y],0,2,(DeceptusU8)flip,(DeceptusU8)quads);
@@ -123,11 +128,13 @@ int main(void)
  for(i=0;i<20;++i) {smdObjPiece(0,0,0,2,0,16,16);}
  assert(smdObjBudgetFits());
  smdObjPiece(0,0,0,2,0,8,8);assert(!smdObjBudgetFits());
- /* whole pieces feed the same scanline budget as split ones. */
+ /* whole pieces feed the same scanline budget as split ones, whether a row enters them at once
+    or one by one. */
  reset(1);smd_obj_budget_top=224;smd_obj_budget_bottom=0;
- for(i=0;i<20;++i) {smdObjWhole(0,-4,0);}
+ smdObjBudgetAdd(-4,16,12,24);
+ for(i=0;i<8;++i) {smdObjBudgetAdd(-4,16,1,2);}
  assert(smdObjBudgetFits());
- smdObjWhole(0,8,0);assert(!smdObjBudgetFits());
+ smdObjBudgetAdd(8,16,1,2);assert(!smdObjBudgetFits());
  puts("1500 clipped quadrant images and1000 scanline budget scenes passed");
  return 0;
 }
