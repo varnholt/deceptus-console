@@ -230,3 +230,61 @@ resource_done:
 resource_masks:
     .db 1,2,4,8,16,32,64,128
 .ends
+
+; resident pieces are found by walking the resource's slot list, as the c
+; allocator does first. only a miss pays for the compiled allocation path.
+; slot layout: resource word, then piece, valid, used, held, pending, next.
+.section "snes_sprite_slot_for" semisuperfree banks 2-15
+; DeceptusU16 snesObjSlotFor(DeceptusU16 resource, DeceptusU16 piece)
+snesObjSlotFor:
+    php
+    rep #$30
+    phd
+    phx
+    lda #0
+    tcd
+    ; return address 3 bytes, saved state 5 bytes: resource 9,s, piece 11,s.
+    lda 11,s
+    cmp #256
+    bcs slot_for_miss
+    lda 9,s
+    tax
+    lda.l snes_obj_heads,x
+    and #255
+slot_for_walk:
+    beq slot_for_miss
+    dec a
+    sta.b tcc__r0
+    asl a
+    asl a
+    asl a
+    tax
+    lda.l snes_obj_slots+2,x
+    and #255
+    cmp 11,s
+    beq slot_for_hit
+    lda.l snes_obj_slots+7,x
+    and #255
+    bra slot_for_walk
+slot_for_hit:
+    sep #$20
+    lda #1
+    sta.l snes_obj_slots+4,x
+    rep #$20
+    plx
+    pld
+    plp
+    rtl
+slot_for_miss:
+    lda 11,s
+    pha
+    lda 11,s
+    pha
+    jsl snesObjSlotAllocate
+    pla
+    pla
+    plx
+    pld
+    plp
+    rtl
+.ends

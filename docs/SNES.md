@@ -186,3 +186,47 @@ route with 29 health and zero deaths, now in 206,375 display frames instead of
 239,841. Its final settle check accepts phase 15, which follows the previous
 presentation's commits. `capture_showcase.py` no longer presses Start again when the
 game has already left the title during its wait, which paused faster builds.
+
+### Streaming and sprite lookup changes
+
+A second profile of the same walk put row/column streaming at about 500 lines
+per presentation for roughly 45 cell loads and releases, around 3,000 CPU
+cycles per cell. Three parts of that path changed; each keeps the exact cache
+results:
+
+- The pattern-hash probe (`hashFind`) runs as 65816 code in
+  `background_hash.asm`. Compiled C spent most of each probe on far-pointer
+  arithmetic into the bank-7f work area. The C function remains the host
+  reference, and a compile-time check ties the assembly's table offset to the
+  `SnesBackgroundWork` layout.
+- `snesBackgroundLoad` fills a table of row starts, so a cell lookup no
+  longer calls the compiler's multiplication routine for `y * columns`. Rows
+  beyond the 1,024-entry table keep the multiplication.
+- Each plane keeps the list of its enabled animation clips in ascending order.
+  A cell lookup visits only those clips instead of every clip of the room;
+  later clips still override earlier ones.
+
+In sprite preparation, `snesObjSlotFor` is now 65816 code that walks the
+resource's slot list and marks a resident piece used. It calls the unchanged C
+allocator, renamed `snesObjSlotAllocate`, only for a missing piece. Most drawn
+pieces are resident, so the common case no longer enters compiled C at all.
+
+| Measurement | Before | After |
+| --- | --- | --- |
+| Main Hall → Altar walk (`capture_showcase.py`, steps 127–134) | 9.0 presentations/s | 9.9 presentations/s |
+| First room (`showcase-route.json`, steps 2–5) | 14.0 presentations/s | 14.5 presentations/s |
+| Stationary Loop (room 9, 370/696) | 8.46 updates/s | 8.56 updates/s |
+| Stationary Crypt (room 25, 597/264) | 8.51 updates/s | 9.11 updates/s |
+| Stationary Altar, cage open (room 7, 536/312) | 8.71 updates/s | 9.27 updates/s |
+
+The stationary rows use the same fixtures, warmup and sample as the previous
+table. The hash probe and row table alone raised the walk to 9.7
+presentations/s; with those two, streaming took about 430 lines per
+presentation on the walk. The remaining cost is spread over the C code around
+the probe (map addressing, reference counting, dirty-row tracking), so moving
+whole cell loads to assembly is the next step for scrolling. The water-cache
+audit still reports 157,008 views with peaks of 991 and 1,042 resident patterns
+and three Sewers compactions, and `tools/verify_snes_sprites.py` still passes
+all 6,482 cases.
+The tick-exact cartridge passes the full 56-checkpoint route with 29 health and
+zero deaths in 194,370 display frames instead of 206,375.
