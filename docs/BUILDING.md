@@ -159,6 +159,15 @@ explicitly. `--reuse-assets` requires matching source and converter identities.
 `--assets-dir PATH` selects an isolated tutorial conversion directory. See
 [SNES.md](SNES.md) for the video layout and current verification limits.
 
+The normal-input route check replays the opening tick for tick, so it checks a
+cartridge built with one simulation tick per presentation:
+
+```powershell
+$env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_snes.py --output-dir build/snes-verify
+python tools/emulator.py --rom build/snes-verify/deceptus-tutorial.sfc
+Remove-Item Env:DECEPTUS_PACING_LOCKED
+```
+
 ## Parallel console builds
 
 ```powershell

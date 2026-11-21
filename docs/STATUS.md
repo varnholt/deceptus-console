@@ -10,7 +10,7 @@ Updated for the engine/game separation and four-platform opening milestone,
 | GBA tutorial | Twenty-six imported rooms; prison, headtorch, graveyard rubies, crypt return, owl altar and sword progression |
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
 | SNES | Same 26-room opening in an 8 MiB ExHiROM; retained one-room test is explicit `--scene prototype`; performance remains substantially below target |
-| Amiga | Verified PAL OCS one-room prototype at nominal 50 fps; experimental 26-room opening passes accelerated progression checks, with frame pacing and presentation still unfinished |
+| Amiga | Same 26-room opening on a stock A500 (Kickstart 1.3, 512 KiB Chip + 512 KiB slow RAM): 32 frame-weighted fps across the room tour with the 60 Hz simulation kept down to 20 fps; separate PAL OCS one-room prototype at nominal 50 fps |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
 | Mega Drive | Same 26-room opening in a flat 4 MiB cartridge budget; normal-input route passes, performance remains experimental; separate small prototype retains its measured 60 Hz result |
 
@@ -75,6 +75,30 @@ ticks, zero deaths and 29 health remaining. The route includes live cannon/enemy
 damage and 66 native simulation ticks attached to the original Mausoleum rope.
 Guards' Office and Fool's Ledge use authored arrival positions rather
 than assuming every adjacent room's walkways have identical heights.
+
+### Features in the development build
+
+The tutorial uses the original Deceptum bitmap font at its authored 13px size.
+Large headings are exact 2x pixel copies, not newly rasterized 24px glyphs.
+The opening also includes:
+
+- Original ground-patrol blob, including its animated movement, contact damage and stomp death.
+- Basic swimming using source atmosphere tiles, original swim sprites and a delayed A-button ascent.
+- Original animated shrine column and a one-shot splash only when falling into water.
+- Small water-exit hop, underwater colour tint and the original upward wind/wetsuit warning.
+- New Game, Options and Quit; pause, controls, inventory and quit confirmation.
+- Native-size dialogue windows, paged source text and animated interaction cues.
+- The key, locker, lever handle and missing-handle rules, plus persistent flags
+  and mechanism state when returning to a room.
+- The Reading Room solar seal, Fool's Ledge headtorch chest, dark Sealed Cells,
+  graveyard owl rubies, sinkhole/crypt return and delayed sword-cage release.
+- Equipped sword artwork and basic source-timed attacks against supported blobs.
+- Original room entrance rectangles, including Crossroads to Fool's Ledge and Main Hall to Mines Antechamber.
+- Original one-way floor decoration and player occlusion by foreground artwork.
+- Streamed room graphics and offline baked water surfaces; the player remains
+  visible underwater. Complete water/progression fidelity remains unfinished.
+
+Imported rooms and working isolated actions do not establish a complete playable route.
 
 ## Latest presentation fixes
 
