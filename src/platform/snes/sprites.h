@@ -32,7 +32,9 @@ static SnesObjRequest snes_obj_requests[SNES_OBJ_REQUESTS];
 static DeceptusU16 snes_obj_active_resources[SNES_OBJ_REQUESTS];
 SnesObjSlot snes_obj_slots[SNES_OBJ_PIECES];
 typedef char SnesObjSlotSize[(sizeof(SnesObjSlot) == 8) ? 1 : -1];
-static DeceptusU8 snes_obj_heads[SNES_SPRITE_RESOURCE_COUNT], snes_obj_epochs[SNES_SPRITE_RESOURCE_COUNT];
+/* the resource lists are walked by snesObjSlotFor in sprites_resource.asm. */
+DeceptusU8 snes_obj_heads[SNES_SPRITE_RESOURCE_COUNT];
+static DeceptusU8 snes_obj_epochs[SNES_SPRITE_RESOURCE_COUNT];
 static DeceptusU8 snes_obj_epoch;
 static DeceptusU16 snes_obj_unused, snes_obj_free_cursor;
 DeceptusU8 snes_obj_oam[544];
@@ -79,7 +81,17 @@ static DeceptusU16 snesObjTile(DeceptusU16 slot)
    return (slot / 64) * 256 + ((slot & 63) / 8) * 32 + (slot & 7) * 2;
 }
 
-DeceptusU16 snesObjSlotFor(DeceptusU16 resource, DeceptusU16 piece)
+#ifdef SNES_SPRITES_ASM
+/* sprites_resource.asm finds resident pieces itself and calls the c function
+ * only to allocate a missing one; the lookup repeats inside it unchanged. */
+typedef char SnesObjSlotSize[(sizeof(SnesObjSlot) == 8) ? 1 : -1];
+DeceptusU16 snesObjSlotFor(DeceptusU16 resource, DeceptusU16 piece);
+#define SNES_OBJ_SLOT_ALLOCATE snesObjSlotAllocate
+#else
+#define SNES_OBJ_SLOT_ALLOCATE snesObjSlotFor
+#endif
+
+DeceptusU16 SNES_OBJ_SLOT_ALLOCATE(DeceptusU16 resource, DeceptusU16 piece)
 {
    DeceptusU16 index;
    DeceptusU8 link, previous;

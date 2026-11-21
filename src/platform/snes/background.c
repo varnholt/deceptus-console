@@ -10,6 +10,7 @@
 #define SNES_BG_EMPTY 65535U
 #define SNES_BG_DELETED 65534U
 #define SNES_BG_DMA_COMMANDS 192
+#define SNES_BG_ROW_TABLE 1024
 
 #if SNES_FONT_BYTES > 4608
 #error source_font_overlaps_foreground_scratch_tiles
@@ -38,11 +39,15 @@ typedef struct SnesBackgroundWork
    DeceptusU16 dirty_rows[2][2], dma_bytes, free_count, upload_count, flags, room_cells, hash_tombstones;
    DeceptusI16 left, top;
    DeceptusU8 loaded;
+   /* first source cell of each room row. the compiler multiplies through a
+    * library routine, which cost a noticeable share of every streamed cell. */
+   DeceptusU16 row_offsets[SNES_BG_ROW_TABLE];
 } SnesBackgroundWork;
 
 typedef char SnesBackgroundStorageFits[(sizeof(SnesBackgroundWork) <= 32768) ? 1 : -1];
 extern DeceptusU8 snes_background_storage[];
 #define work ((SnesBackgroundWork *)snes_background_storage)
+#define DECEPTUS_BG_OFFSET(member) ((unsigned long)&((SnesBackgroundWork *)0)->member)
 
 DeceptusU8 snes_background_error, snes_background_full;
 DeceptusU16 snes_background_uploads;
@@ -90,6 +95,12 @@ static DeceptusU8 slotAddressable(DeceptusU8 plane, DeceptusU16 slot)
    return slot >= 1024;
 }
 
+#ifdef SNES_BACKGROUND_ASM
+/* background_hash.asm addresses the hash arrays by these fixed offsets. */
+typedef char SnesBackgroundHashKeysOffset[(DECEPTUS_BG_OFFSET(hash_keys) == 6432) ? 1 : -1];
+DeceptusU16 snesBackgroundHashFind(DeceptusU16 pattern, DeceptusU16 insert);
+#define hashFind(pattern, insert) snesBackgroundHashFind((pattern), (insert))
+#else
 static DeceptusU16 hashFind(DeceptusU16 pattern, DeceptusU8 insert)
 {
    DeceptusU16 key, count, deleted;
@@ -122,6 +133,8 @@ static DeceptusU16 hashFind(DeceptusU16 pattern, DeceptusU8 insert)
    snes_background_hash_probes = SNES_BG_HASH;
    return deleted;
 }
+
+#endif
 
 /* backward-shift deletion keeps linear probing free of tombstones. rebuilding
  * the table cost several frames of C on this CPU whenever enough tombstones
@@ -347,10 +360,16 @@ static DeceptusU8 clipEnabled(const SnesBackgroundAnimation *clip, DeceptusU16 f
 /* per clip, its plane plus one while source_flags enable it, else zero. every
  * cell lookup consults every clip, so the flag test is done once per change. */
 static DeceptusU8 clip_planes[SNES_BG_CLIPS];
+/* per plane, the enabled clips in ascending index order, so cell lookups visit
+ * only the clips that can replace that plane's cell and later clips still win. */
+static DeceptusU8 plane_clips[2][SNES_BG_CLIPS], plane_clip_count[2];
 
 static void updateClipPlanes(void)
 {
    DeceptusU16 index;
+   DeceptusU8 plane;
+   plane_clip_count[0] = 0;
+   plane_clip_count[1] = 0;
    for (index = 0; index < SNES_BG_CLIPS; ++index)
    {
       clip_planes[index] = 0;
@@ -359,6 +378,12 @@ static void updateClipPlanes(void)
          if (clipEnabled(&stage->animations[index], source_flags))
          {
             clip_planes[index] = (DeceptusU8)(stage->animations[index].plane + 1);
+            plane = stage->animations[index].plane;
+            if (plane < 2)
+            {
+               plane_clips[plane][plane_clip_count[plane]] = (DeceptusU8)index;
+               ++plane_clip_count[plane];
+            }
          }
       }
    }
@@ -367,7 +392,7 @@ static void updateClipPlanes(void)
 /* the source pattern and attributes a window cell shows, after animation clips. */
 static void cellSource(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 *pattern_out, DeceptusU16 *attributes_out)
 {
-   DeceptusU16 pattern, attributes, index, offset, limit, within;
+   DeceptusU16 pattern, attributes, index, entry, offset, limit, within;
    const SnesRomBlob *blob;
    const SnesBackgroundAnimation *clip;
    const DeceptusU16 *words;
@@ -376,14 +401,18 @@ static void cellSource(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU
    if (x >= 0 && y >= 0 && x < stage->columns && y < stage->rows)
    {
       blob = plane ? &stage->foreground : &stage->background;
-      offset = (DeceptusU16)y * stage->columns + x;
-      limit = work->room_cells;
-      for (index = 0; index < stage->animation_count; ++index)
+      if (y < SNES_BG_ROW_TABLE)
       {
-         if (clip_planes[index] != plane + 1)
-         {
-            continue;
-         }
+         offset = work->row_offsets[y] + x;
+      }
+      else
+      {
+         offset = (DeceptusU16)y * stage->columns + x;
+      }
+      limit = work->room_cells;
+      for (entry = 0; entry < plane_clip_count[plane]; ++entry)
+      {
+         index = plane_clips[plane][entry];
          clip = &stage->animations[index];
          if (x >= clip->left && y >= clip->top && x < clip->left + clip->columns && y < clip->top + clip->rows)
          {
@@ -505,7 +534,7 @@ static DeceptusU8 clipDirect(DeceptusU16 index)
 
 void snesBackgroundLoad(DeceptusU8 room)
 {
-   DeceptusU16 index;
+   DeceptusU16 index, row_offset;
    DeceptusU32 cells;
    const SnesBackgroundAnimation *clip;
    snes_background_error = 0;
@@ -531,6 +560,12 @@ void snesBackgroundLoad(DeceptusU8 room)
       snes_background_error = 1;
    }
    work->room_cells = (DeceptusU16)cells;
+   row_offset = 0;
+   for (index = 0; index < SNES_BG_ROW_TABLE; ++index)
+   {
+      work->row_offsets[index] = row_offset;
+      row_offset += stage->columns;
+   }
    work->loaded = 0;
    work->flags = 0;
    source_flags = 0;
