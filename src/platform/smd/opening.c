@@ -9,7 +9,7 @@ static DeceptusFrame frame;
 static const DeceptusVideoCaps video = {320, 224, DECEPTUS_DRAW_CAPACITY};
 static DeceptusU16 sequence;
 #ifndef SMD_PACING_MAX_TICKS
-#define SMD_PACING_MAX_TICKS 2
+#define SMD_PACING_MAX_TICKS 1
 #endif
 static DeceptusPacing pacing;
 volatile DeceptusU16 smd_opening_packets[2][56];

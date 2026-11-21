@@ -10,16 +10,21 @@ runs the game rules on every machine, and Python converters turn the same source
 cartridges and disk images. The Deceptus opening, 26 rooms from the prison cells to the sword, is
 the reference game: it plays through on all four systems.
 
-| Game Boy Advance | Mega Drive | Super Nintendo |
-| :---: | :---: | :---: |
-| ![GBA](docs/media/gba.gif) | ![Mega Drive](docs/media/mega-drive.gif) | ![SNES](docs/media/snes.gif) |
-| 59 fps, full speed | 6 fps, 20% speed | 2 fps, 7% speed |
+| Game Boy Advance | Amiga 500 |
+| :---: | :---: |
+| ![GBA](docs/media/gba.gif) | ![Amiga 500](docs/media/amiga.gif) |
+| 60 fps | 25 fps, full game speed |
 
-The clips are real-time emulator recordings (mGBA, Genesis Plus GX, Snes9x) of the same climb
-through the Crossroads, played from New Game with the recorded verification route. They are not
-sped up: the Mega Drive and SNES renderers still need their performance pass, which is why the
-same five seconds of game take 23 and 61 seconds there. The Amiga 500 runs this room at about
-20 fps and full game speed; its clip follows.
+| Mega Drive | Super Nintendo |
+| :---: | :---: |
+| ![Mega Drive](docs/media/mega-drive.png) | ![SNES](docs/media/snes.png) |
+| Being optimised | Being optimised |
+
+The clips are real-time recordings of the same walk from the Main Hall to the Altar of the Blind
+Owl, played from New Game with the recorded verification route: mGBA for the Game Boy Advance and
+cycle-exact WinUAE (stock A500, Kickstart 1.3, 512 KiB Chip + 512 KiB slow RAM) for the Amiga. The
+Mega Drive and SNES play the same route but still need their performance pass; they show stills
+from the same rooms until then.
 
 ## Why this engine
 
@@ -40,14 +45,15 @@ same five seconds of game take 23 and 61 seconds there. The Amiga 500 runs this 
 
 ## Platforms
 
-| System | Hardware target | Opening | Crossroads clip |
+| System | Hardware target | Opening | Main Hall to Altar |
 | --- | --- | --- | --- |
-| Game Boy Advance | 16.78 MHz ARM7, 288 KiB RAM | Complete route, full speed | 59 fps |
-| Amiga 500 | 7.09 MHz 68000, OCS, 512 KiB Chip + 512 KiB slow RAM, Kickstart 1.3 | Complete route, 32 fps averaged over all rooms | about 20 fps, full speed |
-| Mega Drive | 7.67 MHz 68000, 64 KiB RAM, 4 MiB cartridge | Complete route, experimental speed | 6 fps |
-| Super Nintendo | 3.58 MHz 65816, 128 KiB RAM, 8 MiB ExHiROM | Complete route, experimental speed | 2 fps |
+| Game Boy Advance | 16.78 MHz ARM7, 288 KiB RAM | Complete route, full speed | 60 fps |
+| Amiga 500 | 7.09 MHz 68000, OCS, 512 KiB Chip + 512 KiB slow RAM, Kickstart 1.3 | Complete route, 32 fps averaged over all rooms | 25 fps, full speed |
+| Mega Drive | 7.67 MHz 68000, 64 KiB RAM, 4 MiB cartridge | Complete route, being optimised | 14 fps |
+| Super Nintendo | 3.58 MHz 65816, 128 KiB RAM, 8 MiB ExHiROM | Complete route, being optimised | 7 fps |
 
-All four keep the game's 60 Hz simulation when a frame runs late, up to a per-platform limit
+The GBA and Amiga keep the game's 60 Hz simulation when a frame runs late; the Mega Drive and SNES
+run one simulation tick per frame until their renderers are faster
 ([simulation timing](docs/ARCHITECTURE.md#simulation-timing)). Audio, save games and the game
 beyond the opening are not implemented yet; see [status](docs/STATUS.md) and
 [parity with the original](docs/PARITY.md).
@@ -131,12 +137,12 @@ rooms and working isolated actions do not establish a complete playable route.
 ## Recording the clips
 
 ```powershell
-python tools/capture_showcase.py gba --first-step 27 --last-step 52 --output docs/media/gba.gif
+python tools/capture_showcase.py gba --first-step 127 --last-step 134 --output docs/media/gba.gif
 ```
 
 `capture_showcase.py` plays the verification route on an ordinary build and keeps every second
 display frame, so each clip shows the platform's real frame rate. Use `smd` or `snes` for the
-other cartridges.
+other cartridges. The Amiga clip comes from the same route replayed under cycle-exact WinUAE.
 
 ## Ownership
 

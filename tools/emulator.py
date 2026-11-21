@@ -49,6 +49,12 @@ AUDIO = C.CFUNCTYPE(None, C.c_int16, C.c_int16)
 AUDIO_BATCH = C.CFUNCTYPE(C.c_size_t, C.c_void_p, C.c_size_t)
 INPUT_POLL = C.CFUNCTYPE(None)
 INPUT_STATE = C.CFUNCTYPE(C.c_int16, C.c_uint, C.c_uint, C.c_uint, C.c_uint)
+# printf-style; the variadic arguments are ignored. PUAE writes through this pointer unchecked.
+LOG = C.CFUNCTYPE(None, C.c_int, C.c_char_p)
+
+
+class LogCallback(C.Structure):
+    _fields_ = [("log", LOG)]
 
 
 class Emulator:
@@ -69,6 +75,7 @@ class Emulator:
         self.audio_batch_callback = AUDIO_BATCH(self.audio_batch)
         self.input_poll_callback = INPUT_POLL(lambda: None)
         self.input_state_callback = INPUT_STATE(lambda port, device, index, button: int(port == 0 and button in self.buttons))
+        self.log_callback = LOG(lambda level, text: None)
         for name, callback in [("environment", self.environment_callback), ("video_refresh", self.video_callback),
                                ("audio_sample", self.audio_callback), ("audio_sample_batch", self.audio_batch_callback),
                                ("input_poll", self.input_poll_callback), ("input_state", self.input_state_callback)]:
@@ -112,6 +119,9 @@ class Emulator:
             return variable.value is not None
         if command == 17:
             C.cast(data, C.POINTER(C.c_bool))[0] = False
+            return True
+        if command == 27:  # log interface
+            C.cast(data, C.POINTER(LogCallback))[0].log = self.log_callback
             return True
         if command == 3:  # can dupe
             C.cast(data, C.POINTER(C.c_bool))[0] = True
