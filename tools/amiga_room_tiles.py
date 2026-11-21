@@ -32,7 +32,8 @@ def tile_banks(tiles, raw_growth=RAW_GROWTH_BYTES):
     """Bound each independent decode to TILES_PER_BANK tiles; the last bank holds only the rest.
 
     A bank stored with exactly its raw size is raw. A stored LZ4 block is always shorter than its
-    input (a block that is not is stored raw at no growth), so the two never collide."""
+    input (a block that is not is stored raw at no growth), so the two never collide; a raw bank
+    that would start at an odd offset takes one leading pad byte (span = raw size + 1)."""
     groups = [b''.join(tiles[first:first + TILES_PER_BANK]) for first in range(0, len(tiles), TILES_PER_BANK)]
     blocks = [encode_block(group) for group in groups]
     raw = [len(block) >= len(group) for group, block in zip(groups, blocks)]
@@ -44,6 +45,9 @@ def tile_banks(tiles, raw_growth=RAW_GROWTH_BYTES):
             growth += cost
     payload, offsets = bytearray(), [0]
     for group, block, stored in zip(groups, blocks, raw):
+        if stored and len(payload) % 2:
+            # raw tiles are read in place with long moves: one leading pad byte keeps them word aligned.
+            payload.append(0)
         payload.extend(group if stored else block)
         offsets.append(len(payload))
     return bytes(payload), offsets

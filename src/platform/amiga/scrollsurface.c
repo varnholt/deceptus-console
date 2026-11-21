@@ -1,5 +1,16 @@
 #include "scrollsurface.h"
 
+/* a quotient known to fit 16 bits: one divu instead of the 32-bit division library call. */
+static DeceptusU16 divideWord(DeceptusU32 dividend, DeceptusU16 divisor)
+{
+#if defined(__mc68000__)
+   __asm__("divu.w %1,%0" : "+d"(dividend) : "dm"(divisor) : "cc");
+   return (DeceptusU16)dividend;
+#else
+   return (DeceptusU16)(dividend / divisor);
+#endif
+}
+
 static DeceptusI16 tileFloor(DeceptusI16 pixel)
 {
    return pixel < 0 ? (DeceptusI16)(-((-(DeceptusI32)pixel + 15) / 16)) : pixel / 16;
@@ -58,13 +69,14 @@ DeceptusU16 amigaScrollSurfaceRows(const AmigaScrollSurface *surface, DeceptusU1
    {
       return rows;
    }
-   available = (surface->words - 1 - offset) / surface->columns + 1;
+   available = divideWord((DeceptusU32)(surface->words - 1 - offset), surface->columns) + 1;
    return rows < available ? rows : available;
 }
 
 DeceptusU16 amigaScrollSurfaceWrap(const AmigaScrollSurface *surface, DeceptusU16 offset)
 {
-   return (DeceptusU16)(((DeceptusU32)surface->words - offset + surface->stride - 1) / surface->stride);
+   /* below 65535 + stride, so the quotient stays far below 65536. */
+   return divideWord((DeceptusU32)surface->words - offset + surface->stride - 1, surface->stride);
 }
 
 DeceptusU8 amigaScrollSurfaceVisit(const AmigaScrollSurface *surface, AmigaScrollWindow *window, DeceptusI16 camera_x, DeceptusI16 camera_y,

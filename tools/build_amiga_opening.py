@@ -20,7 +20,7 @@ OPENING_SOURCES = (
     'src/game/roomcontent.c', 'src/game/weapons/playersword.c',
     'src/game/player/playeranimation.c', 'src/game/items/itemheadtorch.c',
     'src/platform/amiga/rooms.c', 'src/platform/amiga/graphics.c',
-    'src/platform/amiga/spritecache.c', 'src/platform/amiga/tilearchive.c',
+    'src/platform/amiga/spritecache.c', 'src/platform/amiga/tilearchive.c', 'src/platform/amiga/lz4.c',
     'src/platform/amiga/rastercache.c',
     'src/platform/amiga/opening.c', 'src/platform/amiga/opening_video.c',
     'src/platform/amiga/opening_ui.c',

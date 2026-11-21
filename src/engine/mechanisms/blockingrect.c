@@ -74,11 +74,23 @@ static DeceptusU8 mechanismSolidQuery(const DeceptusMechanismSet *set, const Dec
    mask = solidCandidates(set, bounds);
    for (candidate = 0; mask; ++candidate, mask >>= 1)
    {
+      /* collision probes mostly see sparse masks: step over empty bytes at once. */
+      while (!(mask & 255))
+      {
+         mask >>= 8;
+         candidate += 8;
+      }
       if (!(mask & 1))
       {
          continue;
       }
       index = set->solid_indices[candidate];
+      /* every solid kind below requires this overlap and has no side effects, so testing it first
+         only skips work; most candidates share a 64-pixel bin without touching the probe. */
+      if (!overlaps(bounds, &set->definitions[index].bounds))
+      {
+         continue;
+      }
       if (set->definitions[index].kind == DECEPTUS_MECH_BLOCK)
       {
          if (onOffBlockSolid(set, index, bounds))

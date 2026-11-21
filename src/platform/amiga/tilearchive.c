@@ -1,4 +1,5 @@
 #include "tilearchive.h"
+#include "lz4.h"
 #include "deceptus/compression.h"
 #include <string.h>
 
@@ -136,7 +137,7 @@ DeceptusU8 amigaTileArchiveCell(const AmigaTileArchive *archive, DeceptusU16 col
 const DeceptusU8 *amigaTileArchiveRawBank(const AmigaTileArchive *archive, DeceptusU8 mask_bank, DeceptusU16 bank)
 {
    DeceptusU16 count, remaining;
-   DeceptusU32 table, first;
+   DeceptusU32 table, first, bytes, span;
    count = mask_bank ? archive->masks : archive->colors;
    if (!archive->bytes || bank >= bankCount(count))
    {
@@ -149,11 +150,15 @@ const DeceptusU8 *amigaTileArchiveRawBank(const AmigaTileArchive *archive, Decep
    }
    table = (mask_bank ? archive->mask_table : archive->color_table) + (DeceptusU32)bank * 4;
    first = readLong(archive->bytes + table);
-   if (readLong(archive->bytes + table + 4) - first != (DeceptusU32)remaining * (mask_bank ? AMIGA_NATIVE_MASK_BYTES : AMIGA_NATIVE_TILE_BYTES))
+   bytes = (DeceptusU32)remaining * (mask_bank ? AMIGA_NATIVE_MASK_BYTES : AMIGA_NATIVE_TILE_BYTES);
+   span = readLong(archive->bytes + table + 4) - first;
+   /* a raw bank that would start at an odd offset carries one leading pad byte, so its tiles stay
+      word aligned for long reads; an lz4 block is always shorter than the raw bank. */
+   if (span == bytes + 1 && (first & 1))
    {
-      return 0;
+      return archive->bytes + archive->payload + first + 1;
    }
-   return archive->bytes + archive->payload + first;
+   return span == bytes ? archive->bytes + archive->payload + first : 0;
 }
 
 DeceptusU8 amigaTileArchiveDecode(const AmigaTileArchive *archive, DeceptusU8 mask_bank, DeceptusU16 bank, DeceptusU8 *destination,
@@ -183,10 +188,10 @@ DeceptusU8 amigaTileArchiveDecode(const AmigaTileArchive *archive, DeceptusU8 ma
    table = (mask_bank ? archive->mask_table : archive->color_table) + (DeceptusU32)bank * 4;
    first = readLong(archive->bytes + table);
    last = readLong(archive->bytes + table + 4);
-   if (last - first == bytes)
+   if (last - first == bytes || (last - first == bytes + 1 && (first & 1)))
    {
-      memcpy(destination, archive->bytes + archive->payload + first, bytes);
+      memcpy(destination, archive->bytes + archive->payload + last - bytes, bytes);
       return 1;
    }
-   return deceptusLz4Decode(archive->bytes + archive->payload + first, last - first, destination, bytes);
+   return amigaLz4Decode(archive->bytes + archive->payload + first, last - first, destination, bytes);
 }

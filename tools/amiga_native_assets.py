@@ -429,8 +429,12 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
                 # guaranteed non-chip bank gives up exactly its overflow of raw storage.
                 overflow = _aligned(_aligned(_aligned(len(sprite_metadata)) + len(atlas)) + len(animations)) - normal_bank
                 if base and overflow > 0:
+                    # give up exactly the overflow of the raw growth this room actually used (often
+                    # less than the cap), plus slack for the pad bytes that keep raw banks aligned.
+                    smallest = opening_tiles(base, width, height, world, overlays, 0)[0]
+                    used = max(0, len(atlas) - len(smallest))
                     atlas, animations = opening_tiles(base, width, height, world, overlays,
-                                                      max(0, RAW_GROWTH_BYTES - overflow - 1024))
+                                                      max(0, used - overflow - 1024))
                 payloads = ((base, overlays, metadata, atlas, sprite_metadata, sprites, animations)
                             if base else (b'',) * len(paths))
                 for path, payload in zip(paths, payloads):

@@ -1,4 +1,5 @@
 #include "graphics.h"
+#include "lz4.h"
 #include "amiga_native_assets.h"
 #include "deceptus/compression.h"
 #include <string.h>
@@ -67,7 +68,7 @@ DeceptusU8 amigaGraphicsRasterBlock(const AmigaGraphics *graphics, DeceptusU16 c
    {
       return 0;
    }
-   return deceptusLz4Decode(graphics->raster + start + first, last - first, pixels, AMIGA_RASTER_BYTES);
+   return amigaLz4Decode(graphics->raster + start + first, last - first, pixels, AMIGA_RASTER_BYTES);
 }
 
 static DeceptusU8 worldRange(const AmigaGraphics *graphics, DeceptusU32 offset, DeceptusU32 size)
@@ -235,7 +236,7 @@ DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics *graphics, DeceptusU16 gro
    {
       return 0;
    }
-   return deceptusLz4Decode(graphics->world + offset, size, destination, AMIGA_TILE_GROUP_BYTES);
+   return amigaLz4Decode(graphics->world + offset, size, destination, AMIGA_TILE_GROUP_BYTES);
 }
 
 DeceptusU8 amigaGraphicsClip(const AmigaGraphics *graphics, DeceptusU16 index, AmigaGraphicsClip *clip)
@@ -348,7 +349,7 @@ DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaG
    }
    if (!graphics->compact_masks)
    {
-      return deceptusLz4Decode(source, sprite->bytes, destination, size);
+      return amigaLz4Decode(source, sprite->bytes, destination, size);
    }
    /* compact frames omit the blitter's zero shift word and store one mask plane. decode them into
       the tail of the frame, then widen rows front to back: every write stays below the next
@@ -356,7 +357,7 @@ DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaG
    stored = sprite->row_bytes - 2;
    compact = (DeceptusU32)stored * sprite->height * (sprite->planes + 1);
    tail = destination + size - compact;
-   if (sprite->row_bytes > sizeof(line) || (sprite->row_bytes & 1) || !deceptusLz4Decode(source, sprite->bytes, tail, compact))
+   if (sprite->row_bytes > sizeof(line) || (sprite->row_bytes & 1) || !amigaLz4Decode(source, sprite->bytes, tail, compact))
    {
       return 0;
    }
@@ -422,7 +423,7 @@ DeceptusU32 amigaGraphicsSpriteCompact(const AmigaGraphics *graphics, const Amig
       }
       source = graphics->sprite_tail + (offset - graphics->sprite_first_size);
    }
-   return deceptusLz4Decode(source, sprite->bytes, destination, compact) ? compact : 0;
+   return amigaLz4Decode(source, sprite->bytes, destination, compact) ? compact : 0;
 }
 
 static DeceptusU8 reverseByte(DeceptusU8 value)
