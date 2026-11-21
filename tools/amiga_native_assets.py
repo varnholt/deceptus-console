@@ -12,6 +12,7 @@ import numpy as np
 from asset_decode import decode_lz4, unpackbits
 from amiga_room_tiles import PLANES, RAW_GROWTH_BYTES, opening_tiles
 from asset_resources import pack_resources
+from amiga_clip_overrides import apply_plans, plan_clips
 from lz4_block import encode_block
 
 
@@ -138,7 +139,8 @@ def sprite_palette(palette, weights, edges):
     return mapping, colours + [0] * (15 - len(colours))
 
 
-def native_layers(world, mapping=None):
+def native_layers(world, mapping=None, plans=None):
+    """plans (from amiga_clip_overrides) list the source frames each re-timed clip keeps."""
     header = struct.unpack_from('>4s6H8I', world)
     width, height, patterns, _, clips = header[1:6]
     tile_table, tile_data, _, _, clip_table = header[8:13]
@@ -175,7 +177,7 @@ def native_layers(world, mapping=None):
             return b'', b''
         cells = grid(clip[11], w // 8, h // 8 * count)
         padding = x % 16 // 8
-        for frame in range(count):
+        for frame in ([kept for kept, _ in plans[index]] if plans and index in plans else range(count)):
             image = tiles[cells[frame * (h // 8):(frame + 1) * (h // 8)]].transpose(2, 0, 3, 1).reshape(6, h, w // 8)
             image = np.pad(image, ((0, 0), (0, 0), (padding, -(padding + w // 8) % 2)))
             frames.append(image.tobytes())
@@ -382,7 +384,7 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
     identity = hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes()
                                      for name in ('amiga_native_assets.py', 'asset_decode.py',
                                                   'amiga_room_tiles.py', 'amiga_tiles.py',
-                                                  'lz4_block.py', 'asset_resources.py'))
+                                                  'lz4_block.py', 'asset_resources.py', 'amiga_clip_overrides.py'))
                               + (PALETTE_PINS.read_bytes() if PALETTE_PINS.exists() else b'')).hexdigest()
     hardware = hardware_resources(generated)
     dithered = family_resources(generated, DITHERED_FAMILIES)
@@ -404,10 +406,13 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
             valid = (previous.get('converter') == identity and old.get('source') == variant['sha256']
                      and all(path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() == digest
                              for path, digest in zip(paths, old.get('hashes', []))) and len(old.get('hashes', [])) == len(paths))
-            world = (folder / (basename + '.agp')).read_bytes()
+            source_world = (folder / (basename + '.agp')).read_bytes()
+            # amiga treatments re-time some shared clips; the source frames stay as generated.
+            plans = plan_clips(source_world, room['room'])
+            world = apply_plans(source_world, plans)
             metadata, boundaries = compact_world(world)
             if not valid:
-                base, overlays = native_layers(world)
+                base, overlays = native_layers(source_world, plans=plans)
                 width, height = struct.unpack_from('>2H', world, 4)
                 raw_sprites = (folder / (basename + '.asp')).read_bytes()
                 mapping = sprite_mapping = None
@@ -422,7 +427,7 @@ def prepare_native_assets(generated, report, normal_capacity=88 * 1024):
                     sprite_mapping, sprite_colours = sprite_palette(palette, sprite_weights, sprite_edges)
                     entries = reduced + [0] + sprite_colours
                     metadata = metadata[:48] + struct.pack('>32H', *entries) + metadata[48 + 64:]
-                    base, overlays = native_layers(world, mapping)
+                    base, overlays = native_layers(source_world, mapping, plans)
                 sprite_metadata, sprites = native_sprites(metadata, raw_sprites, mapping, sprite_mapping, hardware, dithered)
                 atlas, animations = opening_tiles(base, width, height, world, overlays) if base else (b'', b'')
                 # raw tile banks trade memory for speed: a room whose tables would not fit the
