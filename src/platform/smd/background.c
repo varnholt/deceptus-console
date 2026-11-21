@@ -34,10 +34,40 @@ static DeceptusU16 mapAddress(DeceptusI16 x, DeceptusI16 y)
    return (y & 31) * 64 + (x & 63);
 }
 
+static DeceptusU16 hashHome(DeceptusU16 pattern)
+{
+   return (pattern ^ (pattern >> 5)) & (WORLD_HASH - 1);
+}
+
+/* backward-shift deletion keeps the linear probe table free of tombstones. scrolling releases
+   patterns constantly, and the tombstone rebuild it replaces rehashed every resident slot. */
+static void hashDelete(DeceptusU16 hole)
+{
+   DeceptusU16 next, home;
+   next = hole;
+   while (1)
+   {
+      next = (next + 1) & (WORLD_HASH - 1);
+      if (work.hash_keys[next] == EMPTY)
+      {
+         break;
+      }
+      home = hashHome(work.hash_keys[next]);
+      /* an entry may fill the hole unless its home lies cyclically in (hole, next]. */
+      if (hole <= next ? (home <= hole || home > next) : (home <= hole && home > next))
+      {
+         work.hash_keys[hole] = work.hash_keys[next];
+         work.hash_slots[hole] = work.hash_slots[next];
+         hole = next;
+      }
+   }
+   work.hash_keys[hole] = EMPTY;
+}
+
 static DeceptusU16 hashFind(DeceptusU16 pattern, DeceptusU8 insert)
 {
    DeceptusU16 key, count, deleted;
-   key = (pattern ^ (pattern >> 5)) & (WORLD_HASH - 1);
+   key = hashHome(pattern);
    deleted = EMPTY;
    for (count = 0; count < WORLD_HASH; ++count)
    {
@@ -130,8 +160,7 @@ static void releaseCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
          smd_background_error = 2;
          return;
       }
-      work.hash_keys[key] = DELETED;
-      ++work.tombstones;
+      hashDelete(key);
       work.resident[slot] = EMPTY;
       work.free_slots[work.free_count++] = slot;
    }
@@ -198,7 +227,7 @@ static DeceptusU8 clipEnabled(const SmdBackgroundAnimation *clip, DeceptusU16 fl
    return (flags & clip->required_flags) == clip->required_flags && !(flags & clip->forbidden_flags);
 }
 
-static void loadCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 dirty)
+static DeceptusU8 cellValue(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 *pattern_out, DeceptusU16 *attributes_out)
 {
    const SmdRomBlob *blob;
    const SmdBackgroundAnimation *clip;
@@ -225,11 +254,19 @@ static void loadCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 
       if (!cell)
       {
          smd_background_error = 1;
-         return;
+         return 0;
       }
       pattern = ((DeceptusU16)cell[0] << 8) | cell[1];
       attributes = ((DeceptusU16)cell[2] << 8) | cell[3];
    }
+   *pattern_out = pattern;
+   *attributes_out = attributes;
+   return 1;
+}
+
+static void storeCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 dirty, DeceptusU16 pattern, DeceptusU16 attributes)
+{
+   DeceptusU16 column, index;
    work.maps[plane][mapAddress(x, y)] = acquire(pattern) | attributes;
    if (dirty == 1)
    {
@@ -255,6 +292,115 @@ static void loadCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 
          }
       }
       work.dirty_rows[plane][index >> 4] |= 1U << (index & 15);
+   }
+}
+
+static void loadCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 dirty)
+{
+   DeceptusU16 pattern, attributes;
+   if (cellValue(plane, x, y, &pattern, &attributes))
+   {
+      storeCell(plane, x, y, dirty, pattern, attributes);
+   }
+}
+
+/* an animated clip's next frame usually repeats most of its cells. a cell whose pattern and
+   attributes already sit in the map keeps its slot, so it is neither re-hashed nor re-sent. */
+static void refreshCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
+{
+   DeceptusU16 pattern, attributes, current;
+   if (!cellValue(plane, x, y, &pattern, &attributes))
+   {
+      return;
+   }
+   current = work.maps[plane][mapAddress(x, y)];
+   if (!(attributes & 0x7ff) && (current & ~0x7ff) == attributes && work.resident[current & 0x7ff] == pattern)
+   {
+      return;
+   }
+   releaseCell(plane, x, y);
+   storeCell(plane, x, y, 2, pattern, attributes);
+}
+
+/* sequential reader over one run-length row of map cells. */
+typedef struct SmdCellRun
+{
+   const DeceptusU8 *source, *end, *cell;
+   DeceptusU16 left;
+   DeceptusU8 literal;
+} SmdCellRun;
+
+static DeceptusU8 cellRunStart(SmdCellRun *run, const SmdRomBlob *blob, DeceptusU16 row)
+{
+   if (row >= blob->blocks || blob->unit_bytes != 4)
+   {
+      return 0;
+   }
+   run->source = blob->data + blob->offsets[row];
+   run->end = blob->data + blob->offsets[row + 1];
+   run->left = 0;
+   return 1;
+}
+
+static const DeceptusU8 *cellRunNext(SmdCellRun *run)
+{
+   const DeceptusU8 *cell;
+   DeceptusU8 code;
+   if (!run->left)
+   {
+      if (run->source >= run->end)
+      {
+         return 0;
+      }
+      code = *run->source++;
+      run->literal = code < 128;
+      run->left = run->literal ? code + 1 : code - 127;
+      run->cell = run->source;
+      run->source += run->literal ? run->left * 4 : 4;
+      if (run->source > run->end)
+      {
+         run->left = 0;
+         run->source = run->end;
+         return 0;
+      }
+   }
+   cell = run->cell;
+   if (run->literal)
+   {
+      run->cell += 4;
+   }
+   --run->left;
+   return cell;
+}
+
+/* a clip that stepped to its next frame only changes the cells whose data differs from the frame
+   before; both frames' rows are read side by side instead of resolving every cell of the clip. */
+static void refreshClipRow(const SmdBackgroundAnimation *clip, DeceptusU16 frame, DeceptusU16 previous, DeceptusI16 y,
+                           DeceptusI16 clip_left, DeceptusI16 clip_right)
+{
+   SmdCellRun now, before;
+   const DeceptusU8 *a, *b;
+   DeceptusI16 x;
+   DeceptusU8 compare;
+   compare = cellRunStart(&now, &clip->cells, frame * clip->rows + y - clip->top) &&
+             cellRunStart(&before, &clip->cells, previous * clip->rows + y - clip->top);
+   for (x = clip->left; compare && x < clip_left; ++x)
+   {
+      compare = cellRunNext(&now) && cellRunNext(&before);
+   }
+   for (x = clip_left; x < clip_right; ++x)
+   {
+      if (compare)
+      {
+         a = cellRunNext(&now);
+         b = cellRunNext(&before);
+         if (a && b && a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3])
+         {
+            continue;
+         }
+         compare = a && b;
+      }
+      refreshCell(clip->plane, x, y);
    }
 }
 
@@ -309,7 +455,7 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
 {
    const SmdBackgroundAnimation *clip;
    DeceptusU16 index, duration, plane;
-   DeceptusU8 dirty, active;
+   DeceptusU8 dirty, active, stepped;
    DeceptusI16 left, top, x, y, added, clip_left, clip_top, clip_right, clip_bottom;
    if (smd_background_error)
    {
@@ -324,7 +470,7 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
    {
       rebuildHash();
    }
-   dirty = 0;
+   dirty = stepped = 0;
    for (index = 0; index < stage->animation_count; ++index)
    {
       clip = &stage->animations[index];
@@ -350,6 +496,7 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
                work.frame[index] = 0;
             }
             dirty |= 1U << index;
+            stepped |= 1U << index;
          }
       }
    }
@@ -417,16 +564,15 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          clip_bottom = top + WORLD_HEIGHT < clip->top + clip->rows ? top + WORLD_HEIGHT : clip->top + clip->rows;
          for (y = clip_top; y < clip_bottom; ++y)
          {
-            for (x = clip_left; x < clip_right; ++x)
+            if (stepped & (1U << index))
             {
-               releaseCell(clip->plane, x, y);
+               refreshClipRow(clip, work.frame[index], work.frame[index] ? work.frame[index] - 1 : clip->frames - 1, y, clip_left,
+                              clip_right);
+               continue;
             }
-         }
-         for (y = clip_top; y < clip_bottom; ++y)
-         {
             for (x = clip_left; x < clip_right; ++x)
             {
-               loadCell(clip->plane, x, y, 2);
+               refreshCell(clip->plane, x, y);
             }
          }
       }
