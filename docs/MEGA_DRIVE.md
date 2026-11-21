@@ -161,6 +161,70 @@ recently released clip patterns resident would avoid their re-decode and
 upload. A per-row cursor for run-length cell lookups, and building with `-O2`
 (15.2 route updates/s) or `-Os` (14.1), did not pay off; `-O3` stays.
 
+### Resident background patterns and the sprite piece cost
+
+A second pass followed the two leads above.
+
+Background patterns whose last cell is released now stay in VRAM and in the
+pattern hash. Their slots go to the back of a free ring and a pattern is only
+evicted when its slot is taken again, so an animated clip that cycles back to a
+frame, or a scroll that returns, finds its patterns resident instead of decoding
+and uploading them again. Keeping up to all 1,151 slots hashed exposed the old
+hash home (`pattern ^ pattern >> 5`): pattern numbers come in runs, and the runs
+formed probe clusters long enough to make the Altar four times slower. A
+Fibonacci hash (`pattern * 40503 >> 5`) keeps probes short. A clip cell that
+changed with a frame step is taken from the row reader that found the change,
+instead of resolving the cell again with a walk from the start of its run-length
+row; a clip overlapped by a later enabled clip keeps the full lookup, because the
+later clip wins there.
+
+The sprite piece cost was measured by timing sections with the V counter
+(`vtimer * 262` plus the remapped line), calibrated against a 10,000-cycle
+`dbra` loop that read back as 10,100 to 10,600 cycles. In the Crypt fixture the
+request emitter took about 100,000 cycles per presentation for 48 objects and 11
+requests. No single step dominated: partial pieces cost about 1,800 cycles each
+through `smdObjQuads` and one or two `smdObjPiece` calls with seven stacked
+arguments; building and clearing the per-request link index about 700 cycles
+per request; the hardware entries of whole pieces were cheap. The rest was loop
+bookkeeping: byte counters re-extended for every index, globals re-read per
+piece, and values spilled to the stack because the exact-budget path, slot
+misses and the split path were all inlined into one loop. The fast-budget
+emitter now has its own loop with word counters and a local object count,
+enters the line budget once per row of whole pieces, and splits partial pieces
+inline (`smdObjSplit`, covered by `tests/test_smd_sprite_runtime.py`). The
+exact-budget pass, `smdObjQuads` and `smdObjSlotFor` stay out of line. The
+emitter dropped to about 76,000 cycles in the Crypt. A fit over the Crypt and
+Loop fixtures still puts the cost at roughly 1,000 cycles per piece plus 2,600
+per request, and the shared appearance visit adds 7,000 to 25,000 cycles per
+presentation; further gains need a different data layout, such as per-frame
+lists of opaque pieces from the converter, rather than tuning this loop.
+
+Same machine, emulator and commands as above; the walk is
+`python tools/capture_showcase.py smd --first-step 127 --last-step 134`, the
+first room is `--route docs/media/showcase-route.json --first-step 2
+--last-step 5`:
+
+| Scene | Updates/s before | Updates/s after | CPU load before | CPU load after |
+| --- | ---: | ---: | ---: | ---: |
+| Cell | 54.4 | 54.55 | 81.5 | 78.9 |
+| Loop | 28.25 | 28.35 | 160.4 | 151.5 |
+| Crypt | 27.2 | 28.3 | 186.3 | 165.4 |
+| Altar | 23.2 | 25.75 | 223.0 | 185.7 |
+| Route steps 127-134 (Main Hall to Altar), presentations/s | 16.1 | 22.3 | | |
+| First room, route steps 2-5, presentations/s | 32.8 | 34.1 | | |
+
+The tick-locked cartridge still passes all 56 checkpoints of
+`python deceptus.py verify smd`.
+
+Tried and dropped: clearing only the touched lines of the sprite line budget
+instead of the whole 676-byte union made no measurable difference; replacing
+the global read-modify-writes of whole pieces alone, without the loop split,
+saved almost nothing, which is what pointed at loop bookkeeping instead. In the
+stationary fixtures the Loop and Cell are now bound by the shared appearance
+visit and by commit and preload overhead of 10,000 to 15,000 cycles each that
+is present even when nothing is uploaded; that fixed cost is the next thing to
+measure.
+
 ## Retained small prototype
 
 ```powershell
