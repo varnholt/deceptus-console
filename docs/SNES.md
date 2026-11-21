@@ -141,3 +141,48 @@ In the animated Altar view, the same warm sample improves from 31 to 46 ticks
 (1.55 to 2.30 updates/s); Loop and Crypt measurements remain unchanged. The
 matched 318-presentation Altar release fixture drops from 12,607 to 9,530 display
 frames. This remains substantially below a playable console frame rate.
+
+### Frame-phase profile and loop changes
+
+A local profiling build latched the PPU vertical counter at every phase write of
+the main loop and summed scanlines per phase. On the Main Hall → Altar walk
+(route steps 127–134), a presentation took about 2,200 scanlines (8.4 display
+frames). The largest costs were background preparation (about 1,190 lines, of
+which periodic hash-table rebuilds were roughly 250 and animated-clip refreshes
+about 290), the simulation tick (about 200), sprite preparation (about 250) and
+a full extra display frame inside `setScreenOn()`, which always waits for the
+next VBlank. In the stationary Loop fixture the simulation tick alone was about
+640 lines per presentation, a third of the frame; it remains portable C.
+
+The loop now changes the screen only after it was actually blanked, so ordinary
+presentations no longer wait for a second VBlank. Phase 15 is written as soon as
+the debug packet is complete, because emulator checks sample the mailbox only in
+phases 15 and later and those phases now fit inside VBlank. Background hash
+deletions use backward shifting instead of tombstones, so the multi-frame C
+rebuild no longer runs during play; lookups return the same slots. Each clip's
+enabled plane is cached when the scenery flags change instead of being tested
+for every cell lookup. An animated refresh skips cells whose resident pattern and
+attributes already match the new frame, and reads the clip's frame words
+directly when that clip is the enabled, topmost source of its rectangle. The OAM
+shadow copy and slot protection after a sprite commit run in 65816 code.
+
+Measured under Snes9x 1.63 at 60.0988 Hz with the 8 MiB ExHiROM opening:
+
+| Measurement | Before | After |
+| --- | --- | --- |
+| Main Hall → Altar walk (`capture_showcase.py`, steps 127–134) | 6.8 presentations/s | 9.0 presentations/s |
+| Stationary Loop (room 9, 370/696) | 7.51 updates/s | 8.46 updates/s |
+| Stationary Crypt (room 25, 597/264) | 8.41 updates/s | 8.51 updates/s |
+| Stationary Altar, cage open (room 7, 536/312) | 6.31 updates/s | 8.71 updates/s |
+
+The stationary rows use the Mega Drive benchmark's fixture positions and
+progress, pin the player each presentation, and run `benchmark_snes.py`'s 3,000
+frame warmup and 1,200 frame sample; they are not the earlier SNES fixture
+snapshots. The Crypt stays at seven display frames per presentation because its
+sprite preparation, about 1,000 lines, dominates. The water-cache audit still
+reports 157,008 views with peaks of 991 and 1,042 resident patterns and three
+Sewers compactions. The tick-exact cartridge still passes the full 56-checkpoint
+route with 29 health and zero deaths, now in 206,375 display frames instead of
+239,841. Its final settle check accepts phase 15, which follows the previous
+presentation's commits. `capture_showcase.py` no longer presses Start again when the
+game has already left the title during its wait, which paused faster builds.

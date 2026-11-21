@@ -299,10 +299,15 @@ static void debugWrite(void)
    deceptus_debug[55] = engine->player_rope.node_index;
 }
 
+/* setScreenOn waits for a further VBlank, so it is only worth paying after
+ * the screen was actually blanked. */
+static DeceptusU8 screen_blanked;
+
 static void videoLoad(void)
 {
    deceptus_debug[11] = 3;
    setScreenOff();
+   screen_blanked = 1;
    snesBackgroundLoad(adventure.campaign.room_index);
    deceptus_debug[11] = 4;
    snesSpritesInit();
@@ -358,9 +363,18 @@ int main(void)
       snesSpritesPreload();
       deceptus_debug[11] = 14;
       debugWrite();
+      /* phase 15 tells emulator checks the packet is complete. it used to be
+       * observable for most of a display frame while setScreenOn waited; the
+       * commits now fit in VBlank, so the wait for it is marked as well. */
+      deceptus_debug[11] = 15;
+      if (snes_sprite_blank)
+      {
+         screen_blanked = 1;
+      }
       if (snes_background_full)
       {
          setScreenOff();
+         screen_blanked = 1;
       }
       WaitForVBlank();
       deceptus_debug[11] = 15;
@@ -370,7 +384,11 @@ int main(void)
       deceptus_debug[11] = 17;
       snesUiCommit();
       deceptus_debug[11] = 18;
-      setScreenOn();
+      if (screen_blanked)
+      {
+         setScreenOn();
+         screen_blanked = 0;
+      }
       deceptus_debug[11] = 19;
    }
    return 0;

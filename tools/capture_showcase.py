@@ -127,6 +127,9 @@ def capture(name, rom, core, first_step, last_step, route_path, clang, boot_fram
             if platform['state'](emulator)['mode'] != 0:
                 break
             emulator.run(30)
+            # a slow title presentation can start the game during the wait; another press would pause it.
+            if platform['state'](emulator)['mode'] != 0:
+                break
         else:
             raise AssertionError((name, 'New Game did not start'))
         index, frames_in_step, count = 2, 0, 0
