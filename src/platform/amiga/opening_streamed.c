@@ -440,7 +440,7 @@ static DeceptusU16 *bankSlot(AmigaBankCache *cache, DeceptusU8 mask_bank, Decept
          oldest = slot;
       }
    }
-   ++amiga_debug[mask_bank ? 26 : 29]; /* PERFCOUNT: bank decodes */
+   ++amiga_debug[25]; /* PERFCOUNT: bank decodes */
    if (cache->banks[oldest] < BANK_INDEX_MAX)
    {
       cache->slot_of[cache->banks[oldest]] = 0;
@@ -891,6 +891,10 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
    const DeceptusU16 *generation;
    const DeceptusU16 *pixels;
    DeceptusI16 x;
+   if (context)
+   {
+      amiga_debug[28] += (DeceptusU16)(right - left); /* PERFCOUNT: all scroll cells */
+   }
    if (!map_slots || left < 0 || y < 0 || right > (DeceptusI16)map_columns || y >= (DeceptusI16)map_rows ||
        (y >= cover_top[0] && y < cover_bottom[0] && left < cover_right[0] && right > cover_left[0]) ||
        (y >= cover_top[1] && y < cover_bottom[1] && left < cover_right[1] && right > cover_left[1]))
@@ -905,6 +909,10 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
       return 1;
    }
    amiga_debug[23] += (DeceptusU16)(right - left); /* PERFCOUNT */
+   if (context)
+   {
+      amiga_debug[26] += (DeceptusU16)(right - left); /* PERFCOUNT: fast scroll cells */
+   }
    offset = amigaScrollSurfaceOffset(&surface, left, y * 16, 0);
    entry = map_slots + ((DeceptusU32)(DeceptusU16)y * map_columns + (DeceptusU16)left) * 2;
    page = pages[draw_buffer];
@@ -1563,7 +1571,7 @@ static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, Decept
 {
    const DeceptusU8 *line_bytes;
    DeceptusU16 *output;
-   DeceptusU8 row[PLANES][SPRITE_PAIRS * 2 + 2];
+   DeceptusU8 row[PLANES][SPRITE_PAIRS * 2];
    DeceptusU16 index, words, line, channel, stored, start;
    DeceptusU8 plane, shift;
    for (index = 0; index < sprite_frame_count; ++index)
@@ -1604,51 +1612,45 @@ static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, Decept
    shift = (DeceptusU8)(stored * 8 - graphic->width);
    /* attached pairs: the even channel shows planes 0-1, the odd one planes 2-3 of each 16 pixels. */
    line_bytes = sprite_compact;
-   if (!graphic->flip || shift < 8)
+   if (stored == pairs * 2 && (!graphic->flip || shift < 8) && !((ULONG)sprite_compact & 1))
    {
-      /* each channel word straight from its plane row: a flipped row is mirrored once and its
-         sub-byte shift taken per word from the next byte (zero past the row end). */
-      DeceptusU8 *bytes;
-      DeceptusU16 value, stride;
-      if (!graphic->flip)
-      {
-         shift = 0;
-      }
-      memset(row, 0, sizeof(row));
+      /* each channel word straight from the compact rows: unflipped it is the plane row's word as
+         stored, flipped it is two mirrored bytes from the row's far end, shifted left by the
+         sub-byte remainder with the following byte's bits (zero past the row end). */
+      DeceptusU16 stride, *channel_output;
+      const DeceptusU8 *ends[PLANES], *end;
+      DeceptusU8 next;
       stride = (DeceptusU16)(graphic->height * 2);
       for (line = 0; line < graphic->height; ++line, line_bytes += stored * PLANES)
       {
+         output = sprite_cache + start + line * 2;
+         if (!graphic->flip)
+         {
+            const DeceptusU16 *words = (const DeceptusU16 *)line_bytes;
+            for (channel = 0; channel < pairs; ++channel, ++words)
+            {
+               channel_output = output + (DeceptusU32)channel * 2 * stride;
+               channel_output[0] = words[0];
+               channel_output[1] = words[pairs];
+               channel_output[stride] = words[pairs * 2];
+               channel_output[stride + 1] = words[pairs * 3];
+            }
+            continue;
+         }
          for (plane = 0; plane < PLANES; ++plane)
          {
-            const DeceptusU8 *source;
-            bytes = row[plane];
-            source = line_bytes + plane * stored;
-            if (graphic->flip)
-            {
-               source += stored;
-               for (index = stored; index; --index)
-               {
-                  *bytes++ = sprite_mirror[*--source];
-               }
-            }
-            else
-            {
-               for (index = stored; index; --index)
-               {
-                  *bytes++ = *source++;
-               }
-            }
+            ends[plane] = line_bytes + (plane + 1) * stored;
          }
-         output = sprite_cache + start + line * 2;
          for (channel = 0; channel < pairs * 2; ++channel, output += stride)
          {
             plane = (DeceptusU8)((channel & 1) * 2);
-            bytes = row[plane] + (channel >> 1) * 2;
-            value = ((DeceptusU16)bytes[0] << 8) | bytes[1];
-            output[0] = shift ? (DeceptusU16)((value << shift) | (bytes[2] >> (8 - shift))) : value;
-            bytes = row[plane + 1] + (channel >> 1) * 2;
-            value = ((DeceptusU16)bytes[0] << 8) | bytes[1];
-            output[1] = shift ? (DeceptusU16)((value << shift) | (bytes[2] >> (8 - shift))) : value;
+            for (index = 0; index < 2; ++index)
+            {
+               end = ends[plane + index] - (channel >> 1) * 2;
+               next = (channel >> 1) * 2 + 2 < stored ? sprite_mirror[end[-3]] : 0;
+               output[index] = shift ? (DeceptusU16)((((DeceptusU16)sprite_mirror[end[-1]] << 8 | sprite_mirror[end[-2]]) << shift) | (next >> (8 - shift)))
+                                     : (DeceptusU16)((DeceptusU16)sprite_mirror[end[-1]] << 8 | sprite_mirror[end[-2]]);
+            }
          }
       }
    }
@@ -2370,7 +2372,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    }
    saved_used[draw_buffer] = 0;
    amigaPerfPhase(13); /* PERFCOUNT: bob restore */
-   if (!amigaScrollSurfaceVisitRuns(&surface, &windows[draw_buffer], camera_x, camera_y, paintRun, 0))
+   if (!amigaScrollSurfaceVisitRuns(&surface, &windows[draw_buffer], camera_x, camera_y, paintRun, (void *)1))
    {
       return 0;
    }
