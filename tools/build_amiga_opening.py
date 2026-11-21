@@ -13,6 +13,7 @@ from assets import ROOT
 from build_amiga import SOURCES, build_program
 from room_content import compile_rooms
 from snes_tutorial_assets import ensure_original_imports
+from amiga_message_box import compile_message_boxes
 
 
 OPENING_SOURCES = (
@@ -132,9 +133,13 @@ def build_opening(sdk, data, output, reuse_assets=False, renderer='legacy'):
                    if source.name == 'opening_video.c' else source for source in sources]
     sources.append(generated / 'opening_content.c')
     sources.append(generated / 'amiga_native_assets.c')
+    message_boxes = None
+    if renderer == 'native':
+        message_boxes = compile_message_boxes(data, ROOT / 'assets/generated/gba', generated)
+        sources.append(generated / 'amiga_message_box.c')
     build_report = dict(scope='experimental streamed 26-room Amiga opening',
                         renderer=renderer,
                         full_game=False, pixel_scale=1, dithering=False,
                         resource_normal_bytes=RESOURCE_NORMAL_BYTES, resource_chip_bytes=RESOURCE_CHIP_BYTES,
-                        graphics=report, native_budget=budget)
+                        graphics=report, native_budget=budget, message_boxes=message_boxes)
     build_program(sdk, output, sources, build_report, generated)

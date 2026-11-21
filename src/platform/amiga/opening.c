@@ -49,7 +49,7 @@ int main(void)
 {
    DeceptusRoomProvider provider;
    DeceptusU16 buttons;
-   DeceptusU32 previous_frame, now, elapsed;
+   DeceptusU32 previous_frame, now, elapsed, target, interval, shown;
    DeceptusU8 ticks, room_loaded;
    if (!amigaSystemOpen())
    {
@@ -83,12 +83,24 @@ int main(void)
    }
    deceptusPacingInit(&pacing, 50, AMIGA_PACING_MAX_TICKS);
    previous_frame = amigaOpeningVideoFrames();
+   interval = 1;
    room_loaded = 0;
    while (!amigaInputQuit())
    {
       now = amigaOpeningVideoFrames();
-      elapsed = now - previous_frame;
-      previous_frame = now;
+      /* the game advances to the blank that will show the page, not to the time the loop came
+         round: each page then moves by exactly the time it stays on screen. the previous page
+         goes up at its blank or, if drawn late, at the next one; this page needs as many blanks
+         after that as the last draw did. a late draw is shown at the next blank instead. */
+      shown = previous_frame;
+      if ((DeceptusI32)(shown - now) < 1)
+      {
+         shown = now + 1;
+      }
+      target = shown + interval;
+      elapsed = target - previous_frame;
+      previous_frame = target;
+      amigaOpeningVideoPresentAt(target);
       /* a room load reads from disk and is not made up for. */
       ticks = deceptusPacingTicks(&pacing, room_loaded ? 1 : (DeceptusU16)(elapsed > 255 ? 255 : elapsed));
       room_loaded = 0;
@@ -118,6 +130,16 @@ int main(void)
          break;
       }
       ++amiga_debug[10];
+      /* the draw started once the previous page was up; ending inside frame m it is shown at m + 1. */
+      interval = amigaOpeningVideoFrames() + 1 - shown;
+      if ((DeceptusI32)interval < 1)
+      {
+         interval = 1;
+      }
+      else if (interval > 4)
+      {
+         interval = 4;
+      }
    }
    amigaOpeningVideoClose();
    amigaRoomsRelease();

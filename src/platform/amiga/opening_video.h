@@ -10,5 +10,7 @@ void amigaOpeningVideoSuspend(void);
 void amigaOpeningVideoReset(void);
 void amigaOpeningVideoClose(void);
 DeceptusU32 amigaOpeningVideoFrames(void);
+/* the next page drawn is shown at this vertical blank (frame count) or, if drawn late, the first one after. */
+void amigaOpeningVideoPresentAt(DeceptusU32 frame);
 DeceptusU8 amigaOpeningVideoUsesTiles(void);
 #endif

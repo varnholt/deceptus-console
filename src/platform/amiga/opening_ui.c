@@ -19,6 +19,14 @@ typedef struct AmigaUiCanvas
    DeceptusI16 top, bottom;
 } AmigaUiCanvas;
 
+/* set while a backend shows the dialogue box itself; the scroll surface then carries no box. */
+static DeceptusU8 dialogue_overlay;
+
+void amigaOpeningUiSetDialogueOverlay(DeceptusU8 enabled)
+{
+   dialogue_overlay = enabled;
+}
+
 static DeceptusU8 *canvasAddress(const AmigaUiCanvas *canvas, DeceptusI16 column, DeceptusI16 y, DeceptusU8 plane)
 {
    if (canvas->surface)
@@ -232,7 +240,11 @@ static DeceptusU8 drawUi(AmigaUiCanvas *canvas_template, const DeceptusAdventure
    canvas.origin_y = view_y;
    mode = game->campaign.mode;
    count = 0;
-   if (mode == DECEPTUS_DIALOGUE || mode == DECEPTUS_NOTIFICATION)
+   if ((mode == DECEPTUS_DIALOGUE || mode == DECEPTUS_NOTIFICATION) && dialogue_overlay)
+   {
+      /* the backend's own message box covers this mode; no surface box, no text band. */
+   }
+   else if (mode == DECEPTUS_DIALOGUE || mode == DECEPTUS_NOTIFICATION)
    {
       blackBox(&canvas, 8, 136, 304, 80, &rectangles[count++]);
       if (game->dialogue && game->page < game->dialogue->page_count)

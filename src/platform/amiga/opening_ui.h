@@ -15,4 +15,6 @@ DeceptusU8 amigaOpeningUiDrawSurface(const DeceptusAdventure *game, DeceptusU8 *
 /* renders only the text of screen rows [top, bottom) into one zeroed plane, row_bytes per row. */
 DeceptusU8 amigaOpeningUiDrawMask(const DeceptusAdventure *game, DeceptusU8 *rows, DeceptusU16 row_bytes, DeceptusI16 top,
                                   DeceptusI16 bottom, DeceptusRect *rectangles);
+/* enabled = 1 leaves dialogue and notification boxes to the backend (a copper-fed bitplane region). */
+void amigaOpeningUiSetDialogueOverlay(DeceptusU8 enabled);
 #endif

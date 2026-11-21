@@ -187,6 +187,16 @@ is included in the cartridge. `tools/verify_tutorial.py` runs controlled-start
 scene checks and restores the production ROM afterward. It is separate from
 the older preview's complete curated input route.
 
+Dialogue windows and the HUD share BG2 at priority 0. Level sprites (player,
+enemies, mechanisms) use OBJ priority 1 or 2 and the grab rope and headtorch beam
+use 1. Because an OBJ only covers BGs with an equal or higher priority number, no
+level sprite can be drawn over an open window. While a dialogue or menu is open, the
+darkening blend applies to BG0, BG1 and OBJ, never to BG2. The only priority-0 OBJ is
+the HUD's room-title strip, which is part of the HUD. It sits at y=16-23
+(`src/platform/gba/hud.h`) and the dialogue window is drawn in the lower part of the
+screen, so the two never overlap; its priority was left at 0 rather than changed
+without a capture showing a case where they meet.
+
 ## Verification and limits
 
 `tools/verify_preview.py` plays from title through all exits, wall jumps, lever
