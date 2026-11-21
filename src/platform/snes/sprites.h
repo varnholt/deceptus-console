@@ -472,6 +472,10 @@ static void snesSpritesPreload(void)
    snes_sprite_room_load = 0;
 }
 
+#ifdef SNES_SPRITES_ASM
+void snesObjPublish(void);
+#endif
+
 static void snesSpritesCommit(void)
 {
    DeceptusU16 index;
@@ -481,9 +485,13 @@ static void snesSpritesCommit(void)
    }
    dmaCopyOAram(snes_obj_oam, 0, sizeof(snes_obj_oam));
    /* the next SDK VBlank publishes this only after every new tile is ready. */
+#ifdef SNES_SPRITES_ASM
+   snesObjPublish();
+#else
    memcpy(oamMemory, snes_obj_oam, sizeof(snes_obj_oam));
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
       snes_obj_slots[index].held = snes_obj_slots[index].used;
    }
+#endif
 }
