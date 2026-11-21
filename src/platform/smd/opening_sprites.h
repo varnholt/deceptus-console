@@ -163,12 +163,23 @@ static void smdObjResetCache(void)
    smd_obj_unused = smd_obj_free_cursor = 0;
 }
 
+/* the same fields VDP_setSpriteFull writes, without an out-of-line library call per object. */
+static void smdObjHardware(DeceptusU16 index, DeceptusI16 x, DeceptusI16 y, DeceptusU8 size, DeceptusU16 attributes)
+{
+   VDPSprite *sprite;
+   sprite = &vdpSpriteCache[index];
+   sprite->y = y + 0x80;
+   sprite->size = size;
+   sprite->link = (DeceptusU8)(index + 1);
+   sprite->attribut = attributes;
+   sprite->x = x + 0x80;
+}
+
 static void smdObjPiece(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, DeceptusU8 palette, DeceptusU8 flip, DeceptusU8 width,
                         DeceptusU8 height)
 {
    DeceptusI16 top, bottom, line;
    DeceptusU8 slivers;
-   VDPSprite *sprite;
    if (x <= -(DeceptusI16)width || x >= 320 || y <= -(DeceptusI16)height || y >= 224)
    {
       return;
@@ -212,13 +223,7 @@ static void smdObjPiece(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, Deceptus
          smd_obj_slivers[line] += slivers;
       }
    }
-   /* the same fields VDP_setSpriteFull writes, without an out-of-line library call per object. */
-   sprite = &vdpSpriteCache[smd_obj_count];
-   sprite->y = y + 0x80;
-   sprite->size = SPRITE_SIZE(slivers, height >> 3);
-   sprite->link = (DeceptusU8)(smd_obj_count + 1);
-   sprite->attribut = TILE_ATTR_FULL(palette, 0, 0, flip, tile);
-   sprite->x = x + 0x80;
+   smdObjHardware(smd_obj_count, x, y, SPRITE_SIZE(slivers, height >> 3), TILE_ATTR_FULL(palette, 0, 0, flip, tile));
    ++smd_obj_count;
 }
 
@@ -269,6 +274,47 @@ static void smdObjQuads(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, Deceptus
    }
 }
 
+/* the whole-piece case of smdObjQuads and smdObjPiece under the fast budget, for a 16x16 piece
+   the caller has already found on screen with an object free. */
+static void smdObjWhole(DeceptusI16 x, DeceptusI16 y, DeceptusU16 attributes)
+{
+   DeceptusI16 top, bottom;
+   top = y < 0 ? 0 : y;
+   bottom = y > 208 ? 224 : y + 16;
+   if (top < smd_obj_budget_top)
+   {
+      smd_obj_budget_top = top;
+   }
+   if (bottom > smd_obj_budget_bottom)
+   {
+      smd_obj_budget_bottom = bottom;
+   }
+   ++smd_obj_budget.ranges.objects[top];
+   --smd_obj_budget.ranges.objects[bottom];
+   smd_obj_budget.ranges.slivers[top] += 2;
+   smd_obj_budget.ranges.slivers[bottom] -= 2;
+   smdObjHardware(smd_obj_count, x, y, SPRITE_SIZE(2, 2), attributes);
+   ++smd_obj_count;
+}
+
+static DeceptusU8 smdObjAppearance(void *context, const DeceptusSpriteAppearance *sprite)
+{
+   static const DeceptusU16 first[DECEPTUS_SPRITE_FAMILY_COUNT] = {
+      SMD_ACTOR_FIRST,     SMD_LEVER_FIRST,         SMD_SPIKES_FIRST,    SMD_BLOCK_FIRST,          SMD_COLLAPSE_FIRST,
+      SMD_RAT_FIRST,       SMD_TRAP_FIRST,          SMD_MUZZLE_FIRST,    SMD_ARROW_FIRST,          SMD_SWIM_FIRST,
+      SMD_BLOB_FIRST,      SMD_SPLASH_FIRST,        SMD_SWORD_FIRST,     SMD_CANNON_FIRST,         SMD_CANNONBALL_FIRST,
+      SMD_IRON_DOOR_FIRST, SMD_WOODEN_PLANKS_FIRST, SMD_HEADTORCH_FIRST, SMD_HEADTORCH_BEAM_FIRST, SMD_ORB_FIRST,
+      SMD_FROG_BLUE_FIRST, SMD_BLUE_FIREBALL_FIRST, SMD_GRAB_ROPE_FIRST, SMD_PLAYER_ROPE_FIRST};
+   (void)context;
+   if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
+   {
+      return 0;
+   }
+   smdObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x,
+             sprite->family == DECEPTUS_SPRITE_GRAB_ROPE ? 3 : 2);
+   return 1;
+}
+
 /* one request's visible pieces. a separate small function keeps the per-piece values in
    registers; inside the large prepare pass gcc spilled them to the stack, which made every
    piece cost well over a thousand 68000 cycles. */
@@ -278,9 +324,8 @@ static void __attribute__((noinline)) smdObjEmitRequest(const SmdObjRequest *req
    const DeceptusU8 *opaque, *quad_row;
    DeceptusU8 *links;
    SmdObjSlot *slots;
-   VDPSprite *sprite;
    DeceptusU16 resource, slot, attributes;
-   DeceptusI16 x, y, first_x, step, top, bottom;
+   DeceptusI16 x, y, first_x, step;
    DeceptusU8 row, column, rows, columns, piece, link, quads;
    resource = request->resource;
    entry = &smd_sprite_resources[resource];
@@ -331,28 +376,7 @@ static void __attribute__((noinline)) smdObjEmitRequest(const SmdObjRequest *req
          quads = quad_row[piece];
          if (smd_obj_fast_budget && smd_obj_count < 80 && (quads == 15 || ((quads & 5) && (quads & 10))))
          {
-            /* the whole-piece case of smdObjQuads and smdObjPiece, inlined. */
-            top = y < 0 ? 0 : y;
-            bottom = y > 208 ? 224 : y + 16;
-            if (top < smd_obj_budget_top)
-            {
-               smd_obj_budget_top = top;
-            }
-            if (bottom > smd_obj_budget_bottom)
-            {
-               smd_obj_budget_bottom = bottom;
-            }
-            ++smd_obj_budget.ranges.objects[top];
-            --smd_obj_budget.ranges.objects[bottom];
-            smd_obj_budget.ranges.slivers[top] += 2;
-            smd_obj_budget.ranges.slivers[bottom] -= 2;
-            sprite = &vdpSpriteCache[smd_obj_count];
-            sprite->y = y + 0x80;
-            sprite->size = SPRITE_SIZE(2, 2);
-            sprite->link = (DeceptusU8)(smd_obj_count + 1);
-            sprite->attribut = attributes | smdObjTile(slot);
-            sprite->x = x + 0x80;
-            ++smd_obj_count;
+            smdObjWhole(x, y, attributes | smdObjTile(slot));
          }
          else
          {
@@ -364,24 +388,6 @@ static void __attribute__((noinline)) smdObjEmitRequest(const SmdObjRequest *req
    {
       links[slots[link - 1].piece] = 0;
    }
-}
-
-static DeceptusU8 smdObjAppearance(void *context, const DeceptusSpriteAppearance *sprite)
-{
-   static const DeceptusU16 first[DECEPTUS_SPRITE_FAMILY_COUNT] = {
-      SMD_ACTOR_FIRST,     SMD_LEVER_FIRST,         SMD_SPIKES_FIRST,    SMD_BLOCK_FIRST,          SMD_COLLAPSE_FIRST,
-      SMD_RAT_FIRST,       SMD_TRAP_FIRST,          SMD_MUZZLE_FIRST,    SMD_ARROW_FIRST,          SMD_SWIM_FIRST,
-      SMD_BLOB_FIRST,      SMD_SPLASH_FIRST,        SMD_SWORD_FIRST,     SMD_CANNON_FIRST,         SMD_CANNONBALL_FIRST,
-      SMD_IRON_DOOR_FIRST, SMD_WOODEN_PLANKS_FIRST, SMD_HEADTORCH_FIRST, SMD_HEADTORCH_BEAM_FIRST, SMD_ORB_FIRST,
-      SMD_FROG_BLUE_FIRST, SMD_BLUE_FIREBALL_FIRST, SMD_GRAB_ROPE_FIRST, SMD_PLAYER_ROPE_FIRST};
-   (void)context;
-   if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
-   {
-      return 0;
-   }
-   smdObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x,
-             sprite->family == DECEPTUS_SPRITE_GRAB_ROPE ? 3 : 2);
-   return 1;
 }
 
 static void smdSpritesInit(void)

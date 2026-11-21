@@ -30,11 +30,11 @@ static unsigned char actual[224][320], expected[224][320];
 static unsigned short smd_obj_count;
 static unsigned char smd_sprite_overflow;
 static unsigned source_quads;
-static void VDP_setSpriteFull(unsigned n,int x,int y,unsigned size,unsigned attr,unsigned link)
+static void smdObjHardware(DeceptusU16 n,DeceptusI16 x,DeceptusI16 y,DeceptusU8 size,DeceptusU16 attr)
 {
  int dx,dy,sx,sy,px,py,quad;
  unsigned width=(size>>4)*8,height=(size&15)*8,tile=attr&2047;
- (void)n;(void)link;
+ (void)n;
  for(dy=0;dy<(int)height;++dy) {
   for(dx=0;dx<(int)width;++dx) {
    sx=(attr&2048)?width-1-dx:dx;sy=dy;
@@ -53,15 +53,17 @@ FITS
 static void reset(int fast)
 {
  memset(&smd_obj_budget,0,sizeof(smd_obj_budget));
+ smd_obj_budget_top=0;smd_obj_budget_bottom=224;
  smd_obj_count=0;smd_sprite_overflow=0;smd_obj_fast_budget=(unsigned char)fast;
 }
 int main(void)
 {
- int quads,flip,x,y,fast,dx,dy,sx,sy,line,i,objects,slivers,valid;
+ int quads,flip,x,y,fast,whole,dx,dy,sx,sy,line,i,objects,slivers,valid;
  unsigned seed=7123,width,height;
  unsigned char lines[224],fetch[224];
  const int xs[]={-15,-8,0,307,319};
  const int ys[]={-15,-8,0,208,219};
+ for(whole=0;whole<2;++whole) {
  for(fast=0;fast<2;++fast) {
   for(quads=1;quads<16;++quads) {
    for(flip=0;flip<2;++flip) {
@@ -69,7 +71,15 @@ int main(void)
      for(y=0;y<5;++y) {
       reset(fast);source_quads=(unsigned)quads;
       memset(actual,0,sizeof(actual));memset(expected,0,sizeof(expected));
-      smdObjQuads(xs[x],ys[y],0,2,(DeceptusU8)flip,(DeceptusU8)quads);
+      if(whole) {
+       /* the whole-piece path the request emitter takes under the fast budget. */
+       if(!fast||!(quads==15||((quads&5)&&(quads&10)))) {continue;}
+       smdObjWhole((DeceptusI16)xs[x],(DeceptusI16)ys[y],(DeceptusU16)TILE_ATTR_FULL(2,0,0,flip,0));
+       assert(smd_obj_count==1);
+      }
+      else {
+       smdObjQuads(xs[x],ys[y],0,2,(DeceptusU8)flip,(DeceptusU8)quads);
+      }
       for(dy=0;dy<16;++dy) {
        for(dx=0;dx<16;++dx) {
         sx=flip?15-dx:dx;sy=dy;
@@ -86,6 +96,7 @@ int main(void)
     }
    }
   }
+ }
  }
  source_quads=0;
  for(i=0;i<1000;++i) {
@@ -112,6 +123,11 @@ int main(void)
  for(i=0;i<20;++i) {smdObjPiece(0,0,0,2,0,16,16);}
  assert(smdObjBudgetFits());
  smdObjPiece(0,0,0,2,0,8,8);assert(!smdObjBudgetFits());
+ /* whole pieces feed the same scanline budget as split ones. */
+ reset(1);smd_obj_budget_top=224;smd_obj_budget_bottom=0;
+ for(i=0;i<20;++i) {smdObjWhole(0,-4,0);}
+ assert(smdObjBudgetFits());
+ smdObjWhole(0,8,0);assert(!smdObjBudgetFits());
  puts("1500 clipped quadrant images and1000 scanline budget scenes passed");
  return 0;
 }
