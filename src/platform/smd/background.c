@@ -8,6 +8,9 @@
 #define EMPTY 65535U
 #define DELETED 65534U
 #define MAX_UPLOADS 192
+/* per-slot state bits: an upload is owed, or the slot sits in the free ring. */
+#define SLOT_PENDING 1
+#define SLOT_QUEUED 2
 
 typedef struct SmdBackgroundWork
 {
@@ -15,7 +18,7 @@ typedef struct SmdBackgroundWork
    DeceptusU16 hash_keys[WORLD_HASH], hash_slots[WORLD_HASH];
    DeceptusU16 maps[2][2048], uploads[MAX_UPLOADS], column[2][32];
    DeceptusU16 frame[WORLD_CLIPS], elapsed[WORLD_CLIPS], dirty_rows[2][2];
-   DeceptusU16 free_count, upload_count, flags, tombstones;
+   DeceptusU16 free_head, free_count, upload_count, flags, tombstones;
    DeceptusI16 left, top;
    DeceptusU8 pending[SMD_WORLD_SLOTS], loaded, reload, dirty_column[2];
    DeceptusU8 row_left[2][32], row_right[2][32];
@@ -34,9 +37,11 @@ static DeceptusU16 mapAddress(DeceptusI16 x, DeceptusI16 y)
    return (y & 31) * 64 + (x & 63);
 }
 
+/* fibonacci hashing: a room's patterns are numbered in runs, and a home close to the pattern
+   number turned those runs into long probe clusters once released patterns stay resident. */
 static DeceptusU16 hashHome(DeceptusU16 pattern)
 {
-   return (pattern ^ (pattern >> 5)) & (WORLD_HASH - 1);
+   return (DeceptusU16)((DeceptusU16)(pattern * 40503U) >> 5) & (WORLD_HASH - 1);
 }
 
 /* backward-shift deletion keeps the linear probe table free of tombstones. scrolling releases
@@ -102,12 +107,14 @@ static void resetCache(void)
       if (index)
       {
          work.free_slots[index - 1] = index;
+         work.pending[index] = SLOT_QUEUED;
       }
    }
    work.resident[0] = 0;
    work.references[0] = EMPTY;
+   work.free_head = 0;
    work.free_count = SMD_WORLD_SLOTS - 1;
-   work.pending[0] = 1;
+   work.pending[0] = SLOT_PENDING;
    work.uploads[0] = 0;
    work.upload_count = 1;
    work.dirty_rows[0][0] = work.dirty_rows[0][1] = EMPTY;
@@ -127,7 +134,7 @@ static void rebuildHash(void)
    }
    for (index = 1; index < SMD_WORLD_SLOTS; ++index)
    {
-      if (work.references[index])
+      if (work.resident[index] != EMPTY)
       {
          key = hashFind(work.resident[index], 1);
          if (key == EMPTY)
@@ -144,7 +151,7 @@ static void rebuildHash(void)
 
 static void releaseCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
 {
-   DeceptusU16 address, slot, key;
+   DeceptusU16 address, slot, tail;
    address = mapAddress(x, y);
    slot = work.maps[plane][address] & 0x7ff;
    work.maps[plane][address] = 0;
@@ -152,18 +159,55 @@ static void releaseCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
    {
       return;
    }
-   if (!--work.references[slot])
+   /* a released pattern stays resident and hashed at the back of the free ring, so an animated
+      clip that cycles back to it, or a scroll that returns, finds it in VRAM instead of decoding
+      and uploading it again. it is only evicted when its slot is reused. */
+   if (!--work.references[slot] && !(work.pending[slot] & SLOT_QUEUED))
    {
-      key = hashFind(work.resident[slot], 0);
-      if (key == EMPTY)
+      work.pending[slot] |= SLOT_QUEUED;
+      tail = work.free_head + work.free_count;
+      if (tail >= SMD_WORLD_SLOTS)
       {
-         smd_background_error = 2;
-         return;
+         tail -= SMD_WORLD_SLOTS;
       }
-      hashDelete(key);
-      work.resident[slot] = EMPTY;
-      work.free_slots[work.free_count++] = slot;
+      work.free_slots[tail] = slot;
+      ++work.free_count;
    }
+}
+
+/* the oldest released slot whose pattern nobody acquired again, with that pattern evicted from the
+   hash. slots revived while queued are dropped from the ring here and requeued on release. */
+static DeceptusU16 takeFreeSlot(void)
+{
+   DeceptusU16 slot, key;
+   while (work.free_count)
+   {
+      slot = work.free_slots[work.free_head];
+      if (++work.free_head >= SMD_WORLD_SLOTS)
+      {
+         work.free_head = 0;
+      }
+      --work.free_count;
+      work.pending[slot] &= (DeceptusU8)~SLOT_QUEUED;
+      if (work.references[slot])
+      {
+         continue;
+      }
+      if (work.resident[slot] != EMPTY)
+      {
+         key = hashFind(work.resident[slot], 0);
+         if (key == EMPTY || work.hash_keys[key] != work.resident[slot])
+         {
+            smd_background_error = 2;
+            return EMPTY;
+         }
+         hashDelete(key);
+         work.resident[slot] = EMPTY;
+      }
+      return slot;
+   }
+   smd_background_error = 2;
+   return EMPTY;
 }
 
 static DeceptusU16 acquire(DeceptusU16 pattern)
@@ -190,16 +234,22 @@ static DeceptusU16 acquire(DeceptusU16 pattern)
    }
    else
    {
-      if (!work.free_count)
+      slot = takeFreeSlot();
+      if (slot == EMPTY)
+      {
+         return 0;
+      }
+      /* evicting the slot's previous pattern shifted the probe sequence. */
+      key = hashFind(pattern, 1);
+      if (key == EMPTY)
       {
          smd_background_error = 2;
          return 0;
       }
-      slot = work.free_slots[--work.free_count];
       work.resident[slot] = pattern;
-      if (!work.pending[slot])
+      if (!(work.pending[slot] & SLOT_PENDING))
       {
-         work.pending[slot] = 1;
+         work.pending[slot] |= SLOT_PENDING;
          if (work.upload_count < MAX_UPLOADS)
          {
             work.uploads[work.upload_count++] = slot;
@@ -306,13 +356,9 @@ static void loadCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 
 
 /* an animated clip's next frame usually repeats most of its cells. a cell whose pattern and
    attributes already sit in the map keeps its slot, so it is neither re-hashed nor re-sent. */
-static void refreshCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
+static void refreshCellWith(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 pattern, DeceptusU16 attributes)
 {
-   DeceptusU16 pattern, attributes, current;
-   if (!cellValue(plane, x, y, &pattern, &attributes))
-   {
-      return;
-   }
+   DeceptusU16 current;
    current = work.maps[plane][mapAddress(x, y)];
    if (!(attributes & 0x7ff) && (current & ~0x7ff) == attributes && work.resident[current & 0x7ff] == pattern)
    {
@@ -320,6 +366,34 @@ static void refreshCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
    }
    releaseCell(plane, x, y);
    storeCell(plane, x, y, 2, pattern, attributes);
+}
+
+static void refreshCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
+{
+   DeceptusU16 pattern, attributes;
+   if (cellValue(plane, x, y, &pattern, &attributes))
+   {
+      refreshCellWith(plane, x, y, pattern, attributes);
+   }
+}
+
+/* whether a later enabled clip on the same plane overlaps this one. cellValue lets the later clip
+   win, so only an uncovered clip may take its cells straight from its own frame data. */
+static DeceptusU8 clipCovered(DeceptusU16 index)
+{
+   const SmdBackgroundAnimation *clip, *other;
+   DeceptusU16 later;
+   clip = &stage->animations[index];
+   for (later = index + 1; later < stage->animation_count; ++later)
+   {
+      other = &stage->animations[later];
+      if (other->plane == clip->plane && clipEnabled(other, source_flags) && other->left < clip->left + clip->columns &&
+          clip->left < other->left + other->columns && other->top < clip->top + clip->rows && clip->top < other->top + other->rows)
+      {
+         return 1;
+      }
+   }
+   return 0;
 }
 
 /* sequential reader over one run-length row of map cells. */
@@ -376,7 +450,7 @@ static const DeceptusU8 *cellRunNext(SmdCellRun *run)
 /* a clip that stepped to its next frame only changes the cells whose data differs from the frame
    before; both frames' rows are read side by side instead of resolving every cell of the clip. */
 static void refreshClipRow(const SmdBackgroundAnimation *clip, DeceptusU16 frame, DeceptusU16 previous, DeceptusI16 y,
-                           DeceptusI16 clip_left, DeceptusI16 clip_right)
+                           DeceptusI16 clip_left, DeceptusI16 clip_right, DeceptusU8 covered)
 {
    SmdCellRun now, before;
    const DeceptusU8 *a, *b;
@@ -399,6 +473,12 @@ static void refreshClipRow(const SmdBackgroundAnimation *clip, DeceptusU16 frame
             continue;
          }
          compare = a && b;
+         /* the reader already holds the new cell; resolving it again walked the row from its start. */
+         if (a && !covered)
+         {
+            refreshCellWith(clip->plane, x, y, ((DeceptusU16)a[0] << 8) | a[1], ((DeceptusU16)a[2] << 8) | a[3]);
+            continue;
+         }
       }
       refreshCell(clip->plane, x, y);
    }
@@ -455,7 +535,7 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
 {
    const SmdBackgroundAnimation *clip;
    DeceptusU16 index, duration, plane;
-   DeceptusU8 dirty, active, stepped;
+   DeceptusU8 dirty, active, stepped, covered;
    DeceptusI16 left, top, x, y, added, clip_left, clip_top, clip_right, clip_bottom;
    if (smd_background_error)
    {
@@ -558,6 +638,7 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
             continue;
          }
          clip = &stage->animations[index];
+         covered = clipCovered(index);
          clip_left = left > clip->left ? left : clip->left;
          clip_top = top > clip->top ? top : clip->top;
          clip_right = left + WORLD_WIDTH < clip->left + clip->columns ? left + WORLD_WIDTH : clip->left + clip->columns;
@@ -567,7 +648,7 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
             if (stepped & (1U << index))
             {
                refreshClipRow(clip, work.frame[index], work.frame[index] ? work.frame[index] - 1 : clip->frames - 1, y, clip_left,
-                              clip_right);
+                              clip_right, covered);
                continue;
             }
             for (x = clip_left; x < clip_right; ++x)
@@ -620,7 +701,7 @@ void smdBackgroundCommit(void)
    for (index = 0; index < (work.reload ? SMD_WORLD_SLOTS : work.upload_count); ++index)
    {
       slot = work.reload ? index : work.uploads[index];
-      if (work.pending[slot] && work.resident[slot] != EMPTY)
+      if ((work.pending[slot] & SLOT_PENDING) && work.resident[slot] != EMPTY)
       {
          if (!smdDecodeBlock(&stage->patterns, work.resident[slot], (DeceptusU8 *)tile_buffer))
          {
@@ -628,7 +709,7 @@ void smdBackgroundCommit(void)
          }
          VDP_loadTileData(tile_buffer, slot, 1, DMA);
       }
-      work.pending[slot] = 0;
+      work.pending[slot] &= (DeceptusU8)~SLOT_PENDING;
    }
    work.reload = 0;
    work.upload_count = 0;

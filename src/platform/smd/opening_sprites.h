@@ -86,7 +86,8 @@ static DeceptusU16 smdObjTile(DeceptusU16 slot)
    return SMD_OBJECT_FIRST + slot * 4;
 }
 
-static DeceptusU16 smdObjSlotFor(DeceptusU16 resource, DeceptusU8 piece)
+/* out of line: a miss is rare, and inlined it took registers from the per-piece loop. */
+static DeceptusU16 __attribute__((noinline)) smdObjSlotFor(DeceptusU16 resource, DeceptusU8 piece)
 {
    DeceptusU16 index;
    DeceptusU8 link, previous;
@@ -227,7 +228,10 @@ static void smdObjPiece(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, Deceptus
    ++smd_obj_count;
 }
 
-static void smdObjQuads(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, DeceptusU8 palette, DeceptusU8 flip, DeceptusU8 quads)
+/* out of line: only the exact-budget pass uses it per piece, and inlined into the request
+   emitter it took registers from the fast pass. */
+static void __attribute__((noinline)) smdObjQuads(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, DeceptusU8 palette, DeceptusU8 flip,
+                                                  DeceptusU8 quads)
 {
    DeceptusU8 column, bits, fits;
    DeceptusI16 px, line, top, bottom;
@@ -274,13 +278,13 @@ static void smdObjQuads(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, Deceptus
    }
 }
 
-/* the whole-piece case of smdObjQuads and smdObjPiece under the fast budget, for a 16x16 piece
-   the caller has already found on screen with an object free. */
-static void smdObjWhole(DeceptusI16 x, DeceptusI16 y, DeceptusU16 attributes)
+/* the fast budget's line counts for objects of one height that start on the same line. the
+   difference arrays add up in any order, so a row of whole pieces is entered once. */
+static void smdObjBudgetAdd(DeceptusI16 y, DeceptusI16 height, DeceptusU16 objects, DeceptusU16 slivers)
 {
    DeceptusI16 top, bottom;
    top = y < 0 ? 0 : y;
-   bottom = y > 208 ? 224 : y + 16;
+   bottom = y + height > 224 ? 224 : y + height;
    if (top < smd_obj_budget_top)
    {
       smd_obj_budget_top = top;
@@ -289,12 +293,44 @@ static void smdObjWhole(DeceptusI16 x, DeceptusI16 y, DeceptusU16 attributes)
    {
       smd_obj_budget_bottom = bottom;
    }
-   ++smd_obj_budget.ranges.objects[top];
-   --smd_obj_budget.ranges.objects[bottom];
-   smd_obj_budget.ranges.slivers[top] += 2;
-   smd_obj_budget.ranges.slivers[bottom] -= 2;
-   smdObjHardware(smd_obj_count, x, y, SPRITE_SIZE(2, 2), attributes);
-   ++smd_obj_count;
+   smd_obj_budget.ranges.objects[top] += objects;
+   smd_obj_budget.ranges.objects[bottom] -= objects;
+   smd_obj_budget.ranges.slivers[top] += slivers;
+   smd_obj_budget.ranges.slivers[bottom] -= slivers;
+}
+
+/* smdObjQuads under the fast budget for a piece that cannot be one 16x16 object: each 8-pixel
+   column becomes an 8x16 or 8x8 object, as smdObjPiece would place it, without its seven
+   stacked arguments and per-call checks. returns the new object count. */
+static DeceptusU16 smdObjSplit(DeceptusU16 count, DeceptusI16 x, DeceptusI16 y, DeceptusU16 attributes, DeceptusU16 quads)
+{
+   DeceptusU16 column, bits, flip;
+   DeceptusI16 px, py, height;
+   flip = attributes & 0x800;
+   for (column = 0; column < 2; ++column)
+   {
+      bits = (quads >> column) & 5;
+      if (!bits)
+      {
+         continue;
+      }
+      px = x + (flip ? 1 - column : column) * 8;
+      py = bits == 4 ? y + 8 : y;
+      height = bits == 5 ? 16 : 8;
+      if (px <= -8 || px >= 320 || py <= -height || py >= 224)
+      {
+         continue;
+      }
+      if (count >= 80)
+      {
+         smd_sprite_overflow = 1;
+         continue;
+      }
+      smdObjBudgetAdd(py, height, 1, 1);
+      smdObjHardware(count, px, py, SPRITE_SIZE(1, height >> 3), attributes + column * 2 + (bits == 4));
+      ++count;
+   }
+   return count;
 }
 
 static DeceptusU8 smdObjAppearance(void *context, const DeceptusSpriteAppearance *sprite)
@@ -315,79 +351,132 @@ static DeceptusU8 smdObjAppearance(void *context, const DeceptusSpriteAppearance
    return 1;
 }
 
-/* one request's visible pieces. a separate small function keeps the per-piece values in
-   registers; inside the large prepare pass gcc spilled them to the stack, which made every
-   piece cost well over a thousand 68000 cycles. */
+/* index a resource's resident pieces once per request; walking the slot list for every piece
+   made large frames quadratic. slots of active resources are protected by the caller, so the
+   table stays valid while misses allocate. */
+static void smdObjLinkPieces(DeceptusU16 resource, DeceptusU8 enable)
+{
+   DeceptusU16 link;
+   for (link = smd_obj_heads[resource]; link; link = smd_obj_slots[link - 1].next)
+   {
+      smd_obj_piece_links[smd_obj_slots[link - 1].piece] = enable ? (DeceptusU8)link : 0;
+   }
+}
+
+/* the slot holding a visible piece's tiles, allocating it on a miss; 65535 when none is free. */
+static DeceptusU16 smdObjPieceSlot(DeceptusU16 resource, DeceptusU16 piece)
+{
+   DeceptusU16 link;
+   link = smd_obj_piece_links[piece];
+   if (link)
+   {
+      smd_obj_slots[link - 1].used = 1;
+      return link - 1;
+   }
+   return smdObjSlotFor(resource, (DeceptusU8)piece);
+}
+
+/* one request's visible pieces under the fast budget, the common pass. timing sections with the
+   V counter showed that a piece cost the 68000 well over a thousand cycles in bookkeeping rather
+   than in one expensive step: byte counters re-extended for every index, globals re-read per
+   piece, values spilled to the stack because the exact-budget path shared the loop, and every
+   partial piece going through smdObjQuads and smdObjPiece with seven stacked arguments each.
+   this loop walks word counters, keeps the object count local, enters the budget once per row
+   of whole pieces and splits partial pieces inline. */
 static void __attribute__((noinline)) smdObjEmitRequest(const SmdObjRequest *request)
 {
-   const SmdSpriteResource *entry;
-   const DeceptusU8 *opaque, *quad_row;
-   DeceptusU8 *links;
-   SmdObjSlot *slots;
-   DeceptusU16 resource, slot, attributes;
+   const DeceptusU8 *quad_row;
+   DeceptusU16 resource, slot, attributes, count, quads, row_pieces;
+   DeceptusU16 row, column, rows, columns, piece;
    DeceptusI16 x, y, first_x, step;
-   DeceptusU8 row, column, rows, columns, piece, link, quads;
    resource = request->resource;
-   entry = &smd_sprite_resources[resource];
-   rows = entry->rows;
-   columns = entry->columns;
-   opaque = smd_sprite_opaque[resource];
+   rows = smd_sprite_resources[resource].rows;
+   columns = smd_sprite_resources[resource].columns;
    quad_row = smd_sprite_quads + smd_sprite_quad_offsets[resource];
-   links = smd_obj_piece_links;
-   slots = smd_obj_slots;
-   attributes = TILE_ATTR_FULL(entry->palette_bank, 0, 0, request->flip, 0);
-   /* index the resident pieces once per request; walking the slot list for every piece made
-      large frames quadratic. slots of active resources are protected by the caller, so the
-      table stays valid while misses allocate. */
-   for (link = smd_obj_heads[resource]; link; link = slots[link - 1].next)
-   {
-      links[slots[link - 1].piece] = link;
-   }
+   count = smd_obj_count;
+   attributes = TILE_ATTR_FULL(smd_sprite_resources[resource].palette_bank, 0, 0, request->flip, 0);
+   smdObjLinkPieces(resource, 1);
    step = request->flip ? -16 : 16;
    first_x = request->flip ? request->x + (columns - 1) * 16 : request->x;
-   piece = 0;
-   for (row = 0, y = request->y; row < rows; ++row, y += 16)
+   for (row = 0, y = request->y; row < rows; ++row, y += 16, quad_row += columns)
    {
       if (y <= -16 || y >= 224)
       {
-         piece += columns;
          continue;
       }
-      for (column = 0, x = first_x; column < columns; ++column, ++piece, x += step)
+      row_pieces = 0;
+      piece = row * columns;
+      for (column = 0, x = first_x; column < columns; ++column, x += step)
       {
-         if (x <= -16 || x >= 320 || !(opaque[piece >> 3] & (1U << (piece & 7))))
+         /* the converter sets a piece's opaque bit exactly when it has an occupied quadrant. */
+         quads = quad_row[column];
+         if (!quads || x <= -16 || x >= 320)
          {
             continue;
          }
-         link = links[piece];
-         if (link)
+         slot = smdObjPieceSlot(resource, piece + column);
+         if (slot == 65535)
          {
-            slot = link - 1;
-            slots[slot].used = 1;
+            continue;
          }
-         else
+         if (quads == 15 || ((quads & 5) && (quads & 10)))
          {
-            slot = smdObjSlotFor(resource, piece);
-            if (slot == 65535)
+            /* transparent quadrants may share one larger obj under the fast budget. */
+            if (count >= 80)
             {
+               smd_sprite_overflow = 1;
                continue;
             }
-         }
-         quads = quad_row[piece];
-         if (smd_obj_fast_budget && smd_obj_count < 80 && (quads == 15 || ((quads & 5) && (quads & 10))))
-         {
-            smdObjWhole(x, y, attributes | smdObjTile(slot));
+            smdObjHardware(count, x, y, SPRITE_SIZE(2, 2), attributes | smdObjTile(slot));
+            ++count;
+            ++row_pieces;
          }
          else
          {
-            smdObjQuads(x, y, smdObjTile(slot), entry->palette_bank, request->flip, quads);
+            count = smdObjSplit(count, x, y, attributes | smdObjTile(slot), quads);
+         }
+      }
+      if (row_pieces)
+      {
+         smdObjBudgetAdd(y, 16, row_pieces, row_pieces * 2);
+      }
+   }
+   smd_obj_count = count;
+   smdObjLinkPieces(resource, 0);
+}
+
+/* the exact-budget pass, for scenes whose fast packing does not fit: every piece is checked
+   line by line through smdObjQuads. kept apart so it does not cost the fast loop registers. */
+static void __attribute__((noinline)) smdObjEmitRequestExact(const SmdObjRequest *request)
+{
+   const DeceptusU8 *quad_row;
+   DeceptusU16 resource, slot, row, column, rows, columns;
+   DeceptusI16 x, y, first_x, step;
+   DeceptusU8 palette;
+   resource = request->resource;
+   rows = smd_sprite_resources[resource].rows;
+   columns = smd_sprite_resources[resource].columns;
+   palette = smd_sprite_resources[resource].palette_bank;
+   quad_row = smd_sprite_quads + smd_sprite_quad_offsets[resource];
+   smdObjLinkPieces(resource, 1);
+   step = request->flip ? -16 : 16;
+   first_x = request->flip ? request->x + (columns - 1) * 16 : request->x;
+   for (row = 0, y = request->y; row < rows; ++row, y += 16, quad_row += columns)
+   {
+      for (column = 0, x = first_x; column < columns; ++column, x += step)
+      {
+         if (y <= -16 || y >= 224 || !quad_row[column] || x <= -16 || x >= 320)
+         {
+            continue;
+         }
+         slot = smdObjPieceSlot(resource, row * columns + column);
+         if (slot != 65535)
+         {
+            smdObjQuads(x, y, smdObjTile(slot), palette, request->flip, quad_row[column]);
          }
       }
    }
-   for (link = smd_obj_heads[resource]; link; link = slots[link - 1].next)
-   {
-      links[slots[link - 1].piece] = 0;
-   }
+   smdObjLinkPieces(resource, 0);
 }
 
 static void smdSpritesInit(void)
@@ -457,7 +546,14 @@ static void smdSpritesPreparePass(const DeceptusAdventure *game, const DeceptusF
    }
    for (index = 0; index < smd_obj_request_count; ++index)
    {
-      smdObjEmitRequest(&smd_obj_requests[index]);
+      if (smd_obj_fast_budget)
+      {
+         smdObjEmitRequest(&smd_obj_requests[index]);
+      }
+      else
+      {
+         smdObjEmitRequestExact(&smd_obj_requests[index]);
+      }
    }
 }
 
