@@ -5,6 +5,7 @@
 #include "opening_video.h"
 #include "rooms.h"
 #include "scrollsurface.h"
+#include "perfcount.h"
 #include "system.h"
 #include <hardware/blit.h>
 #include <hardware/custom.h>
@@ -100,14 +101,13 @@ static AmigaBankCache color_cache, mask_cache;
 static DeceptusU16 bank_clock;
 /* 0 when the blitter's constant registers are unknown, else 1 + the cell blit kind they hold. */
 static DeceptusU8 blit_setup;
-/* PERFCOUNT: scanlines per draw phase: swap wait, restore+scroll paint, dirty/animated paint, bobs,
-   foreground, ui+copper, whole draw, draw count. */
+#ifdef AMIGA_PERFCOUNT
 volatile DeceptusU32 amiga_phase_debug[16];
 static DeceptusU32 phase_mark;
 
 static DeceptusU32 beamStamp(void);
 
-/* PERFCOUNT: lets the ui module time its own parts (slots 9 and 10). */
+/* the ui module times its own parts through this one (slots 9 and 10). */
 void amigaPerfPhase(DeceptusU8 phase)
 {
    DeceptusU32 now;
@@ -123,7 +123,9 @@ static void phaseEnd(DeceptusU8 phase)
    amiga_phase_debug[phase] += now - phase_mark;
    phase_mark = now;
 }
-/* PERFCOUNT: local diagnostic counters in the shared debug block (slots 23-29). */
+#endif
+/* the debugger's view of the run: slots 23-28 count (see perfcount.h), 29 and 31 describe the room's
+   caches, 30 names the site of the first failure. */
 extern volatile DeceptusU32 amiga_debug[32];
 
 /* decoded, already mirrored bob frames; the arena is flushed whole when full, which keeps
@@ -261,6 +263,7 @@ DeceptusU32 amigaOpeningVideoFrames(void)
    return video_frames;
 }
 
+#ifdef AMIGA_PERFCOUNT
 /* PAL beam position as a running scanline count; re-read if a vertical blank lands in between. */
 static DeceptusU32 beamStamp(void)
 {
@@ -273,6 +276,7 @@ static DeceptusU32 beamStamp(void)
    } while (frames != video_frames);
    return frames * 313 + line;
 }
+#endif
 
 static void waitFrame(void)
 {
@@ -423,7 +427,7 @@ static DeceptusU16 *bankSlot(AmigaBankCache *cache, DeceptusU8 mask_bank, Decept
    if (bank >= BANK_INDEX_MAX)
    {
       error = 1;
-      amiga_debug[30] = 1; /* PERFCOUNT */
+      amiga_debug[30] = 1; /* failure site */
       return 0;
    }
    slot = cache->slot_of[bank];
@@ -440,7 +444,7 @@ static DeceptusU16 *bankSlot(AmigaBankCache *cache, DeceptusU8 mask_bank, Decept
          oldest = slot;
       }
    }
-   ++amiga_debug[25]; /* PERFCOUNT: bank decodes */
+   AMIGA_PERF(++amiga_debug[mask_bank ? 26 : 25];) /* bank decodes */
    if (cache->banks[oldest] < BANK_INDEX_MAX)
    {
       cache->slot_of[cache->banks[oldest]] = 0;
@@ -450,7 +454,7 @@ static DeceptusU16 *bankSlot(AmigaBankCache *cache, DeceptusU8 mask_bank, Decept
                                (DeceptusU32)bank_words * 2))
    {
       error = 1;
-      amiga_debug[30] = 2; /* PERFCOUNT */
+      amiga_debug[30] = 2; /* failure site */
       return 0;
    }
    cache->banks[oldest] = bank;
@@ -635,7 +639,7 @@ static DeceptusU16 *cellSlot(AmigaCellCache *cache, const DeceptusU16 *ids, Dece
    {
       ++cache->generation[slot];
    }
-   ++amiga_debug[25]; /* PERFCOUNT: cell compositions */
+   AMIGA_PERF(++amiga_debug[25];) /* cell compositions */
    /* an earlier blit may still read the slot being replaced. */
    waitBlitter();
    return cache->pixels + (DeceptusU32)slot * cache->slot_words;
@@ -836,7 +840,7 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 color_ids[4], mask_ids[4], index, *entry;
    (void)context;
-   ++amiga_debug[23]; /* PERFCOUNT */
+   AMIGA_PERF(++amiga_debug[23];)
    entry = map_slots && x >= 0 && y >= 0 && x < (DeceptusI16)map_columns && y < (DeceptusI16)map_rows
               ? map_slots + ((DeceptusU32)(DeceptusU16)y * map_columns + (DeceptusU16)x) * 2
               : 0;
@@ -902,10 +906,6 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
    const DeceptusU16 *pixels;
    DeceptusI16 x;
    DeceptusU8 covered;
-   if (context)
-   {
-      amiga_debug[28] += (DeceptusU16)(right - left); /* PERFCOUNT: all scroll cells */
-   }
    if (!map_slots || left < 0 || y < 0 || right > (DeceptusI16)map_columns || y >= (DeceptusI16)map_rows)
    {
       for (x = left; x < right; ++x)
@@ -919,11 +919,7 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
    }
    covered = (y >= cover_top[0] && y < cover_bottom[0] && left < cover_right[0] && right > cover_left[0]) ||
              (y >= cover_top[1] && y < cover_bottom[1] && left < cover_right[1] && right > cover_left[1]);
-   amiga_debug[23] += (DeceptusU16)(right - left); /* PERFCOUNT */
-   if (context)
-   {
-      amiga_debug[26] += (DeceptusU16)(right - left); /* PERFCOUNT: fast scroll cells */
-   }
+   AMIGA_PERF(amiga_debug[23] += (DeceptusU16)(right - left);)
    offset = amigaScrollSurfaceOffset(&surface, left, y * 16, 0);
    entry = map_slots + ((DeceptusU32)(DeceptusU16)y * map_columns + (DeceptusU16)left) * 2;
    page = pages[draw_buffer];
@@ -935,7 +931,7 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
       if (!slot || generation[slot - 1] != entry[1] || offset < FETCH_WORDS ||
           offset >= SURFACE_WORDS - (CELL_WORDS - 1) * SURFACE_COLUMNS)
       {
-         --amiga_debug[23]; /* PERFCOUNT: paintTile counts itself */
+         AMIGA_PERF(--amiga_debug[23];) /* paintTile counts itself */
          if (!paintTile(context, x, y))
          {
             return 0;
@@ -1141,7 +1137,7 @@ static void updateClips(const DeceptusAdventure *game)
          if (!duration)
          {
             error = 1;
-            amiga_debug[30] = 3; /* PERFCOUNT */
+            amiga_debug[30] = 3; /* failure site */
             return;
          }
          total += duration;
@@ -1328,7 +1324,7 @@ static DeceptusU8 requestBob(void *context, const DeceptusSpriteAppearance *appe
    bob->x += camera_x;
    bob->y += camera_y;
    ++bob_count;
-   ++amiga_debug[28]; /* PERFCOUNT */
+   AMIGA_PERF(++amiga_debug[28];)
    return 1;
 }
 
@@ -1428,7 +1424,7 @@ static const DeceptusU16 *bobPixels(const AmigaGraphicsSprite *graphic)
       sprite_entries[0] = sprite_entries[--sprite_entry_count];
    }
    pixels = (DeceptusU16 *)((DeceptusU8 *)sprite_pixels + sprite_arena_used);
-   ++amiga_debug[27]; /* PERFCOUNT */
+   AMIGA_PERF(++amiga_debug[27];)
    if (!amigaGraphicsSpriteDecode(graphics, graphic, (DeceptusU8 *)pixels, size))
    {
       return 0;
@@ -1437,7 +1433,7 @@ static const DeceptusU16 *bobPixels(const AmigaGraphicsSprite *graphic)
    {
       amigaGraphicsSpriteFlip((DeceptusU8 *)pixels, graphic);
    }
-   amiga_debug[24] += size; /* PERFCOUNT */
+   AMIGA_PERF(amiga_debug[24] += size;)
    sprite_entries[sprite_entry_count].offset = graphic->offset;
    sprite_entries[sprite_entry_count].flip = graphic->flip;
    sprite_entries[sprite_entry_count].pixels = pixels;
@@ -1489,7 +1485,7 @@ static void drawBob(const AmigaNativeBob *bob)
    if (needed > (DeceptusU32)(saved_capacity - saved_used[draw_buffer]) || saved_counts[draw_buffer] == BOB_CAPACITY)
    {
       error = 1;
-      amiga_debug[30] = 4; /* PERFCOUNT */
+      amiga_debug[30] = 4; /* failure site */
       return;
    }
    saved = &saved_bobs[draw_buffer][saved_counts[draw_buffer]++];
@@ -1504,7 +1500,7 @@ static void drawBob(const AmigaNativeBob *bob)
    if (!sprite)
    {
       error = 1;
-      amiga_debug[30] = 5; /* PERFCOUNT */
+      amiga_debug[30] = 5; /* failure site */
       return;
    }
    if (bounds.x != bob->x || bounds.width != bob->graphic.width)
@@ -1619,7 +1615,7 @@ static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, Decept
       sprite_frames[0] = sprite_frames[--sprite_frame_count];
    }
    stored = graphic->row_bytes - 2;
-   ++amiga_debug[27]; /* PERFCOUNT: hardware frame decodes share the bob decode counter */
+   AMIGA_PERF(++amiga_debug[27];) /* hardware frame decodes share the bob decode counter */
    if (!amigaGraphicsSpriteCompact(graphics, graphic, sprite_compact, sizeof(sprite_compact)))
    {
       return 0;
@@ -2024,12 +2020,12 @@ void amigaOpeningVideoReset(void)
        !amigaGraphicsPalette(graphics, palette))
    {
       error = 1;
-      amiga_debug[30] = 6; /* PERFCOUNT */
+      amiga_debug[30] = 6; /* failure site */
       return;
    }
    memory = amigaRoomChipScratch(&size);
    cache_memory = amigaRoomScratch(&cache_size);
-   amiga_debug[31] = size; /* PERFCOUNT */
+   amiga_debug[31] = size;
    mask_bytes = AMIGA_NATIVE_TILES_PER_BANK * AMIGA_NATIVE_MASK_BYTES;
    /* dictionary banks are cpu-read and prefer non-chip scratch; one cell can name four banks of each. */
    minimum = 4 * (AMIGA_NATIVE_BANK_BYTES + mask_bytes);
@@ -2039,7 +2035,7 @@ void amigaOpeningVideoReset(void)
    {
       amigaSystemReportMemory("Deceptus renderer scratch", fixed + 8192, 1);
       error = 1;
-      amiga_debug[30] = 13; /* PERFCOUNT */
+      amiga_debug[30] = 13; /* failure site */
       return;
    }
    saved = size - fixed;
@@ -2144,8 +2140,8 @@ void amigaOpeningVideoReset(void)
    }
    memset(color_cache.slot_of, 0, sizeof(color_cache.slot_of));
    memset(mask_cache.slot_of, 0, sizeof(mask_cache.slot_of));
-   amiga_debug[31] = ((DeceptusU32)plain_cells.sets << 16) | masked_cells.sets | (map_slots ? 0x8000UL : 0); /* PERFCOUNT: cell sets, memo */
-   amiga_debug[29] = ((DeceptusU32)color_cache.count << 16) | ((DeceptusU32)mask_cache.count << 8) | (sprite_arena_bytes >> 10); /* PERFCOUNT */
+   amiga_debug[31] = ((DeceptusU32)plain_cells.sets << 16) | masked_cells.sets | (map_slots ? 0x8000UL : 0); /* cell sets, memo */
+   amiga_debug[29] = ((DeceptusU32)color_cache.count << 16) | ((DeceptusU32)mask_cache.count << 8) | (sprite_arena_bytes >> 10);
    memset(windows, 0, sizeof(windows));
    copper_built[0] = copper_built[1] = 0;
    memset(saved_counts, 0, sizeof(saved_counts));
@@ -2159,7 +2155,7 @@ void amigaOpeningVideoReset(void)
        readWord(data + 4) != graphics->clip_count || graphics->clip_count > AMIGA_OPENING_CLIPS || readLong(data + 8))
    {
       error = 1;
-      amiga_debug[30] = 8; /* PERFCOUNT */
+      amiga_debug[30] = 8; /* failure site */
       return;
    }
    for (clip = 0; clip < graphics->clip_count; ++clip)
@@ -2169,7 +2165,7 @@ void amigaOpeningVideoReset(void)
       if (index > end || end > size - start || end - index < 10 || !amigaGraphicsClip(graphics, clip, &clips[clip].clip))
       {
          error = 1;
-         amiga_debug[30] = 9; /* PERFCOUNT */
+         amiga_debug[30] = 9; /* failure site */
          return;
       }
       record = data + start + index;
@@ -2183,7 +2179,7 @@ void amigaOpeningVideoReset(void)
           cells * clips[clip].clip.frames * CLIP_CELL_BYTES != end - index - 10)
       {
          error = 1;
-         amiga_debug[30] = 10; /* PERFCOUNT */
+         amiga_debug[30] = 10; /* failure site */
          return;
       }
       for (index = 0; index < cells * clips[clip].clip.frames; ++index)
@@ -2194,7 +2190,7 @@ void amigaOpeningVideoReset(void)
              readWord(record + 12) >= tiles->masks || readWord(record + 14) >= tiles->masks)
          {
             error = 1;
-            amiga_debug[30] = 11; /* PERFCOUNT */
+            amiga_debug[30] = 11; /* failure site */
             return;
          }
       }
@@ -2202,7 +2198,7 @@ void amigaOpeningVideoReset(void)
    if (readLong(data + 8 + (DeceptusU32)graphics->clip_count * 4) != size - start)
    {
       error = 1;
-      amiga_debug[30] = 12; /* PERFCOUNT */
+      amiga_debug[30] = 12; /* failure site */
       return;
    }
    pending_buffer = -1;
@@ -2320,7 +2316,9 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
 {
    DeceptusU16 index, count, clip, signature, run_end, run_cell, color_ids[4], mask_ids[4];
    DeceptusU8 *mark;
+#ifdef AMIGA_PERFCOUNT
    DeceptusU32 draw_started;
+#endif
    DeceptusU8 cached;
    DeceptusRect kept;
    DeceptusI16 x, y;
@@ -2344,7 +2342,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       waitFrame();
       return 1;
    }
-   phase_mark = draw_started = beamStamp(); /* PERFCOUNT */
+   AMIGA_PERF(phase_mark = draw_started = beamStamp();)
    /* work that touches no page runs before waiting for the previous page to be shown: the
       camera, the animation clocks and the object list. */
    camera_x = frame->camera_x;
@@ -2358,7 +2356,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    {
       return 0;
    }
-   amigaPerfPhase(11); /* PERFCOUNT */
+   AMIGA_PERF(amigaPerfPhase(11);)
    if (pending_buffer >= 0)
    {
       AmigaScrollWindow ahead;
@@ -2369,7 +2367,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    {
    }
    __asm__ volatile("" ::: "memory");
-   phaseEnd(0); /* PERFCOUNT */
+   AMIGA_PERF(phaseEnd(0);)
    draw_buffer ^= 1;
    while (dirty_count)
    {
@@ -2386,12 +2384,12 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       copyRows(saved->offset, saved_pixels[draw_buffer] + saved->pixels, saved->width, saved->rows, 1);
    }
    saved_used[draw_buffer] = 0;
-   amigaPerfPhase(13); /* PERFCOUNT: bob restore */
-   if (!amigaScrollSurfaceVisitRuns(&surface, &windows[draw_buffer], camera_x, camera_y, paintRun, (void *)1))
+   AMIGA_PERF(amigaPerfPhase(13);) /* bob restore */
+   if (!amigaScrollSurfaceVisitRuns(&surface, &windows[draw_buffer], camera_x, camera_y, paintRun, 0))
    {
       return 0;
    }
-   phaseEnd(1); /* PERFCOUNT */
+   AMIGA_PERF(phaseEnd(1);)
    signature = uiSignature(game);
    for (index = 0; index < ui_counts[draw_buffer]; ++index)
    {
@@ -2430,16 +2428,16 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    }
    /* cpu-painted cells may touch the ring start; bob saves can read across the guard. */
    repairGuard(0, 0);
-   phaseEnd(2); /* PERFCOUNT */
-   amigaPerfPhase(11); /* PERFCOUNT */
+   AMIGA_PERF(phaseEnd(2);)
+   AMIGA_PERF(amigaPerfPhase(11);)
    for (index = bob_count; index; --index)
    {
       drawBob(&bobs[index - 1]);
    }
-   amigaPerfPhase(12); /* PERFCOUNT */
+   AMIGA_PERF(amigaPerfPhase(12);)
    /* the cpu restores foreground over cells the last bob blit may still be writing. */
    waitBlitter();
-   phaseEnd(3); /* PERFCOUNT */
+   AMIGA_PERF(phaseEnd(3);)
    for (count = 0; count < foreground_count; ++count)
    {
       index = foreground_list[count];
@@ -2467,7 +2465,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       }
    }
    waitBlitter();
-   phaseEnd(4); /* PERFCOUNT */
+   AMIGA_PERF(phaseEnd(4);)
    ui_signature[draw_buffer] = signature;
    ui_camera_x[draw_buffer] = camera_x;
    ui_camera_y[draw_buffer] = camera_y;
@@ -2479,19 +2477,19 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    {
       blitUiBand(&ui_bands[index], ui_mask + (DeceptusU32)index * UI_BAND_ROWS * UI_BAND_WORDS);
    }
-   phaseEnd(5); /* PERFCOUNT */
+   AMIGA_PERF(phaseEnd(5);)
    repairGuard(0, 0);
    if (error)
    {
       return 0;
    }
-   amigaPerfPhase(14); /* PERFCOUNT: guard repair (waits for the blitter) */
+   AMIGA_PERF(amigaPerfPhase(14);) /* guard repair (waits for the blitter) */
    prepareSprites();
-   amigaPerfPhase(15); /* PERFCOUNT: hardware sprites */
+   AMIGA_PERF(amigaPerfPhase(15);) /* hardware sprites */
    prepareCopper();
-   phaseEnd(6); /* PERFCOUNT */
-   amiga_phase_debug[7] += phase_mark - draw_started; /* PERFCOUNT */
-   ++amiga_phase_debug[8];
+   AMIGA_PERF(phaseEnd(6);)
+   AMIGA_PERF(amiga_phase_debug[7] += phase_mark - draw_started;)
+   AMIGA_PERF(++amiga_phase_debug[8];)
    loading = 0;
    /* the page's sprite lines are blitted; they must be complete before the page shows. */
    waitBlitter();

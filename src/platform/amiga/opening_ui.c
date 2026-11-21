@@ -2,7 +2,7 @@
 #include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
 
-void amigaPerfPhase(DeceptusU8 phase); /* PERFCOUNT */
+#include "perfcount.h"
 
 typedef struct AmigaUiCanvas
 {
@@ -81,9 +81,9 @@ static void blackBox(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, 
    }
    if (canvas->clear)
    {
-      amigaPerfPhase(5); /* PERFCOUNT */
+      AMIGA_PERF(amigaPerfPhase(5);)
       canvas->clear(rectangle);
-      amigaPerfPhase(9); /* PERFCOUNT */
+      AMIGA_PERF(amigaPerfPhase(9);)
       return;
    }
    first = rectangle->x / 8;
@@ -126,7 +126,7 @@ static void text(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, cons
    {
       return;
    }
-   amigaPerfPhase(5); /* PERFCOUNT */
+   AMIGA_PERF(amigaPerfPhase(5);)
    cursor = x;
    while (*value && lines)
    {
@@ -206,7 +206,7 @@ static void text(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, cons
       }
       cursor += advance;
    }
-   amigaPerfPhase(10); /* PERFCOUNT */
+   AMIGA_PERF(amigaPerfPhase(10);)
 }
 
 static void option(const AmigaUiCanvas *canvas, DeceptusI16 y, const char *label, DeceptusU8 selected)

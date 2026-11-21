@@ -10,7 +10,8 @@
 #include <proto/graphics.h>
 
 struct ExecBase *SysBase;
-/* PERFCOUNT: free memory after loading, for the resource budget (chip total, chip largest, other total, other largest). */
+/* for the debugger: free memory after loading, for the resource budget (chip total, chip largest,
+   other total, other largest); rooms.c then records the banks it allocated. */
 volatile DeceptusU32 amiga_memory_debug[4];
 struct GfxBase *GfxBase;
 struct DosLibrary *DOSBase;
@@ -78,7 +79,7 @@ int amigaSystemOpen(void)
    }
    saved_view = GfxBase->ActiView;
    findProgramFolder();
-   amiga_memory_debug[0] = AvailMem(MEMF_CHIP); /* PERFCOUNT */
+   amiga_memory_debug[0] = AvailMem(MEMF_CHIP);
    amiga_memory_debug[1] = AvailMem(MEMF_CHIP | MEMF_LARGEST);
    amiga_memory_debug[2] = AvailMem(MEMF_ANY) - amiga_memory_debug[0];
    amiga_memory_debug[3] = AvailMem(MEMF_FAST | MEMF_LARGEST) > AvailMem(MEMF_PUBLIC | MEMF_LARGEST) ? AvailMem(MEMF_FAST | MEMF_LARGEST)

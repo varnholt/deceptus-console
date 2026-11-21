@@ -36,6 +36,9 @@ def build_program(sdk, output, sources, report, generated):
              '-fno-builtin', '-fno-tree-loop-distribute-patterns',
              '-ffunction-sections', '-fdata-sections', '-fomit-frame-pointer',
              '-I' + str(ROOT / 'include'), '-I' + str(generated)]
+    if os.environ.get('AMIGA_PERFCOUNT') == '1':
+        # per-frame renderer counters for a debugger (src/platform/amiga/perfcount.h).
+        flags.append('-DAMIGA_PERFCOUNT')
     objects = []
     for source in sources:
         target = objects_dir / (source.stem + '.o')

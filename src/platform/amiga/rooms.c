@@ -8,7 +8,8 @@
 #include <string.h>
 
 #define CHIP __attribute__((section(".MEMF_CHIP")))
-extern volatile DeceptusU32 amiga_memory_debug[4]; /* PERFCOUNT */
+/* for the debugger: the banks actually allocated (see system.c). */
+extern volatile DeceptusU32 amiga_memory_debug[4];
 
 /* the resource banks come from free memory at startup: at least the converter's budget, more when the
    machine has it. a static Chip RAM array this large forces one huge contiguous load hunk. */
@@ -59,7 +60,7 @@ DeceptusU8 amigaRoomsAllocate(void)
       amigaRoomsRelease();
       return 0;
    }
-   amiga_memory_debug[2] = resource_normal_bytes; /* PERFCOUNT */
+   amiga_memory_debug[2] = resource_normal_bytes;
    amiga_memory_debug[3] = resource_chip_bytes;
    return 1;
 }
