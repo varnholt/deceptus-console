@@ -534,7 +534,7 @@ void smdBackgroundSetFlags(DeceptusU16 flags)
 void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
 {
    const SmdBackgroundAnimation *clip;
-   DeceptusU16 index, duration, plane;
+   DeceptusU16 index, duration, plane, half, rows;
    DeceptusU8 dirty, active, stepped, covered;
    DeceptusI16 left, top, x, y, added, clip_left, clip_top, clip_right, clip_bottom;
    if (smd_background_error)
@@ -677,11 +677,16 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
             work.column[plane][index] = work.maps[plane][index * 64 + work.dirty_column[plane]];
          }
       }
-      for (index = 0; index < 32; ++index)
+      /* only the set bits of the dirty words, as in smdBackgroundCommit. */
+      for (half = 0; half < 2; ++half)
       {
-         if (work.dirty_rows[plane][index >> 4] & (1U << (index & 15)))
+         index = half * 16;
+         for (rows = work.dirty_rows[plane][half]; rows; rows >>= 1, ++index)
          {
-            smd_background_dma_bytes += (work.row_right[plane][index] - work.row_left[plane][index] + 1) * 2;
+            if (rows & 1)
+            {
+               smd_background_dma_bytes += (work.row_right[plane][index] - work.row_left[plane][index] + 1) * 2;
+            }
          }
       }
    }
@@ -693,7 +698,7 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
 
 void smdBackgroundCommit(void)
 {
-   DeceptusU16 index, slot, plane, row, base;
+   DeceptusU16 index, slot, plane, row, base, half, rows;
    if (smd_background_error)
    {
       return;
@@ -716,12 +721,18 @@ void smdBackgroundCommit(void)
    for (plane = 0; plane < 2; ++plane)
    {
       base = plane ? 0xc000 : 0xe000;
-      for (row = 0; row < 32; ++row)
+      /* walk the set bits of each dirty word instead of testing all 32 rows: testing a row by its
+         bit cost about 150 cycles, so a still screen spent close to 10,000 cycles finding nothing. */
+      for (half = 0; half < 2; ++half)
       {
-         if (work.dirty_rows[plane][row >> 4] & (1U << (row & 15)))
+         row = half * 16;
+         for (rows = work.dirty_rows[plane][half]; rows; rows >>= 1, ++row)
          {
-            DMA_doDma(DMA_VRAM, &work.maps[plane][row * 64 + work.row_left[plane][row]], base + row * 128 + work.row_left[plane][row] * 2,
-                      work.row_right[plane][row] - work.row_left[plane][row] + 1, 2);
+            if (rows & 1)
+            {
+               DMA_doDma(DMA_VRAM, &work.maps[plane][row * 64 + work.row_left[plane][row]],
+                         base + row * 128 + work.row_left[plane][row] * 2, work.row_right[plane][row] - work.row_left[plane][row] + 1, 2);
+            }
          }
       }
       if (work.dirty_column[plane] < 64)
