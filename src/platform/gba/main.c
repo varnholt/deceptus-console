@@ -1,6 +1,7 @@
 #include "deceptus/adventure.h"
 #include "deceptus/enemies.h"
 #include "deceptus/game.h"
+#include "deceptus/pacing.h"
 #include "deceptus/playeranimation.h"
 #include "gba_assets.h"
 #if GBA_TUTORIAL
@@ -49,6 +50,12 @@ static DeceptusEngine engine;
 #endif
 static DeceptusFrame frame;
 static DeceptusVideoCaps video = {240, 160, DECEPTUS_DRAW_CAPACITY};
+#ifndef GBA_PACING_MAX_TICKS
+#define GBA_PACING_MAX_TICKS 2
+#endif
+static DeceptusPacing pacing;
+/* timer 2 runs at 16.78 MHz / 64, so one 280896-cycle display frame is exactly 4389 counts. */
+#define GBA_FRAME_TIMER_COUNTS 4389U
 static GbaObject objects[128] __attribute__((aligned(4)));
 static DeceptusU16 object_count;
 static DeceptusU16 uploaded_frame[3];
@@ -94,6 +101,24 @@ static void waitVblank(void)
    while (REG_SCANLINE < 160)
    {
    }
+}
+
+/* display frames since the previous call, which must come right after a vertical blank. the 16-bit
+   timer wraps after ~15 frames; only room loads take that long, and they resync anyway. */
+static DeceptusU16 framesSinceVblank(DeceptusU16 *previous_timer)
+{
+   DeceptusU16 now, frames;
+   DeceptusU32 counts;
+   now = REG16(0x04000108);
+   counts = (DeceptusU16)(now - *previous_timer) + GBA_FRAME_TIMER_COUNTS / 2;
+   *previous_timer = now;
+   frames = 0;
+   while (counts >= GBA_FRAME_TIMER_COUNTS)
+   {
+      counts -= GBA_FRAME_TIMER_COUNTS;
+      ++frames;
+   }
+   return frames ? frames : 1;
 }
 
 static DeceptusU16 __attribute__((section(".romtext"), noinline)) inputRead(void)
@@ -1014,7 +1039,8 @@ static void __attribute__((section(".romtext"), noinline)) debugWrite(void)
 
 int __attribute__((section(".iwram"))) main(void)
 {
-   DeceptusU16 phase_start;
+   DeceptusU16 phase_start, buttons, vblank_timer, elapsed_frames;
+   DeceptusU8 ticks, room_loaded;
 #if GBA_CAMPAIGN
 #if GBA_TUTORIAL
    deceptusAdventureInit(&adventure, &gba_tutorial_definition, &video);
@@ -1030,27 +1056,40 @@ int __attribute__((section(".iwram"))) main(void)
    hudReset();
 #endif
    backgroundReset();
+   deceptusPacingInit(&pacing, 60, GBA_PACING_MAX_TICKS);
+   vblank_timer = REG16(0x04000108);
+   elapsed_frames = 1;
+   room_loaded = 0;
    while (1)
    {
       phase_start = REG16(0x04000108);
+      ticks = deceptusPacingTicks(&pacing, elapsed_frames);
+      buttons = inputRead();
+      while (ticks)
+      {
+         --ticks;
 #if GBA_CAMPAIGN
 #if GBA_TUTORIAL
-      if (deceptusAdventureTick(&adventure, inputRead()))
-      {
+         if (deceptusAdventureTick(&adventure, buttons))
+         {
 #else
-      if (deceptusCampaignTick(&campaign, inputRead()))
-      {
+         if (deceptusCampaignTick(&campaign, buttons))
+         {
 #endif
-         active_stage = &gba_stages[campaign.room_index];
-         videoInit();
+            active_stage = &gba_stages[campaign.room_index];
+            videoInit();
 #if GBA_TUTORIAL
-         hudReset();
+            hudReset();
 #endif
-         backgroundReset();
-      }
+            backgroundReset();
+            deceptusPacingReset(&pacing);
+            room_loaded = 1;
+            break;
+         }
 #else
-      deceptusTick(&engine, inputRead());
+         deceptusTick(&engine, buttons);
 #endif
+      }
 #if GBA_TUTORIAL
       scenery_flags = deceptusAdventurePresentationFlags(&adventure);
 #endif
@@ -1076,6 +1115,13 @@ int __attribute__((section(".iwram"))) main(void)
 
       debugWrite();
       waitVblank();
+      elapsed_frames = framesSinceVblank(&vblank_timer);
+      if (room_loaded)
+      {
+         /* the load is not made up for. */
+         elapsed_frames = 1;
+         room_loaded = 0;
+      }
       phase_start = REG16(0x04000108);
       videoCommit();
       deceptus_debug[83] = (DeceptusU16)(REG16(0x04000108) - phase_start);

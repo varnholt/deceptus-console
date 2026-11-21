@@ -82,6 +82,12 @@ renderer also avoids restoring background pixels that the next opaque UI box
 will cover. These changes retain fixed ownership and add no runtime heap.
 
 
+The opening uses the shared [simulation timing](ARCHITECTURE.md#simulation-timing)
+with up to three ticks per presentation, so the game keeps its 60 Hz speed down to
+20 presented frames per second (the previous loop allowed two vertical blanks, 25).
+Diagnostic slot 11 counts ticks dropped by that limit. With this change the room
+tour measured 31.9 frame-weighted fps against 32.1 before, within its noise.
+
 ## Walking and jumping regression
 
 The walking-only measurement above is insufficient to establish playability.

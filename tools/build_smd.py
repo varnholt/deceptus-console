@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -41,6 +42,9 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     flags = ['-m68000', '-DSGDK_GCC', '-O3', '-flto', '-fomit-frame-pointer', '-fno-builtin',
              '-ffunction-sections', '-fdata-sections', '-B' + str(sdk / 'bin'),
              '-I' + str(ROOT / 'src/platform/smd/include'), '-I' + str(ROOT / 'include'), '-I' + str(generated), '-I' + str(sdk / 'inc'), '-I' + str(sdk / 'res')]
+    if os.environ.get('DECEPTUS_PACING_LOCKED') == '1':
+        # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
+        flags.append('-DDECEPTUS_PACING_LOCKED')
     header = (sdk / 'src/boot/rom_head.c').read_text().replace('SAMPLE PROGRAM'.ljust(48), ('DECEPTUS OPENING' if opening else 'DECEPTUS MEGA DRIVE POC').ljust(48))
     (output / 'rom_head.c').write_text(header)
     run([compiler, *[flag for flag in flags if flag != '-flto'], '-c', output / 'rom_head.c', '-o', folder / 'rom_head.o'], output)
@@ -49,7 +53,7 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
          '-c', sdk / 'src/boot/sega.s', '-o', folder / 'sega.o'], output)
     sources = ['src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
                'src/engine/mechanisms/grabrope.c', 'src/engine/animation.c', 'src/engine/world.c',
-               'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c', 'src/engine/logic.c',
+               'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c', 'src/engine/logic.c', 'src/engine/pacing.c',
                'src/game/enemies.c', 'src/game/deceptus.c', 'src/platform/smd/main.c']
     sources = [ROOT / source for source in sources]
     if opening:

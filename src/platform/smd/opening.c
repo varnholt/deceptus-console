@@ -1,5 +1,6 @@
 #include "deceptus/adventure.h"
 #include "deceptus/game.h"
+#include "deceptus/pacing.h"
 #include "opening_video.h"
 #include <genesis.h>
 
@@ -7,6 +8,10 @@ static DeceptusAdventure adventure;
 static DeceptusFrame frame;
 static const DeceptusVideoCaps video = {320, 224, DECEPTUS_DRAW_CAPACITY};
 static DeceptusU16 sequence;
+#ifndef SMD_PACING_MAX_TICKS
+#define SMD_PACING_MAX_TICKS 2
+#endif
+static DeceptusPacing pacing;
 volatile DeceptusU16 smd_opening_packets[2][56];
 static volatile DeceptusU16 *smd_opening_debug = smd_opening_packets[0];
 static DeceptusU8 packet_slot;
@@ -142,8 +147,9 @@ static void debugWrite(DeceptusU16 buttons, DeceptusU8 blank)
 
 int main(bool hard_reset)
 {
+   DeceptusU32 previous_vblank;
    DeceptusU16 buttons, flags;
-   DeceptusU8 blank;
+   DeceptusU8 blank, ticks, room_loaded;
    (void)hard_reset;
    VDP_setEnable(FALSE);
    VDP_setScreenWidth320();
@@ -158,12 +164,26 @@ int main(bool hard_reset)
    JOY_setSupport(PORT_1, JOY_SUPPORT_6BTN);
    deceptusAdventureInit(&adventure, &smd_tutorial_definition, &video);
    videoLoad();
+   deceptusPacingInit(&pacing, IS_PAL_SYSTEM ? 50 : 60, SMD_PACING_MAX_TICKS);
+   previous_vblank = vtimer - 1;
+   room_loaded = 0;
    while (1)
    {
+      /* a room load is not made up for. */
+      ticks = deceptusPacingTicks(&pacing, room_loaded ? 1 : (DeceptusU16)(vtimer - previous_vblank));
+      previous_vblank = vtimer;
+      room_loaded = 0;
       buttons = inputRead();
-      if (deceptusAdventureTick(&adventure, buttons))
+      while (ticks)
       {
-         videoLoad();
+         --ticks;
+         if (deceptusAdventureTick(&adventure, buttons))
+         {
+            videoLoad();
+            deceptusPacingReset(&pacing);
+            room_loaded = 1;
+            break;
+         }
       }
       deceptusRender(&adventure.campaign.engine, &frame);
       flags = deceptusAdventurePresentationFlags(&adventure);

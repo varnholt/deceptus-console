@@ -18,7 +18,9 @@ does not describe the opening.
 ```powershell
 python tools/bootstrap_smd.py --emulator
 python tools/build_smd.py --scene tutorial
-python tools/verify_smd_opening.py --rom build/smd/deceptus-tutorial.bin --assets-dir assets/generated/smd-opening
+$env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_smd.py --scene tutorial --output-dir build/smd-verify
+python tools/verify_smd_opening.py --rom build/smd-verify/deceptus-tutorial.bin --assets-dir assets/generated/smd-opening
+Remove-Item Env:DECEPTUS_PACING_LOCKED
 python run_smd.py
 ```
 

@@ -106,8 +106,14 @@ The separate normal-input route starts at New Game and checks progression
 against both native C and the production ROM:
 
 ```powershell
+$env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_gba.py --scene tutorial
 python tools/gba_emulator.py --scene tutorial
+Remove-Item Env:DECEPTUS_PACING_LOCKED; python tools/build_gba.py --scene tutorial
 ```
+
+The route is recorded in simulation ticks, so the checked cartridge runs one tick
+per presentation; normal builds catch up after a late frame (see
+[simulation timing](ARCHITECTURE.md#simulation-timing)).
 
 This does not inject player positions, inventory, flags or emulator memory.
 Its recorded checkpoints and scope live in `tests/fixtures/opening-route.json`;

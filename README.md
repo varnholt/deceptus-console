@@ -148,9 +148,17 @@ see [SNES implementation and measured limits](docs/SNES.md).
 ```powershell
 python tools/bootstrap.py --target snes --emulator
 python tools/build_snes.py
-python tools/emulator.py
+$env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_snes.py --output-dir build/snes-verify
+python tools/emulator.py --rom build/snes-verify/deceptus-tutorial.sfc
+Remove-Item Env:DECEPTUS_PACING_LOCKED
 python run_snes.py
 ```
+
+The route verifiers replay ordinary inputs tick for tick, so they check a
+cartridge built with `DECEPTUS_PACING_LOCKED=1`, which runs one simulation tick
+per presentation. Normal builds keep the 60 Hz simulation when a frame runs
+late, up to a per-platform limit; see
+[simulation timing](docs/ARCHITECTURE.md#simulation-timing).
 
 Use `--scene prototype` with the SNES builder and launcher for the retained
 one-room test. The default launcher selects `deceptus-tutorial.sfc` explicitly.
@@ -163,7 +171,9 @@ including loading and rendering; performance work remains necessary. See
 ```powershell
 python tools/bootstrap_smd.py --emulator
 python tools/build_smd.py --scene tutorial
-python tools/verify_smd_opening.py --assets-dir assets/generated/smd-opening
+$env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_smd.py --scene tutorial --output-dir build/smd-verify
+python tools/verify_smd_opening.py --rom build/smd-verify/deceptus-tutorial.bin --assets-dir assets/generated/smd-opening
+Remove-Item Env:DECEPTUS_PACING_LOCKED
 python run_smd.py
 ```
 

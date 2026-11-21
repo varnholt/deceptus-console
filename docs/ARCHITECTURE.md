@@ -142,6 +142,52 @@ must remain below 2048px per axis. Collision uses an 8px grid and bounded dynami
 rectangles instead of Box2D. Slopes and many complex physical mechanisms still
 need explicit treatment.
 
+### Simulation timing
+
+The simulation is tuned for exactly 60 ticks per second, independent of how
+fast a backend draws. `deceptus/pacing.h` turns the display frames that passed
+since the previous presentation into the number of ticks to run, also on 50 Hz
+PAL displays (1.2 ticks per frame on average). It is the console counterpart of
+the original engine's fixed time step (`FixedTimeStep` in `src/game/physics`).
+
+```c
+deceptusPacingInit(&pacing, 60, 2);             /* display rate, most ticks per presentation */
+ticks = deceptusPacingTicks(&pacing, frames);   /* display frames since the last presentation */
+while (ticks)
+{
+   --ticks;
+   if (deceptusAdventureTick(&adventure, buttons))
+   {
+      /* room changed: load it, deceptusPacingReset, count the load as one frame */
+      break;
+   }
+}
+```
+
+Time beyond the per-presentation limit is discarded rather than banked, and a
+room load is not made up for. Below `60 / max_ticks` presentations per second
+the game slows down instead. Each backend sets the limit for its renderer: every
+extra tick is extra camera travel for the next presentation to stream, and a
+limit set too high pushes incremental background streaming into heavier updates
+until every presentation hits the limit. In the first room under Genesis Plus GX,
+walking with a limit of five dropped the Mega Drive from 26-38 to 2.5-3.5
+presentations per second; with two it keeps 20-37 while the game runs at 37-59
+ticks per second instead of 26-38.
+
+| Backend | Display frames from | Limit |
+| --- | --- | ---: |
+| GBA | timer 2 at F/64, 4389 counts per frame | 2 |
+| SNES | `snes_vblank_count`, 50 or 60 Hz from `snes_50hz` | 2 |
+| Mega Drive | SGDK `vtimer`, 50 or 60 Hz from `IS_PAL_SYSTEM` | 2 |
+| Amiga | vertical blank count, PAL 50 Hz | 3 |
+
+Input is sampled once per presentation and applied to all of its ticks; button
+edges are detected against the previous tick, so a press still fires once. The
+emulator route verifiers replay ordinary inputs tick for tick and need one tick
+per presentation: build the cartridge they check with `DECEPTUS_PACING_LOCKED=1`
+in the environment, which every build script passes on as
+`-DDECEPTUS_PACING_LOCKED`.
+
 Callers own all state. Entity, projectile, mechanism, event and draw queues have
 fixed capacities. Content generation rejects unsupported features and resource
 limits instead of inventing successful behavior. `deceptus_engine.content_error`

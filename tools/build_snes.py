@@ -168,16 +168,18 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     (folder / "hdr.asm").write_text(header)
     objects = []
     sources = [ROOT / "src/engine/player/playerwater.c", ROOT / "src/engine/player/playerrope.c", ROOT / "src/engine/mechanisms/grabrope.c", ROOT / "src/game/adventure.c", ROOT / "src/game/weapons/playersword.c", ROOT / "src/game/player/playeranimation.c", ROOT / "src/game/items/itemheadtorch.c", ROOT / "src/game/appearance.c", ROOT / "src/engine/animation.c", ROOT / "src/engine/world.c", ROOT / "src/engine/entities.c", ROOT / "src/engine/events.c", ROOT / "src/engine/mechanisms.c",
-               ROOT / "src/engine/logic.c", ROOT / "src/game/enemies.c", ROOT / "src/game/deceptus.c",
+               ROOT / "src/engine/logic.c", ROOT / "src/engine/pacing.c", ROOT / "src/game/enemies.c", ROOT / "src/game/deceptus.c",
                ROOT / "src/platform/snes/main.c"]
     if opening:
         sources += [ROOT / "src/game/campaign.c", ROOT / "src/platform/snes/background.c"]
         sources += [generated / name for name in metadata["c_sources"]]
     else:
         sources += [ROOT / "assets/generated/room.c"]
+    # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
+    pacing_flags = ["-DDECEPTUS_PACING_LOCKED"] if os.environ.get("DECEPTUS_PACING_LOCKED") == "1" else []
     for source in sources:
         stem = source.stem
-        run([compiler, *(["-H", "-DDECEPTUS_SNES_OPENING=1", "-DSNES_SPRITES_ASM=1"] if opening else []), "-I" + str(ROOT / "include"), "-I" + str(generated), "-I" + str(sdk / "pvsneslib/include"),
+        run([compiler, *(["-H", "-DDECEPTUS_SNES_OPENING=1", "-DSNES_SPRITES_ASM=1"] if opening else []), *pacing_flags, "-I" + str(ROOT / "include"), "-I" + str(generated), "-I" + str(sdk / "pvsneslib/include"),
              "-I" + str(sdk / "devkitsnes/include"), "-I" + str(folder), "-Wall", "-c", source,
              "-F", "-o", stem + ".ps"], folder)
         run([optimizer, "-i", stem + ".ps", "-o", stem + ".asm"], folder)
