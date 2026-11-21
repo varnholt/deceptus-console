@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
+from content_error import ContentError
 from lua_source import analyse, BooleanCompiler, CompileError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +43,10 @@ def map_objects(path):
             elif child.tag == "objectgroup":
                 for item in child.findall("object"):
                     if item.get("template"):
-                        raise ValueError(f"object templates need explicit resolution: {path}, id {item.get('id')}")
+                        raise ContentError('object templates (.tx) need explicit resolution', file=path,
+                                           layer=child.get('name', ''), object_id=int(item.get('id')),
+                                           object_name=item.get('name', ''),
+                                           fix='detach the template in Tiled (Replace with Object) so its properties are stored on the object')
                     shape = "rectangle"
                     points = []
                     for kind in ("polygon", "polyline", "ellipse", "point"):
@@ -123,9 +127,11 @@ def inventory(data, output):
         for module in info["requires"]:
             dependency = data.parent / (module + ".lua")
             if not dependency.resolve().is_relative_to(data):
-                raise ValueError(f"require escapes source data: {module}")
+                raise ContentError(f'require escapes the source data folder: {module}', file=key,
+                                   fix='require modules inside the data folder only')
             if not dependency.is_file():
-                raise ValueError(f"missing required module: {module}")
+                raise ContentError(f'missing required Lua module: {module}', file=key,
+                                   fix='add the module under the source data folder or remove the require')
             pending.append(dependency)
     source = data.parent / "src/game/level"
     api = set()
@@ -237,12 +243,15 @@ def crop_mechanisms(data, recipe):
             continue
         selected.append(obj)
     if len(selected) > 32:
-        raise ValueError("crop exceeds the 32-mechanism runtime budget")
+        raise ContentError.at(f'crop holds {len(selected)} mechanisms; the runtime budget is 32', recipe,
+                              fix=f'remove {len(selected) - 32} mechanisms or split the room; it holds '
+                                  + ', '.join(f'{count} {group}' for group, count in Counter(obj['group'] for obj in selected).most_common()))
     targets, definitions = [], []
     selected_ids = {obj["id"] for obj in selected}
     for obj in selected:
         if not 1 <= obj["id"] <= 65535:
-            raise ValueError(f'object id {obj["id"]} exceeds the supported 16-bit identity range')
+            raise ContentError.at('object id exceeds the supported 16-bit identity range (1..65535)', recipe, obj,
+                                  fix='renumber the object in Tiled')
         props = obj["properties"]
         names = recipe.get('native_links', {}).get(obj['name'], props.get("target_ids", props.get("target_id", "")))
         first = len(targets)
@@ -251,7 +260,9 @@ def crop_mechanisms(data, recipe):
                 continue
             matches = [target for target in objects if target["name"] == name.strip()]
             if not matches or any(target["id"] not in selected_ids for target in matches):
-                raise ValueError(f'mechanism {obj["id"]}: target {name!r} is missing or outside the supported crop')
+                where = 'is outside the supported crop' if matches else 'does not name any object in the map'
+                raise ContentError.at(f'target {name.strip()!r} {where}', recipe, obj,
+                                      fix='correct the target_id/target_ids property, or move the target into the room')
             targets.extend(target["id"] for target in matches)
         bounds = [round(obj["x"] - left), round(obj["y"] - top), round(obj["width"]), round(obj["height"])]
         boolean = lambda value: str(value).lower() in ("true", "1")
@@ -273,7 +284,8 @@ def crop_mechanisms(data, recipe):
             bounds = [round(obj['x']-left),round(obj['y']+obj['points'][1][1]-top),7,round(-obj['points'][1][1])]
         if obj['name'] in recipe.get('native_inverted_levers', []):
             if obj['group'] != 'levers':
-                raise ValueError('only levers can invert their native target state')
+                raise ContentError.at('only levers can invert their native target state', recipe, obj,
+                                      fix='remove this object from native_inverted_levers')
             flags |= 4
         value = int(props.get("damage", 100)) if obj["group"] in ("damage_rects", "spike_blocks") else int(props.get("index", 0))
         if obj['group'] == 'doors':
@@ -281,7 +293,8 @@ def crop_mechanisms(data, recipe):
         elif obj['group'] == 'destructible_blocking_rects':
             value = int(props.get('max_damage',30))
             if value <= 0:
-                raise ValueError(f'mechanism {obj["id"]}: durability must be positive')
+                raise ContentError.at('durability (max_damage) must be positive', recipe, obj,
+                                      fix='set max_damage to 1 or more')
         elif obj['group'] == 'grab_ropes':
             value = int(props.get('segments',7))
         if obj['group']=='wind':
@@ -291,18 +304,22 @@ def crop_mechanisms(data, recipe):
             if 'strength' in props and length:
                 dx=dx/length*float(props['strength']);dy=dy/length*float(props['strength'])
             fx,fy=round(dx*16),round(-dy*16)
-            if not(-127<=fx<=127 and -127<=fy<=127):raise ValueError('wind force exceeds native fixed-step budget')
+            if not(-127<=fx<=127 and -127<=fy<=127):raise ContentError.at('wind force exceeds native fixed-step budget', recipe, obj,
+                                                                         fix='reduce strength or direction_x/direction_y')
             value=(fx&255)|((fy&255)<<8)
         if not 0 <= value <= 65535:
-            raise ValueError(f'mechanism {obj["id"]}: value {value} exceeds the supported unsigned 16-bit range')
+            raise ContentError.at(f'value {value} exceeds the supported unsigned 16-bit range', recipe, obj,
+                                  fix='use a damage/index value between 0 and 65535')
         animated = obj['group'] in ('levers', 'on_off_blocks', 'spike_blocks')
         interval = props.get('mode', 'lever') == 'interval'
         if interval and obj['group'] not in ('on_off_blocks', 'spike_blocks'):
-            raise ValueError(f'mechanism {obj["id"]}: interval mode is invalid for this kind')
+            raise ContentError.at('interval mode is valid only for on_off_blocks and spike_blocks', recipe, obj,
+                                  fix='set mode to lever or remove the mode property')
         def ticks(value, scale=1):
             result = round(float(value) * scale * 60)
             if not 0 <= result <= 65534:
-                raise ValueError(f'mechanism {obj["id"]}: timer exceeds the 16-bit tick budget')
+                raise ContentError.at(f'timer exceeds the 16-bit tick budget of about 18 minutes (value {value})', recipe, obj,
+                                      fix='shorten the time_* or fade_in_duration_s property')
             return result
         timing = [max(1, ticks(props.get('time_on_ms', 4000), .001)),
                   max(1, ticks(props.get('time_off_ms', 3000), .001)),
