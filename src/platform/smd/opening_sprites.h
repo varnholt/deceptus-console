@@ -29,6 +29,9 @@ static DeceptusU8 smd_obj_heads[SMD_SPRITE_RESOURCE_COUNT], smd_obj_epochs[SMD_S
 static DeceptusU8 smd_obj_epoch;
 static DeceptusU8 smd_obj_piece_links[64];
 static DeceptusU16 smd_obj_unused, smd_obj_free_cursor;
+/* slots whose tiles still have to be sent. kept as a count so that measuring the upload and the
+   usual case of nothing to preload do not scan all 64 slots every presentation. */
+static DeceptusU16 smd_obj_pending_count;
 static union
 {
    struct
@@ -151,6 +154,10 @@ static DeceptusU16 __attribute__((noinline)) smdObjSlotFor(DeceptusU16 resource,
    }
    slot->resource = resource;
    slot->piece = piece;
+   if (!slot->pending)
+   {
+      ++smd_obj_pending_count;
+   }
    slot->valid = slot->used = slot->pending = 1;
    slot->next = smd_obj_heads[resource];
    smd_obj_heads[resource] = (DeceptusU8)(index + 1);
@@ -162,6 +169,7 @@ static void smdObjResetCache(void)
    memset(smd_obj_slots, 0, sizeof(smd_obj_slots));
    memset(smd_obj_heads, 0, sizeof(smd_obj_heads));
    smd_obj_unused = smd_obj_free_cursor = 0;
+   smd_obj_pending_count = 0;
 }
 
 /* the same fields VDP_setSpriteFull writes, without an out-of-line library call per object. */
@@ -592,22 +600,14 @@ static void smdSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame
 
 static void smdSpritesMeasure(void)
 {
-   DeceptusU16 index;
-   smd_sprite_upload_bytes = 0;
-   for (index = 0; index < SMD_OBJ_PIECES; ++index)
-   {
-      if (smd_obj_slots[index].pending)
-      {
-         smd_sprite_upload_bytes += 128;
-      }
-   }
+   smd_sprite_upload_bytes = smd_obj_pending_count * 128;
 }
 
 static void smdSpritesPreload(void)
 {
    DeceptusU16 index;
    SmdObjSlot *slot;
-   for (index = 0; index < SMD_OBJ_PIECES; ++index)
+   for (index = 0; smd_obj_pending_count && index < SMD_OBJ_PIECES; ++index)
    {
       slot = &smd_obj_slots[index];
       if (!slot->pending)
@@ -620,6 +620,7 @@ static void smdSpritesPreload(void)
       }
       VDP_loadTileData(smd_sprite_buffer, smdObjTile(index), 4, DMA);
       slot->pending = 0;
+      --smd_obj_pending_count;
    }
    smd_sprite_room_load = 0;
 }
@@ -637,8 +638,12 @@ static void smdSpritesCommit(void)
       VDP_setSpriteFull(0, 0, 240, SPRITE_SIZE(1, 1), 0, 0);
       VDP_updateSprites(1, DMA);
    }
-   for (index = 0; index < SMD_OBJ_PIECES; ++index)
+   /* four slots per pass: the copy itself is one byte move, so loop overhead was most of its cost. */
+   for (index = 0; index < SMD_OBJ_PIECES; index += 4)
    {
       smd_obj_slots[index].held = smd_obj_slots[index].used;
+      smd_obj_slots[index + 1].held = smd_obj_slots[index + 1].used;
+      smd_obj_slots[index + 2].held = smd_obj_slots[index + 2].used;
+      smd_obj_slots[index + 3].held = smd_obj_slots[index + 3].used;
    }
 }

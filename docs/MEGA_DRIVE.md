@@ -225,6 +225,32 @@ visit and by commit and preload overhead of 10,000 to 15,000 cycles each that
 is present even when nothing is uploaded; that fixed cost is the next thing to
 measure.
 
+A third pass measured that fixed cost. Most of it was bookkeeping that scanned
+every entry to find nothing. Testing one background map row by its dirty bit
+(`1U << (row & 15)` on a word picked by `row >> 4`) took about 150 cycles,
+and both the DMA byte count at the end of `smdBackgroundPrepare` and
+`smdBackgroundCommit` tested all 64 rows of the two planes, so each spent close
+to 10,000 cycles on a still screen. Both now walk only the set bits of the
+dirty words. `smdSpritesMeasure` and `smdSpritesPreload` each scanned the 64
+sprite slots for pending tiles (about 4,500 cycles each). A count of pending
+slots now replaces the measure scan and lets the preload stop as soon as nothing
+is left. The `held = used` copy in `smdSpritesCommit` handles four slots per
+pass. In the Cell, background prepare dropped from 11,200 to 2,400 cycles,
+background commit from about 13,600 to well under one V-counter line, and
+sprite commit from 6,200 to 4,200. The Cell's remaining preload cost of about
+10,000 cycles is real work: one presentation in five uploads two to ten sprite
+pieces that were evicted from the 64-slot cache. Same commands as above:
+
+| Scene | Updates/s before | Updates/s after | CPU load before | CPU load after |
+| --- | ---: | ---: | ---: | ---: |
+| Cell | 54.55 | 57.45 | 78.9 | 56.8 |
+| Loop | 28.35 | 28.5 | 151.5 | 130.2 |
+| Crypt | 28.3 | 28.35 | 165.4 | 138.4 |
+| Altar | 25.75 | 26.5 | 185.7 | 163.1 |
+| First room, route steps 2-5, presentations/s | 34.1 | 36.4 | | |
+
+`python deceptus.py verify smd` still verifies the whole route.
+
 ## Retained small prototype
 
 ```powershell
