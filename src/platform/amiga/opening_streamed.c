@@ -830,10 +830,11 @@ static DeceptusU8 clipCovered(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
    return x >= cover_left[plane] && x < cover_right[plane] && y >= cover_top[plane] && y < cover_bottom[plane];
 }
 
+static DeceptusU8 paintClips(DeceptusI16 x, DeceptusI16 y);
+
 static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 color_ids[4], mask_ids[4], index, *entry;
-   const DeceptusU8 *cell;
    (void)context;
    ++amiga_debug[23]; /* PERFCOUNT */
    entry = map_slots && x >= 0 && y >= 0 && x < (DeceptusI16)map_columns && y < (DeceptusI16)map_rows
@@ -857,6 +858,15 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
          entry[1] = plain_cells.generation[index];
       }
    }
+   return paintClips(x, y);
+}
+
+/* the animated layers over a freshly painted cell: background clip tiles now, and a foreground
+   mark when a foreground clip may cover it. */
+static DeceptusU8 paintClips(DeceptusI16 x, DeceptusI16 y)
+{
+   DeceptusU16 index;
+   const DeceptusU8 *cell;
    for (index = 0; clipCovered(0, x, y) && index < graphics->clip_count; ++index)
    {
       if (clips[index].enabled && !clips[index].clip.plane)
@@ -882,22 +892,21 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
    return !error;
 }
 
-/* cells left up to right (exclusive) of map row y. outside every clip area, a cell the map memo
-   still holds is one blit whose constant registers stay set for the whole run, with the ring
-   offset stepped instead of recomputed; anything else goes through paintTile. */
+/* cells left up to right (exclusive) of map row y. a cell the map memo still holds is one blit
+   whose constant registers stay set for the whole run, with the ring offset stepped instead of
+   recomputed, and clip work only inside a clip area; anything else goes through paintTile. */
 static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, DeceptusI16 y)
 {
    DeceptusU16 offset, slot, *entry, *page;
    const DeceptusU16 *generation;
    const DeceptusU16 *pixels;
    DeceptusI16 x;
+   DeceptusU8 covered;
    if (context)
    {
       amiga_debug[28] += (DeceptusU16)(right - left); /* PERFCOUNT: all scroll cells */
    }
-   if (!map_slots || left < 0 || y < 0 || right > (DeceptusI16)map_columns || y >= (DeceptusI16)map_rows ||
-       (y >= cover_top[0] && y < cover_bottom[0] && left < cover_right[0] && right > cover_left[0]) ||
-       (y >= cover_top[1] && y < cover_bottom[1] && left < cover_right[1] && right > cover_left[1]))
+   if (!map_slots || left < 0 || y < 0 || right > (DeceptusI16)map_columns || y >= (DeceptusI16)map_rows)
    {
       for (x = left; x < right; ++x)
       {
@@ -908,6 +917,8 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
       }
       return 1;
    }
+   covered = (y >= cover_top[0] && y < cover_bottom[0] && left < cover_right[0] && right > cover_left[0]) ||
+             (y >= cover_top[1] && y < cover_bottom[1] && left < cover_right[1] && right > cover_left[1]);
    amiga_debug[23] += (DeceptusU16)(right - left); /* PERFCOUNT */
    if (context)
    {
@@ -945,6 +956,10 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
          hardware->bltapt = (APTR)(pixels + (DeceptusU32)(DeceptusU16)(slot - 1) * (DeceptusU16)CELL_WORDS);
          hardware->bltdpt = page + offset;
          hardware->bltsize = (CELL_WORDS << 6) | 1;
+         if (covered && (clipCovered(0, x, y) || clipCovered(1, x, y)) && !paintClips(x, y))
+         {
+            return 0;
+         }
       }
       if (++offset == SURFACE_WORDS)
       {
