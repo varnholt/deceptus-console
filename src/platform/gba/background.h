@@ -345,8 +345,10 @@ static void __attribute__((section(".iwram"))) backgroundPrepare(void)
       DeceptusU16 ticks;
       const GbaBackgroundAnimation *clip;
       ticks = (DeceptusU16)(engine.ticks - background_previous_tick);
-      /* restart resets the engine clock, rather than advancing it by 65535 ticks. */
-      if (ticks > 1)
+      /* restart resets the engine clock, rather than advancing it by 65535 ticks. a presentation
+         can run more than one tick since simulation pacing catches up late frames; treating those
+         as a restart redrew the whole background every frame and held the GBA at 30 fps. */
+      if (ticks > 8)
       {
          for (index = 0; index < GBA_BACKGROUND_ANIMATION_COUNT; ++index)
          {

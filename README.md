@@ -12,14 +12,19 @@ the reference game: it plays through on all four systems.
 
 | Game Boy Advance | Amiga 500 |
 | :---: | :---: |
-| ![GBA](docs/media/gba.png) | ![Amiga 500](docs/media/amiga.png) |
+| ![GBA](docs/media/gba.gif) | ![Amiga 500](docs/media/amiga.gif) |
+| 60 fps | 40 fps, full game speed |
 
 | Mega Drive | Super Nintendo |
 | :---: | :---: |
 | ![Mega Drive](docs/media/mega-drive.png) | ![SNES](docs/media/snes.png) |
+| Being optimised | Being optimised |
 
-The Main Hall of the opening on each system, captured at native resolution from mGBA, cycle-exact
-WinUAE, Genesis Plus GX and Snes9x. Real-time clips follow.
+The clips are real-time recordings of the same start of a New Game in the first room: mGBA for
+the Game Boy Advance and cycle-exact WinUAE for the Amiga (stock A500, Kickstart 1.3, 512 KiB
+Chip + 512 KiB slow RAM), every display frame kept. The input is
+[`docs/media/showcase-route.json`](docs/media/showcase-route.json). The Mega Drive and SNES show
+the Main Hall until their performance pass.
 
 ## Why this engine
 
@@ -132,15 +137,13 @@ rooms and working isolated actions do not establish a complete playable route.
 ## Recording the clips
 
 ```powershell
-python tools/showcase_route.py --prefix-steps 594 --target-x 855 --output docs/media/showcase-route.json
-python tools/capture_showcase.py gba --route docs/media/showcase-route.json --first-step 594 --last-step 597 --output docs/media/gba.gif
+python tools/capture_showcase.py gba --route docs/media/showcase-route.json --first-step 2 --last-step 5 --output docs/media/gba.gif
 ```
 
-`showcase_route.py` keeps the verification route up to a room entrance and then walks the way a
-player would, computed with the native C simulation. `capture_showcase.py` plays a route on an
-ordinary build and keeps every second display frame, so each clip shows the platform's real frame
-rate; use `smd` or `snes` for the other cartridges. The Amiga clip is recorded under cycle-exact
-WinUAE.
+`capture_showcase.py` plays a route on an ordinary build and keeps every second display frame, so
+each clip shows the platform's real frame rate; use `smd` or `snes` for the other cartridges.
+`showcase_route.py` can derive a natural walk from the verification route for other rooms. The
+Amiga clip is recorded under cycle-exact WinUAE.
 
 ## Ownership
 
