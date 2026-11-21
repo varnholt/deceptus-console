@@ -820,6 +820,16 @@ static DeceptusU8 sameClipCell(const DeceptusU8 *before, const DeceptusU8 *after
    return first[0] == second[0] && first[1] == second[1] && first[2] == second[2] && first[3] == second[3];
 }
 
+/* per clip plane (0 background, 1 foreground), the map cell rectangle all its clips can touch,
+   right and bottom exclusive (empty when left == right): a painted cell outside it needs no clip
+   lookups, and outside the foreground one no foreground mark either. */
+static DeceptusI16 cover_left[2], cover_top[2], cover_right[2], cover_bottom[2];
+
+static DeceptusU8 clipCovered(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
+{
+   return x >= cover_left[plane] && x < cover_right[plane] && y >= cover_top[plane] && y < cover_bottom[plane];
+}
+
 static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 color_ids[4], mask_ids[4], index, *entry;
@@ -847,7 +857,7 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
          entry[1] = plain_cells.generation[index];
       }
    }
-   for (index = 0; index < graphics->clip_count; ++index)
+   for (index = 0; clipCovered(0, x, y) && index < graphics->clip_count; ++index)
    {
       if (clips[index].enabled && !clips[index].clip.plane)
       {
@@ -857,6 +867,11 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
             clipTile(x, y, cell);
          }
       }
+   }
+   /* the painted tile holds the static foreground already; only foreground animations repaint. */
+   if (!clipCovered(1, x, y))
+   {
+      return !error;
    }
    x -= camera_column - 1;
    y -= camera_row;
@@ -986,9 +1001,28 @@ static void updateClips(const DeceptusAdventure *game)
    const DeceptusU8 *bytes;
    AmigaTileClip *state;
    flags = deceptusAdventurePresentationFlags(game);
+   cover_left[0] = cover_left[1] = cover_right[0] = cover_right[1] = 0;
    for (index = 0; index < graphics->clip_count; ++index)
    {
+      DeceptusU8 plane;
       state = &clips[index];
+      plane = state->clip.plane ? 1 : 0;
+      if (cover_left[plane] == cover_right[plane])
+      {
+         cover_left[plane] = state->column;
+         cover_top[plane] = state->row;
+         cover_right[plane] = (DeceptusI16)(state->column + (DeceptusI16)state->columns);
+         cover_bottom[plane] = (DeceptusI16)(state->row + (DeceptusI16)state->rows);
+      }
+      else
+      {
+         cover_left[plane] = state->column < cover_left[plane] ? state->column : cover_left[plane];
+         cover_top[plane] = state->row < cover_top[plane] ? state->row : cover_top[plane];
+         cover_right[plane] = (DeceptusI16)(state->column + (DeceptusI16)state->columns) > cover_right[plane]
+                                 ? (DeceptusI16)(state->column + (DeceptusI16)state->columns) : cover_right[plane];
+         cover_bottom[plane] = (DeceptusI16)(state->row + (DeceptusI16)state->rows) > cover_bottom[plane]
+                                  ? (DeceptusI16)(state->row + (DeceptusI16)state->rows) : cover_bottom[plane];
+      }
       state->enabled = (flags & state->clip.required_flags) == state->clip.required_flags && !(flags & state->clip.forbidden_flags);
       if (!state->clip.durations)
       {
@@ -2224,7 +2258,10 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       y = (DeceptusI16)(index / SURFACE_COLUMNS);
       x = (DeceptusI16)(index - y * SURFACE_COLUMNS);
       paintTile(0, windows[draw_buffer].column + x, windows[draw_buffer].row + y);
-      markForeground(index, 1);
+      if (clipCovered(1, windows[draw_buffer].column + x, windows[draw_buffer].row + y))
+      {
+         markForeground(index, 1);
+      }
    }
    /* cpu-painted cells may touch the ring start; bob saves can read across the guard. */
    repairGuard(0, 0);
@@ -2251,7 +2288,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       {
          maskedTile(x, y, color_ids, mask_ids);
       }
-      for (clip = 0; clip < graphics->clip_count; ++clip)
+      for (clip = 0; clipCovered(1, x, y) && clip < graphics->clip_count; ++clip)
       {
          if (!clips[clip].enabled || !clips[clip].clip.plane)
          {
