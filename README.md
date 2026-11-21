@@ -12,20 +12,14 @@ the reference game: it plays through on all four systems.
 
 | Game Boy Advance | Amiga 500 |
 | :---: | :---: |
-| ![GBA](docs/media/gba.gif) | ![Amiga 500](docs/media/amiga.gif) |
-| 60 fps | 36 fps, full game speed |
+| ![GBA](docs/media/gba.png) | ![Amiga 500](docs/media/amiga.png) |
 
 | Mega Drive | Super Nintendo |
 | :---: | :---: |
 | ![Mega Drive](docs/media/mega-drive.png) | ![SNES](docs/media/snes.png) |
-| Being optimised | Being optimised |
 
-The clips are real-time recordings of the same walk through the Owl Shrine: mGBA for the Game
-Boy Advance, cycle-exact WinUAE for the Amiga (stock A500, Kickstart 1.3, 512 KiB Chip + 512 KiB
-slow RAM). The walk is the verification route up to the shrine entrance, then running and jumping
-where a player would (`docs/media/showcase-route.json`). The Amiga clip starts at the entrance in
-the state the route reaches there. The Mega Drive and SNES play the same route but still need
-their performance pass; they show stills from the opening until then.
+The Main Hall of the opening on each system, captured at native resolution from mGBA, cycle-exact
+WinUAE, Genesis Plus GX and Snes9x. Real-time clips follow.
 
 ## Why this engine
 
@@ -46,12 +40,12 @@ their performance pass; they show stills from the opening until then.
 
 ## Platforms
 
-| System | Hardware target | Opening | Owl Shrine walk |
-| --- | --- | --- | --- |
-| Game Boy Advance | 16.78 MHz ARM7, 288 KiB RAM | Complete route, full speed | 60 fps |
-| Amiga 500 | 7.09 MHz 68000, OCS, 512 KiB Chip + 512 KiB slow RAM, Kickstart 1.3 | Complete route, 32 fps averaged over all rooms | 36 fps, full speed |
-| Mega Drive | 7.67 MHz 68000, 64 KiB RAM, 4 MiB cartridge | Complete route, being optimised | not recorded yet |
-| Super Nintendo | 3.58 MHz 65816, 128 KiB RAM, 8 MiB ExHiROM | Complete route, being optimised | not recorded yet |
+| System | Hardware target | Opening |
+| --- | --- | --- |
+| Game Boy Advance | 16.78 MHz ARM7, 288 KiB RAM | Complete route, full speed |
+| Amiga 500 | 7.09 MHz 68000, OCS, 512 KiB Chip + 512 KiB slow RAM, Kickstart 1.3 | Complete route, 32 fps averaged over all rooms |
+| Mega Drive | 7.67 MHz 68000, 64 KiB RAM, 4 MiB cartridge | Complete route, being optimised |
+| Super Nintendo | 3.58 MHz 65816, 128 KiB RAM, 8 MiB ExHiROM | Complete route, being optimised |
 
 The GBA and Amiga keep the game's 60 Hz simulation when a frame runs late; the Mega Drive and SNES
 run one simulation tick per frame until their renderers are faster
