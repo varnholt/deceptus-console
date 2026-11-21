@@ -9,7 +9,13 @@ static DeceptusU32 square(DeceptusI32 value)
    magnitude = value < 0 ? (DeceptusU32)-value : (DeceptusU32)value;
    if (magnitude <= 65535UL)
    {
+#if defined(__mc68000__) || defined(__m68k__)
+      /* gcc can leave even a 16x16 product to the 32-bit library call; mulu.w is exact here. */
+      __asm__("mulu.w %0,%0" : "+d"(magnitude) : : "cc");
+      return magnitude;
+#else
       return (DeceptusU32)(DeceptusU16)magnitude * (DeceptusU16)magnitude;
+#endif
    }
    return (DeceptusU32)(value * value);
 }
@@ -18,7 +24,12 @@ static DeceptusI32 product(DeceptusI32 left, DeceptusI32 right)
 {
    if (left >= -32768L && left <= 32767L && right >= -32768L && right <= 32767L)
    {
+#if defined(__mc68000__) || defined(__m68k__)
+      __asm__("muls.w %1,%0" : "+d"(left) : "d"((DeceptusI16)right) : "cc");
+      return left;
+#else
       return (DeceptusI32)(DeceptusI16)left * (DeceptusI16)right;
+#endif
    }
    return left * right;
 }
