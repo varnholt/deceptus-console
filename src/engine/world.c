@@ -44,6 +44,16 @@ static DeceptusU8 collisionCell(const DeceptusRoom *room, const DeceptusMechanis
    {
       return value;
    }
+   /* a cell lies in one column bin and one row bin of the solid grid: without a candidate there,
+      deceptusMechanismSolid finds nothing, so the probe rectangle is not even built. */
+   if (column >= 0 && row >= 0 && column < DECEPTUS_SOLID_BIN_COUNT * (DECEPTUS_SOLID_BIN_SIZE / DECEPTUS_CELL_SIZE) &&
+       row < DECEPTUS_SOLID_BIN_COUNT * (DECEPTUS_SOLID_BIN_SIZE / DECEPTUS_CELL_SIZE) &&
+       !((mechanisms->solid_columns[column / (DECEPTUS_SOLID_BIN_SIZE / DECEPTUS_CELL_SIZE)] &
+          mechanisms->solid_rows[row / (DECEPTUS_SOLID_BIN_SIZE / DECEPTUS_CELL_SIZE)]) |
+         mechanisms->solid_outside))
+   {
+      return value;
+   }
    bounds.x = column * DECEPTUS_CELL_SIZE;
    bounds.y = row * DECEPTUS_CELL_SIZE;
    bounds.width = DECEPTUS_CELL_SIZE;
