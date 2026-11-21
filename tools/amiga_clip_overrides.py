@@ -53,10 +53,35 @@ def hold_similar(max_frames):
     return plan
 
 
-# animation name -> treatment. sword_ring is a shader in the original game (a heartbeat-scaled,
-# slowly wobbling ring); its baked 24 frames hold ~740 distinct cells, five times the cache.
+def every_nth(step):
+    """Keep every step-th frame, each lasting as long as the frames it stands for.
+
+    For steady motion (waves, rising sparks) where no frame stands out: the loop keeps its speed
+    and length at a lower frame rate, and the distinct cells shrink by about the step.
+    """
+    def plan(grids, durations):
+        kept = []
+        for index in range(len(grids)):
+            if index % step:
+                kept[-1][1] += durations[index]
+            else:
+                kept.append([index, durations[index]])
+        return [tuple(entry) for entry in kept]
+    return plan
+
+
+# animation name -> treatment.
 OVERRIDES = {
+    # a shader in the original game (a heartbeat-scaled, slowly wobbling ring): its baked 24 frames
+    # hold ~740 distinct cells, five times the cache. the pulse keeps its frames, the wobble holds.
     'sword_ring': hold_similar(6),
+    # rising sparks at ~20 fps: 437 distinct cells; ~10 fps reads the same.
+    'shrine_column': every_nth(2),
+    # wide water surfaces at 10 fps: room 10's 40-cell strip holds 275 distinct cells (over the
+    # cache) and changes ~34 cells per step; 5 fps halves both. room 6's strip fits but repaints
+    # ~20 cells per step.
+    'surface_a': every_nth(2),
+    'surface_c': every_nth(2),
 }
 
 
