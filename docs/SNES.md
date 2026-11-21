@@ -221,8 +221,10 @@ pieces are resident, so the common case no longer enters compiled C at all.
 
 The stationary rows use the same fixtures, warmup and sample as the previous
 table. The hash probe and row table alone raised the walk to 9.7
-presentations/s; with those two, streaming took about 430 lines per
-presentation on the walk. The remaining cost is spread over the C code around
+presentations/s. The clip lists help mainly in rooms with several animations;
+on the walk the phase holding streaming and clip timing still takes about 420
+lines per presentation, while resource drawing fell from about 145 to 130. The
+remaining streaming cost is spread over the C code around
 the probe (map addressing, reference counting, dirty-row tracking), so moving
 whole cell loads to assembly is the next step for scrolling. The water-cache
 audit still reports 157,008 views with peaks of 991 and 1,042 resident patterns
@@ -230,3 +232,21 @@ and three Sewers compactions, and `tools/verify_snes_sprites.py` still passes
 all 6,482 cases.
 The tick-exact cartridge passes the full 56-checkpoint route with 29 health and
 zero deaths in 194,370 display frames instead of 206,375.
+
+The same phase marks placed around the calls in `deceptusTick` (a local build
+only) show where the portable simulation spends its time on this CPU, in
+scanlines per presentation:
+
+| Part of the tick | Walk (steps 127–134) | Stationary Loop |
+| --- | --- | --- |
+| Input, pacing, adventure and campaign around the engine tick | 39 | 35 |
+| `updatePlayer` | 78 | 195 |
+| `deceptusEnemiesTick` | 40 | 251 |
+| `deceptusMechanismsTick` | 28 | 143 |
+| `updateActors` | 20 | 22 |
+| Grab ropes, mechanism events, camera | 12 | 11 |
+| Total | about 217 | about 657 |
+
+The Loop's enemies, the player's collision and movement and the mechanisms
+account for nearly all of its tick. No shared simulation code changed in this
+round; any change there must stay behaviour-identical on every platform.
