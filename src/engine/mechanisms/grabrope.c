@@ -29,7 +29,10 @@ static DeceptusI32 quotient(DeceptusI32 numerator, DeceptusU16 denominator)
 {
 #if defined(__mc68000__) || defined(__m68k__)
    DeceptusI32 result;
-   if (denominator <= 32767U && numerator > -32768L * (DeceptusI32)denominator && numerator < 32768L * (DeceptusI32)denominator)
+   DeceptusI32 range;
+   /* 32768 * denominator as a shift: the multiply would be a library call itself. */
+   range = (DeceptusI32)denominator << 15;
+   if (denominator <= 32767U && numerator > -range && numerator < range)
    {
       result = numerator;
       __asm__("divs.w %1,%0" : "+d"(result) : "dmi"((DeceptusI16)denominator) : "cc");
@@ -397,8 +400,8 @@ DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 inde
       length = rope->cumulative_length[node] - rope->cumulative_length[node - 1];
       if (remaining <= length && length)
       {
-         *x = deceptusFloor((DeceptusFixed)(rope->x[node - 1] + dx * remaining / length));
-         *y = deceptusFloor((DeceptusFixed)(rope->y[node - 1] + dy * remaining / length));
+         *x = deceptusFloor((DeceptusFixed)(rope->x[node - 1] + quotient(product(dx, remaining), length)));
+         *y = deceptusFloor((DeceptusFixed)(rope->y[node - 1] + quotient(product(dy, remaining), length)));
          return 1;
       }
       remaining -= length;
