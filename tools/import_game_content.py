@@ -6,6 +6,8 @@ from pathlib import Path
 import shutil
 import subprocess
 
+from content_error import ContentError
+
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = ROOT / 'assets/game'
 REFERENCES = {
@@ -33,7 +35,8 @@ def import_content(source):
     paths.add('src/game/mechanisms/controllerkeymap.h')
     missing = [name for name in sorted(paths) if not (source / name).is_file()]
     if missing:
-        raise ValueError(f'missing source files: {missing}')
+        raise ContentError(f'missing source files: {", ".join(missing)}', file=source,
+                           fix='check out the complete deceptus_engine revision, or pass the right source folder')
     hashes = {}
     for name in sorted(paths):
         target = DESTINATION / name

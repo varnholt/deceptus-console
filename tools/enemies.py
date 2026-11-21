@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 from lua_source import ast, nodes, literal, name_of
 from content import map_objects
+from content_error import ContentError
 
 
 def source_number(node, values):
@@ -118,7 +119,8 @@ def crop_enemies(data, recipe):
                     not 0 < period < 65000 or not 0 < lifetime <= 1000 or not 1 <= collision <= 64 or
                     not 0 <= wave_strength <= 64 or not 0 <= phase < math.pi or
                     (orb_path == 'sine' and 2 * wave_strength * math.sin(phase/2) >= 8)):
-                raise ValueError(f'frog {obj["id"]}: unsupported projectile or fixed-step wave settings')
+                raise ContentError.at('unsupported frog projectile or fixed-step wave settings', recipe, obj,
+                                      fix='use orb_path straight or sine with the source speed, interval, lifetime and wave ranges')
             definitions.append(dict(source_id=obj['id'], kind='DECEPTUS_FROG_BLUE', x=int(obj['x'])-left,
                 y=int(obj['y'])-top, path_first=first, path_count=0, alignment=alignment, time_offset=0,
                 speed=round(speed*16), acceleration=0, damage=int(props['damage']), period=period,
@@ -143,14 +145,15 @@ def crop_enemies(data, recipe):
         cannon = script == 'cannon_2.lua'
         alignment = {'left': 0, 'right': 1, 'down': 2, 'up': 3}.get(obj['properties'].get('alignment', 'left' if cannon else 'right'))
         if alignment is None:
-            raise ValueError('invalid arrow-trap alignment')
+            raise ContentError.at('invalid enemy alignment', recipe, obj, fix='set alignment to left, right, down or up')
         rat = script == 'rat.lua'
         blob = script == 'blob_2.lua'
         patrol = rat or blob
         if cannon:
             weapon = values.get('_weapon')
             if not weapon or weapon[0] != 'WeaponType.Gun' or weapon[1:] != [1000, 60, 0.0, 0.2] or alignment > 1:
-                raise ValueError(f'cannon {obj["id"]}: unsupported gun parameters or alignment')
+                raise ContentError.at('cannon: unsupported gun parameters or alignment', recipe, obj,
+                                      fix='use alignment left or right with the source cannon_2.lua gun')
             # source gun applies an impulse to a density-1 circle of radius 0.2m.
             speed = round(values['mSpeed'] / (math.pi * weapon[4] ** 2) * 48 / 60 * 16)
             period = round(float(obj['properties'].get('fire_interval_s', values['mFireInterval'])) * 60)
@@ -180,7 +183,8 @@ def crop_enemies(data, recipe):
         if any(not 0 <= delay <= 65520 for delay in definition['delays']):
             raise ValueError('trap delay exceeds runtime budget')
     if len(definitions) > 8 or len(paths) > 64:
-        raise ValueError('enemy room exceeds its fixed-capacity budget')
+        raise ContentError.at(f'room has {len(definitions)} enemies and {len(paths)} path points; the budget is 8 and 64', recipe,
+                              fix='remove enemies or path points from this room')
     ignored = [dict(id=obj['id'], script=obj['properties']['script'],
                     reason='Room::deserialize does not execute room script properties; only enemy-group objects spawn Lua nodes')
                for obj in objects if obj['group'] == 'rooms' and obj['properties'].get('script') and

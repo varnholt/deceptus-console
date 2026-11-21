@@ -42,7 +42,7 @@ def fix_header(rom, reference):
     rom.write_bytes(payload)
 
 
-def build(data, clang='clang', linker='ld.lld', objcopy='llvm-objcopy', full_game=False, scene='tutorial', reuse_room_assets=False, prepared_room_assets=False):
+def build(data, clang='clang', linker='ld.lld', objcopy='llvm-objcopy', full_game=False, scene='tutorial', reuse_room_assets=False, prepared_room_assets=False, output_dir=None):
     for executable in (clang, linker, objcopy):
         if not shutil.which(str(executable)):
             raise SystemExit(f'{executable} not found; install LLVM or supply its executable path')
@@ -54,7 +54,7 @@ def build(data, clang='clang', linker='ld.lld', objcopy='llvm-objcopy', full_gam
         result = subprocess.run([sys.executable, str(ROOT / 'tools/content.py'), '--data', str(data), '--strict'], cwd=ROOT)
         if result.returncode:
             raise SystemExit('Full-game content support is incomplete; see build/content/summary.json')
-    folder = ROOT / 'build/gba'
+    folder = Path(output_dir) if output_dir else ROOT / 'build/gba'
     folder.mkdir(parents=True, exist_ok=True)
     if prepared_room_assets:
         if scene != 'tutorial':
@@ -118,9 +118,11 @@ if __name__ == '__main__':
     parser.add_argument("--scene", choices=["lever", "platforms", "preview", "cell", "tonight", "water", "tutorial"], default="tutorial")
     parser.add_argument('--reuse-room-assets', action='store_true', help='reuse tutorial room graphics only when source, converter and recipe hashes match')
     parser.add_argument('--prepared-room-assets', action='store_true', help='validate preflight-prepared tutorial inputs without rewriting shared imports or metadata')
+    parser.add_argument('--output-dir', type=Path, help='object and ROM folder (default: build/gba), e.g. for a pacing-locked verification cartridge')
     args = parser.parse_args()
     if args.reuse_room_assets and args.scene != 'tutorial':
         parser.error('--reuse-room-assets is supported only for the tutorial')
     if args.prepared_room_assets and (args.scene != 'tutorial' or args.reuse_room_assets):
         parser.error('--prepared-room-assets requires tutorial and cannot be combined with --reuse-room-assets')
-    build(args.data.resolve(), args.clang, args.linker, args.objcopy, args.full_game, args.scene, args.reuse_room_assets,args.prepared_room_assets)
+    build(args.data.resolve(), args.clang, args.linker, args.objcopy, args.full_game, args.scene, args.reuse_room_assets,args.prepared_room_assets,
+          args.output_dir.resolve() if args.output_dir else None)

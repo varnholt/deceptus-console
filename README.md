@@ -63,14 +63,16 @@ beyond the opening are not implemented yet; see [status](docs/STATUS.md) and
 On Windows x64 with Python 3.13 (and LLVM for GBA builds), from the repository root:
 
 ```powershell
-python run_gba.py                           # Game Boy Advance
-python run_smd.py                           # Mega Drive
-python run_snes.py                          # Super Nintendo
-python run_amiga.py --scene tutorial --build   # Amiga 500 (WinUAE)
+python -m pip install -r requirements.txt
+python deceptus.py doctor        # lists anything missing and the command that installs it
+python deceptus.py play gba      # or snes, smd, amiga
 ```
 
-Each launcher downloads its missing emulator and SDK into `.tools/`, builds a missing cartridge
-and opens it. `--build` rebuilds first. The cartridges also run in standalone emulators;
+`play` downloads a missing emulator and SDK into `.tools/`, builds a missing cartridge and opens
+the opening on every platform. `--build` rebuilds first. `python deceptus.py build --all` builds
+every target and `python deceptus.py verify gba` replays the opening route; see
+[building and testing](docs/BUILDING.md#command-line). The older `run_gba.py`, `run_snes.py`,
+`run_smd.py` and `run_amiga.py` launchers still work. The cartridges also run in standalone emulators;
 physical hardware has not been verified yet. Details, prerequisites and the
 verification commands are in [building and testing](docs/BUILDING.md).
 
