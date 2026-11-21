@@ -15,6 +15,9 @@ static DeceptusPacing pacing;
 volatile DeceptusU16 smd_opening_packets[2][56];
 static volatile DeceptusU16 *smd_opening_debug = smd_opening_packets[0];
 static DeceptusU8 packet_slot;
+/* the heap is only allocated from while a room loads, so its free size is sampled there instead
+   of walking the block list for every published packet. */
+static DeceptusU16 smd_free_memory;
 
 #include "opening_sprites.h"
 #include "opening_ui.h"
@@ -84,6 +87,7 @@ static void videoLoad(void)
    smdBackgroundLoad(adventure.campaign.room_index);
    smdSpritesInit();
    smdUiInit();
+   smd_free_memory = MEM_getFree();
 }
 
 static void debugWrite(DeceptusU16 buttons, DeceptusU8 blank)
@@ -129,7 +133,7 @@ static void debugWrite(DeceptusU16 buttons, DeceptusU8 blank)
    smd_opening_debug[34] = engine->entities[0].y;
    smd_opening_debug[35] = adventure.pending_ticks;
    smd_opening_debug[36] = adventure.automatic_ticks;
-   smd_opening_debug[37] = MEM_getFree();
+   smd_opening_debug[37] = smd_free_memory;
    smd_opening_debug[38] = blank;
    smd_opening_debug[39] = smd_sprite_blank;
    smd_opening_debug[47] = smd_ui_dirty;

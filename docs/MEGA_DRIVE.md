@@ -119,6 +119,48 @@ sources and cartridges unchanged, and report their own ROM hashes and errors
 in `artifacts/smd-benchmark`. The measured range-optimized results above are
 retained in `artifacts/smd-benchmark-ranges`.
 
+### Sprite and background preparation pass
+
+A later pass removed per-presentation work without changing what is drawn or
+simulated. Each request now indexes its resident pieces once instead of walking
+its slot list for every piece, whole 16x16 pieces are written to the sprite
+cache inline instead of through two seven-argument calls, and the fast budget
+check only scans the lines sprites touched. The background hash deletes by
+backward shift, so scrolling no longer leaves tombstones that forced a rehash
+of every resident slot. An animated clip that steps to its next frame compares
+both frames' rows side by side and only refreshes cells whose data changed,
+and a refreshed cell whose pattern and attributes are already in the map keeps
+its slot. The debug packet samples the heap's free size on room load instead
+of walking the heap for every packet; the word keeps its meaning and position.
+
+Measured on the same machine and emulator (Genesis Plus GX 1.7.4), default
+pacing, `python tools/benchmark_smd_opening.py` (3,000 warm-up, 1,200 sampled
+frames) and `python tools/capture_showcase.py smd` on the real route. CPU load
+is the mean `SYS_getCPULoad` value per published packet, in percent of a frame:
+
+| Scene | Updates/s before | Updates/s after | CPU load before | CPU load after |
+| --- | ---: | ---: | ---: | ---: |
+| Cell | 49.7 | 54.4 | 96.3 | 81.5 |
+| Loop | 27.75 | 28.25 | 174.9 | 160.4 |
+| Crypt | 24.2 | 27.2 | 214.8 | 186.3 |
+| Altar | 16.85 | 23.2 | 302.0 | 223.0 |
+| Route steps 127-134 (Main Hall to Altar) | 14.2 | 16.1 | | |
+| Route steps 27-52 (Crossroads) | 14.6 | 16.8 | | |
+
+The tick-locked cartridge (`DECEPTUS_PACING_LOCKED=1`) still passes all 56
+checkpoints of `tools/verify_smd_opening.py`. The heap word in the packet is
+72 bytes lower than before because the new caches live in work RAM.
+
+The sampled phase buckets alias with the VBlank wait, so they show where the
+CPU tends to be at a display boundary rather than how long each phase takes;
+comparing `SYS_getCPULoad` and timing sections with the V counter gave a more
+reliable picture. On the walk, background preparation is still the largest
+cost (about two of the four display frames per presentation), mostly scroll
+column and row loads and animated clips whose cells genuinely change; keeping
+recently released clip patterns resident would avoid their re-decode and
+upload. A per-row cursor for run-length cell lookups, and building with `-O2`
+(15.2 route updates/s) or `-Os` (14.1), did not pay off; `-O3` stays.
+
 ## Retained small prototype
 
 ```powershell
