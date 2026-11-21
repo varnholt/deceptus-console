@@ -6,7 +6,7 @@ lasts until the game reaches the state the native C replay reached at its end, s
 shows the same scene at its own real frame rate. A late frame that runs two ticks applies the
 step's input to both, which can differ from the tick-exact verifier by a tick but not visibly.
 
-    python tools/capture_showcase.py gba --first-step 27 --last-step 52 --output docs/media/gba.gif
+    python tools/capture_showcase.py gba --first-step 127 --last-step 134 --output docs/media/gba.gif
 """
 import argparse
 import json
@@ -46,12 +46,17 @@ def route_targets(route_path, clang):
         previous = steps[-1] if steps else None
         room_ticks = state['ticks'] - previous['engine_ticks'] if previous and previous['room'] == state['room'] else None
         steps.append(dict(ticks=ticks, buttons=pressed, room=state['room'], mode=state['mode'], room_ticks=room_ticks,
+                          flags=state['flags'],
                           page=state['page'], engine_ticks=state['ticks']))
     return steps
 
 
 def same_place(state, step):
-    return all(state[key] == step[key] for key in ('room', 'mode', 'page'))
+    """Room, mode and progression flags, and the dialogue page while a dialogue is open: the page
+    counter may differ by one between cartridge and native replay once the dialogue has closed.
+    The flags keep an interaction step going until the game has acted on the press."""
+    keys = ('room', 'mode', 'flags') if step['mode'] == 1 else ('room', 'mode', 'flags', 'page')
+    return all(state[key] == step[key] for key in keys)
 
 
 def reached(state, step, start):
@@ -69,7 +74,7 @@ def reached(state, step, start):
 
 
 class Tapper:
-    """Play holds the step's buttons. Dialogue only reacts to a fresh press, which a press during
+    """Play holds the step's buttons, also while walking into a dialogue. An open dialogue only reacts to a fresh press, which a press during
     the typing animation or a room load can miss, so there the buttons are tapped until the game
     moves on. Where the mailbox reports the buttons the game read, a press is held until it was
     read and released until that was read too: a slow renderer reads input only once per
@@ -79,7 +84,7 @@ class Tapper:
         self.pressing = True
 
     def buttons(self, state, step, frames_in_step):
-        if state['mode'] == 1 and step['mode'] == 1:
+        if state['mode'] == 1:
             return step['buttons']
         if 'campaign_buttons' not in state:
             return step['buttons'] if frames_in_step % 6 < 2 else 0
@@ -174,8 +179,8 @@ if __name__ == '__main__':
     parser.add_argument('--rom', type=Path)
     parser.add_argument('--core', type=Path)
     parser.add_argument('--route', type=Path, default=ROOT / 'tests/fixtures/opening-route.json')
-    parser.add_argument('--first-step', type=int, default=27, help='first route step to record')
-    parser.add_argument('--last-step', type=int, default=52, help='last route step to record')
+    parser.add_argument('--first-step', type=int, default=127, help='first route step to record')
+    parser.add_argument('--last-step', type=int, default=134, help='last route step to record')
     parser.add_argument('--clang', default='clang', help='compiles the native replay the steps are checked against')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
