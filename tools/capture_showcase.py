@@ -6,7 +6,7 @@ lasts until the game reaches the state the native C replay reached at its end, s
 shows the same scene at its own real frame rate. A late frame that runs two ticks applies the
 step's input to both, which can differ from the tick-exact verifier by a tick but not visibly.
 
-    python tools/capture_showcase.py gba --first-step 127 --last-step 134 --output docs/media/gba.gif
+    python tools/capture_showcase.py gba --route docs/media/showcase-route.json --first-step 594 --last-step 597 --output docs/media/gba.gif
 """
 import argparse
 import json
@@ -179,8 +179,8 @@ if __name__ == '__main__':
     parser.add_argument('--rom', type=Path)
     parser.add_argument('--core', type=Path)
     parser.add_argument('--route', type=Path, default=ROOT / 'tests/fixtures/opening-route.json')
-    parser.add_argument('--first-step', type=int, default=127, help='first route step to record')
-    parser.add_argument('--last-step', type=int, default=134, help='last route step to record')
+    parser.add_argument('--first-step', type=int, default=594, help='first route step to record')
+    parser.add_argument('--last-step', type=int, default=597, help='last route step to record')
     parser.add_argument('--clang', default='clang', help='compiles the native replay the steps are checked against')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()

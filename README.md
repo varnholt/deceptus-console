@@ -13,18 +13,19 @@ the reference game: it plays through on all four systems.
 | Game Boy Advance | Amiga 500 |
 | :---: | :---: |
 | ![GBA](docs/media/gba.gif) | ![Amiga 500](docs/media/amiga.gif) |
-| 60 fps | 25 fps, full game speed |
+| 60 fps | 36 fps, full game speed |
 
 | Mega Drive | Super Nintendo |
 | :---: | :---: |
 | ![Mega Drive](docs/media/mega-drive.png) | ![SNES](docs/media/snes.png) |
 | Being optimised | Being optimised |
 
-The clips are real-time recordings of the same walk from the Main Hall to the Altar of the Blind
-Owl, played from New Game with the recorded verification route: mGBA for the Game Boy Advance and
-cycle-exact WinUAE (stock A500, Kickstart 1.3, 512 KiB Chip + 512 KiB slow RAM) for the Amiga. The
-Mega Drive and SNES play the same route but still need their performance pass; they show stills
-from the same rooms until then.
+The clips are real-time recordings of the same walk through the Owl Shrine: mGBA for the Game
+Boy Advance, cycle-exact WinUAE for the Amiga (stock A500, Kickstart 1.3, 512 KiB Chip + 512 KiB
+slow RAM). The walk is the verification route up to the shrine entrance, then running and jumping
+where a player would (`docs/media/showcase-route.json`). The Amiga clip starts at the entrance in
+the state the route reaches there. The Mega Drive and SNES play the same route but still need
+their performance pass; they show stills from the opening until then.
 
 ## Why this engine
 
@@ -45,12 +46,12 @@ from the same rooms until then.
 
 ## Platforms
 
-| System | Hardware target | Opening | Main Hall to Altar |
+| System | Hardware target | Opening | Owl Shrine walk |
 | --- | --- | --- | --- |
 | Game Boy Advance | 16.78 MHz ARM7, 288 KiB RAM | Complete route, full speed | 60 fps |
-| Amiga 500 | 7.09 MHz 68000, OCS, 512 KiB Chip + 512 KiB slow RAM, Kickstart 1.3 | Complete route, 32 fps averaged over all rooms | 25 fps, full speed |
-| Mega Drive | 7.67 MHz 68000, 64 KiB RAM, 4 MiB cartridge | Complete route, being optimised | 14 fps |
-| Super Nintendo | 3.58 MHz 65816, 128 KiB RAM, 8 MiB ExHiROM | Complete route, being optimised | 7 fps |
+| Amiga 500 | 7.09 MHz 68000, OCS, 512 KiB Chip + 512 KiB slow RAM, Kickstart 1.3 | Complete route, 32 fps averaged over all rooms | 36 fps, full speed |
+| Mega Drive | 7.67 MHz 68000, 64 KiB RAM, 4 MiB cartridge | Complete route, being optimised | not recorded yet |
+| Super Nintendo | 3.58 MHz 65816, 128 KiB RAM, 8 MiB ExHiROM | Complete route, being optimised | not recorded yet |
 
 The GBA and Amiga keep the game's 60 Hz simulation when a frame runs late; the Mega Drive and SNES
 run one simulation tick per frame until their renderers are faster
@@ -137,12 +138,15 @@ rooms and working isolated actions do not establish a complete playable route.
 ## Recording the clips
 
 ```powershell
-python tools/capture_showcase.py gba --first-step 127 --last-step 134 --output docs/media/gba.gif
+python tools/showcase_route.py --prefix-steps 594 --target-x 855 --output docs/media/showcase-route.json
+python tools/capture_showcase.py gba --route docs/media/showcase-route.json --first-step 594 --last-step 597 --output docs/media/gba.gif
 ```
 
-`capture_showcase.py` plays the verification route on an ordinary build and keeps every second
-display frame, so each clip shows the platform's real frame rate. Use `smd` or `snes` for the
-other cartridges. The Amiga clip comes from the same route replayed under cycle-exact WinUAE.
+`showcase_route.py` keeps the verification route up to a room entrance and then walks the way a
+player would, computed with the native C simulation. `capture_showcase.py` plays a route on an
+ordinary build and keeps every second display frame, so each clip shows the platform's real frame
+rate; use `smd` or `snes` for the other cartridges. The Amiga clip is recorded under cycle-exact
+WinUAE.
 
 ## Ownership
 
