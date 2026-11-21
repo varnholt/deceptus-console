@@ -14,20 +14,20 @@ from assets import ROOT
 SOURCES = (
     'src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
     'src/engine/mechanisms/grabrope.c', 'src/engine/animation.c',
-    'src/engine/world.c', 'src/engine/entities.c', 'src/engine/mechanisms.c',
-    'src/engine/logic.c', 'src/engine/enemies.c', 'src/game/deceptus.c',
+    'src/engine/world.c', 'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c',
+    'src/engine/logic.c', 'src/engine/pacing.c', 'src/game/enemies.c', 'src/game/deceptus.c',
     'src/platform/amiga/runtime.c', 'src/platform/amiga/main.c',
-    'src/platform/amiga/input.c', 'src/platform/amiga/video.c',
+    'src/platform/amiga/input.c', 'src/platform/amiga/keyboard.c',
+    'src/platform/amiga/video.c',
+    'src/platform/amiga/system.c',
 )
 
 
-def build(sdk, data, output):
+def build_program(sdk, output, sources, report, generated):
     sdk, output = sdk.resolve(), output.resolve()
     compiler = sdk / 'opt/bin/m68k-amiga-elf-gcc.exe'
     if not compiler.is_file():
         raise SystemExit('Amiga SDK missing; run python tools/bootstrap_amiga.py')
-    generated = output / 'generated'
-    report = convert(data, generated)
     objects_dir = output / 'obj'
     objects_dir.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
@@ -35,16 +35,25 @@ def build(sdk, data, output):
     flags = ['-m68000', '-O3', '-flto', '-g', '-nostdlib', '-ffreestanding',
              '-fno-builtin', '-fno-tree-loop-distribute-patterns',
              '-ffunction-sections', '-fdata-sections', '-fomit-frame-pointer',
-                          '-I' + str(ROOT / 'include'), '-I' + str(generated)]
+             '-I' + str(ROOT / 'include'), '-I' + str(generated)]
+    if os.environ.get('AMIGA_PERFCOUNT') == '1':
+        # per-frame renderer counters for a debugger (src/platform/amiga/perfcount.h).
+        flags.append('-DAMIGA_PERFCOUNT')
+    if os.environ.get('DECEPTUS_PACING_LOCKED') == '1':
+        # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
+        flags.append('-DDECEPTUS_PACING_LOCKED')
     objects = []
-    for source in [ROOT / name for name in SOURCES] + [
-            generated / 'room.c', generated / 'amiga_assets.c']:
+    for source in sources:
         target = objects_dir / (source.stem + '.o')
         platform_flags = ['-Wno-volatile-register-var'] if 'platform' in source.parts else []
         # keep read-only graphics outside LTO's writable Chip RAM section.
         source_flags = flags
-        if source.name == 'amiga_assets.c':
+        if source.name in ('amiga_assets.c', 'opening_content.c', 'amiga_native_assets.c'):
             source_flags = [flag for flag in flags if flag != '-flto']
+        if (source.name in ('rooms.c', 'graphics.c', 'opening_ui.c')
+                and source.parent.name == 'amiga'):
+            # bound resource/UI code size so AmigaDOS can load the 1 MiB build.
+            source_flags = [flag for flag in flags if flag != '-O3'] + ['-Os']
         command = [compiler, *source_flags, *platform_flags, '-std=c90',
                    '-Wall', '-Wextra', '-Werror',
                    '-c', source, '-o', target]
@@ -83,11 +92,27 @@ def build(sdk, data, output):
     print(executable)
 
 
+def build(sdk, data, output):
+    generated = output.resolve() / 'generated'
+    report = convert(data, generated)
+    sources = [ROOT / name for name in SOURCES] + [
+        generated / 'room.c', generated / 'amiga_assets.c']
+    return build_program(sdk, output, sources, report, generated)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sdk', type=Path, default=ROOT /
                         '.tools/amiga-debug/extension/bin/win32')
     parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
-    parser.add_argument('--output-dir', type=Path, default=ROOT / 'build/amiga')
+    parser.add_argument('--output-dir', type=Path)
+    parser.add_argument('--scene', choices=('prototype', 'tutorial'), default='prototype')
+    parser.add_argument('--reuse-assets', action='store_true')
+    parser.add_argument('--renderer', choices=('legacy', 'native'), default='legacy')
     args = parser.parse_args()
-    build(args.sdk, args.data, args.output_dir)
+    if args.scene == 'tutorial':
+        from build_amiga_opening import build_opening
+        output = args.output_dir or ROOT / ('build/amiga-native-opening' if args.renderer == 'native' else 'build/amiga-opening')
+        build_opening(args.sdk, args.data, output, args.reuse_assets, args.renderer)
+    else:
+        build(args.sdk, args.data, args.output_dir or ROOT / 'build/amiga')

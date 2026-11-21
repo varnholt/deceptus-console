@@ -14,31 +14,15 @@ from palettes import banked_background
 from pixel_font import NativePixelFont
 from smd_assets import array,fit_rgb333_palette,packed_tile,palette_word,rgb333,sprite_chunks,words
 from snes_tutorial_assets import original_imports,source_clips
+from source_sprites import source_sprites
+from rle import packbits
 
 
-def packbits(payload,unit_bytes=1):
-    """Encode bounded literal/repeat packets in bytes or native4-byte cells."""
-    if unit_bytes not in (1,4) or len(payload)%unit_bytes:
-        raise ValueError('RLE input must contain complete1-byte or4-byte units')
-    values=[payload[start:start+unit_bytes] for start in range(0,len(payload),unit_bytes)]
-    output=bytearray();index=0;threshold=3 if unit_bytes==1 else 2
-    while index<len(values):
-        run=1
-        while index+run<len(values) and values[index+run]==values[index] and run<128:
-            run+=1
-        if run>=threshold:
-            output.append(127+run);output.extend(values[index]);index+=run
-        else:
-            start=index;index+=run
-            while index<len(values) and index-start<128:
-                run=1
-                while index+run<len(values) and values[index+run]==values[index] and run<threshold:
-                    run+=1
-                if run>=threshold:
-                    break
-                index+=min(run,128-(index-start))
-            output.append(index-start-1);output.extend(b''.join(values[start:index]))
-    return bytes(output)
+def converter_identity():
+    names = ('smd_opening_assets.py', 'smd_assets.py', 'source_sprites.py', 'rle.py')
+    return hashlib.sha256(b''.join((ROOT / 'tools' / name).read_bytes()
+                                  for name in names)).hexdigest()
+
 
 
 class Writer:
@@ -124,31 +108,6 @@ def portable_metadata(source,output):
         (output/filename).write_text(text);files.append(filename)
     return files
 
-
-def source_sprites(data,output):
-    from headtorch_assets import compile_headtorch
-    from rope_assets import compile_rope
-    compile_headtorch(data,output);compile_rope(data,output)
-    records=json.loads((ROOT/'assets/generated/gba/area0/mechanisms-frames.json').read_text())
-    images=[];cache={}
-    for record in records:
-        path=(output if record.get('source_generated') else data/'sprites')/record['source']
-        if path not in cache:
-            cache[path]=Image.open(path).convert('RGBA')
-        x,y,width,height=record['source_rect'];image=cache[path].crop((x,y,x+width,y+height))
-        if record.get('rotation'):
-            image=image.transpose({90:Image.Transpose.ROTATE_90,180:Image.Transpose.ROTATE_180,270:Image.Transpose.ROTATE_270}[record['rotation']])
-        images.append(image)
-    animations=json.loads((data/'sprites/animations.json').read_text());player=Image.open(data/'sprites/player.png').convert('RGBA')
-    selection=[('player_idle_r',i) for i in range(8)]+[('player_run_r',i) for i in range(8)]+[('player_jump_up_r',0),('player_jump_down_r',0),(None,0)]+[('player_bend_down_r',i) for i in range(7)]
-    normal=[]
-    for name,index in selection:
-        if name is None:
-            normal.append(Image.new('RGBA',(32,48)));continue
-        animation=animations[name];x,y=animation['frame_offset'];width,height=animation['frame_size'];ox,oy=animation['origin']
-        left=round(x+index*width+ox-16);top=round(y+oy-48)
-        normal.append(player.crop((left,top,left+32,top+48)))
-    return normal+images,[dict(source='player.png',trim_offset=[0,0]) for _ in normal]+records
 
 
 def compile_sprites(data,output,writer):
@@ -254,7 +213,7 @@ def compile_opening(data,output,metadata_source,rooms=26):
     resources='#include "smd_assets.h"\n'+'\n'.join(writer.externs+lines+sprite_lines+font_lines+['const SmdStage smd_stages[SMD_STAGE_COUNT] = {',*['    '+stage+',' for stage in stages],'};'])
     (output/'opening_resources.c').write_text(resources);writer.finish()
     report=dict(full_game=False,graphics_rooms=rooms,adventure_rooms=26,source_identity=identity,
-                converter_sha256=hashlib.sha256(Path(__file__).read_bytes()+Path(__file__).with_name('smd_assets.py').read_bytes()).hexdigest(),
+                converter_sha256=converter_identity(),
                 metadata_source=str(metadata_source),metadata_sha256={name:hashlib.sha256((metadata_source/name).read_bytes()).hexdigest() for name in files},
                 c_sources=files+['opening_resources.c'],binary_bytes=writer.raw_bytes,rle_bytes=writer.rle_bytes,rle_offset_bytes=writer.offset_bytes,rom_graphics_bytes=writer.rle_bytes+writer.offset_bytes,zlib_reference_bytes=writer.zlib_bytes,
                 sprite_metadata=sprite_report,rooms=reports,pixel_scale='1:1',dithering=False,

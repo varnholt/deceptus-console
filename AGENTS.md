@@ -7,13 +7,17 @@
 - Follow the language-specific naming and formatting rules below. Do not apply Python naming rules to C.
 - Keep platform SDK headers and registers inside `src/platform/`. Shared code must build on a desktop compiler without a console SDK.
 - Preserve the original engine's identity when porting: use recognizable mechanism names and source enemy-script basenames, retain source object ids and property meanings, and keep a direct original-to-C file map. Prefer faithful C translations of existing concepts over new generic abstractions. Document necessary console-specific differences.
-- Keep reusable collision and entity allocation in `src/engine/`, Deceptus rules in `src/game/`, and build-time conversions in `tools/`.
+- Keep reusable collision, entity allocation, event queues and mechanism services in `src/engine/`, Deceptus rules in `src/game/`, and build-time conversions in `tools/`.
+- Story progression, item requirements, enemy behaviors, quest flags, cutscene sequences and equipment rules belong in the game layer or imported game content. Platform backends implement hardware and presentation; they must not decide progression. The engine library must build and link without the game library.
 - Use caller-owned memory, fixed-capacity pools and bounded event/render queues. Do not add heap allocation or floating point to frame-time runtime code.
+- For constrained targets, verify executable loading with the actual OS and RAM-bank configuration. Static byte totals alone do not prove that the required contiguous blocks fit.
 - Positions are signed 12.4 fixed point in room coordinates. Velocities must stay below one 8px collision cell per tick. Larger worlds must use room/chunk origins, not overflow local coordinates.
 - Treat logical frames and palette roles as game assets. Encode SNES/GBA/Mega Drive tile, palette, DMA and sprite details in converters and backends.
-- GBA is the first complete-game target. Keep the working SNES backend as a secondary target. Mega Drive remains future work; do not add placeholder implementations that report success.
+- GBA, SNES, Mega Drive and Amiga are active parity targets. Implement the original opening workflow in the shared game layer and verify each backend independently. DOS and STM32 are later targets. Preserve the working Amiga prototype until opening support is verified; do not report a prototype or slow but logically correct replay as complete-game readiness.
+- Keep all active platforms at equivalent gameplay milestones. A milestone is complete only when its shared behavior, required backend presentation/input, target timing and documentation are verified on GBA, SNES, Mega Drive and Amiga. Close platform gaps before advancing new gameplay. Platform-specific optimizations serve the common milestone; they must not create separate game progressions. New ports remain prototypes until they catch up.
 - Verify changes with native engine/converter tests and the actual ROM integration routes: `tools/gba_emulator.py` for GBA and `tools/emulator.py` for SNES. Shared changes must preserve both.
 - Keep unsupported mechanisms and Lua constructs explicit in content reports and build errors. A passing prototype build does not establish full-game support. Compare compiled callbacks against original Lua execution where possible.
+- Feature and documentation parity with the original repo are explicit goals. Update the relevant authoring, API, build/control and platform-limit guides with each feature; use `docs/PARITY.md` to track missing behavior and guide coverage. Distinguish logical traversal, visual fidelity, target performance and hardware verification.
 - Preserve ownership and dependency notices. Do not add attribution trailers to commits.
 
 ## C naming and formatting

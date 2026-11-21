@@ -1,65 +1,72 @@
-# Deceptus C Engine
+# Deceptus Console
 
-A portable C game engine and console adaptation of Deceptus. **GBA is the first
-complete-game target.** SNES and Mega Drive now build the same 26-room opening;
-both remain experimental and run substantially below the desired frame rate.
-Mega Drive also retains its faster [one-room prototype](docs/MEGA_DRIVE.md).
-An experimental [Amiga 500 backend](docs/AMIGA.md) runs the separate one-room
-catacombs prototype. It does not yet run the opening campaign.
-The local folder currently keeps the name `deceptus-snes`.
+**A C90 platformer engine for the Game Boy Advance, Super Nintendo, Mega Drive and Amiga 500,
+with the modern content workflow of the [Deceptus engine](https://github.com/varnholt/deceptus_engine).**
 
-The latest development build is the original prison opening, with twenty-six
-imported rooms, source dialogue, inventory and lever interactions, automatic
-room changes, native player artwork, foreground occlusion and menus. This is
-an opening playtest; later game content, audio and persistent saves remain unfinished.
-The normal-input verification route reaches the graveyard, takes the rubies,
-returns through the crypt, uses them at the altar, acquires the sword and attacks.
+[![Build GBA](https://github.com/varnholt/deceptus-console/actions/workflows/build-gba.yml/badge.svg)](https://github.com/varnholt/deceptus-console/actions/workflows/build-gba.yml)
 
-Game artwork, maps, animation definitions, Lua scripts, music and sound effects
-are bundled in `assets/game/data/`. This checkout builds independently of
-`deceptus_engine`. Target converters read those original assets and generate
-ignored tile/palette resources; source artwork is never resized or replaced
-with artwork reduced for another console. Content keeps its own license terms.
+Levels are drawn in Tiled and artwork stays at its original pixel size. One portable C engine
+runs the game rules on every machine, and Python converters turn the same source content into
+cartridges and disk images. The Deceptus opening, 26 rooms from the prison cells to the sword, is
+the reference game: it plays through on all four systems.
+
+| Game Boy Advance | Mega Drive | Super Nintendo |
+| :---: | :---: | :---: |
+| ![GBA](docs/media/gba.gif) | ![Mega Drive](docs/media/mega-drive.gif) | ![SNES](docs/media/snes.gif) |
+| 59 fps, full speed | 6 fps, 20% speed | 2 fps, 7% speed |
+
+The clips are real-time emulator recordings (mGBA, Genesis Plus GX, Snes9x) of the same climb
+through the Crossroads, played from New Game with the recorded verification route. They are not
+sped up: the Mega Drive and SNES renderers still need their performance pass, which is why the
+same five seconds of game take 23 and 61 seconds there. The Amiga 500 runs this room at about
+20 fps and full game speed; its clip follows.
+
+## Why this engine
+
+- **Author once, ship to four machines.** Rooms, collision, mechanisms, enemies and dialogue come
+  from the same Tiled maps and Lua-described rules as the desktop engine. Converters keep every
+  pixel and choose per-platform encodings (tiles, bitplanes, sprites) automatically.
+- **Plain, portable C90 game code.** Fixed-point simulation at 60 ticks per second with bounded
+  queues and no allocation, shared by every backend. Platform code only draws, reads input and
+  streams memory.
+- **Platform specialisations stay in platform tooling.** When a machine needs a cheaper version
+  of something, the platform converter derives it from the shared source, so changing the game in
+  one place still reaches every target. Example: the Amiga holds frames of the sword's shield
+  ring that other systems animate every frame.
+- **Verified, not assumed.** Every backend replays the same 56-checkpoint normal-input route
+  against the native C simulation, and documentation records measured frame rates and memory.
+- **Builds from one checkout.** Launchers fetch emulators and SDKs; GitHub Actions builds a GBA
+  cartridge on every push.
+
+## Platforms
+
+| System | Hardware target | Opening | Crossroads clip |
+| --- | --- | --- | --- |
+| Game Boy Advance | 16.78 MHz ARM7, 288 KiB RAM | Complete route, full speed | 59 fps |
+| Amiga 500 | 7.09 MHz 68000, OCS, 512 KiB Chip + 512 KiB slow RAM, Kickstart 1.3 | Complete route, 32 fps averaged over all rooms | about 20 fps, full speed |
+| Mega Drive | 7.67 MHz 68000, 64 KiB RAM, 4 MiB cartridge | Complete route, experimental speed | 6 fps |
+| Super Nintendo | 3.58 MHz 65816, 128 KiB RAM, 8 MiB ExHiROM | Complete route, experimental speed | 2 fps |
+
+All four keep the game's 60 Hz simulation when a frame runs late, up to a per-platform limit
+([simulation timing](docs/ARCHITECTURE.md#simulation-timing)). Audio, save games and the game
+beyond the opening are not implemented yet; see [status](docs/STATUS.md) and
+[parity with the original](docs/PARITY.md).
 
 ## Quick start
 
-To play an existing build, run from the repository root:
+On Windows x64 with Python 3.13 (and LLVM for GBA builds), from the repository root:
 
 ```powershell
-python run_gba.py
-python run_snes.py
-python run_smd.py
+python run_gba.py                           # Game Boy Advance
+python run_smd.py                           # Mega Drive
+python run_snes.py                          # Super Nintendo
+python run_amiga.py --scene tutorial --build   # Amiga 500 (WinUAE)
 ```
 
-The launchers select the opening. Use `run_smd.py --scene prototype` for the
-separate Mega Drive proof of concept, whose measured 60 Hz performance does not
-describe the full opening.
-
-Each launcher downloads its missing emulator core into `.tools/`, builds a
-missing cartridge, and opens the project player. Existing cores and cartridges
-are reused. `--build` rebuilds first; `--prepare` performs setup without opening
-a window. Missing Python packages are installed in a project-local `.venv`.
-Automatic emulator downloads support Windows x64; other hosts can supply
-`--core PATH`. Building GBA still requires LLVM; SNES fetches its missing local SDK.
-
-Only this checkout is required. Bundled source content lives in `assets/game/`;
-`--data PATH` can optionally select another original engine's data directory.
-
-Install Python, the requirements below, and LLVM with `clang`, `ld.lld` and
-`llvm-objcopy` on PATH. The verified environment is Windows x64 with LLVM 18.1.8
-and Python 3.13. Other host platforms have not been verified.
-
-```powershell
-python -m pip install -r requirements.txt
-python tools/bootstrap.py --target gba --emulator
-python tools/build_gba.py --scene tutorial
-python tools/play.py --backend gba --rom build/gba/deceptus-tutorial.gba
-```
-
-The ROM also runs in a standalone GBA emulator. Numbered local playtests are
-kept in `build/playtest/`; build outputs and ROMs are not tracked in Git.
-The bootstrap downloads optional emulator cores and build references into
-`.tools/`; it does not bundle them into the game.
+Each launcher downloads its missing emulator and SDK into `.tools/`, builds a missing cartridge
+and opens it. `--build` rebuilds first. The cartridges also run in standalone emulators;
+physical hardware has not been verified yet. Details, prerequisites and the
+verification commands are in [building and testing](docs/BUILDING.md).
 
 ## Controls
 
@@ -108,78 +115,28 @@ The opening also includes:
 See [current status](docs/STATUS.md) for verified coverage and open work. Imported
 rooms and working isolated actions do not establish a complete playable route.
 
-## Build and verification
+## Documentation
+
+| Guide | Contents |
+| --- | --- |
+| [Building and testing](docs/BUILDING.md) | Prerequisites, builds, emulator checks, CI artifacts |
+| [Architecture](docs/ARCHITECTURE.md) | Engine, game and backend boundaries; simulation timing; memory ownership |
+| [Content pipeline](docs/CONTENT_PIPELINE.md) | From Tiled maps and source artwork to per-platform resources |
+| [Status](docs/STATUS.md) | What works, what was measured, what remains |
+| [Parity with the original](docs/PARITY.md) | Feature and documentation coverage against the Deceptus engine |
+| Platform guides | [GBA](GBA.md), [SNES](docs/SNES.md), [Mega Drive](docs/MEGA_DRIVE.md), [Amiga 500](docs/AMIGA.md) |
+| Mechanics | [Ropes](docs/ROPE.md), [sword](docs/SWORD.md), [projectiles](docs/PROJECTILES.md), [enemies](docs/SEALED_ENEMIES.md) |
+| [Porting notes](PORTING.md) | Source inventory and the full-game strategy |
+
+## Recording the clips
 
 ```powershell
-cmake -S . -B build/host
-cmake --build build/host --config Debug
-ctest --test-dir build/host -C Debug --output-on-failure
-python tools/verify_tutorial.py
+python tools/capture_showcase.py gba --first-step 27 --last-step 52 --output docs/media/gba.gif
 ```
 
-The tutorial verifier checks controlled scene starts, selected room connections,
-UI, item rules, sword input and rendering. `tools/gba_emulator.py --scene tutorial`
-replays the separate normal-input opening route. See
-[building and testing](docs/BUILDING.md) for the LLVM path arguments and test
-prerequisites.
-
-The older curated four-area preview remains available:
-
-```powershell
-python tools/build_gba.py --scene tonight
-python tools/gba_emulator.py --scene tonight
-python tools/package_preview.py --build
-```
-
-`tonight` is a historical build-scene name; it does not appear in the game menu.
-The default build scene is now `tutorial`.
-`package_preview.py` packages that curated preview, not the current tutorial.
-
-The SNES opening uses project-local PVSnesLib. Its simulation remains slow;
-see [SNES implementation and measured limits](docs/SNES.md).
-
-```powershell
-python tools/bootstrap.py --target snes --emulator
-python tools/build_snes.py
-python tools/emulator.py
-python run_snes.py
-```
-
-Use `--scene prototype` with the SNES builder and launcher for the retained
-one-room test. The default launcher selects `deceptus-tutorial.sfc` explicitly.
-
-The Mega Drive opening also passes the normal 56-checkpoint progression route.
-Its verified full replay averaged approximately 15.2 simulation updates/s,
-including loading and rendering; performance work remains necessary. See
-[Mega Drive implementation and measured limits](docs/MEGA_DRIVE.md).
-
-```powershell
-python tools/bootstrap_smd.py --emulator
-python tools/build_smd.py --scene tutorial
-python tools/verify_smd_opening.py --assets-dir assets/generated/smd-opening
-python run_smd.py
-```
-
-`python tools/build_consoles.py` prepares original imports and isolated portable
-metadata, then compiles all three opening cartridges concurrently. Select a
-subset with `--targets gba snes` or `--targets smd`. Each target has a separate
-result and log; compilation does not replace its emulator verification.
-
-## Automated builds
-
-The **Build GBA** GitHub Actions workflow runs on pushes and pull requests and
-can be started manually. It uses the bundled game data from the same commit,
-builds the C engine and tutorial, runs tests, and uploads a downloadable cartridge
-artifact. See [CI builds](docs/BUILDING.md#github-actions) for the download steps.
-
-## Project guide
-
-- [Building, playing and testing](docs/BUILDING.md)
-- [C engine and backend architecture](docs/ARCHITECTURE.md)
-- [Authoritative content and conversion pipeline](docs/CONTENT_PIPELINE.md)
-- [Verified status and remaining work](docs/STATUS.md)
-- [GBA memory layout and renderer](GBA.md)
-- [Source inventory and full-game port strategy](PORTING.md)
+`capture_showcase.py` plays the verification route on an ordinary build and keeps every second
+display frame, so each clip shows the platform's real frame rate. Use `smd` or `snes` for the
+other cartridges.
 
 ## Ownership
 

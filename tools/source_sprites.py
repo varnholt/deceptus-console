@@ -1,0 +1,75 @@
+"""Read original opening sprite rectangles without target palette conversion."""
+
+import json
+from pathlib import Path
+import re
+
+from PIL import Image
+
+from assets import ROOT
+
+
+def source_sprites(data, output):
+    from headtorch_assets import compile_headtorch
+    from rope_assets import compile_rope
+
+    data, output = Path(data), Path(output)
+    compile_headtorch(data, output)
+    compile_rope(data, output)
+    records = json.loads((ROOT / 'assets/generated/gba/area0/mechanisms-frames.json').read_text())
+    images, cache = [], {}
+    rotations = {90: Image.Transpose.ROTATE_90,
+                 180: Image.Transpose.ROTATE_180,
+                 270: Image.Transpose.ROTATE_270}
+    for record in records:
+        folder = output if record.get('source_generated') else data / 'sprites'
+        path = folder / record['source']
+        if path not in cache:
+            cache[path] = Image.open(path).convert('RGBA')
+        x, y, width, height = record['source_rect']
+        image = cache[path].crop((x, y, x + width, y + height))
+        if record.get('rotation'):
+            image = image.transpose(rotations[record['rotation']])
+        images.append(image)
+    animations = json.loads((data / 'sprites/animations.json').read_text())
+    player = Image.open(data / 'sprites/player.png').convert('RGBA')
+    selection = ([('player_idle_r', index) for index in range(8)]
+                 + [('player_run_r', index) for index in range(8)]
+                 + [('player_jump_up_r', 0), ('player_jump_down_r', 0), (None, 0)]
+                 + [('player_bend_down_r', index) for index in range(7)])
+    normal = []
+    for name, index in selection:
+        if name is None:
+            normal.append(Image.new('RGBA', (32, 48)))
+            continue
+        animation = animations[name]
+        x, y = animation['frame_offset']
+        width, height = animation['frame_size']
+        origin_x, origin_y = animation['origin']
+        left = round(x + index * width + origin_x - 16)
+        top = round(y + origin_y - 48)
+        normal.append(player.crop((left, top, left + 32, top + 48)))
+    return (normal + images,
+            [dict(source='player.png', trim_offset=[0, 0]) for _ in normal] + records)
+
+
+FAMILY_NAMES = (
+    'ACTOR', 'LEVER', 'SPIKES', 'BLOCK', 'COLLAPSE', 'RAT', 'TRAP',
+    'MUZZLE', 'ARROW', 'SWIM', 'BLOB', 'SPLASH', 'SWORD', 'CANNON',
+    'CANNONBALL', 'IRON_DOOR', 'WOODEN_PLANKS', 'HEADTORCH',
+    'HEADTORCH_BEAM', 'ORB', 'FROG_BLUE', 'BLUE_FIREBALL', 'GRAB_ROPE',
+    'PLAYER_ROPE',
+)
+
+
+def sprite_families(resource_count):
+    source = (ROOT / 'assets/generated/gba/gba_assets.h').read_text()
+    first = {name: int(value) + 26 for name, value in re.findall(
+        r'^#define GBA_(\w+)_FIRST (\d+)$', source, re.M)}
+    first['ACTOR'] = 0
+    starts = [first[name] for name in FAMILY_NAMES] + [resource_count]
+    if starts != sorted(starts) or starts[1] != 26:
+        raise ValueError('source sprite family layout changed')
+    return [dict(name=name, first=starts[index],
+                 count=starts[index + 1] - starts[index])
+            for index, name in enumerate(FAMILY_NAMES)]

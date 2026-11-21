@@ -92,6 +92,18 @@ DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMecha
    set->count = (DeceptusU8)count;
    for (index = 0; index < count; ++index)
    {
+      switch (definitions[index].kind)
+      {
+      case DECEPTUS_MECH_BLOCK:
+      case DECEPTUS_MECH_COLLAPSING:
+      case DECEPTUS_MECH_DOOR:
+      case DECEPTUS_MECH_DESTRUCTIBLE:
+      case DECEPTUS_MECH_CANNON_BODY:
+         bindSolidMechanism(set, index);
+         break;
+      default:
+         break;
+      }
       set->states[index].enabled = definitions[index].enabled != 0;
       set->states[index].visible = 1;
       set->states[index].active = set->states[index].enabled;

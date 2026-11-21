@@ -11,6 +11,8 @@ typedef struct DeceptusGrabRope
    DeceptusFixed previous_x[DECEPTUS_GRAB_ROPE_NODES], previous_y[DECEPTUS_GRAB_ROPE_NODES];
    DeceptusU16 cumulative_length[DECEPTUS_GRAB_ROPE_NODES], total_length;
    DeceptusU8 mechanism_index, node_count, damping_ticks, dynamic_solids;
+   /* the last tick left every node where it was: a rope at rest is a fixed point of the tick. */
+   DeceptusU8 settled;
 } DeceptusGrabRope;
 
 typedef struct DeceptusGrabRopeSet

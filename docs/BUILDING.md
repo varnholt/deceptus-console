@@ -106,8 +106,14 @@ The separate normal-input route starts at New Game and checks progression
 against both native C and the production ROM:
 
 ```powershell
+$env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_gba.py --scene tutorial
 python tools/gba_emulator.py --scene tutorial
+Remove-Item Env:DECEPTUS_PACING_LOCKED; python tools/build_gba.py --scene tutorial
 ```
+
+The route is recorded in simulation ticks, so the checked cartridge runs one tick
+per presentation; normal builds catch up after a late frame (see
+[simulation timing](ARCHITECTURE.md#simulation-timing)).
 
 This does not inject player positions, inventory, flags or emulator memory.
 Its recorded checkpoints and scope live in `tests/fixtures/opening-route.json`;
@@ -152,6 +158,15 @@ initial-room integration case; entering a room without converted graphics fails
 explicitly. `--reuse-assets` requires matching source and converter identities.
 `--assets-dir PATH` selects an isolated tutorial conversion directory. See
 [SNES.md](SNES.md) for the video layout and current verification limits.
+
+The normal-input route check replays the opening tick for tick, so it checks a
+cartridge built with one simulation tick per presentation:
+
+```powershell
+$env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_snes.py --output-dir build/snes-verify
+python tools/emulator.py --rom build/snes-verify/deceptus-tutorial.sfc
+Remove-Item Env:DECEPTUS_PACING_LOCKED
+```
 
 ## Parallel console builds
 

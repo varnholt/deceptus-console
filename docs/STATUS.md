@@ -1,6 +1,7 @@
 # Current status
 
-Updated for standalone content builds, 16 November 2026.
+Updated for the engine/game separation and four-platform opening milestone,
+18 November 2026.
 
 ## Available targets
 
@@ -9,8 +10,43 @@ Updated for standalone content builds, 16 November 2026.
 | GBA tutorial | Twenty-six imported rooms; prison, headtorch, graveyard rubies, crypt return, owl altar and sword progression |
 | GBA curated preview | Four areas with a separately verified title-to-finish route, enemies, mechanisms and replay |
 | SNES | Same 26-room opening in an 8 MiB ExHiROM; retained one-room test is explicit `--scene prototype`; performance remains substantially below target |
+| Amiga | Same 26-room opening on a stock A500 (Kickstart 1.3, 512 KiB Chip + 512 KiB slow RAM): 32 frame-weighted fps across the room tour with the 60 Hz simulation kept down to 20 fps; separate PAL OCS one-room prototype at nominal 50 fps |
 | Native host | Shared simulation and small preview, plus engine/converter tests |
 | Mega Drive | Same 26-room opening in a flat 4 MiB cartridge budget; normal-input route passes, performance remains experimental; separate small prototype retains its measured 60 Hz result |
+
+## Active parity milestone
+
+The engine stays reusable. Story progression, inventory and equipment rules,
+enemy behaviors and level callbacks belong in the Deceptus game layer or its
+imported content. Hardware backends render and accept input without deciding
+progression. DOS and STM32 remain later targets.
+
+The first shared workflow must cover the tutorial, solar seal and locked box,
+headtorch acquisition with visible helmet and light, graveyard ruby pickup,
+source-timed earthquake and collapse, crypt traversal and return, altar ruby
+use, sword release/acquisition and attack on GBA, SNES, Mega Drive and Amiga.
+Remaining original content follows through the same engine/game contracts.
+
+The engine/game boundary is now enforced by library ownership and separate
+headers: reusable services use `engine.h`; Deceptus controller/equipment APIs
+use `game.h`. Adventure and original enemy behaviors live under `src/game/`.
+A local executable links the complete engine archive without the game library.
+All 13 existing native/converter groups pass, all four platform builds pass, and
+the 56-checkpoint existing opening route passes on the actual GBA, SNES and Mega
+Drive ROMs after the separation. The streamed Amiga opening also passes the
+56 checkpoints under accelerated emulation with the 1 MiB RAM budget; this
+separate check does not establish cycle-exact playability.
+
+Sword appearance selection and timing now live in the shared game layer;
+GBA, SNES and Mega Drive render the resulting source poses. Headtorch equipment
+checks also belong to the game layer. A local comparison matches 2,000 source
+frames against the previous renderer, and all three existing ROM opening
+replays still pass after the change.
+
+Next work closes game-layer presentation/timing gaps and improves performance
+across all four opening backends. Existing route success does not establish
+source-faithful cutscenes, whole-opening frame rate, audio, saves or a complete
+original-game port.
 
 ## Opening content
 
@@ -40,6 +76,30 @@ damage and 66 native simulation ticks attached to the original Mausoleum rope.
 Guards' Office and Fool's Ledge use authored arrival positions rather
 than assuming every adjacent room's walkways have identical heights.
 
+### Features in the development build
+
+The tutorial uses the original Deceptum bitmap font at its authored 13px size.
+Large headings are exact 2x pixel copies, not newly rasterized 24px glyphs.
+The opening also includes:
+
+- Original ground-patrol blob, including its animated movement, contact damage and stomp death.
+- Basic swimming using source atmosphere tiles, original swim sprites and a delayed A-button ascent.
+- Original animated shrine column and a one-shot splash only when falling into water.
+- Small water-exit hop, underwater colour tint and the original upward wind/wetsuit warning.
+- New Game, Options and Quit; pause, controls, inventory and quit confirmation.
+- Native-size dialogue windows, paged source text and animated interaction cues.
+- The key, locker, lever handle and missing-handle rules, plus persistent flags
+  and mechanism state when returning to a room.
+- The Reading Room solar seal, Fool's Ledge headtorch chest, dark Sealed Cells,
+  graveyard owl rubies, sinkhole/crypt return and delayed sword-cage release.
+- Equipped sword artwork and basic source-timed attacks against supported blobs.
+- Original room entrance rectangles, including Crossroads to Fool's Ledge and Main Hall to Mines Antechamber.
+- Original one-way floor decoration and player occlusion by foreground artwork.
+- Streamed room graphics and offline baked water surfaces; the player remains
+  visible underwater. Complete water/progression fidelity remains unfinished.
+
+Imported rooms and working isolated actions do not establish a complete playable route.
+
 ## Latest presentation fixes
 
 - Original ground blob patrol, source animation, contact damage and stomp death.
@@ -47,7 +107,7 @@ than assuming every adjacent room's walkways have identical heights.
 - Original shrine tile animation and one-shot falling-entry splash; no ambient looping splash.
 - Underwater tint, a small exit hop, original upward wind and delayed wetsuit warning.
 - Main Hall/Mines Antechamber passage verified in both directions.
-- Mechanism files named after their original counterparts; public C namespace `deceptus_`.
+- Mechanism files named after their original counterparts; public C function prefix `deceptus` with camelCase.
 - GitHub Actions build and source-revision-recorded cartridge artifacts.
 - Original bitmap font at 13px; title headings use exact 2x copies of those pixels.
 - Smooth affine title rotation, changing on 59 of 60 sampled display frames.
@@ -106,26 +166,84 @@ palettes; conflicting OBJ indices relocate without changing source colours.
 
 ## Remaining work
 
-1. Close remaining opening presentation and behavior differences: timed lever
+1. Close the cross-platform opening playability gap first: SNES and Mega Drive
+   need performance work, and every backend needs comparable route-wide timing
+   and visual evidence. Follow the common milestone gate in [PARITY.md](PARITY.md);
+   do not advance one platform to later game content while others lag.
+2. Close remaining opening presentation and behavior differences: timed lever
    camera sequences, monk encounter, graveyard weather/ghosts and sinkhole effects.
    The headtorch currently turns on automatically when acquired.
-2. Refine swimming/entry/exit fidelity and add remaining traversal abilities;
+3. Refine swimming/entry/exit fidelity and add remaining traversal abilities;
    refine collision fidelity and profile demanding rooms.
-3. Complete cutscenes, dialogue presentation and original menu/inventory behavior.
-4. Port additional enemies and mechanisms to reusable C services, retaining
+4. Complete cutscenes, dialogue presentation and original menu/inventory behavior.
+5. Port additional enemies and mechanisms to reusable C services, retaining
    source settings and differential checks where possible. Rat, arrow trap and
    normal ground blob are implemented; blob jump/drop variants and other enemy
    families remain unsupported. Cannon, generated-contour orb and blue frog are
    also implemented. Three authored orb placements have no matching source
    physics contour and remain explicitly reported; see `SEALED_ENEMIES.md`.
-5. Convert source music/SFX offline and add platform playback. Event ids have
+6. Convert source music/SFX offline and add platform playback. Event ids have
    begun to be exposed, but no sound currently plays in the ROM or project player.
-6. Add persistent save storage and versioned progression serialization.
-7. Extend complete-level/game verification, hardware testing and release packaging.
+   Keep music-zone/checkpoint selection and effect cues in game content. The
+   planned engine interface owns bounded voices, priorities, volume, looping and
+   fades; platform backends own playback formats and timing. Music must continue
+   independently of gameplay presentation. Reserve audio RAM and CPU time before
+   increasing graphics caches. Backends may resolve the same logical track ID
+   to tracker/module, native sequenced or streamed resources; tracker arrangements
+   require authored instruments/patterns, not a simple transcode of the Ogg files.
+   Feature and documentation gaps are mapped in [Original-game parity](PARITY.md).
+7. Add persistent save storage and versioned progression serialization.
+8. Extend complete-level/game verification, hardware testing and release packaging.
 
-The first commercial-quality target remains GBA. The reusable C engine can grow
-alongside that work; SNES and Mega Drive remain secondary compatibility and
-performance efforts. Neither opening currently meets the intended frame rate.
+The active opening milestone targets all four platforms through a shared game
+layer. GBA is furthest along; SNES and Mega Drive still require substantial
+performance work, and the Amiga opening passes the accelerated logical traversal but still requires cycle-exact performance and visual-fidelity work. The prototype frame
+rates do not establish whole-opening performance.
+The earlier short Amiga Cell samples hid second-long cache-refill freezes during
+longer runs and reversals. The full static background/mask now fits in Chip RAM
+for the Cell; a longer reversal check measures roughly 32 displayed frames/s
+and 60 simulation ticks/s without those freezes or added dropped time in the
+1 MiB cycle-exact configuration. Native room images, adaptive scroll windows,
+cached foreground masks, background references and Chip sprite caching are backend services;
+a narrow Lower Cells jump/reversal check reached 24.8 actual frames/s,
+while Crossroads reaches only 15.4. Both sustain the 60 Hz simulation in those
+samples, but longer runs with camera scrolling reproduced 2.36-second stalls.
+The opening remains below the requested steady 25–30 actual frames/s. A broad
+Lower Cells traversal initially measured about 4.6 actual frames/s and 22.9
+simulation ticks/s. The native-layer checkpoint improves this to 10.4 actual
+frames/s and 51.1 simulation ticks/s over 6,081 PAL refreshes, with a worst
+0.32-second presentation gap and additional dropped simulation time. This is
+still a failed playability result. Size-selected native layers, compact metadata,
+incremental asset repacking and bounded block caching preserve the generic
+backend and original pixels. A slower ring-buffer experiment is excluded.
+All-room speed and the remaining source cutscene/effect differences stay open.
+Quantized camera bounds prevent bottom-edge buffer overreads.
+A subsequent controlled frame-stage comparison reaches 12.5 actual frames/s
+with split 448x288 backing pages and CPU-RAM sprite staging, versus 11.1 in its
+starting sample. It still drops simulation time and records a 0.34-second worst
+gap. Scrolling copies improve, while the smaller decoded sprite cache increases
+sprite work. These are performance checkpoints, not completion of the target.
+The subsequent pipelined checkpoint reaches 27.1 actual page swaps/s over a
+longer Lower Cells jumping traversal, with 58.5 simulation ticks/s. A separate
+steady-play diagnostic records a worst frame near 183 ms. Interrupt-scheduled
+swaps, deferred wall queries, independent native-page origins, byte-based clipped
+sprites and 432x304 backing pages improve the average into the requested range;
+frame-time spikes and all-room performance remain unresolved. This does not
+establish performance-complete gameplay. Shared gameplay checks and all three
+console progression routes pass.
+The broader user playtest rejects the Amiga opening as unplayable: vertical
+rooms, water, graveyard and rope use remain very slow. A cycle-exact route
+samples roughly 2–3 fps in Main Hall and sometimes below 1 fps near the altar;
+it does not complete within the measurement deadline. The final experimental
+asset/cache rewrite was rejected and removed because it did not solve these
+cases. Isolated measurements identify both CPU tile composition and shared
+rope simulation as budget problems; held-rope simulation alone measures about
+75.5 ms/tick in a synthetic A500 fixture. The full opening remains a failed
+performance milestone despite passing accelerated logical traversal.
+See [Amiga implementation and verification](AMIGA.md).
+This remains below steady 50 fps, and other rooms can select different paths.
+Walking, reversals and jumping frame pacing across the opening
+remain blocking work before the shared milestone can advance.
 
 The Mines entrance is connected. Its farther iron door supports its reusable
 source red-key requirement; red-key and wetsuit acquisition are not yet connected.

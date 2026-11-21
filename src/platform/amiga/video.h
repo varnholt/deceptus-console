@@ -3,6 +3,8 @@
 
 #include "deceptus/engine.h"
 
+#define AMIGA_BOB_CAPACITY 4
+
 int amigaVideoInit(void);
 void amigaVideoClose(void);
 void amigaVideoDraw(const DeceptusFrame *frame);

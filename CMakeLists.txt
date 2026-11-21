@@ -36,7 +36,7 @@ add_custom_target(convert_assets
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "converting assets from the main engine checkout")
 
-add_library(deceptus_engine STATIC src/engine/player/playerwater.c src/engine/player/playerrope.c src/engine/mechanisms/grabrope.c src/engine/world.c src/engine/entities.c src/engine/mechanisms.c src/engine/logic.c src/engine/enemies.c src/engine/animation.c)
+add_library(deceptus_engine STATIC src/engine/compression.c src/engine/player/playerwater.c src/engine/player/playerrope.c src/engine/mechanisms/grabrope.c src/engine/world.c src/engine/entities.c src/engine/events.c src/engine/mechanisms.c src/engine/logic.c src/engine/pacing.c src/engine/animation.c)
 # private modules remain visible to IDEs, but mechanisms.c compiles them together.
 set(DECEPTUS_MECHANISM_PARTS
     src/engine/mechanisms/blockingrect.c
@@ -57,7 +57,16 @@ set_source_files_properties(${DECEPTUS_MECHANISM_PARTS} PROPERTIES HEADER_FILE_O
 target_sources(deceptus_engine PRIVATE ${DECEPTUS_MECHANISM_PARTS})
 target_include_directories(deceptus_engine PUBLIC include)
 set_target_properties(deceptus_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
-add_library(deceptus_game STATIC src/game/deceptus.c src/game/campaign.c src/engine/adventure.c src/game/weapons/playersword.c)
+add_library(deceptus_game STATIC src/game/deceptus.c src/game/campaign.c src/game/adventure.c
+    src/game/roomcontent.c src/game/appearance.c src/game/enemies.c src/game/weapons/playersword.c src/game/player/playeranimation.c src/game/items/itemheadtorch.c)
+set(DECEPTUS_ENEMY_PARTS
+    src/game/enemies/blob_2.c
+    src/game/enemies/cannon_2.c
+    src/game/enemies/frog_blue.c
+    src/game/enemies/orb.c)
+set_source_files_properties(${DECEPTUS_ENEMY_PARTS} PROPERTIES HEADER_FILE_ONLY TRUE)
+target_sources(deceptus_game PRIVATE ${DECEPTUS_ENEMY_PARTS})
+
 target_link_libraries(deceptus_game PUBLIC deceptus_engine)
 set_target_properties(deceptus_game PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)

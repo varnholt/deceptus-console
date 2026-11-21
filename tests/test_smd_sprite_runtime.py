@@ -17,7 +17,7 @@ class SpriteRuntimeTests(unittest.TestCase):
         production = (ROOT / 'src/platform/smd/opening_sprites.h').read_text()
         # compile the actual packing seam without requiring generated game artwork.
         budget = production[production.index('static union'):production.index('static DeceptusU16 smd_obj_request_count')]
-        packing = production[production.index('static void smdObjPiece('):production.index('static DeceptusU16 smdObjSword(')]
+        packing = production[production.index('static void smdObjPiece('):production.index('static DeceptusU8 smdObjAppearance(')]
         fits = production[production.index('static DeceptusU8 smdObjBudgetFits('):production.index('static void smdSpritesPrepare(const')]
         source = r'''
 #include <assert.h>

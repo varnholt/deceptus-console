@@ -1,4 +1,5 @@
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
+#include "deceptus/pacing.h"
 #include "smd_assets.h"
 #include <genesis.h>
 
@@ -6,6 +7,10 @@ extern const DeceptusRoom deceptus_scene;
 typedef char SmdEngineMemoryLength[sizeof(DeceptusEngine) < 65536UL ? 1 : -1];
 static DeceptusEngine engine;
 static DeceptusFrame frame;
+#ifndef SMD_PACING_MAX_TICKS
+#define SMD_PACING_MAX_TICKS 2
+#endif
+static DeceptusPacing pacing;
 static const DeceptusVideoCaps video = {320, 224, 12};
 static DeceptusU8 scanlines[224];
 static DeceptusU16 object_count, sprite_error, sequence;
@@ -184,14 +189,24 @@ static void debugWrite(DeceptusU16 buttons)
 
 int main(bool hard_reset)
 {
+   DeceptusU32 previous_vblank;
    DeceptusU16 buttons;
+   DeceptusU8 ticks;
    (void)hard_reset;
    deceptusInit(&engine, &deceptus_scene, &video);
    videoInit();
+   deceptusPacingInit(&pacing, IS_PAL_SYSTEM ? 50 : 60, SMD_PACING_MAX_TICKS);
+   previous_vblank = vtimer - 1;
    while (1)
    {
+      ticks = deceptusPacingTicks(&pacing, (DeceptusU16)(vtimer - previous_vblank));
+      previous_vblank = vtimer;
       buttons = inputRead();
-      deceptusTick(&engine, buttons);
+      while (ticks)
+      {
+         deceptusTick(&engine, buttons);
+         --ticks;
+      }
       deceptusRender(&engine, &frame);
       videoPrepare();
       debugWrite(buttons);

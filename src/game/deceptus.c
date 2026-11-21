@@ -1,5 +1,5 @@
 #include "deceptus/enemies.h"
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
 #include "deceptus/physics.h"
 #include "deceptus/playerwater.h"
 #include <string.h>
@@ -12,18 +12,6 @@
 #define MAX_SPEED 35
 #define ACCELERATION 4
 #define FRICTION 6
-
-void deceptusEventPush(DeceptusEngine *engine, DeceptusU8 kind)
-{
-   if (engine->event_count == DECEPTUS_EVENT_CAPACITY)
-   {
-      engine->event_overflow = 1;
-      return;
-   }
-   engine->events[engine->event_count].kind = kind;
-   engine->events[engine->event_count].entity = 0;
-   ++engine->event_count;
-}
 
 static void respawn(DeceptusEngine *engine)
 {
@@ -131,7 +119,7 @@ static void updatePlayer(DeceptusEngine *engine, const DeceptusInput *input)
    DeceptusFixed target, speed;
    DeceptusI16 direction, wall;
    DeceptusU16 gravity;
-   DeceptusU8 height, was_grounded;
+   DeceptusU8 height, was_grounded, wall_checked;
    player = &engine->entities[0];
    if (deceptusPlayerWaterTick(engine, input))
    {
@@ -164,10 +152,7 @@ static void updatePlayer(DeceptusEngine *engine, const DeceptusInput *input)
       --player->bend_ticks;
    }
    wall = 0;
-   if (engine->room->skills & DECEPTUS_SKILL_WALL_JUMP)
-   {
-      wall = deceptusWallSide(engine->room, player, &engine->mechanisms);
-   }
+   wall_checked = 0;
    direction = 0;
    if (input->held & DECEPTUS_LEFT)
    {
@@ -228,12 +213,17 @@ static void updatePlayer(DeceptusEngine *engine, const DeceptusInput *input)
       player->grounded = 0;
       deceptusEventPush(engine, DECEPTUS_EVENT_JUMP);
    }
-   if (player->jump_buffer_ticks && !player->grounded && !player->coyote_ticks && wall)
+   if (player->jump_buffer_ticks && !player->grounded && !player->coyote_ticks && (engine->room->skills & DECEPTUS_SKILL_WALL_JUMP))
    {
-      player->velocity_y = -JUMP_SPEED;
-      player->velocity_x = -wall * speed;
-      player->jump_buffer_ticks = 0;
-      deceptusEventPush(engine, DECEPTUS_EVENT_JUMP);
+      wall = deceptusWallSide(engine->room, player, &engine->mechanisms);
+      wall_checked = 1;
+      if (wall)
+      {
+         player->velocity_y = -JUMP_SPEED;
+         player->velocity_x = -wall * speed;
+         player->jump_buffer_ticks = 0;
+         deceptusEventPush(engine, DECEPTUS_EVENT_JUMP);
+      }
    }
    /* a released jump cuts ascent; buffered landings still get an initial jump. */
    if ((input->released & DECEPTUS_JUMP) && player->velocity_y < -28)
@@ -251,6 +241,10 @@ static void updatePlayer(DeceptusEngine *engine, const DeceptusInput *input)
    else
    {
       player->velocity_y += GRAVITY;
+   }
+   if (!wall_checked && direction && !player->grounded && player->velocity_y > 32 && (engine->room->skills & DECEPTUS_SKILL_WALL_JUMP))
+   {
+      wall = deceptusWallSide(engine->room, player, &engine->mechanisms);
    }
    if (wall && direction == wall && !player->grounded && player->velocity_y > 32)
    {

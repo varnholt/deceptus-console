@@ -19,7 +19,9 @@ DeceptusU8 deceptusCell(const DeceptusRoom *room, DeceptusI16 column, DeceptusI1
    {
       return DECEPTUS_EMPTY;
    }
-   return room->collision[(DeceptusU16)row * room->columns + column];
+   /* an explicit 16x16 -> 32-bit product: the same value everywhere, and one multiply instruction
+      instead of a library call on 16-bit cpus. */
+   return room->collision[(DeceptusU32)(DeceptusU16)row * (DeceptusU16)room->columns + (DeceptusU16)column];
 }
 
 DeceptusI16 deceptusPositionCell(DeceptusFixed position)
@@ -39,6 +41,16 @@ static DeceptusU8 collisionCell(const DeceptusRoom *room, const DeceptusMechanis
    DeceptusU8 value;
    value = deceptusCell(room, column, row);
    if (!mechanisms || !mechanisms->count || (value & DECEPTUS_SOLID))
+   {
+      return value;
+   }
+   /* a cell lies in one column bin and one row bin of the solid grid: without a candidate there,
+      deceptusMechanismSolid finds nothing, so the probe rectangle is not even built. */
+   if (column >= 0 && row >= 0 && column < DECEPTUS_SOLID_BIN_COUNT * (DECEPTUS_SOLID_BIN_SIZE / DECEPTUS_CELL_SIZE) &&
+       row < DECEPTUS_SOLID_BIN_COUNT * (DECEPTUS_SOLID_BIN_SIZE / DECEPTUS_CELL_SIZE) &&
+       !((mechanisms->solid_columns[column / (DECEPTUS_SOLID_BIN_SIZE / DECEPTUS_CELL_SIZE)] &
+          mechanisms->solid_rows[row / (DECEPTUS_SOLID_BIN_SIZE / DECEPTUS_CELL_SIZE)]) |
+         mechanisms->solid_outside))
    {
       return value;
    }

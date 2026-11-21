@@ -19,10 +19,11 @@ def prepare_drive(executable, output):
     return drive
 
 
-def write_config(executable, output, kickstart=None, slowmem=512):
+def write_config(executable, output, kickstart=None, slowmem=512, scene="prototype"):
     drive = prepare_drive(executable, output)
     settings = dict(
-        config_description='Deceptus Amiga 500 one-room prototype',
+        config_description=('Deceptus Amiga 500 opening' if scene == 'tutorial'
+                            else 'Deceptus Amiga 500 one-room prototype'),
         use_gui='no', quickstart='a500,1',
         kickstart_rom_file=str(kickstart) if kickstart else ':AROS',
         cpu_model='68000', cpu_cycle_exact='true',
@@ -37,7 +38,7 @@ def write_config(executable, output, kickstart=None, slowmem=512):
     )
     config = output / 'deceptus-amiga.uae'
     lines = [f'{key}={value}' for key, value in settings.items()]
-    lines += ['win32.start_not_captured=yes',
+    lines += ['win32.start_not_captured=no',
               'win32.active_not_captured_pause=false',
               'win32.inactive_pause=false', 'input.config=0']
     config.write_text('\n'.join(lines) + '\n')
@@ -49,16 +50,23 @@ def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', action='store_true')
     parser.add_argument('--prepare', action='store_true')
+    parser.add_argument('--scene', choices=('prototype', 'tutorial'), default='prototype')
+    parser.add_argument('--reuse-assets', action='store_true')
     parser.add_argument('--sdk', type=Path)
     parser.add_argument('--data', type=Path, default=ROOT / 'assets/game/data')
     parser.add_argument('--kickstart', type=Path,
                         help='use your Kickstart 1.3 ROM instead of built-in AROS')
+    parser.add_argument('--renderer', choices=('legacy', 'native'), default='legacy',
+                        help='tutorial renderer: native is the streamed A500 renderer')
     parser.add_argument('--slowmem', type=int, choices=[0, 512], default=512,
                         help='A500 expansion RAM in KB (default: 512)')
     args = parser.parse_args(arguments)
     if args.kickstart and not args.kickstart.is_file():
         parser.error('Kickstart ROM file does not exist')
-    output = ROOT / 'build/amiga'
+    if args.renderer == 'native' and args.scene != 'tutorial':
+        parser.error('the native renderer exists for the tutorial scene only')
+    output = ROOT / ('build/amiga-native-opening' if args.renderer == 'native'
+                     else 'build/amiga-opening' if args.scene == 'tutorial' else 'build/amiga')
     executable = output / 'deceptus-amiga.exe'
     building = args.build or not executable.is_file()
     result = ensure_python('amiga', arguments, building)
@@ -66,14 +74,20 @@ def main(arguments=None):
         return result
     sdk = args.sdk.resolve() if args.sdk else ensure_sdk()
     if building:
-        from build_amiga import build
-        build(sdk, args.data.resolve(), output)
+        if args.scene == 'tutorial':
+            from build_amiga_opening import build_opening
+            build_opening(sdk, args.data.resolve(), output, args.reuse_assets, args.renderer)
+        else:
+            from build_amiga import build
+            build(sdk, args.data.resolve(), output)
     kickstart = args.kickstart.resolve() if args.kickstart else None
-    config = write_config(executable, output, kickstart, args.slowmem)
+    config = write_config(executable, output, kickstart, args.slowmem, args.scene)
     print(f'Executable: {executable}', flush=True)
     if args.prepare:
         return 0
-    print('Cursor keys move, right Ctrl jumps. Hold both mouse buttons to exit.',
+    print('Cursor keys move, Z or right Ctrl jumps. Hold both mouse buttons to exit.',
           flush=True)
+    if args.scene == 'tutorial':
+        print('Up interacts, Space attacks, Tab opens inventory, Esc pauses/backs, Return accepts.', flush=True)
     return subprocess.call([str(sdk / 'winuae-gdb.exe'), '-f', str(config)],
                            cwd=output)

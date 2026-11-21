@@ -5,6 +5,8 @@
 
 #define DECEPTUS_MECHANISM_CAPACITY 32
 #define DECEPTUS_MECHANISM_EVENT_CAPACITY 32
+#define DECEPTUS_SOLID_BIN_COUNT 32
+#define DECEPTUS_SOLID_BIN_SIZE 64
 #define DECEPTUS_MECH_CHECKPOINT 1
 #define DECEPTUS_MECH_SENSOR 2
 #define DECEPTUS_MECH_LEVER 3
@@ -103,9 +105,15 @@ typedef struct DeceptusMechanismSet
    DeceptusU8 count;
    DeceptusU8 event_count;
    DeceptusU8 overflow;
+   DeceptusU8 solid_count;
+   DeceptusU8 solid_indices[DECEPTUS_MECHANISM_CAPACITY];
+   DeceptusU32 solid_mask, solid_outside;
+   DeceptusU32 solid_columns[DECEPTUS_SOLID_BIN_COUNT];
+   DeceptusU32 solid_rows[DECEPTUS_SOLID_BIN_COUNT];
 } DeceptusMechanismSet;
 
-/* invalid or oversized definitions fail without leaving a partially bound set. */
+/* definitions remain unchanged until reinitialization. invalid or oversized
+ * definitions fail without leaving a partially bound set. */
 DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMechanismDef *definitions, DeceptusU16 count,
                                   const DeceptusU16 *targets, DeceptusU16 target_count);
 void deceptusMechanismsConfigure(DeceptusMechanismSet *set, const DeceptusMechanismTiming *timings);

@@ -1,4 +1,4 @@
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
 #include <assert.h>
 #include <string.h>
 

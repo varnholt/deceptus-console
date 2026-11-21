@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -21,14 +22,14 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     opening = scene == 'tutorial'
     generated = Path(assets_dir).resolve() if assets_dir else ROOT / ('assets/generated/smd-opening' if opening else 'assets/generated/smd')
     if opening:
-        from smd_opening_assets import compile_opening
+        from smd_opening_assets import compile_opening, converter_identity
         from campaign_assets import asset_identity
         if not reuse_assets:
             from smd_opening_inputs import prepare_smd_metadata
             portable = prepare_smd_metadata(data, output / 'portable-metadata')
             compile_opening(data, generated, portable)
         metadata = json.loads((generated / 'build.json').read_text())
-        digest = hashlib.sha256((ROOT / 'tools/smd_opening_assets.py').read_bytes() + (ROOT / 'tools/smd_assets.py').read_bytes()).hexdigest()
+        digest = converter_identity()
         if metadata['source_identity'] != asset_identity(data) or metadata['converter_sha256'] != digest:
             raise SystemExit('Mega Drive cached opening does not match original sources or converter; rebuild without --reuse-assets')
         if metadata['rom_graphics_bytes'] > 4 * 1024 * 1024 - 262144:
@@ -41,6 +42,9 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     flags = ['-m68000', '-DSGDK_GCC', '-O3', '-flto', '-fomit-frame-pointer', '-fno-builtin',
              '-ffunction-sections', '-fdata-sections', '-B' + str(sdk / 'bin'),
              '-I' + str(ROOT / 'src/platform/smd/include'), '-I' + str(ROOT / 'include'), '-I' + str(generated), '-I' + str(sdk / 'inc'), '-I' + str(sdk / 'res')]
+    if os.environ.get('DECEPTUS_PACING_LOCKED') == '1':
+        # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
+        flags.append('-DDECEPTUS_PACING_LOCKED')
     header = (sdk / 'src/boot/rom_head.c').read_text().replace('SAMPLE PROGRAM'.ljust(48), ('DECEPTUS OPENING' if opening else 'DECEPTUS MEGA DRIVE POC').ljust(48))
     (output / 'rom_head.c').write_text(header)
     run([compiler, *[flag for flag in flags if flag != '-flto'], '-c', output / 'rom_head.c', '-o', folder / 'rom_head.o'], output)
@@ -49,18 +53,28 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
          '-c', sdk / 'src/boot/sega.s', '-o', folder / 'sega.o'], output)
     sources = ['src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
                'src/engine/mechanisms/grabrope.c', 'src/engine/animation.c', 'src/engine/world.c',
-               'src/engine/entities.c', 'src/engine/mechanisms.c', 'src/engine/logic.c',
-               'src/engine/enemies.c', 'src/game/deceptus.c', 'src/platform/smd/main.c']
+               'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c', 'src/engine/logic.c', 'src/engine/pacing.c',
+               'src/game/enemies.c', 'src/game/deceptus.c', 'src/platform/smd/main.c']
     sources = [ROOT / source for source in sources]
     if opening:
         sources = [source for source in sources if source != ROOT / 'src/platform/smd/main.c']
-        sources += [ROOT / name for name in ('src/engine/adventure.c', 'src/game/campaign.c',
-                    'src/game/weapons/playersword.c', 'src/platform/smd/opening.c',
+        sources += [ROOT / name for name in ('src/game/adventure.c', 'src/game/campaign.c',
+                    'src/game/weapons/playersword.c', 'src/game/player/playeranimation.c', 'src/game/items/itemheadtorch.c', 'src/game/appearance.c', 'src/platform/smd/opening.c',
                     'src/platform/smd/background.c', 'src/platform/smd/graphics_io.c')]
         sources += [generated / name for name in metadata['c_sources']]
     else:
         sources += [generated / 'room.c', generated / 'smd_assets.c']
     objects = []
+    if opening:
+        # Keep SDK startup calls external so LTO cannot inline away DMA_init's
+        # linker wrapper and allocate an unused DMA queue in the 64KiB RAM.
+        target = folder / 'sdk_sys.o'
+        sdk_flags = [flag for flag in flags
+                     if flag != '-flto' and not flag.startswith('-I')]
+        run([compiler, *sdk_flags, '-I' + str(sdk / 'inc'),
+             '-I' + str(sdk / 'res'), '-c', sdk / 'src/sys.c',
+             '-o', target], output)
+        objects.append(target)
     for source in sources:
         target = folder / (source.stem + '.o')
         run([compiler, *flags, '-std=gnu90' if 'platform' in source.parts else '-std=c90', '-Wall', '-Wextra', '-Werror', '-Wno-main',

@@ -1,4 +1,5 @@
 /* logical source frames mapped to bounded SNES OBJ tiles and palette banks. */
+#include "deceptus/appearance.h"
 #include "deceptus/enemies.h"
 #include "snes_headtorch_resources.h"
 #include "snes_sword_resources.h"
@@ -338,205 +339,22 @@ static void snesObjDrawResourceReference(const SnesObjRequest *request, Deceptus
 }
 #endif
 
-static DeceptusU16 snesObjSword(const DeceptusAdventure *game, DeceptusI16 *x, DeceptusI16 *y)
+static DeceptusU8 snesObjAppearance(void *context, const DeceptusSpriteAppearance *sprite)
 {
-   static DeceptusU8 previous_pose = 255;
-   static DeceptusU16 previous_tick, pose_ticks;
-   const DeceptusEntity *player;
-   const DeceptusU8 *clip;
-   DeceptusU16 step, duration, elapsed, delta;
-   DeceptusU8 pose, left;
-   player = &game->campaign.engine.entities[0];
-   left = player->facing_left;
-   if (game->sword.ticks)
+   static const DeceptusU16 first[DECEPTUS_SPRITE_FAMILY_COUNT] = {
+      SNES_ACTOR_FIRST,     SNES_LEVER_FIRST,         SNES_SPIKES_FIRST,    SNES_BLOCK_FIRST,          SNES_COLLAPSE_FIRST,
+      SNES_RAT_FIRST,       SNES_TRAP_FIRST,          SNES_MUZZLE_FIRST,    SNES_ARROW_FIRST,          SNES_SWIM_FIRST,
+      SNES_BLOB_FIRST,      SNES_SPLASH_FIRST,        SNES_SWORD_FIRST,     SNES_CANNON_FIRST,         SNES_CANNONBALL_FIRST,
+      SNES_IRON_DOOR_FIRST, SNES_WOODEN_PLANKS_FIRST, SNES_HEADTORCH_FIRST, SNES_HEADTORCH_BEAM_FIRST, SNES_ORB_FIRST,
+      SNES_FROG_BLUE_FIRST, SNES_BLUE_FIREBALL_FIRST, SNES_GRAB_ROPE_FIRST, SNES_PLAYER_ROPE_FIRST};
+   (void)context;
+   if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
    {
-      pose = game->sword.airborne ? 10 : game->sword.crouched ? 9 : 8;
-      left = game->sword.facing_left;
+      return 0;
    }
-   else if (game->campaign.engine.player_rope.attached)
-   {
-      pose = 3;
-   }
-   else if (player->in_water)
-   {
-      pose = player->velocity_x ? 7 : 6;
-   }
-   else if (player->crouched)
-   {
-      pose = 5;
-   }
-   else if (!player->grounded)
-   {
-      pose = player->velocity_y < -16 ? 2 : player->velocity_y > 16 ? 4 : 3;
-   }
-   else
-   {
-      pose = player->velocity_x ? 1 : 0;
-   }
-   pose += left ? 11 : 0;
-   delta = game->campaign.engine.ticks - previous_tick;
-   pose_ticks = pose != previous_pose || delta > 4 ? 0 : pose_ticks + delta;
-   previous_pose = pose;
-   previous_tick = game->campaign.engine.ticks;
-   clip = snes_sword_clips[pose];
-   duration = 0;
-   for (step = 0; step < clip[1]; ++step)
-   {
-      duration += snes_sword_durations[clip[0] + step];
-   }
-   while (pose_ticks >= duration)
-   {
-      pose_ticks -= duration;
-   }
-   elapsed = game->sword.ticks ? game->sword.ticks - 1 : pose_ticks;
-   for (step = 0; step + 1 < clip[1] && elapsed >= snes_sword_durations[clip[0] + step]; ++step)
-   {
-      elapsed -= snes_sword_durations[clip[0] + step];
-   }
-   *x = deceptusFloor(player->x) - game->campaign.engine.camera_x - clip[2];
-   *y = deceptusFloor(player->y) - game->campaign.engine.camera_y - clip[3];
-   return clip[0] + step;
-}
-
-static void snesObjPlayer(const DeceptusAdventure *game, const DeceptusDraw *draw)
-{
-   const SnesHeadtorchPose *pose;
-   const DeceptusEngine *engine;
-   DeceptusU16 resource, image;
-   DeceptusI16 x, y, helmet_x, helmet_y;
-   DeceptusU8 flip;
-   engine = &game->campaign.engine;
-   image = draw->frame;
-   x = draw->x;
-   y = draw->y;
-   flip = draw->flip_x;
-   if (game->has_sword)
-   {
-      image = snesObjSword(game, &x, &y);
-      resource = SNES_SWORD_FIRST + image;
-      pose = &snes_headtorch_sword[image];
-      flip = 0;
-   }
-   else if (draw->kind == DECEPTUS_PLAYER_SWIM)
-   {
-      resource = SNES_SWIM_FIRST + image;
-      pose = &snes_headtorch_swim[image];
-   }
-   else if (draw->kind == DECEPTUS_PLAYER_ROPE)
-   {
-      resource = SNES_PLAYER_ROPE_FIRST + image;
-      pose = &snes_headtorch_rope[image];
-   }
-   else
-   {
-      resource = SNES_ACTOR_FIRST + image;
-      pose = &snes_headtorch_normal[engine->entities[0].facing_left][image];
-   }
-   if (game->inventory.counts[5] && pose->valid)
-   {
-      helmet_x = deceptusFloor(engine->entities[0].x) - engine->camera_x + pose->x;
-      helmet_y = deceptusFloor(engine->entities[0].y) - engine->camera_y + pose->y;
-      snesObjAdd(SNES_HEADTORCH_FIRST + pose->side, helmet_x, helmet_y, 0, 2);
-      snesObjAdd(SNES_HEADTORCH_BEAM_FIRST, helmet_x + snes_headtorch_lamp_offsets[pose->side][0] - (pose->side ? 64 : 0),
-                 helmet_y + snes_headtorch_lamp_offsets[pose->side][1] - 16, pose->side, 2);
-   }
-   snesObjAdd(resource, x, y, flip, 2);
-}
-
-static void snesObjMechanisms(const DeceptusEngine *engine)
-{
-   const DeceptusMechanismDef *definition;
-   const DeceptusMechanismState *state;
-   DeceptusU16 index, resource, segment, segments;
-   DeceptusI16 x, y;
-   for (index = 0; index < engine->mechanisms.count; ++index)
-   {
-      definition = &engine->mechanisms.definitions[index];
-      state = &engine->mechanisms.states[index];
-      if (!state->visible)
-      {
-         continue;
-      }
-      segments = 1;
-      x = definition->bounds.x - engine->camera_x;
-      y = definition->bounds.y - engine->camera_y;
-      if (definition->kind == DECEPTUS_MECH_LEVER)
-      {
-         resource = SNES_LEVER_FIRST + (state->handle_available ? state->frame : 32);
-      }
-      else if (definition->kind == DECEPTUS_MECH_BLOCK && engine->mechanisms.timings &&
-               (engine->mechanisms.timings[index].flags & DECEPTUS_TIMED_ANIMATION))
-      {
-         resource = SNES_BLOCK_FIRST + state->frame;
-      }
-      else if (definition->kind == DECEPTUS_MECH_SPIKES)
-      {
-         resource = SNES_SPIKES_FIRST + state->frame;
-      }
-      else if (definition->kind == DECEPTUS_MECH_COLLAPSING)
-      {
-         if (state->frame >= 38 || state->phase == 2)
-         {
-            continue;
-         }
-         resource = SNES_COLLAPSE_FIRST + state->frame;
-         segments = definition->bounds.width / 24;
-         y -= 24;
-         if (state->phase == 1)
-         {
-            y += state->timer / 10;
-         }
-         else if (state->timer)
-         {
-            y += (DeceptusI16)((state->timer / 2) & 3) - 1;
-         }
-      }
-      else if (definition->kind == DECEPTUS_MECH_DOOR)
-      {
-         resource = SNES_IRON_DOOR_FIRST + state->frame;
-         x -= 24;
-         y -= 24;
-      }
-      else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE)
-      {
-         resource = SNES_WOODEN_PLANKS_FIRST + state->frame;
-         if (definition->flags & DECEPTUS_MECH_RIGHT_ALIGNED)
-         {
-            resource += 50;
-            x -= 102;
-         }
-      }
-      else
-      {
-         continue;
-      }
-      for (segment = 0; segment < segments; ++segment)
-      {
-         snesObjAdd(resource + (definition->kind == DECEPTUS_MECH_COLLAPSING ? (segment & 3) * 38 : 0), x + segment * 24, y, 0, 2);
-      }
-   }
-}
-
-static void snesObjRopes(const DeceptusEngine *engine)
-{
-   DeceptusU16 distance, length, height;
-   DeceptusU8 rope;
-   DeceptusI16 x, y;
-   for (rope = 0; rope < engine->grab_ropes.count; ++rope)
-   {
-      length = deceptusGrabRopeLength(engine, rope);
-      for (distance = 0; distance < length; distance += height)
-      {
-         height = distance ? 8 : 16;
-         if (height > length - distance)
-         {
-            height = length - distance;
-         }
-         deceptusGrabRopePointAt(engine, rope, distance, &x, &y);
-         snesObjAdd(SNES_GRAB_ROPE_FIRST + (distance ? height : 0), x - engine->camera_x - 7, y - engine->camera_y - (distance ? 4 : 0), 0,
-                    3);
-      }
-   }
+   snesObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x,
+              sprite->family == DECEPTUS_SPRITE_GRAB_ROPE ? 3 : 2);
+   return 1;
 }
 
 static void snesSpritesInit(void)
@@ -560,7 +378,14 @@ static void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFram
 {
    DeceptusU16 index, other, resource, active_count;
    DeceptusU8 palette, link;
-   const DeceptusDraw *draw;
+   static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
+   static const DeceptusAppearanceDef appearance = {
+      {snes_sword_clips, snes_sword_durations, sizeof(snes_sword_durations), sizeof(snes_sword_clips) / sizeof(snes_sword_clips[0])},
+      snes_headtorch_normal,
+      snes_headtorch_swim,
+      snes_headtorch_rope,
+      snes_headtorch_sword,
+      snes_headtorch_lamp_offsets};
    const SnesSpriteResource *entry;
    const SnesObjRequest *request;
    SNES_OBJ_PROFILE(1);
@@ -569,69 +394,9 @@ static void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFram
    snes_obj_free_cursor = 0;
    snesObjBegin();
    SNES_OBJ_PROFILE(2);
-   if (game->campaign.mode != DECEPTUS_CAMPAIGN_TITLE)
+   if (!deceptusAppearanceVisit(game, frame, &appearance, &animation, snesObjAppearance, 0))
    {
-      for (index = 0; index < frame->count; ++index)
-      {
-         draw = &frame->draws[index];
-         if (draw->kind == DECEPTUS_PLAYER || draw->kind == DECEPTUS_PLAYER_SWIM || draw->kind == DECEPTUS_PLAYER_ROPE)
-         {
-            snesObjPlayer(game, draw);
-            continue;
-         }
-         if (draw->kind == DECEPTUS_RAT)
-         {
-            resource = SNES_RAT_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_BLOB_2)
-         {
-            resource = SNES_BLOB_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_ARROW_TRAP)
-         {
-            resource = SNES_TRAP_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_ARROW_MUZZLE)
-         {
-            resource = SNES_MUZZLE_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_ARROW)
-         {
-            resource = SNES_ARROW_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_CANNON_2)
-         {
-            resource = SNES_CANNON_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_CANNONBALL)
-         {
-            resource = SNES_CANNONBALL_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_ORB)
-         {
-            resource = SNES_ORB_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_FROG_BLUE)
-         {
-            resource = SNES_FROG_BLUE_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_BLUE_FIREBALL)
-         {
-            resource = SNES_BLUE_FIREBALL_FIRST;
-         }
-         else if (draw->kind == DECEPTUS_WATER_SPLASH)
-         {
-            resource = SNES_SPLASH_FIRST;
-         }
-         else
-         {
-            snes_sprite_overflow = 1;
-            continue;
-         }
-         snesObjAdd(resource + draw->frame, draw->x, draw->y, draw->flip_x, 2);
-      }
-      snesObjMechanisms(&game->campaign.engine);
-      snesObjRopes(&game->campaign.engine);
+      snes_sprite_overflow = 1;
    }
    /* protect all existing frames needed later in this presentation. */
    SNES_OBJ_PROFILE(3);

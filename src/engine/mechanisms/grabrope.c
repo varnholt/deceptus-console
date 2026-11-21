@@ -2,10 +2,61 @@
 #include "deceptus/physics.h"
 #include <string.h>
 
+/* exact 16x16 products where both factors fit; 16-bit cpus otherwise pay a 32-bit multiply call. */
+static DeceptusU32 square(DeceptusI32 value)
+{
+   DeceptusU32 magnitude;
+   magnitude = value < 0 ? (DeceptusU32)-value : (DeceptusU32)value;
+   if (magnitude <= 65535UL)
+   {
+#if defined(__mc68000__) || defined(__m68k__)
+      /* gcc can leave even a 16x16 product to the 32-bit library call; mulu.w is exact here. */
+      __asm__("mulu.w %0,%0" : "+d"(magnitude) : : "cc");
+      return magnitude;
+#else
+      return (DeceptusU32)(DeceptusU16)magnitude * (DeceptusU16)magnitude;
+#endif
+   }
+   return (DeceptusU32)(value * value);
+}
+
+static DeceptusI32 product(DeceptusI32 left, DeceptusI32 right)
+{
+   if (left >= -32768L && left <= 32767L && right >= -32768L && right <= 32767L)
+   {
+#if defined(__mc68000__) || defined(__m68k__)
+      __asm__("muls.w %1,%0" : "+d"(left) : "d"((DeceptusI16)right) : "cc");
+      return left;
+#else
+      return (DeceptusI32)(DeceptusI16)left * (DeceptusI16)right;
+#endif
+   }
+   return left * right;
+}
+
+/* numerator / denominator truncated toward zero, as c division; a 32/16 hardware divide on 68000
+   when the quotient fits 16 bits. */
+static DeceptusI32 quotient(DeceptusI32 numerator, DeceptusU16 denominator)
+{
+#if defined(__mc68000__) || defined(__m68k__)
+   DeceptusI32 result;
+   DeceptusI32 range;
+   /* 32768 * denominator as a shift: the multiply would be a library call itself. */
+   range = (DeceptusI32)denominator << 15;
+   if (denominator <= 32767U && numerator > -range && numerator < range)
+   {
+      result = numerator;
+      __asm__("divs.w %1,%0" : "+d"(result) : "dmi"((DeceptusI16)denominator) : "cc");
+      return (DeceptusI16)result;
+   }
+#endif
+   return numerator / (DeceptusI32)denominator;
+}
+
 DeceptusU16 deceptusGrabRopeDistance(DeceptusI32 x, DeceptusI32 y)
 {
    DeceptusU32 value, result, bit;
-   value = (DeceptusU32)(x * x) + (DeceptusU32)(y * y);
+   value = square(x) + square(y);
    result = 0;
    bit = (DeceptusU32)1 << 30;
    while (bit > value)
@@ -31,14 +82,17 @@ DeceptusU16 deceptusGrabRopeDistance(DeceptusI32 x, DeceptusI32 y)
 static DeceptusU8 ropePointClear(const DeceptusEngine *engine, const DeceptusGrabRope *rope, DeceptusFixed x, DeceptusFixed y)
 {
    DeceptusRect point;
-   DeceptusI16 column, row;
+   DeceptusI16 column, row, first_column, last_column, last_row;
    point.x = deceptusFloor(x) - 1;
    point.y = deceptusFloor(y) - 1;
    point.width = 2;
    point.height = 2;
-   for (row = deceptusPositionCell(y - DECEPTUS_ONE); row <= deceptusPositionCell(y); ++row)
+   first_column = deceptusPositionCell(x - DECEPTUS_ONE);
+   last_column = deceptusPositionCell(x);
+   last_row = deceptusPositionCell(y);
+   for (row = deceptusPositionCell(y - DECEPTUS_ONE); row <= last_row; ++row)
    {
-      for (column = deceptusPositionCell(x - DECEPTUS_ONE); column <= deceptusPositionCell(x); ++column)
+      for (column = first_column; column <= last_column; ++column)
       {
          if (deceptusCell(engine->room, column, row) & DECEPTUS_SOLID)
          {
@@ -101,13 +155,13 @@ static void ropeSolve(DeceptusEngine *engine, DeceptusGrabRope *rope, DeceptusU8
          {
             continue;
          }
-         correction_scale = ((DeceptusI32)distance - rest) * 256 / distance;
+         correction_scale = quotient(((DeceptusI32)distance - rest) * 256, distance);
          if (!correction_scale)
          {
             continue;
          }
-         correction_x = dx * correction_scale / 256;
-         correction_y = dy * correction_scale / 256;
+         correction_x = product(dx, correction_scale) / 256;
+         correction_y = product(dy, correction_scale) / 256;
          if (!correction_x && !correction_y)
          {
             continue;
@@ -224,8 +278,9 @@ void deceptusGrabRopesTick(DeceptusEngine *engine)
 {
    DeceptusGrabRope *rope;
    DeceptusFixed x, y;
+   DeceptusFixed before[4][DECEPTUS_GRAB_ROPE_NODES];
    DeceptusI16 vx, vy;
-   DeceptusU8 index, node, damp;
+   DeceptusU8 index, node, damp, attached;
    for (index = 0; index < engine->grab_ropes.count; ++index)
    {
       rope = &engine->grab_ropes.ropes[index];
@@ -237,6 +292,20 @@ void deceptusGrabRopesTick(DeceptusEngine *engine)
       if (damp)
       {
          rope->damping_ticks = 0;
+      }
+      attached = engine->player_rope.attached && engine->player_rope.rope_index == index;
+      /* at rest every velocity is zero, so damping changes nothing and gravity is undone by the
+         solve: the tick reproduces its input exactly. only moving solids or a hold can disturb it. */
+      if (rope->settled && !rope->dynamic_solids && !attached)
+      {
+         continue;
+      }
+      for (node = 0; node < rope->node_count; ++node)
+      {
+         before[0][node] = rope->x[node];
+         before[1][node] = rope->y[node];
+         before[2][node] = rope->previous_x[node];
+         before[3][node] = rope->previous_y[node];
       }
       for (node = 1; node < rope->node_count; ++node)
       {
@@ -271,10 +340,16 @@ void deceptusGrabRopesTick(DeceptusEngine *engine)
          ropeMoveNode(engine, rope, node, x + vx, y + vy);
       }
       /* attached chains receive their single final solve after player integration. */
-      if (!engine->player_rope.attached || engine->player_rope.rope_index != index)
+      if (!attached)
       {
          ropeSolve(engine, rope, 255, 0, 0);
          ropeMeasure(rope);
+      }
+      rope->settled = !attached;
+      for (node = 0; rope->settled && node < rope->node_count; ++node)
+      {
+         rope->settled = before[0][node] == rope->x[node] && before[1][node] == rope->y[node] &&
+                         before[2][node] == rope->previous_x[node] && before[3][node] == rope->previous_y[node];
       }
    }
 }
@@ -291,6 +366,7 @@ void deceptusGrabRopePin(DeceptusEngine *engine, DeceptusU8 index, DeceptusU8 no
    {
       return;
    }
+   rope->settled = 0;
    ropeSolve(engine, rope, node, x, y);
    rope->previous_x[node] = x - engine->entities[0].velocity_x;
    rope->previous_y[node] = y - engine->entities[0].velocity_y;
@@ -335,8 +411,8 @@ DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 inde
       length = rope->cumulative_length[node] - rope->cumulative_length[node - 1];
       if (remaining <= length && length)
       {
-         *x = deceptusFloor((DeceptusFixed)(rope->x[node - 1] + dx * remaining / length));
-         *y = deceptusFloor((DeceptusFixed)(rope->y[node - 1] + dy * remaining / length));
+         *x = deceptusFloor((DeceptusFixed)(rope->x[node - 1] + quotient(product(dx, remaining), length)));
+         *y = deceptusFloor((DeceptusFixed)(rope->y[node - 1] + quotient(product(dy, remaining), length)));
          return 1;
       }
       remaining -= length;

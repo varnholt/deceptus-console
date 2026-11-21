@@ -14,8 +14,8 @@ FIELDS = ['ticks', 'x', 'y', 'camera_x', 'camera_y', 'paused', 'health', 'door_e
           'vblanks', 'cpu_load', 'grounded', 'checkpoint_x', 'checkpoint_y']
 SHARED = ['src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
           'src/engine/mechanisms/grabrope.c', 'src/engine/animation.c', 'src/engine/world.c',
-          'src/engine/entities.c', 'src/engine/mechanisms.c', 'src/engine/logic.c',
-          'src/engine/enemies.c', 'src/game/deceptus.c']
+          'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c', 'src/engine/logic.c',
+          'src/game/enemies.c', 'src/game/deceptus.c']
 REFERENCE_FIELDS = ['ticks', 'x', 'y', 'camera_x', 'camera_y', 'paused', 'health',
                     'door_entries', 'checkpoint_id', 'content_error', 'grounded',
                     'checkpoint_x', 'checkpoint_y']
@@ -43,7 +43,7 @@ def native_reference():
                    'e.camera_x', 'e.camera_y', 'e.paused', 'e.health', 'e.door_entries',
                    'e.checkpoint_id', 'e.content_error', 'e.entities[0].grounded',
                    'e.checkpoint_x', 'e.checkpoint_y']
-    bridge.write_text('#include "deceptus/engine.h"\nextern const DeceptusRoom deceptus_scene;\n'
+    bridge.write_text('#include "deceptus/game.h"\nextern const DeceptusRoom deceptus_scene;\n'
         'static DeceptusEngine e;\n'
         '__declspec(dllexport) void ref_init(void){DeceptusVideoCaps v={320,224,12};'
         'deceptusInit(&e,&deceptus_scene,&v);}\n'

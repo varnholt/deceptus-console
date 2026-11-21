@@ -1,6 +1,7 @@
 #ifndef DECEPTUS_SNES_OPENING
 #include "asset_sizes.h"
-#include "deceptus/engine.h"
+#include "deceptus/game.h"
+#include "deceptus/pacing.h"
 #include <snes.h>
 
 extern char room_patterns, room_patterns_end;
@@ -14,6 +15,10 @@ extern const DeceptusRoom deceptus_scene;
 
 static DeceptusEngine engine;
 static DeceptusFrame frame;
+#ifndef SNES_PACING_MAX_TICKS
+#define SNES_PACING_MAX_TICKS 2
+#endif
+static DeceptusPacing pacing;
 static DeceptusVideoCaps video = {256, 224, 12};
 static DeceptusI16 accepted_top[DECEPTUS_DRAW_CAPACITY];
 static DeceptusI16 accepted_bottom[DECEPTUS_DRAW_CAPACITY];
@@ -136,26 +141,22 @@ static void debugWrite(void)
 
 int main(void)
 {
-   DeceptusU16 previous_vblank, current_vblank, elapsed, buttons;
+   DeceptusU16 previous_vblank, current_vblank, buttons;
+   DeceptusU8 ticks;
    deceptusInit(&engine, &deceptus_scene, &video);
    videoInit();
+   deceptusPacingInit(&pacing, snes_50hz ? 50 : 60, SNES_PACING_MAX_TICKS);
    previous_vblank = snes_vblank_count - 1;
    while (1)
    {
       current_vblank = snes_vblank_count;
-      elapsed = current_vblank - previous_vblank;
+      ticks = deceptusPacingTicks(&pacing, current_vblank - previous_vblank);
       previous_vblank = current_vblank;
-      /* keep simulation at display time when a render misses its deadline.
-       * cap catch-up so overload cannot create an unbounded update loop. */
-      if (elapsed > 4)
-      {
-         elapsed = 4;
-      }
       buttons = inputRead();
-      while (elapsed)
+      while (ticks)
       {
          deceptusTick(&engine, buttons);
-         --elapsed;
+         --ticks;
       }
       deceptusRender(&engine, &frame);
       videoPrepare();
@@ -170,12 +171,17 @@ int main(void)
 }
 #else
 #include "deceptus/adventure.h"
+#include "deceptus/pacing.h"
 #include "snes_assets.h"
 #include <snes.h>
 
 extern const DeceptusAdventureDef snes_tutorial_definition;
 static DeceptusAdventure adventure;
 static DeceptusFrame frame;
+#ifndef SNES_PACING_MAX_TICKS
+#define SNES_PACING_MAX_TICKS 2
+#endif
+static DeceptusPacing pacing;
 static const DeceptusVideoCaps video = {256, 224, DECEPTUS_DRAW_CAPACITY};
 volatile DeceptusU16 deceptus_debug[56];
 
@@ -307,34 +313,41 @@ static void videoLoad(void)
 
 int main(void)
 {
-   DeceptusU16 scenery_flags;
-   DeceptusI16 cage;
+   DeceptusU16 scenery_flags, buttons, previous_vblank, current_vblank;
+   DeceptusU8 ticks, room_loaded;
    deceptus_debug[0] = 0xD3CE;
    deceptus_debug[11] = 1;
    deceptusAdventureInit(&adventure, &snes_tutorial_definition, &video);
    deceptus_debug[11] = 2;
    videoLoad();
    deceptus_debug[11] = 7;
+   deceptusPacingInit(&pacing, snes_50hz ? 50 : 60, SNES_PACING_MAX_TICKS);
+   previous_vblank = snes_vblank_count - 1;
+   room_loaded = 0;
    while (1)
    {
       deceptus_debug[11] = 8;
-      if (deceptusAdventureTick(&adventure, inputRead()))
+      current_vblank = snes_vblank_count;
+      /* a room load is not made up for. */
+      ticks = deceptusPacingTicks(&pacing, room_loaded ? 1 : current_vblank - previous_vblank);
+      previous_vblank = current_vblank;
+      room_loaded = 0;
+      buttons = inputRead();
+      while (ticks)
       {
-         videoLoad();
-      }
-      deceptus_debug[11] = 9;
-      /* one simulation update per presentation keeps input edges deterministic. */
-      deceptusRender(&adventure.campaign.engine, &frame);
-      deceptus_debug[11] = 10;
-      scenery_flags = adventure.flags;
-      cage = deceptusMechanismFind(&adventure.campaign.engine.mechanisms, 1386);
-      if (cage >= 0)
-      {
-         if (adventure.campaign.engine.mechanisms.states[cage].enabled)
+         --ticks;
+         if (deceptusAdventureTick(&adventure, buttons))
          {
-            scenery_flags |= 8192;
+            videoLoad();
+            deceptusPacingReset(&pacing);
+            room_loaded = 1;
+            break;
          }
       }
+      deceptus_debug[11] = 9;
+      deceptusRender(&adventure.campaign.engine, &frame);
+      deceptus_debug[11] = 10;
+      scenery_flags = deceptusAdventurePresentationFlags(&adventure);
       snesBackgroundSetFlags(scenery_flags);
       snesBackgroundPrepare(frame.camera_x, frame.camera_y);
       deceptus_debug[11] = 11;

@@ -74,9 +74,17 @@ typedef struct DeceptusAdventureDef
    DeceptusU8 item_count;
 } DeceptusAdventureDef;
 
+/* returned room storage remains valid until the next load; null reports a load failure. */
+typedef struct DeceptusRoomProvider
+{
+   const DeceptusRoom *(*load)(void *context, DeceptusU8 room);
+   void *context;
+} DeceptusRoomProvider;
+
 typedef struct DeceptusAdventure
 {
    DeceptusCampaign campaign;
+   DeceptusRoomProvider room_provider;
    const DeceptusAdventureDef *definition;
    DeceptusInventory inventory;
    DeceptusPlayerSword sword;
@@ -92,6 +100,9 @@ typedef struct DeceptusAdventure
 } DeceptusAdventure;
 
 void deceptusAdventureInit(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video);
+void deceptusAdventureInitWithRoomProvider(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video,
+                                           const DeceptusRoomProvider *provider);
 DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons);
+DeceptusU16 deceptusAdventurePresentationFlags(const DeceptusAdventure *game);
 DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure *game, const DeceptusInteraction *interaction);
 #endif

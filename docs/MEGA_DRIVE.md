@@ -18,7 +18,9 @@ does not describe the opening.
 ```powershell
 python tools/bootstrap_smd.py --emulator
 python tools/build_smd.py --scene tutorial
-python tools/verify_smd_opening.py --rom build/smd/deceptus-tutorial.bin --assets-dir assets/generated/smd-opening
+$env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_smd.py --scene tutorial --output-dir build/smd-verify
+python tools/verify_smd_opening.py --rom build/smd-verify/deceptus-tutorial.bin --assets-dir assets/generated/smd-opening
+Remove-Item Env:DECEPTUS_PACING_LOCKED
 python run_smd.py
 ```
 
@@ -82,6 +84,13 @@ were also checked. The highest measured requirement is 1,085 patterns in the
 Sewers. This covers tile capacity, not frame rate or hardware validation.
 
 ## Verification and profiling
+
+The opening owns its bounded, direct presentation transfers and skips SGDK's
+unused DMA queue allocation. Its build compiles the SDK startup translation
+unit separately without LTO, so the linker wrapper for `DMA_init` remains
+effective. Allowing startup to inline that call can unexpectedly allocate the
+queue and prevent boot within the 64 KiB RAM budget. The SDK files themselves
+remain unchanged; actual cartridge startup is part of the opening replay.
 
 `verify_smd_opening.py` compares the same ordinary inputs against desktop C and
 the actual cartridge, including positions, inventory, flags, projectiles and

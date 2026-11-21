@@ -9,26 +9,79 @@ shared code under a very different compiler and resource budget.
 
 | Area | Responsibility |
 | --- | --- |
-| `include/deceptus/` | Shared types, input, world, entities, mechanisms, animation, campaign and adventure contracts |
+| `include/deceptus/engine.h` and component headers | Reusable simulation state, collision, entities, mechanisms, animation and event contracts |
+| `include/deceptus/game.h`, `campaign.h`, `adventure.h`, `enemies.h` | Game controller, campaign, story/inventory and enemy contracts |
 | `src/engine/world.c` | Grid collision, dynamic blockers, one-way floors and body clearance |
-| `src/engine/entities.c`, `enemies.c`, `enemies/` | Bounded entity/projectile services and native enemy behavior |
+| `src/engine/entities.c`, `events.c` | Bounded entity allocation and transient event queues |
+| `src/game/enemies.c`, `enemies/` | Deceptus enemy behaviors, projectile rules and source-script dispatch |
 | `src/engine/player/playerwater.c` | Source atmosphere water detection, swim motion and source-frame timing |
 | `src/engine/player/playerrope.c` | Airborne rope grab, attachment, swing control and release/grace state |
 | `src/engine/mechanisms/`, `logic.c` | Original-named mechanism modules, bounded state/queues and compiled actions |
-| `src/engine/adventure.c` | Inventory transactions, interaction conditions, dialogue/menu modes, portals and room state |
+| `src/game/adventure.c` | Inventory transactions, interaction conditions, dialogue/menu modes, portals and room state |
 | `src/game/deceptus.c`, `campaign.c` | Player/game rules and the curated preview campaign |
 | `src/game/weapons/playersword.c` | Source sword timing, hit bounds and supported blob damage |
+| `src/game/player/playeranimation.c` | Shared source sword pose and frame selection for every backend |
+| `src/game/items/itemheadtorch.c` | Game-owned headtorch equipment rules |
 | `src/platform/gba/` | Registers, input, DMA, tile residency, OAM, menus, UI and cartridge startup |
 | `src/platform/snes/` | SNES/PVSnesLib world cache, OBJ staging, input and opening frontend |
 | `src/platform/smd/` | SGDK POC video/input, tile layout and private C header adapters |
+| `src/platform/amiga/` | OCS bitplanes, blitter, copper, input and system takeover/restoration |
 | `src/platform/host/` | Native preview bridge |
 | `tools/` | Offline authoritative-content import, conversion, compilation and verification |
 
 Console registers and SDK headers belong only in platform code. There is no
 runtime SFML, Lua interpreter, heap allocation or floating-point simulation.
 The GBA uses a small freestanding runtime rather than a host C library.
-Public C symbols use `deceptus_`, constants use `DECEPTUS_`, and headers live in
+Public C functions use the `deceptus` prefix and camelCase; constants use
+`DECEPTUS_`, types use CamelCase, and headers live in
 `include/deceptus/`. Names of external emulator protocols retain their upstream API.
+
+Game-specific story callbacks, inventory rules, equipment choices and enemy
+behaviors belong in `src/game/` or the imported game content. The engine library
+contains reusable simulation services and links independently of the game
+library. Backends translate game presentation into hardware operations; they do
+not decide when rubies are acquired, when the ground collapses or when a sword
+becomes available.
+
+`src/game/enemies.c` includes its private enemy modules as one translation unit,
+matching the mechanism build pattern. Compile that entry rather than its private
+fragments separately. This preserves existing compiler optimization and bounded
+runtime behavior while making ownership explicit.
+
+## Streamed room content
+
+`DeceptusAdventureInitWithRoomProvider` accepts a caller-owned room loader. The
+adventure chooses the destination using its content-defined portals; a platform
+loader only supplies that room's resources. Cartridge builds retain the existing
+static room tables and `deceptusAdventureInit` entry point. A streamed campaign
+may omit its static room-pointer table. Returned room storage, including its
+collision bytes and referenced arrays, must remain valid until the next load.
+A failed load halts the adventure with a content error before arrival placement.
+Restarting the adventure retains the provider and its context.
+
+`tools/room_content.py` exports `DRM1` files from the same lossless collision grid
+used by `world_export.py`. `src/game/roomcontent.c` decodes explicit big-endian
+fields into caller-owned arrays; it never casts file bytes to C structures.
+It validates the exact file length, dimensions, capacities and target/path
+ranges. Ordinary mechanism/enemy initialization still checks semantic content.
+The collision grid points into the resident file bytes instead of a second copy.
+Enemy definitions keep this codec in the game library, independent of the engine.
+
+The opening needs at most 16,522 bytes for one simulation file, 16 mechanisms,
+12 target links, five enemies and six path points. These are measured content
+requirements, not new global engine limits. Local checks compare all 26 decoded
+rooms to the static definitions and replay the entire opening with one reusable
+room slot; newly created verification artifacts remain outside version control.
+
+## Shared game presentation
+
+`src/game/appearance.c` visits original-source sprite appearances for the player,
+equipment, enemies, mechanisms and grab ropes. It owns pose/attachment choices
+and emits logical family/frame coordinates. Backends map those families to their
+converted graphics, cull offscreen requests and enforce their existing bounded
+hardware queues. The visitor adds no intermediate frame buffer or heap storage.
+SNES and Mega Drive consume this path; it is also available to the Amiga opening.
+GBA still has its existing renderer, with shared sword pose and equipment rules.
 
 ## Mechanism source correspondence
 
@@ -64,9 +117,17 @@ private modules as header-only sources for IDE navigation. The public API stays
 in `include/deceptus/mechanisms.h`; no virtual dispatch, heap objects or additional
 per-instance state are introduced by the source split. Mechanism definitions
 are immutable imported data; mutable instances live in the caller-owned
-`deceptus_mechanism_set`. Source ids link levers, interactions and saved room
+`DeceptusMechanismSet`. Source ids link levers, interactions and saved room
 state to those instances. Collision queries and logical visual state are shared;
 the backend selects console graphics without implementing mechanism rules.
+
+Binding also builds a fixed spatial index for solid mechanism candidates. Two
+arrays of 32 bitsets cover 64px columns and rows; a query intersects their masks
+before checking the original collision rules. Enabled, timed and destroyed
+states remain live checks. Unusual or out-of-range rectangles conservatively
+retain all relevant candidates. The index belongs to the caller-owned set and
+allocates no memory; changing definition bounds or kinds requires reinitializing
+the set. This optimization serves every backend and contains no story rules.
 
 Use matching source basenames for future enemy ports, such as `blob_2.c` for
 `blob_2.lua`. Keep source object ids, properties and state meanings. The C90,
@@ -80,6 +141,52 @@ world coordinates are converted to a room origin plus local position; rooms
 must remain below 2048px per axis. Collision uses an 8px grid and bounded dynamic
 rectangles instead of Box2D. Slopes and many complex physical mechanisms still
 need explicit treatment.
+
+### Simulation timing
+
+The simulation is tuned for exactly 60 ticks per second, independent of how
+fast a backend draws. `deceptus/pacing.h` turns the display frames that passed
+since the previous presentation into the number of ticks to run, also on 50 Hz
+PAL displays (1.2 ticks per frame on average). It is the console counterpart of
+the original engine's fixed time step (`FixedTimeStep` in `src/game/physics`).
+
+```c
+deceptusPacingInit(&pacing, 60, 2);             /* display rate, most ticks per presentation */
+ticks = deceptusPacingTicks(&pacing, frames);   /* display frames since the last presentation */
+while (ticks)
+{
+   --ticks;
+   if (deceptusAdventureTick(&adventure, buttons))
+   {
+      /* room changed: load it, deceptusPacingReset, count the load as one frame */
+      break;
+   }
+}
+```
+
+Time beyond the per-presentation limit is discarded rather than banked, and a
+room load is not made up for. Below `60 / max_ticks` presentations per second
+the game slows down instead. Each backend sets the limit for its renderer: every
+extra tick is extra camera travel for the next presentation to stream, and a
+limit set too high pushes incremental background streaming into heavier updates
+until every presentation hits the limit. In the first room under Genesis Plus GX,
+walking with a limit of five dropped the Mega Drive from 26-38 to 2.5-3.5
+presentations per second; with two it keeps 20-37 while the game runs at 37-59
+ticks per second instead of 26-38.
+
+| Backend | Display frames from | Limit |
+| --- | --- | ---: |
+| GBA | timer 2 at F/64, 4389 counts per frame | 2 |
+| SNES | `snes_vblank_count`, 50 or 60 Hz from `snes_50hz` | 2 |
+| Mega Drive | SGDK `vtimer`, 50 or 60 Hz from `IS_PAL_SYSTEM` | 2 |
+| Amiga | vertical blank count, PAL 50 Hz | 3 |
+
+Input is sampled once per presentation and applied to all of its ticks; button
+edges are detected against the previous tick, so a press still fires once. The
+emulator route verifiers replay ordinary inputs tick for tick and need one tick
+per presentation: build the cartridge they check with `DECEPTUS_PACING_LOCKED=1`
+in the environment, which every build script passes on as
+`-DDECEPTUS_PACING_LOCKED`.
 
 Callers own all state. Entity, projectile, mechanism, event and draw queues have
 fixed capacities. Content generation rejects unsupported features and resource
@@ -157,7 +264,7 @@ than cropping or mirroring the other direction. The GBA packs these separately
 from the standing player's metasprites. Their colours remain exact RGB555 within
 a distinct OBJ palette reservation.
 
-`src/engine/enemies/blob_2.c` maps directly to `blob_2.lua`. Normal patrol uses the
+`src/game/enemies/blob_2.c` maps directly to `blob_2.lua`. Normal patrol uses the
 source idle/walk animation cycles, pulsed movement, contact damage and stomp
 lifecycle. Ground-patrol sprite transitions are compared against execution of
 the original Lua with identical position inputs. Jumping and ceiling-drop

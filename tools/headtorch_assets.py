@@ -83,7 +83,8 @@ def compile_headtorch(data, output, sword_clips=None):
                              round(48+anchor_shift[1]-8-helmet_eye_offset[1])])
     lines=['/* source eye positions/origins; helmet offsets are relative to the drawn player feet. */',
            '#ifndef GBA_HEADTORCH_RESOURCES_H','#define GBA_HEADTORCH_RESOURCES_H',
-           'typedef struct GbaHeadtorchPose { DeceptusI16 x, y; DeceptusU8 side, valid; } GbaHeadtorchPose;',
+           '#include "deceptus/itemheadtorch.h"',
+           'typedef DeceptusHeadtorchPose GbaHeadtorchPose;',
            'static const GbaHeadtorchPose gba_headtorch_normal[2][26] = {']
     for poses in normal:
         lines+=['    {']+['        {'+','.join(map(str,pose))+'},' for pose in poses]+['    },']
