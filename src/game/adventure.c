@@ -14,7 +14,7 @@ DeceptusU8 deceptusInventoryAdd(DeceptusInventory *inventory, DeceptusU8 item)
 
 DeceptusU8 deceptusInventoryRemove(DeceptusInventory *inventory, DeceptusU8 item)
 {
-   if (!item || item >= DECEPTUS_INVENTORY_ITEMS || !inventory->counts[item])
+   if ((item == 0) || (item >= DECEPTUS_INVENTORY_ITEMS) || (inventory->counts[item] == 0))
    {
       return 0;
    }
@@ -111,9 +111,9 @@ void deceptusAdventureInitWithRoomProvider(DeceptusAdventure *game, const Decept
    game->room_provider = saved_provider;
    game->prompt = 255;
    game->room_label_ticks = 120;
-   if (!definition || !definition->campaign || !definition->rooms || (!saved_provider.load && !definition->campaign->rooms) ||
-       !definition->campaign->room_count || definition->campaign->room_count > DECEPTUS_ADVENTURE_ROOMS ||
-       definition->item_count >= DECEPTUS_INVENTORY_ITEMS)
+   if ((definition == 0) || (definition->campaign == 0) || (definition->rooms == 0) ||
+       ((saved_provider.load == 0) && (definition->campaign->rooms == 0)) || (definition->campaign->room_count == 0) ||
+       (definition->campaign->room_count > DECEPTUS_ADVENTURE_ROOMS) || (definition->item_count >= DECEPTUS_INVENTORY_ITEMS))
    {
       game->campaign.engine.content_error = 8;
       return;

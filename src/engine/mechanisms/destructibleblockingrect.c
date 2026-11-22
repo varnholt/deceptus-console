@@ -31,7 +31,7 @@ DeceptusU8 deceptusMechanismHit(DeceptusMechanismSet *set, DeceptusU16 source_id
    DeceptusI16 index;
    DeceptusMechanismState *state;
    index = deceptusMechanismFind(set, source_id);
-   if (index < 0 || !damage || set->definitions[index].kind != DECEPTUS_MECH_DESTRUCTIBLE)
+   if ((index < 0) || (damage == 0) || (set->definitions[index].kind != DECEPTUS_MECH_DESTRUCTIBLE))
    {
       return 0;
    }

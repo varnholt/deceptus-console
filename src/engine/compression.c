@@ -133,7 +133,7 @@ DeceptusU8 deceptusLz4Decode(const DeceptusU8 *source, DeceptusU32 source_size, 
    const DeceptusU8 *literal;
    DeceptusU8 *cursor, *match;
    DeceptusU8 token;
-   if (!source || !source_size || (destination_size && !destination))
+   if ((source == 0) || (source_size == 0) || ((destination_size != 0) && (destination == 0)))
    {
       return 0;
    }

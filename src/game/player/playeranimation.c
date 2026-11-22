@@ -49,7 +49,8 @@ DeceptusU8 deceptusPlayerSwordAppearance(const DeceptusAdventure *game, Deceptus
       return DECEPTUS_APPEARANCE_NONE;
    }
    pose = selectSwordPose(game);
-   if (!definition || !definition->clips || !definition->durations || definition->frame_count > 256 || pose >= definition->clip_count)
+   if ((definition == 0) || (definition->clips == 0) || (definition->durations == 0) || (definition->frame_count > 256) ||
+       (pose >= definition->clip_count))
    {
       return DECEPTUS_APPEARANCE_BAD_CONTENT;
    }

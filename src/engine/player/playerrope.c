@@ -78,7 +78,7 @@ static DeceptusU8 playerRopeGrab(DeceptusEngine *engine)
    for (index = 0; index < engine->grab_ropes.count; ++index)
    {
       rope = &engine->grab_ropes.ropes[index];
-      if (!engine->mechanisms.states[rope->mechanism_index].enabled || !playerRopeNear(rope, player))
+      if ((engine->mechanisms.states[rope->mechanism_index].enabled == 0) || (playerRopeNear(rope, player) == 0))
       {
          continue;
       }

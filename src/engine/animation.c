@@ -37,7 +37,7 @@ DeceptusU8 deceptusAnimationAdvanceTimed(DeceptusAnimation *animation, DeceptusU
 {
    DeceptusU16 previous, remaining, step;
    previous = animation->frame;
-   if (!frames || !durations || animation->frame >= frames)
+   if ((frames == 0) || (durations == 0) || (animation->frame >= frames))
    {
       deceptusAnimationReset(animation);
       return previous != 0;
@@ -79,7 +79,7 @@ DeceptusU8 deceptusAnimationAdvance(DeceptusAnimation *animation, DeceptusU16 fr
    DeceptusU32 elapsed, frame;
    DeceptusU16 previous, remainder;
    previous = animation->frame;
-   if (!frames || !frame_ticks)
+   if ((frames == 0) || (frame_ticks == 0))
    {
       deceptusAnimationReset(animation);
       return previous != 0;

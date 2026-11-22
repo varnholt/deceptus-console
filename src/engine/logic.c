@@ -6,7 +6,7 @@ DeceptusU8 deceptusLogicExecute(DeceptusMechanismSet *set, const DeceptusU8 *cod
    DeceptusU16 position, steps, operand, index;
    DeceptusI16 slot;
    DeceptusU8 depth, opcode, value;
-   if (!code || !length || length > 2048 || set->count > DECEPTUS_MECHANISM_CAPACITY)
+   if ((code == 0) || (length == 0) || (length > 2048) || (set->count > DECEPTUS_MECHANISM_CAPACITY))
    {
       return DECEPTUS_LOGIC_BAD_CODE;
    }
@@ -96,7 +96,7 @@ DeceptusU8 deceptusLogicExecute(DeceptusMechanismSet *set, const DeceptusU8 *cod
             {
                return DECEPTUS_LOGIC_BAD_CODE;
             }
-            if (opcode == 11 || !stack[--depth])
+            if ((opcode == 11) || (stack[--depth] == 0))
             {
                position = operand;
             }

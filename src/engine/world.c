@@ -40,7 +40,7 @@ static DeceptusU8 collisionCell(const DeceptusRoom *room, const DeceptusMechanis
    DeceptusRect bounds;
    DeceptusU8 value;
    value = deceptusCell(room, column, row);
-   if (!mechanisms || !mechanisms->count || (value & DECEPTUS_SOLID))
+   if ((mechanisms == 0) || (mechanisms->count == 0) || ((value & DECEPTUS_SOLID) != 0))
    {
       return value;
    }
