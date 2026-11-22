@@ -194,7 +194,7 @@ def ensure_original_imports(data,refresh_metadata=False):
 
 # grab rope physics runs every tick per node; the 65816 spent over twenty display frames per tick
 # on the original 22-node Mausoleum rope, so the SNES rope uses fewer, longer links.
-SNES_ROPE_SEGMENTS=8
+SNES_ROPE_SEGMENTS=3
 
 
 def compile_worlds(recipes,output):

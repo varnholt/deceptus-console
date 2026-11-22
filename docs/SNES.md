@@ -326,12 +326,12 @@ that brings new sprite tiles.
 
 The Mausoleum's grab rope has 22 nodes. Its physics and drawing cost the 65816
 more than twenty display frames per simulation tick, so the SNES tooling caps
-grab ropes at eight nodes (`SNES_ROPE_SEGMENTS` in `snes_tutorial_assets.py`),
+grab ropes at three nodes (`SNES_ROPE_SEGMENTS` in `snes_tutorial_assets.py`),
 as the Amiga does with six. Node k of n rests at k / n of the rope height, so
 fewer nodes would lift the lowest node and the rope could no longer be reached
 from the floor. The shared cap (`capped_rope` in `world_export.py`) therefore
 stretches the height so the lowest node keeps the original depth: 234 to 255
-pixels at eight nodes.
+pixels at three nodes. The rope still swings; it bends at two joints instead of 21.
 
 The shorter chain swings differently and lands the player six pixels earlier, so
 the recorded route replaces three steps after the swing for the SNES
