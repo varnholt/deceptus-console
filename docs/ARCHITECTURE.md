@@ -35,6 +35,34 @@ The GBA uses a small freestanding runtime rather than a host C library.
 Public C functions use the `deceptus` prefix and camelCase; constants use
 `DECEPTUS_`, types use CamelCase, and headers live in
 `include/deceptus/`. Names of external emulator protocols retain their upstream API.
+Newer interfaces such as `include/arith.h` use neutral names without the project
+prefix.
+
+## Platform specializations
+
+Shared code is the reference behaviour on every platform and never names a CPU
+or console. A platform specializes it without `#if` blocks in shared files, in
+two ways:
+
+- **Arithmetic primitives** (`include/arith.h`): `arithSquareU16`,
+  `arithMulS16`, `arithDivS32U16` and `arithRootU32`, each with an exact
+  contract and a portable reference in `src/engine/arith.c`. A platform that
+  defines `PLATFORM_ARITH` provides `platform_arith.h` in its own source folder,
+  which its build puts on the include path: the Amiga maps them to inline
+  `mulu`, `muls` and `divs` where those are exact, the SNES to 65816 routines in
+  `engine_math.asm`. Other platforms use the reference.
+- **Platform content limits** in the platform's tooling, such as re-timed
+  animation clips on the Amiga or the SNES grab rope cap
+  (`SNES_ROPE_SEGMENTS`). These change behaviour on purpose, so the platform's
+  reference changes with them: its native replay is built from the same
+  converted content, and the route may replace individual steps for that
+  platform (`platform_steps` in `opening-route.json`). A limit stays with its
+  platform; other targets export their own content.
+
+Each specialization is checked against the reference: the primitives by tests
+that compare them with the `*Reference` functions over broad input ranges (on
+the SNES a test build runs this comparison on the console), and every platform
+by its tick-exact route replay.
 
 Game-specific story callbacks, inventory rules, equipment choices and enemy
 behaviors belong in `src/game/` or the imported game content. The engine library

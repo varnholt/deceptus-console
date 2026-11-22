@@ -338,11 +338,11 @@ recorded route replaces three steps after the swing for the SNES
 (`platform_steps` in `opening-route.json`; the step count and every checkpoint
 stay the same).
 
-The rope arithmetic has 65816 versions in `engine_math.asm`, next to the
-68000 paths in `grabrope.c` and with the C as the reference: the node distance
-(squares from the CPU's 8x8 multiplier, then the digit-by-digit root), the
-signed 16x16 product and the 32/16 quotient (16 steps when the quotient fits a
-word). A local test build compared them with the C on the console over about
+The rope arithmetic uses the SNES versions of the primitives in
+`include/arith.h`, mapped by `src/platform/snes/platform_arith.h` to
+`engine_math.asm`: squares from the CPU's 8x8 multiplier, the digit-by-digit
+root, the signed 16x16 product and the 32/16 quotient (16 steps when the
+quotient fits a word). The C references are in `src/engine/arith.c`. A local test build compared them with the C on the console over about
 60,000 inputs without a difference. Drawing walks the chain once per frame
 (`deceptusGrabRopePointFrom`) instead of from the anchor for every piece; a
 host check of 670,000 points matched `deceptusGrabRopePointAt`.

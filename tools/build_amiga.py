@@ -15,7 +15,7 @@ SOURCES = (
     'src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
     'src/engine/mechanisms/grabrope.c', 'src/engine/animation.c',
     'src/engine/world.c', 'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c',
-    'src/engine/logic.c', 'src/engine/pacing.c', 'src/game/enemies.c', 'src/game/deceptus.c',
+    'src/engine/logic.c', 'src/engine/pacing.c', 'src/engine/arith.c', 'src/game/enemies.c', 'src/game/deceptus.c',
     'src/platform/amiga/runtime.c', 'src/platform/amiga/main.c',
     'src/platform/amiga/input.c', 'src/platform/amiga/keyboard.c',
     'src/platform/amiga/video.c',
@@ -35,7 +35,9 @@ def build_program(sdk, output, sources, report, generated):
     flags = ['-m68000', '-O3', '-flto', '-g', '-nostdlib', '-ffreestanding',
              '-fno-builtin', '-fno-tree-loop-distribute-patterns',
              '-ffunction-sections', '-fdata-sections', '-fomit-frame-pointer',
-             '-I' + str(ROOT / 'include'), '-I' + str(generated)]
+             '-I' + str(ROOT / 'include'), '-I' + str(generated),
+             # 68000 arithmetic primitives (include/arith.h).
+             '-DPLATFORM_ARITH', '-I' + str(ROOT / 'src/platform/amiga')]
     if os.environ.get('AMIGA_PERFCOUNT') == '1':
         # per-frame renderer counters for a debugger (src/platform/amiga/perfcount.h).
         flags.append('-DAMIGA_PERFCOUNT')
