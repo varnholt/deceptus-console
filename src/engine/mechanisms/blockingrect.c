@@ -5,6 +5,13 @@
 #error solid mechanism masks require at most 32 mechanisms
 #endif
 
+/* bin coordinates are only taken of non-negative bounds, so shifts equal the divisions; 16-bit cpus
+   would otherwise call a 32-bit divide for every collision probe. */
+#define DECEPTUS_SOLID_BIN_SHIFT 6
+#if (1 << DECEPTUS_SOLID_BIN_SHIFT) != DECEPTUS_SOLID_BIN_SIZE
+#error DECEPTUS_SOLID_BIN_SHIFT must match DECEPTUS_SOLID_BIN_SIZE
+#endif
+
 static void bindSolidMechanism(DeceptusMechanismSet *set, DeceptusU16 index)
 {
    const DeceptusRect *bounds;
@@ -24,13 +31,13 @@ static void bindSolidMechanism(DeceptusMechanismSet *set, DeceptusU16 index)
       set->solid_outside |= mask;
       return;
    }
-   last = (DeceptusU16)((right - 1) / DECEPTUS_SOLID_BIN_SIZE);
-   for (bin = (DeceptusU16)(bounds->x / DECEPTUS_SOLID_BIN_SIZE); bin <= last; ++bin)
+   last = (DeceptusU16)((DeceptusU32)(right - 1) >> DECEPTUS_SOLID_BIN_SHIFT);
+   for (bin = (DeceptusU16)((DeceptusU16)bounds->x >> DECEPTUS_SOLID_BIN_SHIFT); bin <= last; ++bin)
    {
       set->solid_columns[bin] |= mask;
    }
-   last = (DeceptusU16)((bottom - 1) / DECEPTUS_SOLID_BIN_SIZE);
-   for (bin = (DeceptusU16)(bounds->y / DECEPTUS_SOLID_BIN_SIZE); bin <= last; ++bin)
+   last = (DeceptusU16)((DeceptusU32)(bottom - 1) >> DECEPTUS_SOLID_BIN_SHIFT);
+   for (bin = (DeceptusU16)((DeceptusU16)bounds->y >> DECEPTUS_SOLID_BIN_SHIFT); bin <= last; ++bin)
    {
       set->solid_rows[bin] |= mask;
    }
@@ -49,14 +56,14 @@ static DeceptusU32 solidCandidates(const DeceptusMechanismSet *set, const Decept
       return set->solid_mask;
    }
    mask = 0;
-   last = (DeceptusU16)((right - 1) / DECEPTUS_SOLID_BIN_SIZE);
-   for (bin = (DeceptusU16)(bounds->x / DECEPTUS_SOLID_BIN_SIZE); bin <= last; ++bin)
+   last = (DeceptusU16)((DeceptusU32)(right - 1) >> DECEPTUS_SOLID_BIN_SHIFT);
+   for (bin = (DeceptusU16)((DeceptusU16)bounds->x >> DECEPTUS_SOLID_BIN_SHIFT); bin <= last; ++bin)
    {
       mask |= set->solid_columns[bin];
    }
    rows = 0;
-   last = (DeceptusU16)((bottom - 1) / DECEPTUS_SOLID_BIN_SIZE);
-   for (bin = (DeceptusU16)(bounds->y / DECEPTUS_SOLID_BIN_SIZE); bin <= last; ++bin)
+   last = (DeceptusU16)((DeceptusU32)(bottom - 1) >> DECEPTUS_SOLID_BIN_SHIFT);
+   for (bin = (DeceptusU16)((DeceptusU16)bounds->y >> DECEPTUS_SOLID_BIN_SHIFT); bin <= last; ++bin)
    {
       rows |= set->solid_rows[bin];
    }
