@@ -50,7 +50,7 @@ def build_program(sdk, output, sources, report, generated):
         source_flags = flags
         if source.name in ('amiga_assets.c', 'opening_content.c', 'amiga_native_assets.c'):
             source_flags = [flag for flag in flags if flag != '-flto']
-        if (source.name in ('rooms.c', 'graphics.c', 'opening_ui.c')
+        if (source.name in ('rooms.c', 'graphics.c', 'opening_ui.c', 'system.c')
                 and source.parent.name == 'amiga'):
             # bound resource/UI code size so AmigaDOS can load the 1 MiB build.
             source_flags = [flag for flag in flags if flag != '-O3'] + ['-Os']

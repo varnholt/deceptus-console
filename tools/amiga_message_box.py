@@ -5,9 +5,11 @@ artwork on a separate copper-fed bitplane region, 304 pixels wide: the source wi
 pixels wide and the GBA already composes it from a left and a right half, so the Amiga keeps
 wider halves. Per background colour and next-page state one frame template is stored (LZ4,
 interleaved planes, exactly the region the copper shows); per page only a one-bit text mask.
+Each room's templates and pages go into that room's own file, read with the room's graphics.
 """
 import json
 import re
+import struct
 from pathlib import Path
 
 from PIL import Image
@@ -104,18 +106,43 @@ def room_pages(room_source):
     return pages
 
 
+def room_file(templates, actions, pages):
+    """one room's boxes, big-endian for the 68000; offsets count from the start of the file.
+
+    header: u16 templates, u16 actions, u16 pages, u16 0
+    templates: u16 palette[16], u32 offset, u16 size, u8 text colour, u8 0 (40 bytes each)
+    actions: u16 first page per action plus the end, padded to four bytes
+    pages: u32 offset, u16 size, u8 template, u8 0 (8 bytes each), then the LZ4 data
+    """
+    tables = 8 + 40 * len(templates) + (2 * (len(actions) + 1) + 3 & ~3) + 8 * len(pages)
+    blob = bytearray()
+    template_rows, page_rows = [], []
+    for item in templates:
+        template_rows.append(struct.pack('>16HIHBB', *item['palette'], tables + len(blob), len(item['data']), item['text'], 0))
+        blob += item['data']
+    for template_id, packed in pages:
+        page_rows.append(struct.pack('>IHBB', tables + len(blob), len(packed), template_id, 0))
+        blob += packed
+    action_table = struct.pack(f'>{len(actions) + 1}H', *actions, len(pages))
+    action_table += bytes(-len(action_table) % 4)
+    data = struct.pack('>4H', len(templates), len(actions), len(pages), 0) + b''.join(template_rows) + action_table + b''.join(page_rows)
+    assert len(data) == tables
+    return data + blob
+
+
 def compile_message_boxes(data, gba_generated, output):
+    """writes area<room>/messagebox.amb for every room with dialogue pages, plus the size table.
+
+    the files are read with the room (the screen is already blank then) and decoded only while a
+    dialogue shows, so nothing of the boxes sits in the executable or in memory at startup.
+    """
     data, gba_generated, output = Path(data), Path(gba_generated), Path(output)
     ui = TutorialUI(data)
     tutorial = json.loads((gba_generated / 'tutorial.json').read_text())
     shared_pages = room_pages((gba_generated / 'room.c').read_text())
-    objects = {}
-    templates, template_keys, pages, masks, room_first, actions = [], {}, [], [], [], []
-    action_index = {}
+    objects, rooms, rendered, action_index = {}, {}, {}, {}
     for entry in tutorial['interactions']:
         room = entry['room']
-        while len(room_first) <= room:
-            room_first.append(len(actions))
         index = action_index.get(room, 0)
         action_index[room] = index + 1
         texts = shared_pages.get((room, index), [])
@@ -125,48 +152,47 @@ def compile_message_boxes(data, gba_generated, output):
             objects[entry['source_map']] = {item['id']: item for item in map_objects(data / entry['source_map'])[1]}
         properties = objects[entry['source_map']][entry['source_id']]['properties']
         background = properties.get('01_background_color', DEFAULT_BACKGROUND)
-        actions.append(len(pages))
+        state = rooms.setdefault(room, dict(templates=[], keys={}, actions=[], pages=[]))
+        state['actions'].append(len(state['pages']))
         for page_index, text in enumerate(texts):
             key = background, page_index + 1 < len(texts)
-            if key not in template_keys:
-                template_keys[key] = len(templates)
-                templates.append(template(ui, *key))
-            pages.append((template_keys[key], text_mask(ui, text)))
-    room_first.append(len(actions))
-    text_rows = [y for _, rows in pages for y, row in enumerate(rows) if any(row)]
+            if key not in rendered:
+                rendered[key] = template(ui, *key)
+            if key not in state['keys']:
+                state['keys'][key] = len(state['templates'])
+                state['templates'].append(rendered[key])
+            state['pages'].append((state['keys'][key], text_mask(ui, text)))
+    text_rows = [y for state in rooms.values() for _, rows in state['pages'] for y, row in enumerate(rows) if any(row)]
     top, bottom = (min(text_rows), max(text_rows) + 1) if text_rows else (0, 1)
-    blob = bytearray()
-    template_lines, page_lines = [], []
-    for item in templates:
-        template_lines.append('   {{' + ','.join(f'0x{value:03x}' for value in item['palette']) + '}, '
-                              + f'{len(blob)}, {len(item["data"])}, {item["text"]}' + '},')
-        blob += item['data']
-    for template_id, rows in pages:
-        packed = encode_block(b''.join(rows[top:bottom]))
-        page_lines.append(f'   {{{len(blob)}, {len(packed)}, {template_id}}},')
-        blob += packed
+    room_count = max(rooms) + 1 if rooms else 0
+    sizes = [0] * room_count
+    for room, state in rooms.items():
+        path = output / f'area{room}' / 'messagebox.amb'
+        if not state['pages']:
+            path.unlink(missing_ok=True)
+            continue
+        pages = [(template_id, encode_block(b''.join(rows[top:bottom]))) for template_id, rows in state['pages']]
+        blob = room_file(state['templates'], state['actions'], pages)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(blob)
+        sizes[room] = len(blob)
     header = ['#ifndef AMIGA_MESSAGE_BOX_H', '#define AMIGA_MESSAGE_BOX_H', '#include "deceptus/types.h"',
               f'#define AMIGA_BOX_PLANES {PLANES}', f'#define AMIGA_BOX_ROW_BYTES {ROW_BYTES}',
               f'#define AMIGA_BOX_TOP {REGION_TOP}', f'#define AMIGA_BOX_ROWS {REGION_ROWS}',
-              f'#define AMIGA_BOX_BUBBLE_ROW {BUBBLE_ROW}', f'#define AMIGA_BOX_BUBBLE_ROWS 78',
+              f'#define AMIGA_BOX_BUBBLE_ROW {BUBBLE_ROW}', '#define AMIGA_BOX_BUBBLE_ROWS 78',
               f'#define AMIGA_BOX_TEXT_TOP {BUBBLE_ROW + top}', f'#define AMIGA_BOX_TEXT_ROWS {bottom - top}',
               f'#define AMIGA_BOX_TEXT_WORD {TEXT_WORD}', f'#define AMIGA_BOX_TEXT_WORDS {TEXT_WORDS}',
-              f'#define AMIGA_BOX_ROOMS {len(room_first) - 1}', f'#define AMIGA_BOX_PAGES {len(pages)}',
-              'typedef struct AmigaBoxTemplate { DeceptusU16 palette[16]; DeceptusU32 offset, size; DeceptusU8 text; } AmigaBoxTemplate;',
-              'typedef struct AmigaBoxPage { DeceptusU32 offset; DeceptusU16 size; DeceptusU8 template_id; } AmigaBoxPage;',
-              'extern const AmigaBoxTemplate amiga_box_templates[];', 'extern const AmigaBoxPage amiga_box_pages[];',
-              'extern const DeceptusU16 amiga_box_room_actions[AMIGA_BOX_ROOMS + 1];',
-              'extern const DeceptusU16 amiga_box_action_pages[];',
-              '/* in Chip RAM: Chip RAM has room to spare, the other memory holds the room data block. */',
-              'extern DeceptusU8 amiga_box_blob[];', '#endif']
+              f'#define AMIGA_BOX_ROOMS {room_count}',
+              '/* the layout of area<room>/messagebox.amb (tools/amiga_message_box.py room_file). */',
+              'typedef struct AmigaBoxHeader { DeceptusU16 templates, actions, pages, reserved; } AmigaBoxHeader;',
+              'typedef struct AmigaBoxTemplate { DeceptusU16 palette[16]; DeceptusU32 offset; DeceptusU16 size; DeceptusU8 text, reserved; } AmigaBoxTemplate;',
+              'typedef struct AmigaBoxPage { DeceptusU32 offset; DeceptusU16 size; DeceptusU8 template_id, reserved; } AmigaBoxPage;',
+              '/* bytes of each room file, 0 when the room has no dialogue pages. */',
+              'extern const DeceptusU16 amiga_box_room_bytes[AMIGA_BOX_ROOMS];', '#endif']
     (output / 'amiga_message_box.h').write_text('\n'.join(header) + '\n')
-    source = ['#include "amiga_message_box.h"', 'const AmigaBoxTemplate amiga_box_templates[] = {', *template_lines, '};',
-              'const AmigaBoxPage amiga_box_pages[] = {', *page_lines, '};',
-              'const DeceptusU16 amiga_box_room_actions[AMIGA_BOX_ROOMS + 1] = {' + ','.join(map(str, room_first)) + '};',
-              'const DeceptusU16 amiga_box_action_pages[] = {' + ','.join(map(str, actions + [len(pages)])) + '};',
-              'DeceptusU8 amiga_box_blob[] __attribute__((section(".MEMF_CHIP"))) = {']
-    source += ['   ' + ','.join(str(value) for value in blob[index:index + 32]) + ',' for index in range(0, len(blob), 32)]
-    source.append('};')
+    source = ['#include "amiga_message_box.h"',
+              'const DeceptusU16 amiga_box_room_bytes[AMIGA_BOX_ROOMS] = {' + ','.join(map(str, sizes)) + '};']
     (output / 'amiga_message_box.c').write_text('\n'.join(source) + '\n')
-    return dict(templates=len(templates), pages=len(pages), blob_bytes=len(blob), text_rows=bottom - top,
+    return dict(templates=len(rendered), pages=sum(len(state['pages']) for state in rooms.values()),
+                room_bytes={room: size for room, size in enumerate(sizes) if size}, text_rows=bottom - top,
                 region_bytes=REGION_ROWS * PLANES * ROW_BYTES)

@@ -16,7 +16,7 @@ from amiga_hdf import write_hdf
 from bootstrap import ROOT
 
 # files the streamed renderer reads per room variant (rooms.c, loadTileGraphics and room content).
-ROOM_FILES = ('.ans', '.atg', '.ant', '.asb')
+ROOM_FILES = ('.ans', '.atg', '.ant', '.asb', '.amb')
 VOLUME = 'Deceptus'
 
 STARTER = r'''@echo off

@@ -96,10 +96,6 @@ static DeceptusI16 origins_x[2], origins_y[2], origin_x, origin_y;
 static DeceptusU8 valid[2], active, draw_buffer, error;
 static const AmigaGraphics *graphics;
 static volatile DeceptusU32 video_frames;
-/* the first vertical blank that may show the pending page, and the one for the page being drawn:
-   the previous page can still be pending while the next one's blank is chosen. */
-static volatile DeceptusU32 present_frame;
-static DeceptusU32 next_present;
 static volatile DeceptusU8 loading;
 static volatile DeceptusI16 pending_buffer = -1;
 static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
@@ -114,17 +110,15 @@ DeceptusU8 amigaOpeningVideoUsesTiles(void)
 
 static void __attribute__((interrupt)) verticalBlank(void)
 {
-   if (!loading)
-   {
-      ++video_frames;
-   }
-   /* a page waits for the blank its game time was advanced to; shown earlier, the scene would step
-      by more time than the screen did and the background would judder against the player. */
-   if (pending_buffer >= 0 && (loading || (DeceptusI32)(video_frames - present_frame) >= 0))
+   if (pending_buffer >= 0)
    {
       hardware->cop1lc = (ULONG)copper[pending_buffer];
       hardware->copjmp1 = 0;
       pending_buffer = -1;
+   }
+   if (!loading)
+   {
+      ++video_frames;
    }
    hardware->intreq = INTF_VERTB;
    hardware->intreq = INTF_VERTB;
@@ -140,14 +134,15 @@ void amigaOpeningVideoRelease(void)
 {
 }
 
+DeceptusU32 amigaOpeningVideoMessageBoxBytes(DeceptusU8 room)
+{
+   (void)room;
+   return 0;
+}
+
 DeceptusU32 amigaOpeningVideoFrames(void)
 {
    return video_frames;
-}
-
-void amigaOpeningVideoPresentAt(DeceptusU32 frame)
-{
-   next_present = frame;
 }
 
 static void waitFrame(void)
@@ -1764,9 +1759,8 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       return 0;
    }
    prepareCopper(draw_buffer, frame);
-   /* publish a complete list; the interrupt swaps pages at its vertical blank. */
+   /* publish a complete list; the interrupt swaps pages at the next vertical blank. */
    __asm__ volatile("" ::: "memory");
-   present_frame = next_present;
    pending_buffer = draw_buffer;
    last_ticks = game->campaign.engine.ticks;
    last_flags = game->flags;

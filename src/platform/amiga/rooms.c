@@ -34,6 +34,8 @@ static DeceptusU32 chip_cache_offset;
 static AmigaTileArchive native_tiles;
 static const DeceptusU8 *tile_animations;
 static DeceptusU32 tile_animation_bytes;
+static const DeceptusU8 *message_boxes;
+static DeceptusU32 message_box_bytes;
 
 static DeceptusU32 bankSize(DeceptusU8 chip, DeceptusU32 minimum, DeceptusU32 reserve)
 {
@@ -81,6 +83,12 @@ DeceptusU32 amigaRoomBankBytes(DeceptusU8 chip)
 const AmigaTileArchive *amigaRoomTiles(void)
 {
    return &native_tiles;
+}
+
+const DeceptusU8 *amigaRoomMessageBoxes(DeceptusU32 *size)
+{
+   *size = message_box_bytes;
+   return message_boxes;
 }
 
 const DeceptusU8 *amigaRoomTileAnimations(DeceptusU32 *size)
@@ -388,6 +396,33 @@ static DeceptusU8 loadTileGraphics(DeceptusU8 room, DeceptusU8 sword)
    }
    tile_cache_offset = (sprites_at + split + 3) & ~3UL;
    chip_cache_offset = (sprite_bytes - split + 3) & ~3UL;
+   /* the room's message boxes come with the room, while the screen is blank anyway; without them
+      (no file, no room) dialogues show the plain box. */
+   message_boxes = 0;
+   message_box_bytes = amigaOpeningVideoMessageBoxBytes(room);
+   if (message_box_bytes)
+   {
+      /* cpu-read like the dictionaries: non-chip scratch first, Chip scratch when a room fills it. */
+      roomPath(path, "Build:assets/area", room, "/messagebox.amb", 0);
+      if (tile_cache_offset + message_box_bytes <= resource_normal_bytes)
+      {
+         if (amigaSystemReadFile(path, normal + tile_cache_offset, message_box_bytes) == message_box_bytes)
+         {
+            message_boxes = normal + tile_cache_offset;
+            tile_cache_offset = (tile_cache_offset + message_box_bytes + 3) & ~3UL;
+         }
+      }
+      else if (chip_cache_offset + message_box_bytes <= resource_chip_bytes &&
+               amigaSystemReadFile(path, chip + chip_cache_offset, message_box_bytes) == message_box_bytes)
+      {
+         message_boxes = chip + chip_cache_offset;
+         chip_cache_offset = (chip_cache_offset + message_box_bytes + 3) & ~3UL;
+      }
+   }
+   if (!message_boxes)
+   {
+      message_box_bytes = 0;
+   }
    sword_graphics = sword;
    amigaOpeningVideoReset();
    return 1;
