@@ -13,6 +13,9 @@
 ;   clip rectangles, row in the row table, pattern zero, resident, or placed in
 ;   a free slot the plane can address (acquirePattern).
 ; - release: every case (releaseCell), with the backward-shift hash deletion.
+; - place: a load whose pattern and attributes the caller already read.
+; - direct clip refresh: both passes of the animated refresh in
+;   snesBackgroundPrepare for a clip that is the topmost source of its cells.
 ; the offsets are those of SnesBackgroundWork and SnesBackgroundCellView;
 ; background.c fails to compile if the layouts move them.
 .define SNES_BG_RESIDENT 0
@@ -25,6 +28,7 @@
 .define SNES_BG_PENDING 26738
 .define SNES_BG_DOMAINS 27810
 .define SNES_BG_DIRTY_COLUMN 28882
+.define SNES_BG_REFRESH_CHANGED 28884
 .define SNES_BG_DIRTY_ROWS 29842
 .define SNES_BG_DMA_BYTES 29850
 .define SNES_BG_FREE_COUNT 29852
@@ -40,6 +44,14 @@
 .define VIEW_CLIP_TOP 20
 .define VIEW_CLIP_RIGHT 24
 .define VIEW_CLIP_BOTTOM 28
+.define REFRESH_CHUNKS 0
+.define REFRESH_PLANE 4
+.define REFRESH_LEFT 6
+.define REFRESH_TOP 8
+.define REFRESH_RIGHT 10
+.define REFRESH_BOTTOM 12
+.define REFRESH_OFFSET 14
+.define REFRESH_COLUMNS 16
 
 .section "snes_background_cell" semisuperfree banks 2-15
 ; byte offset of the cell in the plane's map, mapAddress(x, y) * 2 plus 4096
@@ -166,6 +178,27 @@ release_domain_done:
 ; early bail-outs of the load path branch here; load_slow is out of 8-bit reach.
 load_slow_near:
     jmp load_slow
+
+; void snesBackgroundPlaceCellFast(DeceptusU16 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 dirty,
+;                                  DeceptusU16 pattern, DeceptusU16 attributes)
+; loadCell for a cell whose source words the caller read; the load path's
+; fallback reads the same words again through cellSource.
+snesBackgroundPlaceCellFast:
+    php
+    rep #$30
+    phd
+    phx
+    phy
+    lda #0
+    tcd
+    lda 21,s
+    and #$dc00
+    sta.b tcc__r3
+    lda 19,s
+    beq place_blank
+    jmp load_pattern
+place_blank:
+    jmp load_tile
 
 ; void snesBackgroundLoadCellFast(DeceptusU16 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 dirty)
 snesBackgroundLoadCellFast:
@@ -584,6 +617,269 @@ release_clear:
 release_blank:
     sta.l snes_background_storage+SNES_BG_MAPS,x
 release_return:
+    ply
+    plx
+    pld
+    plp
+    rtl
+; source words of the clip cell at offset a: pattern into a, attributes
+; masked to $dc00 into tcc__r3.
+clip_source:
+    pha
+    xba
+    and #$00e0
+    lsr a
+    lsr a
+    lsr a
+    tay
+    lda.l snes_background_clip_refresh+REFRESH_CHUNKS
+    sta.b tcc__r0
+    lda.l snes_background_clip_refresh+REFRESH_CHUNKS+2
+    sta.b tcc__r0h
+    lda [tcc__r0],y
+    tax
+    iny
+    iny
+    lda [tcc__r0],y
+    sta.b tcc__r1h
+    stx.b tcc__r1
+    pla
+    and #8191
+    asl a
+    asl a
+    tay
+    iny
+    iny
+    lda [tcc__r1],y
+    and #$dc00
+    sta.b tcc__r3
+    dey
+    dey
+    lda [tcc__r1],y
+    rts
+
+; void snesBackgroundRefreshClipFast(void)
+; both passes over snes_background_clip_refresh: mark the cells whose resident
+; pattern or attributes differ from the clip frame and release them, then load
+; the marked cells in row order.
+; locals: x 1,s, y 3,s, cell offset 5,s, row offset 7,s, mark index 9,s,
+; pattern 11,s, attributes 13,s.
+snesBackgroundRefreshClipFast:
+    php
+    rep #$30
+    phd
+    phx
+    phy
+    lda #0
+    tcd
+    tsc
+    sec
+    sbc #14
+    tcs
+    lda #0
+    sta 9,s
+    lda.l snes_background_clip_refresh+REFRESH_OFFSET
+    sta 7,s
+    lda.l snes_background_clip_refresh+REFRESH_TOP
+    sta 3,s
+refresh_mark_row:
+    lda 3,s
+    cmp.l snes_background_clip_refresh+REFRESH_BOTTOM
+    bcc refresh_mark_columns
+    jmp refresh_load_start
+refresh_mark_columns:
+    lda 7,s
+    sta 5,s
+    lda.l snes_background_clip_refresh+REFRESH_LEFT
+    sta 1,s
+refresh_mark_cell:
+    lda 1,s
+    cmp.l snes_background_clip_refresh+REFRESH_RIGHT
+    bcc refresh_mark_test
+    jmp refresh_mark_next_row
+refresh_mark_test:
+    lda 5,s
+    jsr clip_source
+    sta 11,s
+    lda.l snes_background_clip_refresh+REFRESH_PLANE
+    beq refresh_mark_expected
+    lda #$2000
+    tsb.b tcc__r3
+refresh_mark_expected:
+    ; map offset of (x, y) in the plane's map, as cell_map_offset.
+    lda 3,s
+    and #31
+    asl a
+    asl a
+    asl a
+    asl a
+    asl a
+    sta.b tcc__r1
+    lda 1,s
+    and #63
+    cmp #32
+    bcc refresh_mark_low
+    adc #1024-32-1
+refresh_mark_low:
+    ora.b tcc__r1
+    asl a
+    sta.b tcc__r1
+    lda.l snes_background_clip_refresh+REFRESH_PLANE
+    xba
+    asl a
+    asl a
+    asl a
+    asl a
+    ora.b tcc__r1
+    tax
+    lda.l snes_background_storage+SNES_BG_MAPS,x
+    sta.b tcc__r1
+    ; the attribute bits must match.
+    and #$fc00
+    cmp.b tcc__r3
+    bne refresh_mark_changed
+    ; tileSlot, then the resident pattern must match.
+    lda.b tcc__r1
+    and #1023
+    tay
+    lda.l snes_background_clip_refresh+REFRESH_PLANE
+    beq refresh_mark_slot_zero
+    tya
+    cmp #256
+    bcc refresh_mark_low_tile
+    sbc #256
+    bra refresh_mark_slot
+refresh_mark_low_tile:
+    adc #816
+    bra refresh_mark_slot
+refresh_mark_slot_zero:
+    tya
+refresh_mark_slot:
+    asl a
+    tax
+    lda.l snes_background_storage+SNES_BG_RESIDENT,x
+    cmp 11,s
+    bne refresh_mark_changed
+    lda 9,s
+    tax
+    sep #$20
+    lda #0
+    sta.l snes_background_storage+SNES_BG_REFRESH_CHANGED,x
+    rep #$20
+    bra refresh_mark_advance
+refresh_mark_changed:
+    lda 9,s
+    tax
+    sep #$20
+    lda #1
+    sta.l snes_background_storage+SNES_BG_REFRESH_CHANGED,x
+    rep #$20
+    ; releaseCell(plane, x, y): y pushed first.
+    lda 3,s
+    pha
+    lda 3,s
+    pha
+    lda.l snes_background_clip_refresh+REFRESH_PLANE
+    pha
+    jsl snesBackgroundReleaseCellFast
+    pla
+    pla
+    pla
+refresh_mark_advance:
+    lda 1,s
+    inc a
+    sta 1,s
+    lda 5,s
+    inc a
+    sta 5,s
+    lda 9,s
+    inc a
+    sta 9,s
+    jmp refresh_mark_cell
+refresh_mark_next_row:
+    lda 7,s
+    clc
+    adc.l snes_background_clip_refresh+REFRESH_COLUMNS
+    sta 7,s
+    lda 3,s
+    inc a
+    sta 3,s
+    jmp refresh_mark_row
+
+refresh_load_start:
+    lda #0
+    sta 9,s
+    lda.l snes_background_clip_refresh+REFRESH_OFFSET
+    sta 7,s
+    lda.l snes_background_clip_refresh+REFRESH_TOP
+    sta 3,s
+refresh_load_row:
+    lda 3,s
+    cmp.l snes_background_clip_refresh+REFRESH_BOTTOM
+    bcc refresh_load_columns
+    jmp refresh_done
+refresh_load_columns:
+    lda 7,s
+    sta 5,s
+    lda.l snes_background_clip_refresh+REFRESH_LEFT
+    sta 1,s
+refresh_load_cell:
+    lda 1,s
+    cmp.l snes_background_clip_refresh+REFRESH_RIGHT
+    bcs refresh_load_next_row
+    lda 9,s
+    tax
+    lda.l snes_background_storage+SNES_BG_REFRESH_CHANGED,x
+    and #$00ff
+    beq refresh_load_advance
+    lda 5,s
+    jsr clip_source
+    sta 11,s
+    ; the place entry masks the attributes itself.
+    lda.b tcc__r3
+    sta 13,s
+    ; snesBackgroundPlaceCellFast(plane, x, y, 2, pattern, attributes).
+    lda 13,s
+    pha
+    lda 13,s
+    pha
+    pea 2
+    lda 9,s
+    pha
+    lda 9,s
+    pha
+    lda.l snes_background_clip_refresh+REFRESH_PLANE
+    pha
+    jsl snesBackgroundPlaceCellFast
+    tsc
+    clc
+    adc #12
+    tcs
+refresh_load_advance:
+    lda 1,s
+    inc a
+    sta 1,s
+    lda 5,s
+    inc a
+    sta 5,s
+    lda 9,s
+    inc a
+    sta 9,s
+    bra refresh_load_cell
+refresh_load_next_row:
+    lda 7,s
+    clc
+    adc.l snes_background_clip_refresh+REFRESH_COLUMNS
+    sta 7,s
+    lda 3,s
+    inc a
+    sta 3,s
+    jmp refresh_load_row
+refresh_done:
+    tsc
+    clc
+    adc #14
+    tcs
     ply
     plx
     pld

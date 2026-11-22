@@ -109,6 +109,12 @@ typedef char SnesBackgroundReferencesOffset[(DECEPTUS_BG_OFFSET(references) == 2
 typedef char SnesBackgroundHashSlotsOffset[(DECEPTUS_BG_OFFSET(hash_slots) == 10528) ? 1 : -1];
 typedef char SnesBackgroundMapsOffset[(DECEPTUS_BG_OFFSET(maps) == 14624) ? 1 : -1];
 typedef char SnesBackgroundDirtyColumnOffset[(DECEPTUS_BG_OFFSET(dirty_column) == 28882) ? 1 : -1];
+typedef char SnesBackgroundRefreshChangedOffset[(DECEPTUS_BG_OFFSET(refresh_changed) == 28884) ? 1 : -1];
+typedef char SnesBackgroundSlotListsOffset[(DECEPTUS_BG_OFFSET(resident) == 0 && DECEPTUS_BG_OFFSET(free_slots) == 4288 &&
+                                            DECEPTUS_BG_OFFSET(uploads) == 22816 && DECEPTUS_BG_OFFSET(pending) == 26738 &&
+                                            DECEPTUS_BG_OFFSET(domains) == 27810) ? 1 : -1];
+typedef char SnesBackgroundCountsOffset[(DECEPTUS_BG_OFFSET(free_count) == 29852 && DECEPTUS_BG_OFFSET(upload_count) == 29854 &&
+                                         DECEPTUS_BG_OFFSET(hash_tombstones) == 29860) ? 1 : -1];
 typedef char SnesBackgroundDirtyRowsOffset[(DECEPTUS_BG_OFFSET(dirty_rows) == 29842) ? 1 : -1];
 typedef char SnesBackgroundDmaBytesOffset[(DECEPTUS_BG_OFFSET(dma_bytes) == 29850) ? 1 : -1];
 typedef char SnesBackgroundRoomCellsOffset[(DECEPTUS_BG_OFFSET(room_cells) == 29858) ? 1 : -1];
@@ -126,6 +132,18 @@ typedef char SnesBackgroundCellViewChunks[(DECEPTUS_VIEW_OFFSET(chunks) == 8) ? 
 typedef char SnesBackgroundCellViewClips[(DECEPTUS_VIEW_OFFSET(clip_left) == 16 && DECEPTUS_VIEW_OFFSET(clip_top) == 20 &&
                                           DECEPTUS_VIEW_OFFSET(clip_right) == 24 && DECEPTUS_VIEW_OFFSET(clip_bottom) == 28) ? 1 : -1];
 SnesBackgroundCellView snes_background_cell_view;
+/* one direct clip refresh: its rectangle, plane and the offset of its first
+ * cell in the clip's cells, all of whose offsets lie below its cell count. */
+typedef struct SnesBackgroundClipRefresh
+{
+   const DeceptusU8 *const *chunks;
+   DeceptusU16 plane, left, top, right, bottom, offset, columns;
+} SnesBackgroundClipRefresh;
+#define DECEPTUS_REFRESH_OFFSET(member) ((unsigned long)&((SnesBackgroundClipRefresh *)0)->member)
+typedef char SnesBackgroundClipRefreshLayout[(DECEPTUS_REFRESH_OFFSET(plane) == 4 && DECEPTUS_REFRESH_OFFSET(offset) == 14 &&
+                                              DECEPTUS_REFRESH_OFFSET(columns) == 16) ? 1 : -1];
+SnesBackgroundClipRefresh snes_background_clip_refresh;
+void snesBackgroundRefreshClipFast(void);
 void snesBackgroundLoadCellFast(DeceptusU16 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 dirty);
 void snesBackgroundReleaseCellFast(DeceptusU16 plane, DeceptusI16 x, DeceptusI16 y);
 #define loadCell(plane, x, y, dirty) snesBackgroundLoadCellFast((plane), (x), (y), (dirty))
@@ -802,6 +820,9 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
    DeceptusU16 offset, within, address, word, slot, expected;
    DeceptusU8 *changed;
    DeceptusU8 direct;
+#ifdef SNES_BACKGROUND_ASM
+   DeceptusU32 last;
+#endif
    const DeceptusU16 *words;
    const SnesBackgroundAnimation *clip;
    if (snes_background_error)
@@ -931,6 +952,27 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          /* most clip cells show the same pattern in consecutive frames; those
           * keep their reference, slot and map word. the changed cells retain
           * row order and release every old reference before reloading. */
+#ifdef SNES_BACKGROUND_ASM
+         if (refresh_left < refresh_right && refresh_top < refresh_bottom && clipDirect(index))
+         {
+            last = ((DeceptusU32)work->clip_frame[index] * clip->rows + (DeceptusU16)(refresh_bottom - 1 - clip->top)) *
+                   clip->columns + (DeceptusU16)(refresh_right - 1 - clip->left);
+            if (last < work->clip_cells[index])
+            {
+               snes_background_clip_refresh.chunks = clip->cells.chunks;
+               snes_background_clip_refresh.plane = clip->plane;
+               snes_background_clip_refresh.left = (DeceptusU16)refresh_left;
+               snes_background_clip_refresh.top = (DeceptusU16)refresh_top;
+               snes_background_clip_refresh.right = (DeceptusU16)refresh_right;
+               snes_background_clip_refresh.bottom = (DeceptusU16)refresh_bottom;
+               snes_background_clip_refresh.offset = (work->clip_frame[index] * clip->rows + (refresh_top - clip->top)) * clip->columns +
+                                                     (refresh_left - clip->left);
+               snes_background_clip_refresh.columns = clip->columns;
+               snesBackgroundRefreshClipFast();
+               continue;
+            }
+         }
+#endif
          changed = work->refresh_changed;
          direct = clipDirect(index);
          for (y = refresh_top; y < refresh_bottom; ++y)
