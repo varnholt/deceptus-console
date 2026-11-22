@@ -100,6 +100,54 @@ static DeceptusU8 slotAddressable(DeceptusU8 plane, DeceptusU16 slot)
 typedef char SnesBackgroundHashKeysOffset[(DECEPTUS_BG_OFFSET(hash_keys) == 6432) ? 1 : -1];
 DeceptusU16 snesBackgroundHashFind(DeceptusU16 pattern, DeceptusU16 insert);
 #define hashFind(pattern, insert) snesBackgroundHashFind((pattern), (insert))
+
+/* background_cell.asm streams the common cells: inside the room, outside every
+ * enabled clip of the plane, resident pattern, release that keeps a reference.
+ * it reads the work area by these fixed offsets and the room through this view,
+ * and calls the c functions below for every other case before changing state. */
+typedef char SnesBackgroundReferencesOffset[(DECEPTUS_BG_OFFSET(references) == 2144) ? 1 : -1];
+typedef char SnesBackgroundHashSlotsOffset[(DECEPTUS_BG_OFFSET(hash_slots) == 10528) ? 1 : -1];
+typedef char SnesBackgroundMapsOffset[(DECEPTUS_BG_OFFSET(maps) == 14624) ? 1 : -1];
+typedef char SnesBackgroundDirtyColumnOffset[(DECEPTUS_BG_OFFSET(dirty_column) == 28882) ? 1 : -1];
+typedef char SnesBackgroundRefreshChangedOffset[(DECEPTUS_BG_OFFSET(refresh_changed) == 28884) ? 1 : -1];
+typedef char SnesBackgroundSlotListsOffset[(DECEPTUS_BG_OFFSET(resident) == 0 && DECEPTUS_BG_OFFSET(free_slots) == 4288 &&
+                                            DECEPTUS_BG_OFFSET(uploads) == 22816 && DECEPTUS_BG_OFFSET(pending) == 26738 &&
+                                            DECEPTUS_BG_OFFSET(domains) == 27810) ? 1 : -1];
+typedef char SnesBackgroundCountsOffset[(DECEPTUS_BG_OFFSET(free_count) == 29852 && DECEPTUS_BG_OFFSET(upload_count) == 29854 &&
+                                         DECEPTUS_BG_OFFSET(hash_tombstones) == 29860) ? 1 : -1];
+typedef char SnesBackgroundDirtyRowsOffset[(DECEPTUS_BG_OFFSET(dirty_rows) == 29842) ? 1 : -1];
+typedef char SnesBackgroundDmaBytesOffset[(DECEPTUS_BG_OFFSET(dma_bytes) == 29850) ? 1 : -1];
+typedef char SnesBackgroundRoomCellsOffset[(DECEPTUS_BG_OFFSET(room_cells) == 29858) ? 1 : -1];
+typedef char SnesBackgroundRowOffsetsOffset[(DECEPTUS_BG_OFFSET(row_offsets) == 29868) ? 1 : -1];
+typedef struct SnesBackgroundCellView
+{
+   DeceptusU16 columns, rows, pattern_count;
+   const DeceptusU8 *const *chunks[2];
+   /* per plane, the union of the enabled clip rectangles; right 0 when none. */
+   DeceptusU16 clip_left[2], clip_top[2], clip_right[2], clip_bottom[2];
+} SnesBackgroundCellView;
+#define DECEPTUS_VIEW_OFFSET(member) ((unsigned long)&((SnesBackgroundCellView *)0)->member)
+typedef char SnesBackgroundCellViewSize[(sizeof(SnesBackgroundCellView) == 32) ? 1 : -1];
+typedef char SnesBackgroundCellViewChunks[(DECEPTUS_VIEW_OFFSET(chunks) == 8) ? 1 : -1];
+typedef char SnesBackgroundCellViewClips[(DECEPTUS_VIEW_OFFSET(clip_left) == 16 && DECEPTUS_VIEW_OFFSET(clip_top) == 20 &&
+                                          DECEPTUS_VIEW_OFFSET(clip_right) == 24 && DECEPTUS_VIEW_OFFSET(clip_bottom) == 28) ? 1 : -1];
+SnesBackgroundCellView snes_background_cell_view;
+/* one direct clip refresh: its rectangle, plane and the offset of its first
+ * cell in the clip's cells, all of whose offsets lie below its cell count. */
+typedef struct SnesBackgroundClipRefresh
+{
+   const DeceptusU8 *const *chunks;
+   DeceptusU16 plane, left, top, right, bottom, offset, columns;
+} SnesBackgroundClipRefresh;
+#define DECEPTUS_REFRESH_OFFSET(member) ((unsigned long)&((SnesBackgroundClipRefresh *)0)->member)
+typedef char SnesBackgroundClipRefreshLayout[(DECEPTUS_REFRESH_OFFSET(plane) == 4 && DECEPTUS_REFRESH_OFFSET(offset) == 14 &&
+                                              DECEPTUS_REFRESH_OFFSET(columns) == 16) ? 1 : -1];
+SnesBackgroundClipRefresh snes_background_clip_refresh;
+void snesBackgroundRefreshClipFast(void);
+void snesBackgroundLoadCellFast(DeceptusU16 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 dirty);
+void snesBackgroundReleaseCellFast(DeceptusU16 plane, DeceptusI16 x, DeceptusI16 y);
+#define loadCell(plane, x, y, dirty) snesBackgroundLoadCellFast((plane), (x), (y), (dirty))
+#define releaseCell(plane, x, y) snesBackgroundReleaseCellFast((plane), (x), (y))
 #else
 static DeceptusU16 hashFind(DeceptusU16 pattern, DeceptusU8 insert)
 {
@@ -134,7 +182,11 @@ static DeceptusU16 hashFind(DeceptusU16 pattern, DeceptusU8 insert)
    return deleted;
 }
 
+#define loadCell(plane, x, y, dirty) snesBackgroundLoadCell((plane), (x), (y), (dirty))
+#define releaseCell(plane, x, y) snesBackgroundReleaseCell((plane), (x), (y))
 #endif
+void snesBackgroundLoadCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI16 y, DeceptusU16 dirty);
+void snesBackgroundReleaseCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI16 y);
 
 /* backward-shift deletion keeps linear probing free of tombstones. rebuilding
  * the table cost several frames of C on this CPU whenever enough tombstones
@@ -238,9 +290,11 @@ static void resetCache(void)
    work->hash_tombstones = 0;
 }
 
-static void releaseCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
+void snesBackgroundReleaseCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 address, slot, key, domain;
+   DeceptusU8 plane;
+   plane = (DeceptusU8)plane_index;
    address = mapAddress(x, y);
    slot = tileSlot(plane, work->maps[plane][address]);
    work->maps[plane][address] = slotTile(plane, 0);
@@ -368,6 +422,18 @@ static void updateClipPlanes(void)
 {
    DeceptusU16 index;
    DeceptusU8 plane;
+#ifdef SNES_BACKGROUND_ASM
+   const SnesBackgroundAnimation *clip;
+   SnesBackgroundCellView *view;
+   view = &snes_background_cell_view;
+   view->columns = stage->columns;
+   view->rows = stage->rows;
+   view->pattern_count = stage->pattern_count;
+   view->chunks[0] = stage->background.chunks;
+   view->chunks[1] = stage->foreground.chunks;
+   view->clip_right[0] = 0;
+   view->clip_right[1] = 0;
+#endif
    plane_clip_count[0] = 0;
    plane_clip_count[1] = 0;
    for (index = 0; index < SNES_BG_CLIPS; ++index)
@@ -383,6 +449,35 @@ static void updateClipPlanes(void)
             {
                plane_clips[plane][plane_clip_count[plane]] = (DeceptusU8)index;
                ++plane_clip_count[plane];
+#ifdef SNES_BACKGROUND_ASM
+               clip = &stage->animations[index];
+               if (!view->clip_right[plane])
+               {
+                  view->clip_left[plane] = clip->left;
+                  view->clip_top[plane] = clip->top;
+                  view->clip_right[plane] = clip->left + clip->columns;
+                  view->clip_bottom[plane] = clip->top + clip->rows;
+               }
+               else
+               {
+                  if (clip->left < view->clip_left[plane])
+                  {
+                     view->clip_left[plane] = clip->left;
+                  }
+                  if (clip->top < view->clip_top[plane])
+                  {
+                     view->clip_top[plane] = clip->top;
+                  }
+                  if (clip->left + clip->columns > view->clip_right[plane])
+                  {
+                     view->clip_right[plane] = clip->left + clip->columns;
+                  }
+                  if (clip->top + clip->rows > view->clip_bottom[plane])
+                  {
+                     view->clip_bottom[plane] = clip->top + clip->rows;
+                  }
+               }
+#endif
             }
          }
       }
@@ -437,9 +532,11 @@ static void cellSource(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU
    *attributes_out = attributes;
 }
 
-static void loadCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 dirty)
+void snesBackgroundLoadCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI16 y, DeceptusU16 dirty)
 {
    DeceptusU16 pattern, attributes, index, bit, row;
+   DeceptusU8 plane;
+   plane = (DeceptusU8)plane_index;
    cellSource(plane, x, y, &pattern, &attributes);
    index = mapAddress(x, y);
    pattern = acquirePattern(plane, pattern);
@@ -723,6 +820,9 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
    DeceptusU16 offset, within, address, word, slot, expected;
    DeceptusU8 *changed;
    DeceptusU8 direct;
+#ifdef SNES_BACKGROUND_ASM
+   DeceptusU32 last;
+#endif
    const DeceptusU16 *words;
    const SnesBackgroundAnimation *clip;
    if (snes_background_error)
@@ -852,6 +952,27 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          /* most clip cells show the same pattern in consecutive frames; those
           * keep their reference, slot and map word. the changed cells retain
           * row order and release every old reference before reloading. */
+#ifdef SNES_BACKGROUND_ASM
+         if (refresh_left < refresh_right && refresh_top < refresh_bottom && clipDirect(index))
+         {
+            last = ((DeceptusU32)work->clip_frame[index] * clip->rows + (DeceptusU16)(refresh_bottom - 1 - clip->top)) *
+                   clip->columns + (DeceptusU16)(refresh_right - 1 - clip->left);
+            if (last < work->clip_cells[index])
+            {
+               snes_background_clip_refresh.chunks = clip->cells.chunks;
+               snes_background_clip_refresh.plane = clip->plane;
+               snes_background_clip_refresh.left = (DeceptusU16)refresh_left;
+               snes_background_clip_refresh.top = (DeceptusU16)refresh_top;
+               snes_background_clip_refresh.right = (DeceptusU16)refresh_right;
+               snes_background_clip_refresh.bottom = (DeceptusU16)refresh_bottom;
+               snes_background_clip_refresh.offset = (work->clip_frame[index] * clip->rows + (refresh_top - clip->top)) * clip->columns +
+                                                     (refresh_left - clip->left);
+               snes_background_clip_refresh.columns = clip->columns;
+               snesBackgroundRefreshClipFast();
+               continue;
+            }
+         }
+#endif
          changed = work->refresh_changed;
          direct = clipDirect(index);
          for (y = refresh_top; y < refresh_bottom; ++y)
