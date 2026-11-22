@@ -442,13 +442,14 @@ DeceptusU16 deceptusGrabRopeLength(const DeceptusEngine *engine, DeceptusU8 inde
    return (rope->total_length + 15) / 16;
 }
 
-DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusI16 *x, DeceptusI16 *y)
+DeceptusU8 deceptusGrabRopePointFrom(const DeceptusEngine *engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusU8 *node_hint,
+                                    DeceptusI16 *x, DeceptusI16 *y)
 {
    const DeceptusGrabRope *rope;
    DeceptusU16 remaining, length;
    DeceptusI32 dx, dy;
    DeceptusU8 node;
-   if (index >= engine->grab_ropes.count || !x || !y)
+   if (index >= engine->grab_ropes.count || !x || !y || !node_hint || !*node_hint)
    {
       return 0;
    }
@@ -458,20 +459,36 @@ DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 inde
       return 0;
    }
    remaining = distance_px > 2047 ? 32752 : distance_px * 16;
-   for (node = 1; node < rope->node_count; ++node)
+   node = *node_hint;
+   if (node < rope->node_count)
+   {
+      /* the links before the hint were passed by a shorter distance, so they are passed again: the
+         walk from the anchor would arrive here with exactly this remainder. */
+      remaining -= rope->cumulative_length[node - 1];
+   }
+   for (; node < rope->node_count; ++node)
    {
       dx = (DeceptusI32)rope->x[node] - rope->x[node - 1];
       dy = (DeceptusI32)rope->y[node] - rope->y[node - 1];
       length = rope->cumulative_length[node] - rope->cumulative_length[node - 1];
       if (remaining <= length && length)
       {
+         *node_hint = node;
          *x = deceptusFloor((DeceptusFixed)(rope->x[node - 1] + quotient(product(dx, remaining), length)));
          *y = deceptusFloor((DeceptusFixed)(rope->y[node - 1] + quotient(product(dy, remaining), length)));
          return 1;
       }
       remaining -= length;
    }
+   *node_hint = rope->node_count;
    *x = deceptusFloor(rope->x[rope->node_count - 1]);
    *y = deceptusFloor(rope->y[rope->node_count - 1]);
    return 1;
+}
+
+DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusI16 *x, DeceptusI16 *y)
+{
+   DeceptusU8 node;
+   node = 1;
+   return deceptusGrabRopePointFrom(engine, index, distance_px, &node, x, y);
 }
