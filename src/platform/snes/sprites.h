@@ -451,12 +451,11 @@ static void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFram
    SNES_OBJ_PROFILE(8);
 }
 
-/* bytes the commit vblank may transfer: sprite palettes and oam, the background list and deferred
-   sprite tiles. ntsc vblank holds about 37 lines of 170 dma bytes; the sdk's interrupt handler takes
-   the first five, and the rest keeps a margin for the command overhead. */
-#define SNES_COMMIT_DMA_BUDGET 4096
-#define SNES_OAM_BYTES 544
-#define SNES_DEFERRED_PIECES 24
+/* vblank lines the sprite commit needs, measured: palettes and oam take about six with their library
+   calls, each staged 64-byte tile transfer about one; plus a margin. more pieces than this are
+   uploaded in a vblank of their own. */
+#define SNES_COMMIT_FIXED_LINES 8
+#define SNES_DEFERRED_PIECES 8
 
 static SnesVramDmaCommand snes_sprite_tile_dma[SNES_DEFERRED_PIECES * 2];
 static DeceptusU16 snes_sprite_tile_dma_count;
@@ -487,10 +486,10 @@ static void snesObjStageTileDma(const DeceptusU8 *source, DeceptusU16 target)
    command->bytes = 64;
 }
 
-/* bytes the sprite commit transfers besides staged tiles: palettes and oam. */
-static DeceptusU16 snesSpritesCommitBytes(void)
+/* vblank lines snesSpritesCommitTransfers needs. */
+static DeceptusU16 snesSpritesCommitLines(void)
 {
-   return snes_obj_palette_count * 32 + SNES_OAM_BYTES + snes_sprite_tile_dma_count * 64;
+   return SNES_COMMIT_FIXED_LINES + snes_sprite_tile_dma_count;
 }
 
 static void snesSpritesStagePalettes(void)
@@ -516,19 +515,14 @@ static DeceptusU16 snesSpritesPendingPieces(void)
    return pieces;
 }
 
-/* stages every pending piece for the commit vblank when the whole commit fits its budget. */
-static DeceptusU8 snesSpritesDeferTiles(DeceptusU16 background_bytes)
+/* stages every pending piece for the commit vblank when there are few. */
+static DeceptusU8 snesSpritesDeferTiles(void)
 {
-   DeceptusU16 index, pieces, commit_bytes, tile;
+   DeceptusU16 index, pieces, tile;
    const DeceptusU8 *graphics;
    SnesObjSlot *slot;
    pieces = snesSpritesPendingPieces();
    if (!pieces || pieces > SNES_DEFERRED_PIECES)
-   {
-      return 0;
-   }
-   commit_bytes = background_bytes + snesSpritesCommitBytes() + pieces * 128;
-   if (commit_bytes > SNES_COMMIT_DMA_BUDGET)
    {
       return 0;
    }
@@ -549,8 +543,7 @@ static DeceptusU8 snesSpritesDeferTiles(DeceptusU16 background_bytes)
    return 1;
 }
 
-/* background_bytes: what the background transfers in the coming commit vblank. */
-static void snesSpritesPreload(DeceptusU16 background_bytes)
+static void snesSpritesPreload(void)
 {
    DeceptusU16 index, budget;
    SnesObjSlot *slot;
@@ -562,9 +555,8 @@ static void snesSpritesPreload(DeceptusU16 background_bytes)
    {
       setScreenOff();
    }
-   /* a vblank of its own costs up to a display frame; the commit vblank takes the tiles when the
-      whole commit fits. */
-   if (!snes_sprite_room_load && !snes_sprite_blank && snesSpritesDeferTiles(background_bytes))
+   /* a vblank of its own costs up to a display frame; the commit vblank takes a few tiles. */
+   if (!snes_sprite_room_load && !snes_sprite_blank && snesSpritesDeferTiles())
    {
       return;
    }

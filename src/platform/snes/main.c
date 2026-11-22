@@ -187,6 +187,7 @@ volatile DeceptusU16 deceptus_debug[56];
 
 #include "background.h"
 #include "sprites.h"
+#include "ppu_timing.h"
 #include "ui.h"
 
 static DeceptusU16 inputRead(void)
@@ -360,7 +361,7 @@ int main(void)
       deceptus_debug[11] = 12;
       snesUiPrepare(&adventure);
       deceptus_debug[11] = 13;
-      snesSpritesPreload(snes_background_dma_bytes);
+      snesSpritesPreload();
       deceptus_debug[11] = 14;
       debugWrite();
       /* phase 15 tells emulator checks the packet is complete. it used to be
@@ -378,10 +379,10 @@ int main(void)
       }
       WaitForVBlank();
       deceptus_debug[11] = 15;
-      /* every video transfer first, while vblank lasts. a frame whose transfers exceed one vblank
-         gives the sprites the next one; their tiles and the oam that refers to them stay together. */
+      /* every video transfer first, while vblank lasts. when the background leaves too little of it,
+         the sprites take the next vblank; their tiles and the oam that refers to them stay together. */
       snesBackgroundCommit();
-      if (!screen_blanked && snes_background_dma_bytes + snesSpritesCommitBytes() > SNES_COMMIT_DMA_BUDGET)
+      if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines())
       {
          WaitForVBlank();
       }
