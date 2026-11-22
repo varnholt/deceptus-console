@@ -13,6 +13,10 @@ from uuid import uuid4
 from emulator import Emulator, ROOT
 from verify_opening import ROUTE, check, route_steps, native_state as opening_native_state
 
+# like real hardware, video memory ignores writes outside vblank and forced blank; a renderer that
+# writes too late then shows the error here as well.
+SNES_CORE_OPTIONS = {'snes9x_block_invalid_vram_access': 'enabled'}
+
 
 def native_state(library):
     state = opening_native_state(library)
@@ -121,7 +125,7 @@ def verify(core=None, rom=None, route_path=ROUTE, clang='clang', milestone='full
     output = ROOT / 'artifacts/snes-opening-check'
     output.mkdir(parents=True, exist_ok=True)
     if core:
-        emulator = Emulator(core, rom)
+        emulator = Emulator(core, rom, SNES_CORE_OPTIONS)
         report['rom_sha256'] = hashlib.sha256(Path(rom).read_bytes()).hexdigest()
         report['extra_display_frames'] = 0
         report['sprite_blank_observations'] = 0
