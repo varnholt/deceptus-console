@@ -321,3 +321,22 @@ before it uploads pending sprite tiles, and the loop then waits for another
 VBlank to commit. Uploading those tiles in the commit VBlank, when they fit next
 to the background transfers, would save up to a display frame per presentation
 that brings new sprite tiles.
+
+### Grab rope on the SNES
+
+The Mausoleum's grab rope has 22 nodes. Its physics and drawing cost the 65816
+more than twenty display frames per simulation tick, so the SNES tooling caps
+grab ropes at eight nodes (`SNES_ROPE_SEGMENTS` in `snes_tutorial_assets.py`),
+as the Amiga does with six. Node k of n rests at k / n of the rope height, so
+fewer nodes would lift the lowest node and the rope could no longer be reached
+from the floor. The shared cap (`capped_rope` in `world_export.py`) therefore
+stretches the height so the lowest node keeps the original depth: 234 to 255
+pixels at eight nodes.
+
+The shorter chain swings differently and lands the player six pixels earlier, so
+the recorded route replaces three steps after the swing for the SNES
+(`platform_steps` in `opening-route.json`; the step count and every checkpoint
+stay the same). The tick-exact SNES cartridge passes all 56 checkpoints with
+29 health and zero deaths in 120,602 display frames (143,238 before). Room 22
+rises from 1.3 to 2.4 presentations/s; the remaining rope cost is the 32-bit
+root and divisions of the longer links and the drawing of about 29 rope pieces.

@@ -17,6 +17,16 @@ import sys
 from emulator import Emulator, ROOT
 
 ROUTE = ROOT / 'tests/fixtures/opening-route.json'
+
+
+def route_steps(route, platform):
+    """The route's input steps with a platform's replacements. A platform whose content differs
+    (the SNES grab rope has fewer nodes) may replace individual steps; the step count stays the same,
+    so every checkpoint keeps its step."""
+    steps = [list(step) for step in route['steps']]
+    for index, step in route.get('platform_steps', {}).get(platform, {}).items():
+        steps[int(index)] = list(step)
+    return steps
 FIELDS = {'room': 0, 'x': 1, 'y': 2, 'mode': 3, 'flags': 4,
           'health': 5, 'deaths': 6, 'content_error': 7, 'has_sword': 8, 'ticks': 10, 'page': 11}
 

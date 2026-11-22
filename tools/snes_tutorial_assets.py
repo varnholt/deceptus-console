@@ -192,9 +192,15 @@ def ensure_original_imports(data,refresh_metadata=False):
     return original_imports(data)
 
 
+# grab rope physics runs every tick per node; the 65816 spent over twenty display frames per tick
+# on the original 22-node Mausoleum rope, so the SNES rope uses fewer, longer links.
+SNES_ROPE_SEGMENTS=8
+
+
 def compile_worlds(recipes,output):
     files=[]
     for index,(recipe,source) in enumerate(recipes):
+        recipe=dict(recipe,rope_segments_max=SNES_ROPE_SEGMENTS)
         folder=output/f'area{index}';folder.mkdir(parents=True,exist_ok=True)
         export_world(source,folder,recipe)
         text=(folder/'room.c').read_text().replace('deceptus_scene',f'deceptus_snes_area{index}')
