@@ -1,5 +1,7 @@
 #include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
+#include "amiga_message_box.h"
+#include "lz4.h"
 #include "deceptus/appearance.h"
 #include "opening_ui.h"
 #include "opening_video.h"
@@ -63,7 +65,52 @@ static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
 /* two separate Chip RAM blocks, allocated at startup; one static array would need ~110 KiB contiguous at load. */
 #define PAGE_BYTES ((DeceptusU32)(SURFACE_WORDS + FETCH_WORDS) * 2)
 static DeceptusU16 *pages[2];
-static DeceptusU16 copper[2][256] CHIP;
+/* words, at most: 130 for the moves every list has (window, scroll, priority, sprites, modulos,
+   planes, palette), 24 for four plane-wrap events (a wait and a pointer pair each), 2 for the line
+   255 wait and 2 for the end: 158. a list with the box adds three waits (6) and its splits (54, 30
+   and 24 moves): 272. */
+static DeceptusU16 copper[2][272] CHIP;
+#if AMIGA_BOX_PLANES != PLANES
+#error message box region and playfield need the same plane count
+#endif
+/* the dialogue box: a separate bitplane region the copper shows on its rows, so the scroll
+   surface, the dirty cells and the bobs never touch it; written once per page, not per frame. */
+#define BOX_REGION_BYTES ((DeceptusU32)AMIGA_BOX_ROWS * AMIGA_BOX_PLANES * AMIGA_BOX_ROW_BYTES)
+static DeceptusU16 *box_region;
+#define BOX_TEXT_MASK_BYTES ((DeceptusU32)AMIGA_BOX_TEXT_ROWS * AMIGA_BOX_TEXT_WORDS * 2)
+static DeceptusU16 *box_text;
+/* the decoded frame template without text: a page turn copies back only its text
+   rows, a template change copies all of it, both fast enough to finish before the beam reaches the
+   box, so no shown frame has a half-written box. */
+#define BOX_TEXT_OFFSET ((DeceptusU32)AMIGA_BOX_TEXT_TOP * AMIGA_BOX_PLANES * (AMIGA_BOX_ROW_BYTES / 2))
+#define BOX_TEXT_BYTES ((DeceptusU32)AMIGA_BOX_TEXT_ROWS * AMIGA_BOX_PLANES * AMIGA_BOX_ROW_BYTES)
+static DeceptusU16 *box_staging;
+/* the next page's text rows, composed before the vertical blank. */
+static DeceptusU16 *box_compose;
+/* the region, the template copy, the composed rows and the text mask exist only while a box shows:
+   they are lent by the end of the decoded sprite arena (Chip RAM, 58-72K in every room), so the
+   boxes cost no memory at startup and none while the game plays. the world stands still during a
+   dialogue, so the smaller arena re-decodes almost nothing. */
+#define BOX_BLOCK_BYTES (BOX_REGION_BYTES * 2 + BOX_TEXT_BYTES + BOX_TEXT_MASK_BYTES)
+static DeceptusU32 box_lent_from;
+/* the open room's message box file (rooms.c reads it with the room), 0 when it has none. */
+static const DeceptusU8 *box_file;
+static DeceptusU32 box_file_bytes;
+/* per list: the value word of its COLOR01 move in the box palette, 0 when the list shows no box;
+   a template change patches the shown list so the new frame never shows in the old colours. */
+static DeceptusU16 *box_palette_moves[2];
+static DeceptusU8 box_template = 255;
+static const DeceptusU16 *box_palette;
+/* the room's page in box_region (BOX_NO_PAGE: none) and whether the list being built shows it. */
+#define BOX_NO_PAGE 0xffff
+/* code that runs once per room load: small rather than fast, every byte of code comes out of the
+   memory the room data needs. */
+#define ROOM_CODE __attribute__((optimize("Os")))
+/* box code runs once per page turn, not per frame: kept out of line and small, because every byte
+   of code comes out of the memory the room data needs. */
+#define BOX_CODE __attribute__((noinline, optimize("Os")))
+static DeceptusU16 box_page = BOX_NO_PAGE;
+static DeceptusU8 box_visible;
 /* per list: its constant moves are in place for the current room (cleared at reset). */
 static DeceptusU8 copper_built[2];
 /* hardware sprites: three attached pairs (48 pixels, 15 colours in registers 17-31) per page.
@@ -233,7 +280,7 @@ static void __attribute__((interrupt)) verticalBlank(void)
    hardware->intreq = INTF_VERTB;
 }
 
-DeceptusU8 amigaOpeningVideoAllocate(void)
+ROOM_CODE DeceptusU8 amigaOpeningVideoAllocate(void)
 {
    pages[0] = (DeceptusU16 *)amigaSystemAllocate(PAGE_BYTES, 1);
    pages[1] = (DeceptusU16 *)amigaSystemAllocate(PAGE_BYTES, 1);
@@ -246,7 +293,7 @@ DeceptusU8 amigaOpeningVideoAllocate(void)
    return 1;
 }
 
-void amigaOpeningVideoRelease(void)
+ROOM_CODE void amigaOpeningVideoRelease(void)
 {
    amigaSystemFree(pages[0], pages[0] ? PAGE_BYTES : 0);
    amigaSystemFree(pages[1], pages[1] ? PAGE_BYTES : 0);
@@ -258,10 +305,16 @@ DeceptusU8 amigaOpeningVideoUsesTiles(void)
    return 1;
 }
 
+DeceptusU32 amigaOpeningVideoMessageBoxBytes(DeceptusU8 room)
+{
+   return room < AMIGA_BOX_ROOMS ? amiga_box_room_bytes[room] : 0;
+}
+
 DeceptusU32 amigaOpeningVideoFrames(void)
 {
    return video_frames;
 }
+
 
 #ifdef AMIGA_PERFCOUNT
 /* PAL beam position as a running scanline count; re-read if a vertical blank lands in between. */
@@ -287,7 +340,7 @@ static void waitFrame(void)
    }
 }
 
-void amigaOpeningVideoSuspend(void)
+ROOM_CODE void amigaOpeningVideoSuspend(void)
 {
    if (active)
    {
@@ -304,7 +357,7 @@ void amigaOpeningVideoSuspend(void)
    }
 }
 
-void amigaOpeningVideoClose(void)
+ROOM_CODE void amigaOpeningVideoClose(void)
 {
    amigaOpeningVideoSuspend();
    hardware->dmacon = DMAF_SETCLR | DMAF_RASTER | DMAF_SPRITE;
@@ -587,7 +640,7 @@ static DeceptusU16 map_columns, map_rows;
 static AmigaCellCache plain_cells = {0, 0, 0, 0, 0, CELL_WORDS, 4};
 static AmigaCellCache masked_cells = {0, 0, 0, 0, 0, CELL_WORDS * 2, 8};
 
-static void resetCells(AmigaCellCache *cache)
+static ROOM_CODE void resetCells(AmigaCellCache *cache)
 {
    DeceptusU16 slot;
    for (slot = 0; slot < cache->sets * 2; ++slot)
@@ -1242,7 +1295,7 @@ static void markAnimatedCells(void)
    than this cannot show any frame, so requestBob skips the metadata read for it. */
 static DeceptusI16 reach_left, reach_right, reach_top, reach_bottom;
 
-static void measureReach(void)
+static ROOM_CODE void measureReach(void)
 {
    AmigaGraphicsSprite sprite;
    DeceptusU16 resource;
@@ -1536,7 +1589,7 @@ static DeceptusU16 sprite_frame_count, sprite_cache_used;
 static DeceptusU8 sprite_compact[SPRITE_COMPACT_BYTES];
 static DeceptusU8 sprite_mirror[256];
 
-static void spriteMirrorTable(void)
+static ROOM_CODE void spriteMirrorTable(void)
 {
    DeceptusU16 value;
    DeceptusU8 bit, result;
@@ -1552,10 +1605,11 @@ static void spriteMirrorTable(void)
    sprite_frame_count = sprite_cache_used = 0;
 }
 
-/* one line's plane row as pixels, mirrored when the frame faces left. */
-static void spriteRow(const DeceptusU8 *source, DeceptusU8 *row, DeceptusU8 bytes, DeceptusU8 flip, DeceptusU8 shift)
+/* one line's plane row as pixels, mirrored when the frame faces left. only frames whose rows the
+   word copies in spriteFrame cannot take come here, once per frame into the cache: kept small. */
+static BOX_CODE void spriteRow(const DeceptusU8 *source, DeceptusU8 *row, DeceptusU8 bytes, DeceptusU8 flip, DeceptusU8 shift)
 {
-   DeceptusU8 index;
+   DeceptusU8 index, skip, current, next;
    if (!flip)
    {
       for (index = 0; index < bytes; ++index)
@@ -1568,12 +1622,16 @@ static void spriteRow(const DeceptusU8 *source, DeceptusU8 *row, DeceptusU8 byte
    {
       row[index] = sprite_mirror[source[bytes - 1 - index]];
    }
-   if (shift)
+   /* the row's padding, at its right end, is at the left after the mirror: move the pixels left by
+      it, whole bytes first. a frame narrower than its row by 8 or more pixels (the 22 and 23 pixel
+      run frames) would otherwise come out empty, and the player would vanish facing left. */
+   skip = (DeceptusU8)(shift >> 3);
+   shift &= 7;
+   for (index = 0; index < bytes; ++index)
    {
-      for (index = 0; index < bytes; ++index)
-      {
-         row[index] = (DeceptusU8)((row[index] << shift) | (index + 1 < bytes ? row[index + 1] >> (8 - shift) : 0));
-      }
+      current = index + skip < bytes ? row[index + skip] : 0;
+      next = index + skip + 1 < bytes ? row[index + skip + 1] : 0;
+      row[index] = shift ? (DeceptusU8)((current << shift) | (next >> (8 - shift))) : current;
    }
 }
 
@@ -1904,6 +1962,125 @@ static void planePointer(DeceptusU16 **cursor, DeceptusU16 plane, DeceptusU16 of
    copperWrite(cursor, offsetof(struct Custom, bplpt) + plane * 4 + 2, address);
 }
 
+/* waits for the start of a screen row; the first row past line 255 needs the wrap wait. */
+static void copperWaitRow(DeceptusU16 **cursor, DeceptusU16 row, DeceptusU8 *crossed)
+{
+   DeceptusU16 line;
+   line = row + 0x3c;
+   if (line >= 256 && !*crossed)
+   {
+      copperWrite(cursor, 0xffdf, 0xfffe);
+      *crossed = 1;
+   }
+   copperWrite(cursor, ((line & 255) << 8) | 1, 0xfffe);
+}
+
+/* the message box rows. stage 0, on two empty region rows: pointers to the region (written before
+   the line's fetch starts), playfield in front of the sprites so the box hides the player while
+   the sprites keep their colours in the transparent corners, then the box palette while the
+   region shows only colour 0. stage 1, on the two empty rows below the frame: the room palette.
+   stage 2: the room's pointers, modulos, scroll and sprite priority for the rest of the screen. */
+static BOX_CODE void boxSplit(DeceptusU16 **cursor, DeceptusU8 stage, const DeceptusU16 *start, const DeceptusU16 *room_wraps, DeceptusU16 delay)
+{
+   DeceptusU16 plane, row;
+   DeceptusU32 address;
+   if (stage == 0)
+   {
+      for (plane = 0; plane < PLANES; ++plane)
+      {
+         address = (DeceptusU32)box_region + (DeceptusU32)plane * AMIGA_BOX_ROW_BYTES;
+         copperWrite(cursor, offsetof(struct Custom, bplpt) + plane * 4, address >> 16);
+         copperWrite(cursor, offsetof(struct Custom, bplpt) + plane * 4 + 2, address);
+      }
+      copperWrite(cursor, offsetof(struct Custom, bpl1mod), (PLANES - 1) * AMIGA_BOX_ROW_BYTES);
+      copperWrite(cursor, offsetof(struct Custom, bpl2mod), (PLANES - 1) * AMIGA_BOX_ROW_BYTES);
+      copperWrite(cursor, offsetof(struct Custom, bplcon1), 0);
+      copperWrite(cursor, offsetof(struct Custom, bplcon2), 0);
+   }
+   if (stage < 2)
+   {
+      /* colour 0 stays the room's: it shows in the region's empty corners and margins. */
+      if (stage == 0)
+      {
+         box_palette_moves[draw_buffer] = *cursor + 1;
+      }
+      for (plane = 1; plane < 16; ++plane)
+      {
+         copperWrite(cursor, offsetof(struct Custom, color) + plane * 2, stage == 0 ? box_palette[plane] : palette[plane]);
+      }
+      return;
+   }
+   row = AMIGA_BOX_TOP + AMIGA_BOX_ROWS;
+   for (plane = 0; plane < PLANES; ++plane)
+   {
+      address = (DeceptusU32)start[plane] + (DeceptusU32)row * surface.stride;
+      if (row >= room_wraps[plane])
+      {
+         address -= SURFACE_WORDS;
+      }
+      planePointer(cursor, plane, (DeceptusU16)address);
+   }
+   copperWrite(cursor, offsetof(struct Custom, bpl1mod), surface.stride * 2 - 42);
+   copperWrite(cursor, offsetof(struct Custom, bpl2mod), surface.stride * 2 - 42);
+   copperWrite(cursor, offsetof(struct Custom, bplcon1), delay | (delay << 4));
+   copperWrite(cursor, offsetof(struct Custom, bplcon2), 0x0024);
+}
+
+/* the plane pointer events of a list that shows the box: the room's wraps plus the box splits;
+   inside the box the region's pointers run, the restore below the box accounts for the wrap. */
+static BOX_CODE void boxCopper(DeceptusU16 **cursor, const DeceptusU16 *start, DeceptusU16 *wraps, DeceptusU16 delay)
+{
+   static const DeceptusU16 box_rows[3] = {AMIGA_BOX_TOP, AMIGA_BOX_TOP + AMIGA_BOX_BUBBLE_ROW + AMIGA_BOX_BUBBLE_ROWS,
+                                           AMIGA_BOX_TOP + AMIGA_BOX_ROWS};
+   DeceptusU16 plane, room_wraps[PLANES], minimum, box_row;
+   DeceptusU8 box_stage, inside, crossed;
+   for (plane = 0; plane < PLANES; ++plane)
+   {
+      room_wraps[plane] = wraps[plane];
+   }
+   crossed = 0;
+   box_stage = 0;
+   for (;;)
+   {
+      minimum = 224;
+      for (plane = 0; plane < PLANES; ++plane)
+      {
+         if (wraps[plane] < minimum)
+         {
+            minimum = wraps[plane];
+         }
+      }
+      box_row = box_stage < 3 ? box_rows[box_stage] : 224;
+      if (minimum == 224 && box_row == 224)
+      {
+         break;
+      }
+      if (box_row <= minimum)
+      {
+         copperWaitRow(cursor, box_row, &crossed);
+         boxSplit(cursor, box_stage, start, room_wraps, delay);
+         ++box_stage;
+         continue;
+      }
+      inside = minimum >= AMIGA_BOX_TOP && minimum <= AMIGA_BOX_TOP + AMIGA_BOX_ROWS;
+      if (!inside)
+      {
+         copperWaitRow(cursor, minimum, &crossed);
+      }
+      for (plane = 0; plane < PLANES; ++plane)
+      {
+         if (wraps[plane] == minimum)
+         {
+            if (!inside)
+            {
+               planePointer(cursor, plane, (DeceptusU16)((DeceptusU32)start[plane] + (DeceptusU32)minimum * surface.stride - SURFACE_WORDS));
+            }
+            wraps[plane] = 224;
+         }
+      }
+   }
+}
+
 static void prepareCopper(void)
 {
    DeceptusU16 *cursor;
@@ -1914,6 +2091,7 @@ static void prepareCopper(void)
    /* a list keeps its constant moves (display window, modulos, the room palette) from its first
       build in a room; later builds rewrite only the moves that follow the camera and the sprites. */
    cursor = copper[draw_buffer];
+   box_palette_moves[draw_buffer] = 0;
    if (!copper_built[draw_buffer])
    {
       copperWrite(&cursor, offsetof(struct Custom, diwstrt), 0x3c81);
@@ -1971,41 +2149,48 @@ static void prepareCopper(void)
    {
       cursor += 32 * 2;
    }
-   crossed = 0;
-   for (event = 0; event < PLANES; ++event)
+   if (box_visible)
    {
-      minimum = 224;
-      for (plane = 0; plane < PLANES; ++plane)
+      boxCopper(&cursor, start, wraps, delay);
+   }
+   else
+   {
+      crossed = 0;
+      for (event = 0; event < PLANES; ++event)
       {
-         if (wraps[plane] < minimum)
+         minimum = 224;
+         for (plane = 0; plane < PLANES; ++plane)
          {
-            minimum = wraps[plane];
+            if (wraps[plane] < minimum)
+            {
+               minimum = wraps[plane];
+            }
          }
-      }
-      if (minimum == 224)
-      {
-         break;
-      }
-      line = minimum + 0x3c;
-      if (line >= 256 && !crossed)
-      {
-         copperWrite(&cursor, 0xffdf, 0xfffe);
-         crossed = 1;
-      }
-      copperWrite(&cursor, ((line & 255) << 8) | 1, 0xfffe);
-      for (plane = 0; plane < PLANES; ++plane)
-      {
-         if (wraps[plane] == minimum)
+         if (minimum == 224)
          {
-            planePointer(&cursor, plane, (DeceptusU16)((DeceptusU32)start[plane] + (DeceptusU32)minimum * surface.stride - SURFACE_WORDS));
-            wraps[plane] = 224;
+            break;
+         }
+         line = minimum + 0x3c;
+         if (line >= 256 && !crossed)
+         {
+            copperWrite(&cursor, 0xffdf, 0xfffe);
+            crossed = 1;
+         }
+         copperWrite(&cursor, ((line & 255) << 8) | 1, 0xfffe);
+         for (plane = 0; plane < PLANES; ++plane)
+         {
+            if (wraps[plane] == minimum)
+            {
+               planePointer(&cursor, plane, (DeceptusU16)((DeceptusU32)start[plane] + (DeceptusU32)minimum * surface.stride - SURFACE_WORDS));
+               wraps[plane] = 224;
+            }
          }
       }
    }
    copperWrite(&cursor, 0xffff, 0xfffe);
 }
 
-void amigaOpeningVideoReset(void)
+ROOM_CODE void amigaOpeningVideoReset(void)
 {
    DeceptusU8 *memory;
    const DeceptusU8 *data, *record;
@@ -2054,6 +2239,12 @@ void amigaOpeningVideoReset(void)
    sprite_entry_count = 0;
    measureReach();
    sprite_arena_used = 0;
+   /* a new room starts without a box; its file came with the room. */
+   box_lent_from = 0;
+   box_page = BOX_NO_PAGE;
+   box_template = 255;
+   box_palette_moves[0] = box_palette_moves[1] = 0;
+   box_file = amigaRoomMessageBoxes(&box_file_bytes);
    /* blitter sources: ui text mask, decoded sprite frames and saved backgrounds stay in Chip RAM. */
    ui_mask = (DeceptusU16 *)memory;
    memory += UI_MASK_BYTES;
@@ -2296,6 +2487,200 @@ static void blitUiBand(const AmigaUiBand *band, const DeceptusU16 *mask)
    }
 }
 
+/* the open dialogue's page in the room's box file, or BOX_NO_PAGE when no box shows. the file's
+   actions follow the room's interactions; a count that disagrees with the shared content means a
+   stale file, and the plain surface box shows instead. */
+static BOX_CODE DeceptusU16 messageBoxPage(const DeceptusAdventure *game)
+{
+   const DeceptusAdventureRoom *room;
+   const AmigaBoxHeader *header;
+   const DeceptusU16 *actions;
+   DeceptusU16 action, first;
+   if ((game->campaign.mode != DECEPTUS_DIALOGUE && game->campaign.mode != DECEPTUS_NOTIFICATION) || !game->dialogue ||
+       game->page >= game->dialogue->page_count || !box_file)
+   {
+      return BOX_NO_PAGE;
+   }
+   room = &game->definition->rooms[game->campaign.room_index];
+   if (game->dialogue < room->interactions || game->dialogue >= room->interactions + room->interaction_count)
+   {
+      return BOX_NO_PAGE;
+   }
+   header = (const AmigaBoxHeader *)box_file;
+   action = (DeceptusU16)(game->dialogue - room->interactions);
+   if (action >= header->actions)
+   {
+      return BOX_NO_PAGE;
+   }
+   actions = (const DeceptusU16 *)(box_file + sizeof(AmigaBoxHeader) + (DeceptusU32)header->templates * sizeof(AmigaBoxTemplate));
+   first = actions[action];
+   if (actions[action + 1] - first != game->dialogue->page_count || actions[action + 1] > header->pages)
+   {
+      return BOX_NO_PAGE;
+   }
+   return (DeceptusU16)(first + game->page);
+}
+
+/* lends the end of the sprite arena to the box: decoded frames there are dropped (the arena is a
+   cache) and the arena keeps at least one frame's worth. */
+static BOX_CODE DeceptusU8 lendBoxMemory(void)
+{
+   DeceptusU32 keep;
+   DeceptusU16 index;
+   if (box_lent_from)
+   {
+      return 1;
+   }
+   if (sprite_arena_bytes < NATIVE_SPRITE_BYTES + BOX_BLOCK_BYTES + 4)
+   {
+      return 0;
+   }
+   keep = (sprite_arena_bytes - BOX_BLOCK_BYTES) & ~3UL;
+   /* blits may still read frames from the lent end. */
+   waitBlitter();
+   for (index = 0; index < sprite_entry_count;)
+   {
+      if (sprite_entries[index].start + sprite_entries[index].size > keep)
+      {
+         sprite_entries[index] = sprite_entries[--sprite_entry_count];
+      }
+      else
+      {
+         ++index;
+      }
+   }
+   if (sprite_arena_used > keep)
+   {
+      sprite_arena_used = 0;
+   }
+   box_lent_from = sprite_arena_bytes;
+   sprite_arena_bytes = keep;
+   box_region = (DeceptusU16 *)((DeceptusU8 *)sprite_pixels + keep);
+   box_staging = box_region + BOX_REGION_BYTES / 2;
+   box_compose = box_staging + BOX_REGION_BYTES / 2;
+   box_text = box_compose + BOX_TEXT_BYTES / 2;
+   box_page = BOX_NO_PAGE;
+   box_template = 255;
+   return 1;
+}
+
+/* gives the memory back once no list that can still be on screen shows the box: the list being
+   built does not, and the other one is the list shown since the last swap. */
+static BOX_CODE void returnBoxMemory(void)
+{
+   if (box_lent_from && !box_palette_moves[draw_buffer ^ 1])
+   {
+      sprite_arena_bytes = box_lent_from;
+      box_lent_from = 0;
+      box_page = BOX_NO_PAGE;
+      box_template = 255;
+   }
+}
+
+/* composes the page into the box region when it changes: the frame template, then the text in
+   the template's white. one LZ4 decode per page turn, nothing while the page shows. */
+static BOX_CODE DeceptusU8 prepareMessageBox(const DeceptusAdventure *game)
+{
+   const AmigaBoxHeader *header;
+   const AmigaBoxPage *page;
+   const AmigaBoxTemplate *frame;
+   DeceptusU16 page_id, row, plane, word, *line;
+   const DeceptusU16 *mask;
+   page_id = messageBoxPage(game);
+   if (page_id == BOX_NO_PAGE)
+   {
+      returnBoxMemory();
+      return 0;
+   }
+   if (!lendBoxMemory())
+   {
+      return 0;
+   }
+   if (page_id == box_page)
+   {
+      return 1;
+   }
+   header = (const AmigaBoxHeader *)box_file;
+   page = (const AmigaBoxPage *)(box_file + sizeof(AmigaBoxHeader) + (DeceptusU32)header->templates * sizeof(AmigaBoxTemplate) +
+                                 (((DeceptusU32)header->actions * 2 + 2 + 3) & ~3UL)) +
+          page_id;
+   if (page->template_id >= header->templates || page->offset + page->size > box_file_bytes)
+   {
+      return 0;
+   }
+   frame = (const AmigaBoxTemplate *)(box_file + sizeof(AmigaBoxHeader)) + page->template_id;
+   if (frame->offset + frame->size > box_file_bytes)
+   {
+      return 0;
+   }
+   if (!amigaLz4Decode(box_file + page->offset, page->size, (DeceptusU8 *)box_text, BOX_TEXT_MASK_BYTES))
+   {
+      box_page = BOX_NO_PAGE;
+      return 0;
+   }
+   if (page->template_id != box_template)
+   {
+      box_template = 255;
+      if (!amigaLz4Decode(box_file + frame->offset, frame->size, (DeceptusU8 *)box_staging, BOX_REGION_BYTES))
+      {
+         box_page = BOX_NO_PAGE;
+         return 0;
+      }
+   }
+   /* the text goes into a copy of the template's text rows first. */
+   memcpy(box_compose, box_staging + BOX_TEXT_OFFSET, BOX_TEXT_BYTES);
+   mask = box_text;
+   for (row = 0; row < AMIGA_BOX_TEXT_ROWS; ++row)
+   {
+      for (plane = 0; plane < AMIGA_BOX_PLANES; ++plane)
+      {
+         line = box_compose + ((DeceptusU32)row * AMIGA_BOX_PLANES + plane) * (AMIGA_BOX_ROW_BYTES / 2) + AMIGA_BOX_TEXT_WORD;
+         for (word = 0; word < AMIGA_BOX_TEXT_WORDS; ++word)
+         {
+            if ((frame->text >> plane) & 1)
+            {
+               line[word] |= mask[word];
+            }
+            else
+            {
+               line[word] &= (DeceptusU16)~mask[word];
+            }
+         }
+      }
+      mask += AMIGA_BOX_TEXT_WORDS;
+   }
+   /* the region is single-buffered: while a box shows, rewrite it just after the vertical blank.
+      only plain copies run then, top row first, so they stay ahead of the beam and no shown
+      frame has a half-written box. */
+   if (box_page != BOX_NO_PAGE)
+   {
+      waitFrame();
+   }
+   if (box_template == 255)
+   {
+      /* the shown list keeps the old template's colours until the next page goes up. */
+      if (box_page != BOX_NO_PAGE && box_palette_moves[draw_buffer ^ 1])
+      {
+         for (plane = 1; plane < 16; ++plane)
+         {
+            box_palette_moves[draw_buffer ^ 1][(plane - 1) * 2] = frame->palette[plane];
+         }
+      }
+      memcpy(box_region, box_staging, BOX_TEXT_OFFSET * 2);
+      memcpy(box_region + BOX_TEXT_OFFSET, box_compose, BOX_TEXT_BYTES);
+      memcpy(box_region + BOX_TEXT_OFFSET + BOX_TEXT_BYTES / 2, box_staging + BOX_TEXT_OFFSET + BOX_TEXT_BYTES / 2,
+             BOX_REGION_BYTES - BOX_TEXT_OFFSET * 2 - BOX_TEXT_BYTES);
+      box_template = page->template_id;
+   }
+   else
+   {
+      memcpy(box_region + BOX_TEXT_OFFSET, box_compose, BOX_TEXT_BYTES);
+   }
+   box_palette = frame->palette;
+   box_page = page_id;
+   return 1;
+}
+
 /* mirrors which boxes amigaOpeningUiDrawSurface places; equal signatures mean equal box layout. */
 static DeceptusU16 uiSignature(const DeceptusAdventure *game)
 {
@@ -2469,6 +2854,8 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    ui_signature[draw_buffer] = signature;
    ui_camera_x[draw_buffer] = camera_x;
    ui_camera_y[draw_buffer] = camera_y;
+   box_visible = prepareMessageBox(game);
+   amigaOpeningUiSetDialogueOverlay(box_visible);
    cached = prepareUiMask(game, signature);
    ui_counts[draw_buffer] =
       amigaOpeningUiDrawSurface(game, (DeceptusU8 *)pages[draw_buffer], &surface, camera_x, camera_y, clearRectangle, !cached,

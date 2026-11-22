@@ -13,6 +13,7 @@ from assets import ROOT
 from build_amiga import SOURCES, build_program
 from room_content import compile_rooms
 from snes_tutorial_assets import ensure_original_imports
+from amiga_message_box import compile_message_boxes
 
 
 OPENING_SOURCES = (
@@ -84,8 +85,10 @@ def native_chip_scratch(folder, basename):
     return RESOURCE_CHIP_BYTES - _align(sprites - split), RESOURCE_NORMAL_BYTES - _align(sprites_at + split)
 
 
-def check_native_budget(generated, report):
-    """Fail the build for any room the streamed renderer could not enter."""
+def check_native_budget(generated, report, box_bytes=None):
+    """Fail the build for any room the streamed renderer could not enter.
+
+    box_bytes: per room, the message box file loadTileGraphics places after the graphics."""
     sprite_frame = max(variant['max_sprite_bytes'] for room in report['rooms']
                        for variant in (room, room['sword'])) // 6 * 10
     caches = 4 * TILES_PER_BANK * (COLOR_TILE_BYTES + MASK_TILE_BYTES)
@@ -93,6 +96,13 @@ def check_native_budget(generated, report):
     for room in report['rooms']:
         for variant in (room, room['sword']):
             scratch, normal = native_chip_scratch(generated / f"area{room['room']}", variant['basename'])
+            # the room's message box file follows: non-chip scratch first, else Chip (rooms.c).
+            boxes = _align((box_bytes or {}).get(room['room'], 0))
+            if boxes and normal is not None and scratch is not None:
+                if normal >= boxes:
+                    normal -= boxes
+                else:
+                    scratch -= boxes
             # dictionary caches use non-chip scratch when it holds the minimum, else Chip.
             minimum = sprite_frame + MIN_SAVED_BYTES + FIXED_CHIP_BYTES + (caches if normal is None or normal < caches else 0)
             budget.append(dict(room=room['room'], variant=variant['basename'], chip_scratch=scratch, normal_scratch=normal))
@@ -117,7 +127,10 @@ def build_opening(sdk, data, output, reuse_assets=False, renderer='legacy'):
     else:
         report = compile_opening(data, generated)
     prepare_native_assets(generated, report)
-    budget = check_native_budget(generated, report) if renderer == 'native' else None
+    message_boxes = None
+    if renderer == 'native':
+        message_boxes = compile_message_boxes(data, ROOT / 'assets/generated/gba', generated)
+    budget = check_native_budget(generated, report, message_boxes['room_bytes']) if renderer == 'native' else None
     # partition only at independent sprite-block boundaries; no frame-time allocation.
     for room in report['rooms']:
         for variant in (room, room['sword']):
@@ -132,9 +145,11 @@ def build_opening(sdk, data, output, reuse_assets=False, renderer='legacy'):
                    if source.name == 'opening_video.c' else source for source in sources]
     sources.append(generated / 'opening_content.c')
     sources.append(generated / 'amiga_native_assets.c')
+    if renderer == 'native':
+        sources.append(generated / 'amiga_message_box.c')
     build_report = dict(scope='experimental streamed 26-room Amiga opening',
                         renderer=renderer,
                         full_game=False, pixel_scale=1, dithering=False,
                         resource_normal_bytes=RESOURCE_NORMAL_BYTES, resource_chip_bytes=RESOURCE_CHIP_BYTES,
-                        graphics=report, native_budget=budget)
+                        graphics=report, native_budget=budget, message_boxes=message_boxes)
     build_program(sdk, output, sources, build_report, generated)

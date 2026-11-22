@@ -38,7 +38,8 @@ static DeceptusU8 validateBanks(const AmigaTileArchive *archive, DeceptusU32 tab
    return 1;
 }
 
-DeceptusU8 amigaTileArchiveInit(AmigaTileArchive *archive, const DeceptusU8 *bytes, DeceptusU32 size)
+/* once per room: small rather than fast, its code comes out of the room data memory. */
+__attribute__((optimize("Os"))) DeceptusU8 amigaTileArchiveInit(AmigaTileArchive *archive, const DeceptusU8 *bytes, DeceptusU32 size)
 {
    AmigaTileArchive candidate;
    DeceptusU32 cells, index, previous;

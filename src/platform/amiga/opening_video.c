@@ -134,6 +134,12 @@ void amigaOpeningVideoRelease(void)
 {
 }
 
+DeceptusU32 amigaOpeningVideoMessageBoxBytes(DeceptusU8 room)
+{
+   (void)room;
+   return 0;
+}
+
 DeceptusU32 amigaOpeningVideoFrames(void)
 {
    return video_frames;

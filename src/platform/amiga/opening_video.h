@@ -11,4 +11,6 @@ void amigaOpeningVideoReset(void);
 void amigaOpeningVideoClose(void);
 DeceptusU32 amigaOpeningVideoFrames(void);
 DeceptusU8 amigaOpeningVideoUsesTiles(void);
+/* bytes of the room's message box file the renderer shows dialogues from; 0: none. */
+DeceptusU32 amigaOpeningVideoMessageBoxBytes(DeceptusU8 room);
 #endif
