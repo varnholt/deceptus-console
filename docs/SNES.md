@@ -361,3 +361,41 @@ The tick-exact cartridge passes all 56 checkpoints with 29 health and zero
 deaths in 106,066 display frames (143,238 before the cap). The room now costs
 about 3,000 scanlines per presentation: the same ~1,700 as other rooms, the
 rope's physics about 500, and the drawing of its 29 pieces about 1,000.
+
+### Video writes inside vblank
+
+Video memory, palettes and OAM accept writes only during vblank (lines 225 to
+261 of 262) or forced blank. A local test build latched the PPU line counter
+after every part of the commit over the whole route. On the previous code the
+background transfers always finished in time, but the sprite palettes ended
+after vblank in 14% of presentations and the OAM transfer in 27%, up to 20 lines
+into the picture, and sprite tile uploads of many pieces ran late as well.
+Snes9x accepts such writes by default; real hardware drops or misplaces them.
+
+The commit now runs every transfer at the start of vblank and the CPU
+bookkeeping afterwards:
+
+- The background list, then the sprite part: the frame's object palettes copied
+  into one buffer outside vblank and sent as one transfer, the OAM, and up to
+  eight newly needed sprite pieces staged as a transfer list
+  (`snesSpritesCommitTransfers`). The tiles and the OAM that refers to them stay
+  in the same vblank.
+- `ppu_timing.h` reads the line counter. When the background leaves fewer vblank
+  lines than the sprite part needs (ten plus one per staged tile transfer), the
+  sprite part waits for the next vblank.
+- More new pieces are uploaded before the commit in vblanks of their own, at
+  most sixteen per vblank, as a transfer list instead of one library call per
+  half piece.
+- The transfer runner (`vram_dma.asm`, shared by background and sprites) reads
+  each command through the data bank and writes the DMA registers through the
+  direct page. Per command its cost fell from about 0.6 to about 0.3 lines;
+  with dozens of small transfers per commit this, not the bytes, decides the
+  time.
+
+Over the whole route every transfer now ends at most 35 lines into vblank. With
+Snes9x's `snes9x_block_invalid_vram_access` enabled, the tick-exact cartridge
+produces the same video memory after every one of the 720 route steps as
+without it, and the background state equals the previous code's. The SNES route
+verifier and `capture_showcase.py` now run with that option, so late writes show
+up as they would on hardware. Frame rates per room are unchanged; the full route
+takes 105,830 display frames.

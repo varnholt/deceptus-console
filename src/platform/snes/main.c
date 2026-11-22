@@ -187,6 +187,7 @@ volatile DeceptusU16 deceptus_debug[56];
 
 #include "background.h"
 #include "sprites.h"
+#include "ppu_timing.h"
 #include "ui.h"
 
 static DeceptusU16 inputRead(void)
@@ -378,9 +379,16 @@ int main(void)
       }
       WaitForVBlank();
       deceptus_debug[11] = 15;
+      /* every video transfer first, while vblank lasts. when the background leaves too little of it,
+         the sprites take the next vblank; their tiles and the oam that refers to them stay together. */
       snesBackgroundCommit();
+      if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines())
+      {
+         WaitForVBlank();
+      }
+      snesSpritesCommitTransfers();
       deceptus_debug[11] = 16;
-      snesSpritesCommit();
+      snesSpritesPublish();
       deceptus_debug[11] = 17;
       snesUiCommit();
       deceptus_debug[11] = 18;

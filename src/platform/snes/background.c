@@ -1,4 +1,5 @@
 #include "background.h"
+#include "vram_dma.h"
 #include "snes_assets.h"
 #include <snes.h>
 
@@ -16,23 +17,13 @@
 #error source_font_overlaps_foreground_scratch_tiles
 #endif
 
-typedef struct SnesBackgroundDmaCommand
-{
-   DeceptusU16 source;
-   DeceptusU8 bank, increment;
-   DeceptusU16 target, bytes;
-} SnesBackgroundDmaCommand;
-
-typedef char SnesBackgroundDmaCommandSize[(sizeof(SnesBackgroundDmaCommand) == 8) ? 1 : -1];
-extern void snesBackgroundRunDma(const SnesBackgroundDmaCommand *commands, DeceptusU16 count);
-
 typedef struct SnesBackgroundWork
 {
    DeceptusU16 resident[SNES_BG_SLOTS], references[SNES_BG_SLOTS], free_slots[SNES_BG_SLOTS];
    DeceptusU16 hash_keys[SNES_BG_HASH], hash_slots[SNES_BG_HASH];
    DeceptusU16 maps[2][2048], uploads[SNES_BG_SLOTS], column[32];
    DeceptusU16 staged_columns[2][32], dma_count;
-   SnesBackgroundDmaCommand dma[SNES_BG_DMA_COMMANDS];
+   SnesVramDmaCommand dma[SNES_BG_DMA_COMMANDS];
    DeceptusU16 clip_frame[SNES_BG_CLIPS], clip_elapsed[SNES_BG_CLIPS], clip_cells[SNES_BG_CLIPS];
    DeceptusU8 pending[SNES_BG_SLOTS], domains[SNES_BG_SLOTS], dirty_column[2];
    DeceptusU8 refresh_changed[SNES_BG_WIDTH * SNES_BG_HEIGHT];
@@ -1069,7 +1060,7 @@ void snesBackgroundCommit(void)
    }
    if (work->dma_count != SNES_BG_EMPTY)
    {
-      snesBackgroundRunDma(work->dma, work->dma_count);
+      snesVramRunDma(work->dma, work->dma_count);
       bgSetScroll(0, scroll_x, scroll_y);
       bgSetScroll(1, scroll_x, scroll_y);
       snes_background_full = 0;

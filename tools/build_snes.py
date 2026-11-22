@@ -203,8 +203,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     if opening:
         run([assembler, "-d", "-s", "-x", "-o", "background_ram.obj", ROOT / "src/platform/snes/background_ram.asm"], folder)
         objects.append("background_ram.obj")
-        run([assembler, "-d", "-s", "-x", "-o", "background_dma.obj", ROOT / "src/platform/snes/background_dma.asm"], folder)
-        objects.append("background_dma.obj")
+        run([assembler, "-d", "-s", "-x", "-o", "vram_dma.obj", ROOT / "src/platform/snes/vram_dma.asm"], folder)
+        objects.append("vram_dma.obj")
         run([assembler, "-d", "-s", "-x", "-o", "background_hash.obj", ROOT / "src/platform/snes/background_hash.asm"], folder)
         objects.append("background_hash.obj")
         run([assembler, "-d", "-s", "-x", "-o", "background_cell.obj", ROOT / "src/platform/snes/background_cell.asm"], folder)

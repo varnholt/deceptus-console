@@ -23,7 +23,7 @@ PLATFORMS = {
     'gba': dict(core='.tools/mgba/mgba_libretro.dll', rom='build/gba/deceptus-tutorial.gba',
                 options={'mgba_use_bios': 'OFF', 'mgba_frameskip': '0'},
                 state=verify_opening.gba_state, buttons=verify_opening.retro_buttons),
-    'snes': dict(core='.tools/snes9x/snes9x_libretro.dll', rom='build/snes/deceptus-tutorial.sfc', options=None,
+    'snes': dict(core='.tools/snes9x/snes9x_libretro.dll', rom='build/snes/deceptus-tutorial.sfc', options=verify_snes_opening.SNES_CORE_OPTIONS,
                  state=verify_snes_opening.snes_state, buttons=verify_snes_opening.retro_buttons),
     'smd': dict(core='.tools/genesis_plus_gx/genesis_plus_gx_libretro.dll', rom='build/smd/deceptus-tutorial.bin',
                 options=None, state=verify_smd_opening.smd_state, buttons=verify_smd_opening.retro_buttons,

@@ -46,7 +46,7 @@ extern const SnesStage snes_stages[1];
 #include <assert.h>
 #include <stdio.h>
 #include "BACKGROUND_SOURCE"
-void snesBackgroundRunDma(const SnesBackgroundDmaCommand *commands,DeceptusU16 count) {
+void snesVramRunDma(const SnesVramDmaCommand *commands,DeceptusU16 count) {
  unsigned i;
  assert(count<=SNES_BG_DMA_COMMANDS);
  for(i=0;i<count;++i) {
