@@ -225,7 +225,9 @@ def verify(core=None, rom=None, route_path=ROUTE, clang='clang', milestone='full
             for settled in range(3600):
                 emulator.run(1)
                 current = snes_state(emulator)
-                if current['phase'] >= 18 and emulator.last_image.getbbox():
+                # phase 15 is written after the previous presentation's commits;
+                # the commit phases themselves now finish inside VBlank, unobserved.
+                if current['phase'] >= 15 and emulator.last_image.getbbox():
                     break
             else:
                 raise AssertionError(('SNES final presentation did not finish', current))

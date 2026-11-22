@@ -32,6 +32,53 @@ It produces `build/gba/deceptus-tutorial.gba`, the latest-build alias
 A later scene build replaces the alias and generated resources; numbered
 playtest copies remain unchanged.
 
+## Command line
+
+`deceptus.py` in the repository root wraps the tools below with the opening as default
+on every platform:
+
+```powershell
+python deceptus.py doctor                 # check packages, LLVM, SDKs and emulator cores
+python deceptus.py play gba               # gba, snes, smd or amiga; --build rebuilds first
+python deceptus.py build gba smd          # or --all; Amiga builds after the others
+python deceptus.py verify gba             # gba, snes or smd
+```
+
+`doctor` names each missing piece and the bootstrap command that installs it, and exits
+non-zero until everything is present. `play` calls the `run_<target>.py` launcher
+(`--scene` selects another scene, `--prepare` builds without opening a window); for the
+Amiga it selects the opening with the native renderer. `build` runs
+`tools/build_consoles.py` for GBA, SNES and Mega Drive, then `tools/build_amiga.py
+--scene tutorial --renderer native` and `tools/amiga_package.py` for the Amiga.
+`verify` builds a cartridge with `DECEPTUS_PACING_LOCKED=1` into `build/<target>-verify/`,
+leaving the normal build alone, and runs that target's route verifier
+(`verify_opening.py`, `emulator.py` or `verify_smd_opening.py`). There is no Amiga
+route verifier in the repository yet.
+
+Tool locations that differ per machine go in an optional `deceptus.local.json` next to
+`deceptus.py`; git ignores it. Every key is optional:
+
+```json
+{
+  "llvm_bin": "C:/build_utils/llvm/bin",
+  "pvsneslib": "D:/sdk/pvsneslib",
+  "sgdk": "D:/sdk/sgdk",
+  "amiga_sdk": "D:/sdk/amiga-debug/extension/bin/win32",
+  "data": "D:/other/deceptus_engine/data"
+}
+```
+
+Without it, LLVM comes from `PATH`, the SDKs from `.tools/` (PVSnesLib also from
+`PVSNESLIB_HOME`) and game data from `assets/game/data/`.
+
+Content that the converters cannot translate fails with the Tiled file, room, layer and
+object, followed by what to change, for example:
+
+```text
+level-catacombs/catacombs.tmx: object 113 "lever_spike_06" (layer levers, room ct-the_loop): target 'ct-spike-block-01' is outside the supported crop
+  fix: correct the target_id/target_ids property, or move the target into the room
+```
+
 ## Play
 
 The root launchers handle missing emulator cores and cartridges:
@@ -110,6 +157,9 @@ $env:DECEPTUS_PACING_LOCKED = "1"; python tools/build_gba.py --scene tutorial
 python tools/gba_emulator.py --scene tutorial
 Remove-Item Env:DECEPTUS_PACING_LOCKED; python tools/build_gba.py --scene tutorial
 ```
+
+`python deceptus.py verify gba` does the same into `build/gba-verify/` and leaves the
+normal cartridge untouched; `verify snes` and `verify smd` cover the commands below.
 
 The route is recorded in simulation ticks, so the checked cartridge runs one tick
 per presentation; normal builds catch up after a late frame (see

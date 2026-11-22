@@ -163,17 +163,24 @@ def extra_portals(index, stages, object_sets):
 def validate_source(data):
     """Reject source changes that would invalidate these explicit native translations."""
     from content import map_objects
+    from content_error import ContentError
     from lua_source import analyse, BooleanCompiler
     data = Path(data)
     _, objects = map_objects(data / CATACOMBS)
     by_name = {(obj['group'],obj['name']):obj for obj in objects if obj['name']}
     expected = {'sword_cage_01':1386,'sword_cage_02':1387,'sword_cage_03':1388,'sword_cage_04':1389,'tunnel_block':952}
     for name,source_id in expected.items():
-        if by_name['blocking_rects',name]['id'] != source_id:
-            raise ValueError('opening native binding changed: '+name)
-    chest = by_name['treasure_chests','locked_box']['properties']
+        obj = by_name['blocking_rects',name]
+        if obj['id'] != source_id:
+            raise ContentError(f'opening native binding changed: expected object id {source_id}', file=CATACOMBS,
+                               layer='blocking_rects', object_id=obj['id'], object_name=name,
+                               fix='restore the original object id or update tutorial_progression.py')
+    box = by_name['treasure_chests','locked_box']
+    chest = box['properties']
     if chest.get('item_required') != 'solar_seal' or chest.get('spawn_extra') != 'headtorch':
-        raise ValueError('locked_box item/spawn requires a new native translation')
+        raise ContentError('item_required/spawn_extra require a new native translation', file=CATACOMBS,
+                           layer='treasure_chests', object_id=box['id'], object_name='locked_box',
+                           fix='restore item_required=solar_seal and spawn_extra=headtorch or extend tutorial_progression.py')
     tree,_ = analyse(data / 'level-catacombs/level.lua')
     compiler = BooleanCompiler(tree,objects)
     expected_constants = {'_shrine_release_delay_s':.45,'_owl_eye_item':'gems',
@@ -181,16 +188,20 @@ def validate_source(data):
                           '_drawer_opened_treasure':'catacombs_drawer_opened'}
     for key,value in expected_constants.items():
         if compiler.constants.get(key) != value:
-            raise ValueError('opening source constant requires a new native translation: '+key)
+            raise ContentError(f'source constant {key} = {compiler.constants.get(key)!r} requires a new native translation (expected {value!r})',
+                               file='level-catacombs/level.lua', fix='restore the constant or extend tutorial_progression.py')
     if compiler.constants.get('_sword_cage_ids') != list(expected)[:4]:
-        raise ValueError('sword cage target names changed')
+        raise ContentError('_sword_cage_ids changed', file='level-catacombs/level.lua',
+                           fix=f'restore {list(expected)[:4]} or extend tutorial_progression.py')
     # these lines carry the item ownership semantics translated by the actions above.
     source = (data / 'level-catacombs/level.lua').read_text(encoding='utf-8-sig')
     for statement in ('inventoryRemove(_owl_eye_item)', 'inventoryAdd("solar_seal")',
                       'giveWeaponSword()', 'setMechanismEnabled("tunnel_block", torch_is_off, "blocking_rects")'):
         if statement not in source:
-            raise ValueError('opening callback requires review: '+statement)
+            raise ContentError(f'opening callback requires review: {statement} is missing', file='level-catacombs/level.lua',
+                               fix='restore the statement or translate the new behaviour in tutorial_progression.py')
     tree,_ = analyse(data / 'level-graveyard/level.lua')
     compiler = BooleanCompiler(tree,[])
     if compiler.constants.get('_owl_eye_item') != 'gems' or compiler.constants.get('_sinkhole_tremble_duration_s') != 1.5:
-        raise ValueError('graveyard item or sinkhole delay requires a new native translation')
+        raise ContentError('_owl_eye_item or _sinkhole_tremble_duration_s requires a new native translation',
+                           file='level-graveyard/level.lua', fix="restore 'gems' and 1.5 or extend tutorial_progression.py")

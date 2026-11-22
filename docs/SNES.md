@@ -141,3 +141,112 @@ In the animated Altar view, the same warm sample improves from 31 to 46 ticks
 (1.55 to 2.30 updates/s); Loop and Crypt measurements remain unchanged. The
 matched 318-presentation Altar release fixture drops from 12,607 to 9,530 display
 frames. This remains substantially below a playable console frame rate.
+
+### Frame-phase profile and loop changes
+
+A local profiling build latched the PPU vertical counter at every phase write of
+the main loop and summed scanlines per phase. On the Main Hall → Altar walk
+(route steps 127–134), a presentation took about 2,200 scanlines (8.4 display
+frames). The largest costs were background preparation (about 1,190 lines, of
+which periodic hash-table rebuilds were roughly 250 and animated-clip refreshes
+about 290), the simulation tick (about 200), sprite preparation (about 250) and
+a full extra display frame inside `setScreenOn()`, which always waits for the
+next VBlank. In the stationary Loop fixture the simulation tick alone was about
+640 lines per presentation, a third of the frame; it remains portable C.
+
+The loop now changes the screen only after it was actually blanked, so ordinary
+presentations no longer wait for a second VBlank. Phase 15 is written as soon as
+the debug packet is complete, because emulator checks sample the mailbox only in
+phases 15 and later and those phases now fit inside VBlank. Background hash
+deletions use backward shifting instead of tombstones, so the multi-frame C
+rebuild no longer runs during play; lookups return the same slots. Each clip's
+enabled plane is cached when the scenery flags change instead of being tested
+for every cell lookup. An animated refresh skips cells whose resident pattern and
+attributes already match the new frame, and reads the clip's frame words
+directly when that clip is the enabled, topmost source of its rectangle. The OAM
+shadow copy and slot protection after a sprite commit run in 65816 code.
+
+Measured under Snes9x 1.63 at 60.0988 Hz with the 8 MiB ExHiROM opening:
+
+| Measurement | Before | After |
+| --- | --- | --- |
+| Main Hall → Altar walk (`capture_showcase.py`, steps 127–134) | 6.8 presentations/s | 9.0 presentations/s |
+| Stationary Loop (room 9, 370/696) | 7.51 updates/s | 8.46 updates/s |
+| Stationary Crypt (room 25, 597/264) | 8.41 updates/s | 8.51 updates/s |
+| Stationary Altar, cage open (room 7, 536/312) | 6.31 updates/s | 8.71 updates/s |
+
+The stationary rows use the Mega Drive benchmark's fixture positions and
+progress, pin the player each presentation, and run `benchmark_snes.py`'s 3,000
+frame warmup and 1,200 frame sample; they are not the earlier SNES fixture
+snapshots. The Crypt stays at seven display frames per presentation because its
+sprite preparation, about 1,000 lines, dominates. The water-cache audit still
+reports 157,008 views with peaks of 991 and 1,042 resident patterns and three
+Sewers compactions. The tick-exact cartridge still passes the full 56-checkpoint
+route with 29 health and zero deaths, now in 206,375 display frames instead of
+239,841. Its final settle check accepts phase 15, which follows the previous
+presentation's commits. `capture_showcase.py` no longer presses Start again when the
+game has already left the title during its wait, which paused faster builds.
+
+### Streaming and sprite lookup changes
+
+A second profile of the same walk put row/column streaming at about 500 lines
+per presentation for roughly 45 cell loads and releases, around 3,000 CPU
+cycles per cell. Three parts of that path changed; each keeps the exact cache
+results:
+
+- The pattern-hash probe (`hashFind`) runs as 65816 code in
+  `background_hash.asm`. Compiled C spent most of each probe on far-pointer
+  arithmetic into the bank-7f work area. The C function remains the host
+  reference, and a compile-time check ties the assembly's table offset to the
+  `SnesBackgroundWork` layout.
+- `snesBackgroundLoad` fills a table of row starts, so a cell lookup no
+  longer calls the compiler's multiplication routine for `y * columns`. Rows
+  beyond the 1,024-entry table keep the multiplication.
+- Each plane keeps the list of its enabled animation clips in ascending order.
+  A cell lookup visits only those clips instead of every clip of the room;
+  later clips still override earlier ones.
+
+In sprite preparation, `snesObjSlotFor` is now 65816 code that walks the
+resource's slot list and marks a resident piece used. It calls the unchanged C
+allocator, renamed `snesObjSlotAllocate`, only for a missing piece. Most drawn
+pieces are resident, so the common case no longer enters compiled C at all.
+
+| Measurement | Before | After |
+| --- | --- | --- |
+| Main Hall → Altar walk (`capture_showcase.py`, steps 127–134) | 9.0 presentations/s | 9.9 presentations/s |
+| First room (`showcase-route.json`, steps 2–5) | 14.0 presentations/s | 14.5 presentations/s |
+| Stationary Loop (room 9, 370/696) | 8.46 updates/s | 8.56 updates/s |
+| Stationary Crypt (room 25, 597/264) | 8.51 updates/s | 9.11 updates/s |
+| Stationary Altar, cage open (room 7, 536/312) | 8.71 updates/s | 9.27 updates/s |
+
+The stationary rows use the same fixtures, warmup and sample as the previous
+table. The hash probe and row table alone raised the walk to 9.7
+presentations/s. The clip lists help mainly in rooms with several animations;
+on the walk the phase holding streaming and clip timing still takes about 420
+lines per presentation, while resource drawing fell from about 145 to 130. The
+remaining streaming cost is spread over the C code around
+the probe (map addressing, reference counting, dirty-row tracking), so moving
+whole cell loads to assembly is the next step for scrolling. The water-cache
+audit still reports 157,008 views with peaks of 991 and 1,042 resident patterns
+and three Sewers compactions, and `tools/verify_snes_sprites.py` still passes
+all 6,482 cases.
+The tick-exact cartridge passes the full 56-checkpoint route with 29 health and
+zero deaths in 194,370 display frames instead of 206,375.
+
+The same phase marks placed around the calls in `deceptusTick` (a local build
+only) show where the portable simulation spends its time on this CPU, in
+scanlines per presentation:
+
+| Part of the tick | Walk (steps 127�134) | Stationary Loop |
+| --- | --- | --- |
+| Input, pacing, adventure and campaign around the engine tick | 39 | 35 |
+| `updatePlayer` | 78 | 195 |
+| `deceptusEnemiesTick` | 40 | 251 |
+| `deceptusMechanismsTick` | 28 | 143 |
+| `updateActors` | 20 | 22 |
+| Grab ropes, mechanism events, camera | 12 | 11 |
+| Total | about 217 | about 657 |
+
+The Loop's enemies, the player's collision and movement and the mechanisms
+account for nearly all of its tick. No shared simulation code changed in this
+round; any change there must stay behaviour-identical on every platform.
