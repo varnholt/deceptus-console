@@ -250,3 +250,74 @@ scanlines per presentation:
 The Loop's enemies, the player's collision and movement and the mechanisms
 account for nearly all of its tick. No shared simulation code changed in this
 round; any change there must stay behaviour-identical on every platform.
+
+### Cell streaming in assembly
+
+A local profile of the walk (counters and the PPU line latch around each part,
+not part of the repository) showed why the probe in assembly alone helped
+little: about half of all streamed loads missed the pattern hash and almost half
+of the releases dropped a pattern's last reference. Walking into new scenery
+mostly brings patterns that are not resident yet. Both cases still ran the whole
+cell in compiled C.
+
+`background_cell.asm` now handles these cells in 65816 code:
+
+- `snesBackgroundLoadCellFast` reads the cell's pattern and attributes from
+  the room through a small view that `background.c` fills when the room or the
+  scenery flags change. A resident pattern gains a reference; a new one takes
+  the other plane's slot when that plane already holds it, or the last free
+  slot the plane can address, and is queued for upload as in `acquirePattern`.
+- `snesBackgroundReleaseCellFast` covers every release, including the last
+  reference, with the same backward-shift deletion as `hashRemove`.
+- `snesBackgroundRefreshClipFast` runs both passes of an animated refresh when
+  the clip is the topmost enabled source of its cells and all its frame offsets
+  are valid, the case in which the C already read the frame words directly.
+  Loads go through `snesBackgroundPlaceCellFast`, which takes the words the
+  refresh already read.
+
+The C functions stay the reference for host builds and tests. They are also
+the fallback for rare cells: outside the room, inside the union of the plane's
+enabled clip rectangles, in rows beyond the row table, with an invalid pattern,
+or with a full hash table or no free slot. The assembly decides this before it
+changes any state, so the C path sees exactly what it would have seen.
+Compile-time checks tie every work-area, view and refresh offset the assembly
+uses to the C structures; 816-tcc aligns 16-bit members and pointers, so
+several offsets differ from a packed layout.
+
+To check that the cache is exact, tick-locked builds of the previous and the new
+code played the 720-step route side by side (a local script): after every step,
+the 32 KiB background work area, both tile maps and the background half of
+VRAM were identical. Only a few bytes of sprite VRAM differed at some steps.
+Sprite preloading uploads up to 2,048 bytes per VBlank, so on a slow frame a
+write can land outside VBlank, which depends on timing and is not related to
+the background.
+
+| Measurement | Before | After |
+| --- | --- | --- |
+| Main Hall → Altar walk (`capture_showcase.py`, steps 127–134) | 9.9 presentations/s | 13.0 presentations/s |
+| First room (`showcase-route.json`, steps 2–5) | 14.5 presentations/s | 16.5 presentations/s |
+| Full route, tick-exact cartridge, display frames | 194,370 | 171,403 |
+
+Each step contributed: the resident-pattern load path raised the walk from 9.9
+to 10.2, slot allocation and release to 12.1, and the clip refresh to 13.0. The
+first room has no animated clips. The tick-exact cartridge still passes all 56
+checkpoints with 29 health and zero deaths.
+
+The profile of the walk after these changes, in scanlines per presentation
+(about 1,260 in the profiling build):
+
+| Part | Lines |
+| --- | --- |
+| Background prepare | 399 (streaming 199, clip refresh 70, room loads 50, rest 80) |
+| Sprite preparation | 203 |
+| Simulation ticks | 121 |
+| `deceptusRender` | 117 |
+| Sprite tile preload | 83 |
+| UI and debug packet | 16 |
+| Waiting for VBlank and commits | about 320 |
+
+The preload line is mostly waiting: `snesSpritesPreload` waits for a VBlank
+before it uploads pending sprite tiles, and the loop then waits for another
+VBlank to commit. Uploading those tiles in the commit VBlank, when they fit next
+to the background transfers, would save up to a display frame per presentation
+that brings new sprite tiles.
