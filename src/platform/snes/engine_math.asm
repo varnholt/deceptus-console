@@ -4,10 +4,10 @@
 .16bit
 .base $c0
 
-; 65816 versions of shared engine arithmetic, like the 68000 paths in
-; grabrope.c. compiled c pays a library call for every 16x16 product, 32-bit
-; shift and 32-bit division; these routines return exactly what the c in
-; grabrope.c returns. the cpu multiplier at $4202/$4203 is used only outside
+; 65816 versions of the arithmetic primitives in include/arith.h, mapped by
+; platform_arith.h. compiled c pays a library call for every 16x16 product,
+; 32-bit shift and 32-bit division; these return exactly what the reference
+; implementations in src/engine/arith.c return. the cpu multiplier at $4202/$4203 is used only outside
 ; interrupts here and in the c library.
 
 .section "snes_engine_math" semisuperfree banks 2-15
@@ -139,9 +139,8 @@ add_shifted_8:
     sta.b tcc__r3h
     rts
 
-; DeceptusI32 snesRopeProduct(DeceptusI16 left, DeceptusI16 right)
-; the exact 32-bit product, as product() in grabrope.c for 16-bit factors.
-snesRopeProduct:
+; DeceptusI32 snesMulS16(DeceptusI16 left, DeceptusI16 right): arithMulS16.
+snesMulS16:
     php
     rep #$30
     phd
@@ -188,9 +187,8 @@ product_done:
     plp
     rtl
 
-; DeceptusU16 snesRopeDistance(DeceptusI32 x, DeceptusI32 y)
-; floor(sqrt(x * x + y * y)) for |x|, |y| <= 65535, as deceptusGrabRopeDistance.
-snesRopeDistance:
+; DeceptusU32 snesSquareU16(DeceptusU16 magnitude): arithSquareU16.
+snesSquareU16:
     php
     rep #$30
     phd
@@ -198,37 +196,31 @@ snesRopeDistance:
     phy
     lda #0
     tcd
-    ; x low 11,s, x high 13,s, y low 15,s, y high 17,s.
-    lda 13,s
-    bpl distance_x_positive
     lda 11,s
-    eor #$ffff
-    inc a
-    bra distance_x_square
-distance_x_positive:
-    lda 11,s
-distance_x_square:
     jsr square_magnitude
     lda.b tcc__r3
     sta.b tcc__r0
     lda.b tcc__r3h
-    sta.b tcc__r0h
-    lda 17,s
-    bpl distance_y_positive
-    lda 15,s
-    eor #$ffff
-    inc a
-    bra distance_y_square
-distance_y_positive:
-    lda 15,s
-distance_y_square:
-    jsr square_magnitude
-    lda.b tcc__r0
-    clc
-    adc.b tcc__r3
+    sta.b tcc__r1
+    ply
+    plx
+    pld
+    plp
+    rtl
+
+; DeceptusU16 snesRootU32(DeceptusU32 value): arithRootU32, floor(sqrt(value)).
+snesRootU32:
+    php
+    rep #$30
+    phd
+    phx
+    phy
+    lda #0
+    tcd
+    ; value low 11,s, high 13,s.
+    lda 11,s
     sta.b tcc__r0
-    lda.b tcc__r0h
-    adc.b tcc__r3h
+    lda 13,s
     sta.b tcc__r0h
     ; digit-by-digit root: value tcc__r0/r0h, result tcc__r1/r1h, bit tcc__r2/r2h.
     stz.b tcc__r1
@@ -310,9 +302,9 @@ distance_done:
     plp
     rtl
 
-; DeceptusI32 snesRopeQuotient(DeceptusI32 numerator, DeceptusU16 denominator)
-; numerator / denominator truncated toward zero, as c division; denominator > 0.
-snesRopeQuotient:
+; DeceptusI32 snesDivS32U16(DeceptusI32 numerator, DeceptusU16 denominator): arithDivS32U16,
+; truncated toward zero as c division; denominator > 0.
+snesDivS32U16:
     php
     rep #$30
     phd

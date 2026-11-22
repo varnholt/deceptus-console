@@ -1,13 +1,7 @@
 /* original counterparts: mechanisms/rope.cpp and mechanisms/grabrope.cpp. */
 #include "deceptus/physics.h"
+#include "arith.h"
 #include <string.h>
-
-#if defined(SNES_ENGINE_ASM)
-/* 65816 versions in src/platform/snes/engine_math.asm; they return what the c below returns. */
-DeceptusU16 snesRopeDistance(DeceptusI32 x, DeceptusI32 y);
-DeceptusI32 snesRopeQuotient(DeceptusI32 numerator, DeceptusU16 denominator);
-DeceptusI32 snesRopeProduct(DeceptusI16 left, DeceptusI16 right);
-#endif
 
 /* exact 16x16 products where both factors fit; 16-bit cpus otherwise pay a 32-bit multiply call. */
 static DeceptusU32 square(DeceptusI32 value)
@@ -16,13 +10,7 @@ static DeceptusU32 square(DeceptusI32 value)
    magnitude = value < 0 ? (DeceptusU32)-value : (DeceptusU32)value;
    if (magnitude <= 65535UL)
    {
-#if defined(__mc68000__) || defined(__m68k__)
-      /* gcc can leave even a 16x16 product to the 32-bit library call; mulu.w is exact here. */
-      __asm__("mulu.w %0,%0" : "+d"(magnitude) : : "cc");
-      return magnitude;
-#else
-      return (DeceptusU32)(DeceptusU16)magnitude * (DeceptusU16)magnitude;
-#endif
+      return arithSquareU16((DeceptusU16)magnitude);
    }
    return (DeceptusU32)(value * value);
 }
@@ -31,40 +19,16 @@ static DeceptusI32 product(DeceptusI32 left, DeceptusI32 right)
 {
    if (left >= -32768L && left <= 32767L && right >= -32768L && right <= 32767L)
    {
-#if defined(__mc68000__) || defined(__m68k__)
-      __asm__("muls.w %1,%0" : "+d"(left) : "d"((DeceptusI16)right) : "cc");
-      return left;
-#elif defined(SNES_ENGINE_ASM)
-      return snesRopeProduct((DeceptusI16)left, (DeceptusI16)right);
-#else
-      return (DeceptusI32)(DeceptusI16)left * (DeceptusI16)right;
-#endif
+      return arithMulS16((DeceptusI16)left, (DeceptusI16)right);
    }
    return left * right;
 }
 
-/* numerator / denominator truncated toward zero, as c division; a 32/16 hardware divide on 68000
-   when the quotient fits 16 bits. */
+/* numerator / denominator truncated toward zero, as c division; every caller passes a positive
+   denominator. */
 static DeceptusI32 quotient(DeceptusI32 numerator, DeceptusU16 denominator)
 {
-#if defined(__mc68000__) || defined(__m68k__)
-   DeceptusI32 result;
-   DeceptusI32 range;
-   /* 32768 * denominator as a shift: the multiply would be a library call itself. */
-   range = (DeceptusI32)denominator << 15;
-   if (denominator <= 32767U && numerator > -range && numerator < range)
-   {
-      result = numerator;
-      __asm__("divs.w %1,%0" : "+d"(result) : "dmi"((DeceptusI16)denominator) : "cc");
-      return (DeceptusI16)result;
-   }
-#endif
-#if defined(SNES_ENGINE_ASM)
-   /* every caller passes a positive denominator. */
-   return snesRopeQuotient(numerator, denominator);
-#else
-   return numerator / (DeceptusI32)denominator;
-#endif
+   return arithDivS32U16(numerator, denominator);
 }
 
 /* value / 256 truncated toward zero, as c division, without a 32-bit divide call. */
@@ -79,61 +43,7 @@ static DeceptusI32 dividedBy256(DeceptusI32 value)
 
 DeceptusU16 deceptusGrabRopeDistance(DeceptusI32 x, DeceptusI32 y)
 {
-   DeceptusU32 value, result, bit;
-   DeceptusU16 short_value, short_result, short_bit;
-#if defined(SNES_ENGINE_ASM)
-   if ((DeceptusU32)(x + 65535L) <= 131070UL && (DeceptusU32)(y + 65535L) <= 131070UL)
-   {
-      return snesRopeDistance(x, y);
-   }
-#endif
-   value = square(x) + square(y);
-   if (value <= 65535UL)
-   {
-      /* neighbouring nodes are short: the same digit-by-digit root in 16-bit words, which 16-bit
-         cpus run without 32-bit shift and compare sequences. */
-      short_value = (DeceptusU16)value;
-      short_result = 0;
-      short_bit = (DeceptusU16)1 << 14;
-      while (short_bit > short_value)
-      {
-         short_bit >>= 2;
-      }
-      while (short_bit)
-      {
-         if (short_value >= short_result + short_bit)
-         {
-            short_value -= short_result + short_bit;
-            short_result = (short_result >> 1) + short_bit;
-         }
-         else
-         {
-            short_result >>= 1;
-         }
-         short_bit >>= 2;
-      }
-      return short_result;
-   }
-   result = 0;
-   bit = (DeceptusU32)1 << 30;
-   while (bit > value)
-   {
-      bit >>= 2;
-   }
-   while (bit)
-   {
-      if (value >= result + bit)
-      {
-         value -= result + bit;
-         result = (result >> 1) + bit;
-      }
-      else
-      {
-         result >>= 1;
-      }
-      bit >>= 2;
-   }
-   return (DeceptusU16)result;
+   return arithRootU32(square(x) + square(y));
 }
 
 static DeceptusU8 ropePointClear(const DeceptusEngine *engine, const DeceptusGrabRope *rope, DeceptusFixed x, DeceptusFixed y)

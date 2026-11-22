@@ -197,14 +197,22 @@ def ensure_original_imports(data,refresh_metadata=False):
 SNES_ROPE_SEGMENTS=3
 
 
-def compile_worlds(recipes,output):
+def export_opening_worlds(recipes,output,work,platform,rope_segments_max=None):
+    """opening_areaN.c simulation declarations per room, named for the platform; work holds the
+    per-room export folders. a rope cap is the platform's own and must not reach other targets."""
     files=[]
     for index,(recipe,source) in enumerate(recipes):
-        recipe=dict(recipe,rope_segments_max=SNES_ROPE_SEGMENTS)
-        folder=output/f'area{index}';folder.mkdir(parents=True,exist_ok=True)
+        if rope_segments_max is not None:
+            recipe=dict(recipe,rope_segments_max=rope_segments_max)
+        folder=work/f'area{index}';folder.mkdir(parents=True,exist_ok=True)
         export_world(source,folder,recipe)
-        text=(folder/'room.c').read_text().replace('deceptus_scene',f'deceptus_snes_area{index}')
+        text=(folder/'room.c').read_text().replace('deceptus_scene',f'deceptus_{platform}_area{index}')
         filename=f'opening_area{index}.c';(output/filename).write_text(text);files.append(filename)
+    return files
+
+
+def compile_worlds(recipes,output):
+    files=export_opening_worlds(recipes,output,output,'snes',SNES_ROPE_SEGMENTS)
     # only portable simulation declarations are reused from the validated opening binding output.
     source=(ROOT/'assets/generated/gba/room.c').read_text()
     campaign=source[source.index('static const DeceptusRoom *const campaign_rooms'):source.index('#include "gba_assets.h"',source.index('const DeceptusCampaignDef gba_campaign_definition'))]
