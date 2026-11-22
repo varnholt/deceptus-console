@@ -399,3 +399,24 @@ without it, and the background state equals the previous code's. The SNES route
 verifier and `capture_showcase.py` now run with that option, so late writes show
 up as they would on hardware. Frame rates per room are unchanged; the full route
 takes 105,830 display frames.
+
+### Picture check
+
+`tools/verify_snes_picture.py` plays the route on a pacing-locked cartridge and
+checks what the console shows, independent of the game state the route
+verifier compares:
+
+- every display frame during play: a mostly black picture away from a room
+  change is a flash (forced blank);
+- every N presentations, after the commit: each cell of the cached background
+  window in video memory equals the converted room data (tile bytes, palette,
+  flips, current animation frames); each visible object uses a slot of the
+  current frame whose tiles equal its sprite resource; exactly one player body
+  is requested.
+
+Each detector was confirmed by corrupting one background tile and one object
+tile in video memory, which it reported. On the current code it finds the black
+flashes from sprite slot pressure (32 in the first 40 route steps) and no wrong
+background or object tiles. A paced build additionally requests two player
+bodies in some frames of the Main Hall walk; that is being traced. The SNES
+rebuild uses this check as its acceptance test.
