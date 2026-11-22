@@ -14,7 +14,9 @@ void oamInitGfxAttr(u16 address, u8 size);
 void oamClear(u16 first, u8 size);
 void WaitForVBlank(void);
 void setScreenOff(void);
+typedef struct {union {void *p; struct {unsigned short addr; unsigned char bank;} c;} mem;} dmaMemory;
 #include "../src/platform/snes/sprites.h"
+void snesVramRunDma(const SnesVramDmaCommand *commands, DeceptusU16 count) {(void)commands; (void)count;}
 
 #define CHECK(value)                                                                                                                       \
    do                                                                                                                                      \

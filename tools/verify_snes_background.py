@@ -49,7 +49,7 @@ def audit(assets, output):
 #include <assert.h>
 #include <stdio.h>
 #include "BACKGROUND"
-void snesBackgroundRunDma(const SnesBackgroundDmaCommand *commands,DeceptusU16 count) {(void)commands;(void)count;}
+void snesVramRunDma(const SnesVramDmaCommand *commands,DeceptusU16 count) {(void)commands;(void)count;}
 DeceptusU8 snes_background_storage[32768];
 static DeceptusU8 bg[131072],fg[131072],cells[131072],dummy[32768],palette[256];
 static const DeceptusU8 *const bc[]={bg,bg+32768,bg+65536,bg+98304};

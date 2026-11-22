@@ -360,7 +360,7 @@ int main(void)
       deceptus_debug[11] = 12;
       snesUiPrepare(&adventure);
       deceptus_debug[11] = 13;
-      snesSpritesPreload();
+      snesSpritesPreload(snes_background_dma_bytes);
       deceptus_debug[11] = 14;
       debugWrite();
       /* phase 15 tells emulator checks the packet is complete. it used to be
@@ -378,9 +378,13 @@ int main(void)
       }
       WaitForVBlank();
       deceptus_debug[11] = 15;
+      /* every video transfer first, while vblank lasts; sprite tiles and the oam that refers to
+         them land in the same vblank, so the order among them does not show. */
+      snesSpritesCommitTransfers();
       snesBackgroundCommit();
+      snesSpritesCommitTiles();
       deceptus_debug[11] = 16;
-      snesSpritesCommit();
+      snesSpritesPublish();
       deceptus_debug[11] = 17;
       snesUiCommit();
       deceptus_debug[11] = 18;

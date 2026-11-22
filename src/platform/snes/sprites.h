@@ -3,6 +3,7 @@
 #include "deceptus/enemies.h"
 #include "snes_headtorch_resources.h"
 #include "snes_sword_resources.h"
+#include "vram_dma.h"
 #include <string.h>
 
 #define SNES_OBJ_REQUESTS 96
@@ -450,16 +451,104 @@ static void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFram
    SNES_OBJ_PROFILE(8);
 }
 
-static void snesSpritesPreload(void)
+/* bytes the commit vblank may transfer: sprite palettes and oam, the background list and deferred
+   sprite tiles. ntsc vblank holds about 37 lines of 170 dma bytes; the sdk's interrupt handler takes
+   the first five, and the rest keeps a margin for the command overhead. */
+#define SNES_COMMIT_DMA_BUDGET 4096
+#define SNES_OAM_BYTES 544
+#define SNES_DEFERRED_PIECES 24
+
+static SnesVramDmaCommand snes_sprite_tile_dma[SNES_DEFERRED_PIECES * 2];
+static DeceptusU16 snes_sprite_tile_dma_count;
+
+static void snesObjUploadPiece(DeceptusU16 index, SnesObjSlot *slot)
 {
-   DeceptusU16 index, tile, budget;
+   DeceptusU16 tile;
    const DeceptusU8 *graphics;
+   tile = 0x6000 + snesObjTile(index) * 16;
+   graphics = snes_sprite_resources[slot->resource].graphics + slot->piece * 128;
+   dmaCopyVram((u8 *)graphics, tile, 64);
+   dmaCopyVram((u8 *)(graphics + 64), tile + 256, 64);
+   slot->pending = 0;
+}
+
+static void snesObjStageTileDma(const DeceptusU8 *source, DeceptusU16 target)
+{
+   dmaMemory memory;
+   SnesVramDmaCommand *command;
+   memory.mem.p = (void *)source;
+   command = &snes_sprite_tile_dma[snes_sprite_tile_dma_count++];
+   command->source = memory.mem.c.addr;
+   command->bank = memory.mem.c.bank;
+   command->increment = 0x80;
+   command->target = target;
+   command->bytes = 64;
+}
+
+static DeceptusU16 snesSpritesPendingPieces(void)
+{
+   DeceptusU16 index, pieces;
+   pieces = 0;
+   for (index = 0; index < SNES_OBJ_PIECES; ++index)
+   {
+      if (snes_obj_slots[index].pending)
+      {
+         ++pieces;
+      }
+   }
+   return pieces;
+}
+
+/* stages every pending piece for the commit vblank when the whole commit fits its budget. */
+static DeceptusU8 snesSpritesDeferTiles(DeceptusU16 background_bytes)
+{
+   DeceptusU16 index, pieces, commit_bytes, tile;
+   const DeceptusU8 *graphics;
+   SnesObjSlot *slot;
+   pieces = snesSpritesPendingPieces();
+   if (!pieces || pieces > SNES_DEFERRED_PIECES)
+   {
+      return 0;
+   }
+   commit_bytes = background_bytes + snes_obj_palette_count * 32 + SNES_OAM_BYTES + pieces * 128;
+   if (commit_bytes > SNES_COMMIT_DMA_BUDGET)
+   {
+      return 0;
+   }
+   for (index = 0; index < SNES_OBJ_PIECES; ++index)
+   {
+      slot = &snes_obj_slots[index];
+      if (!slot->pending)
+      {
+         continue;
+      }
+      tile = 0x6000 + snesObjTile(index) * 16;
+      graphics = snes_sprite_resources[slot->resource].graphics + slot->piece * 128;
+      snesObjStageTileDma(graphics, tile);
+      snesObjStageTileDma(graphics + 64, tile + 256);
+      slot->pending = 0;
+   }
+   snes_sprite_upload_bytes = pieces * 128;
+   return 1;
+}
+
+/* background_bytes: what the background transfers in the coming commit vblank. */
+static void snesSpritesPreload(DeceptusU16 background_bytes)
+{
+   DeceptusU16 index, budget;
    SnesObjSlot *slot;
    budget = 0;
    snes_sprite_upload_bytes = 0;
+   snes_sprite_tile_dma_count = 0;
    if (snes_sprite_blank)
    {
       setScreenOff();
+   }
+   /* a vblank of its own costs up to a display frame; the commit vblank takes the tiles when the
+      whole commit fits. */
+   if (!snes_sprite_room_load && !snes_sprite_blank && snesSpritesDeferTiles(background_bytes))
+   {
+      return;
    }
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
@@ -473,11 +562,7 @@ static void snesSpritesPreload(void)
          WaitForVBlank();
          budget = 0;
       }
-      tile = 0x6000 + snesObjTile(index) * 16;
-      graphics = snes_sprite_resources[slot->resource].graphics + slot->piece * 128;
-      dmaCopyVram((u8 *)graphics, tile, 64);
-      dmaCopyVram((u8 *)(graphics + 64), tile + 256, 64);
-      slot->pending = 0;
+      snesObjUploadPiece(index, slot);
       budget += 128;
       snes_sprite_upload_bytes += 128;
    }
@@ -488,7 +573,8 @@ static void snesSpritesPreload(void)
 void snesObjPublish(void);
 #endif
 
-static void snesSpritesCommit(void)
+/* the transfers of the sprite commit; they run first in the commit vblank. */
+static void snesSpritesCommitTransfers(void)
 {
    DeceptusU16 index;
    for (index = 0; index < snes_obj_palette_count; ++index)
@@ -496,10 +582,23 @@ static void snesSpritesCommit(void)
       dmaCopyCGram((u8 *)snes_obj_palettes[index], 128 + index * 16, 32);
    }
    dmaCopyOAram(snes_obj_oam, 0, sizeof(snes_obj_oam));
-   /* the next SDK VBlank publishes this only after every new tile is ready. */
+}
+
+/* sprite tiles staged by snesSpritesPreload, after the background list in the same vblank. */
+static void snesSpritesCommitTiles(void)
+{
+   snesVramRunDma(snes_sprite_tile_dma, snes_sprite_tile_dma_count);
+   snes_sprite_tile_dma_count = 0;
+}
+
+/* bookkeeping without video writes, which may run after vblank. */
+static void snesSpritesPublish(void)
+{
 #ifdef SNES_SPRITES_ASM
+   /* the sdk's next vblank also copies this shadow to oam. */
    snesObjPublish();
 #else
+   DeceptusU16 index;
    memcpy(oamMemory, snes_obj_oam, sizeof(snes_obj_oam));
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
