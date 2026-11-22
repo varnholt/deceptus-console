@@ -13,7 +13,7 @@ from assets import ROOT
 from palettes import banked_background
 from pixel_font import NativePixelFont
 from smd_assets import array,fit_rgb333_palette,packed_tile,palette_word,rgb333,sprite_chunks,words
-from snes_tutorial_assets import original_imports,source_clips
+from snes_tutorial_assets import export_opening_worlds,original_imports,source_clips
 from source_sprites import source_sprites
 from rle import packbits
 
@@ -165,7 +165,10 @@ def compile_font(data,writer):
 def compile_opening(data,output,metadata_source,rooms=26):
     data,output,metadata_source=Path(data).resolve(),Path(output).resolve(),Path(metadata_source).resolve()
     output.mkdir(parents=True,exist_ok=True);recipes,identity=original_imports(data)
-    files=portable_metadata(metadata_source,output);writer=Writer(output);stages=[];lines=[];reports=[]
+    files=portable_metadata(metadata_source,output)
+    # the room declarations are exported again without the SNES's platform limits (its rope cap).
+    export_opening_worlds(recipes,output,output/'worlds','smd')
+    writer=Writer(output);stages=[];lines=[];reports=[]
     for index,(recipe,source) in enumerate(recipes[:rooms]):
         image=Image.open(source/'catacombs.png').convert('RGB');front=Image.open(source/'foreground.png').convert('RGBA')
         clips=source_clips(data,recipe,image);result=compile_background(image,front,clips)
