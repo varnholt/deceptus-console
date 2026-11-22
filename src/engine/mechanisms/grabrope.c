@@ -53,10 +53,47 @@ static DeceptusI32 quotient(DeceptusI32 numerator, DeceptusU16 denominator)
    return numerator / (DeceptusI32)denominator;
 }
 
+/* value / 256 truncated toward zero, as c division, without a 32-bit divide call. */
+static DeceptusI32 dividedBy256(DeceptusI32 value)
+{
+   if (value < 0)
+   {
+      return -(DeceptusI32)((DeceptusU32)-value >> 8);
+   }
+   return (DeceptusI32)((DeceptusU32)value >> 8);
+}
+
 DeceptusU16 deceptusGrabRopeDistance(DeceptusI32 x, DeceptusI32 y)
 {
    DeceptusU32 value, result, bit;
+   DeceptusU16 short_value, short_result, short_bit;
    value = square(x) + square(y);
+   if (value <= 65535UL)
+   {
+      /* neighbouring nodes are short: the same digit-by-digit root in 16-bit words, which 16-bit
+         cpus run without 32-bit shift and compare sequences. */
+      short_value = (DeceptusU16)value;
+      short_result = 0;
+      short_bit = (DeceptusU16)1 << 14;
+      while (short_bit > short_value)
+      {
+         short_bit >>= 2;
+      }
+      while (short_bit)
+      {
+         if (short_value >= short_result + short_bit)
+         {
+            short_value -= short_result + short_bit;
+            short_result = (short_result >> 1) + short_bit;
+         }
+         else
+         {
+            short_result >>= 1;
+         }
+         short_bit >>= 2;
+      }
+      return short_result;
+   }
    result = 0;
    bit = (DeceptusU32)1 << 30;
    while (bit > value)
@@ -160,8 +197,8 @@ static void ropeSolve(DeceptusEngine *engine, DeceptusGrabRope *rope, DeceptusU8
          {
             continue;
          }
-         correction_x = product(dx, correction_scale) / 256;
-         correction_y = product(dy, correction_scale) / 256;
+         correction_x = dividedBy256(product(dx, correction_scale));
+         correction_y = dividedBy256(product(dy, correction_scale));
          if (!correction_x && !correction_y)
          {
             continue;
