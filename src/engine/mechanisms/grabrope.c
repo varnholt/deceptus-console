@@ -6,6 +6,7 @@
 /* 65816 versions in src/platform/snes/engine_math.asm; they return what the c below returns. */
 DeceptusU16 snesRopeDistance(DeceptusI32 x, DeceptusI32 y);
 DeceptusI32 snesRopeQuotient(DeceptusI32 numerator, DeceptusU16 denominator);
+DeceptusI32 snesRopeProduct(DeceptusI16 left, DeceptusI16 right);
 #endif
 
 /* exact 16x16 products where both factors fit; 16-bit cpus otherwise pay a 32-bit multiply call. */
@@ -33,6 +34,8 @@ static DeceptusI32 product(DeceptusI32 left, DeceptusI32 right)
 #if defined(__mc68000__) || defined(__m68k__)
       __asm__("muls.w %1,%0" : "+d"(left) : "d"((DeceptusI16)right) : "cc");
       return left;
+#elif defined(SNES_ENGINE_ASM)
+      return snesRopeProduct((DeceptusI16)left, (DeceptusI16)right);
 #else
       return (DeceptusI32)(DeceptusI16)left * (DeceptusI16)right;
 #endif

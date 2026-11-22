@@ -71,6 +71,123 @@ square_magnitude:
     sta.b tcc__r3h
     rts
 
+; tcc__r4 = a, tcc__r5 = b (0..65535 each). a * b into tcc__r3 (low) and
+; tcc__r3h (high) from four 8x8 hardware products.
+multiply_magnitudes:
+    sep #$20
+    ; al * bl
+    lda.b tcc__r4
+    sta.l $004202
+    lda.b tcc__r5
+    sta.l $004203
+    nop
+    nop
+    nop
+    rep #$20
+    lda.l $004216
+    sta.b tcc__r3
+    sep #$20
+    ; ah * bh
+    lda.b tcc__r4+1
+    sta.l $004202
+    lda.b tcc__r5+1
+    sta.l $004203
+    nop
+    nop
+    nop
+    rep #$20
+    lda.l $004216
+    sta.b tcc__r3h
+    sep #$20
+    ; al * bh
+    lda.b tcc__r4
+    sta.l $004202
+    lda.b tcc__r5+1
+    sta.l $004203
+    nop
+    nop
+    nop
+    rep #$20
+    lda.l $004216
+    jsr add_shifted_8
+    sep #$20
+    ; ah * bl
+    lda.b tcc__r4+1
+    sta.l $004202
+    lda.b tcc__r5
+    sta.l $004203
+    nop
+    nop
+    nop
+    rep #$20
+    lda.l $004216
+    jsr add_shifted_8
+    rts
+
+; tcc__r3/r3h += a << 8.
+add_shifted_8:
+    sta.b tcc__r4h
+    xba
+    and #$ff00
+    clc
+    adc.b tcc__r3
+    sta.b tcc__r3
+    lda.b tcc__r4h
+    xba
+    and #$00ff
+    adc.b tcc__r3h
+    sta.b tcc__r3h
+    rts
+
+; DeceptusI32 snesRopeProduct(DeceptusI16 left, DeceptusI16 right)
+; the exact 32-bit product, as product() in grabrope.c for 16-bit factors.
+snesRopeProduct:
+    php
+    rep #$30
+    phd
+    phx
+    phy
+    lda #0
+    tcd
+    ; left 11,s, right 13,s.
+    lda 11,s
+    eor 13,s
+    sta.b tcc__r2h
+    lda 11,s
+    bpl product_left
+    eor #$ffff
+    inc a
+product_left:
+    sta.b tcc__r4
+    lda 13,s
+    bpl product_right
+    eor #$ffff
+    inc a
+product_right:
+    sta.b tcc__r5
+    jsr multiply_magnitudes
+    lda.b tcc__r3
+    sta.b tcc__r0
+    lda.b tcc__r3h
+    sta.b tcc__r1
+    lda.b tcc__r2h
+    bpl product_done
+    lda.b tcc__r0
+    eor #$ffff
+    clc
+    adc #1
+    sta.b tcc__r0
+    lda.b tcc__r1
+    eor #$ffff
+    adc #0
+    sta.b tcc__r1
+product_done:
+    ply
+    plx
+    pld
+    plp
+    rtl
+
 ; DeceptusU16 snesRopeDistance(DeceptusI32 x, DeceptusI32 y)
 ; floor(sqrt(x * x + y * y)) for |x|, |y| <= 65535, as deceptusGrabRopeDistance.
 snesRopeDistance:
@@ -226,6 +343,32 @@ quotient_magnitude:
     ; shift-subtract over 32 bits: the dividend r0/r1 turns into the quotient,
     ; tcc__r2 holds the remainder (below the denominator before each step).
     stz.b tcc__r2
+    ; a quotient below 65536: the high word is the first remainder and only the
+    ; low word's 16 steps remain.
+    lda.b tcc__r1
+    cmp.b tcc__r3
+    bcs quotient_full
+    sta.b tcc__r2
+    stz.b tcc__r1
+    ldx #16
+quotient_short_step:
+    asl.b tcc__r0
+    rol.b tcc__r2
+    bcs quotient_short_subtract
+    lda.b tcc__r2
+    cmp.b tcc__r3
+    bcc quotient_short_skip
+quotient_short_subtract:
+    lda.b tcc__r2
+    sec
+    sbc.b tcc__r3
+    sta.b tcc__r2
+    inc.b tcc__r0
+quotient_short_skip:
+    dex
+    bne quotient_short_step
+    bra quotient_sign
+quotient_full:
     ldx #32
 quotient_step:
     asl.b tcc__r0
@@ -244,6 +387,7 @@ quotient_subtract:
 quotient_skip:
     dex
     bne quotient_step
+quotient_sign:
     lda.b tcc__r2h
     bpl quotient_done
     lda.b tcc__r0
