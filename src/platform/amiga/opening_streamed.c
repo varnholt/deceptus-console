@@ -1605,10 +1605,11 @@ static ROOM_CODE void spriteMirrorTable(void)
    sprite_frame_count = sprite_cache_used = 0;
 }
 
-/* one line's plane row as pixels, mirrored when the frame faces left. */
-static void spriteRow(const DeceptusU8 *source, DeceptusU8 *row, DeceptusU8 bytes, DeceptusU8 flip, DeceptusU8 shift)
+/* one line's plane row as pixels, mirrored when the frame faces left. only frames whose rows the
+   word copies in spriteFrame cannot take come here, once per frame into the cache: kept small. */
+static BOX_CODE void spriteRow(const DeceptusU8 *source, DeceptusU8 *row, DeceptusU8 bytes, DeceptusU8 flip, DeceptusU8 shift)
 {
-   DeceptusU8 index;
+   DeceptusU8 index, skip, current, next;
    if (!flip)
    {
       for (index = 0; index < bytes; ++index)
@@ -1621,12 +1622,16 @@ static void spriteRow(const DeceptusU8 *source, DeceptusU8 *row, DeceptusU8 byte
    {
       row[index] = sprite_mirror[source[bytes - 1 - index]];
    }
-   if (shift)
+   /* the row's padding, at its right end, is at the left after the mirror: move the pixels left by
+      it, whole bytes first. a frame narrower than its row by 8 or more pixels (the 22 and 23 pixel
+      run frames) would otherwise come out empty, and the player would vanish facing left. */
+   skip = (DeceptusU8)(shift >> 3);
+   shift &= 7;
+   for (index = 0; index < bytes; ++index)
    {
-      for (index = 0; index < bytes; ++index)
-      {
-         row[index] = (DeceptusU8)((row[index] << shift) | (index + 1 < bytes ? row[index + 1] >> (8 - shift) : 0));
-      }
+      current = index + skip < bytes ? row[index + skip] : 0;
+      next = index + skip + 1 < bytes ? row[index + skip + 1] : 0;
+      row[index] = shift ? (DeceptusU8)((current << shift) | (next >> (8 - shift))) : current;
    }
 }
 
