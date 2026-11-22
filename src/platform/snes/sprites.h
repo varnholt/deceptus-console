@@ -454,24 +454,16 @@ static void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFram
 /* vblank lines the sprite commit needs, measured: palettes and oam take about six with their library
    calls, each staged 64-byte tile transfer about one; plus a margin. more pieces than this are
    uploaded in a vblank of their own. */
-#define SNES_COMMIT_FIXED_LINES 8
+#define SNES_COMMIT_FIXED_LINES 10
 #define SNES_DEFERRED_PIECES 8
+/* pieces one vblank of its own takes: two transfers each at about 0.7 lines, after the sdk's five
+   lines of interrupt handler, within the 37 lines of vblank. */
+#define SNES_PRELOAD_PIECES 16
 
-static SnesVramDmaCommand snes_sprite_tile_dma[SNES_DEFERRED_PIECES * 2];
+static SnesVramDmaCommand snes_sprite_tile_dma[SNES_PRELOAD_PIECES * 2];
 static DeceptusU16 snes_sprite_tile_dma_count;
 /* the frame's object palettes in cgram order, so one transfer carries them all. */
 static DeceptusU16 snes_obj_palette_buffer[8][16];
-
-static void snesObjUploadPiece(DeceptusU16 index, SnesObjSlot *slot)
-{
-   DeceptusU16 tile;
-   const DeceptusU8 *graphics;
-   tile = 0x6000 + snesObjTile(index) * 16;
-   graphics = snes_sprite_resources[slot->resource].graphics + slot->piece * 128;
-   dmaCopyVram((u8 *)graphics, tile, 64);
-   dmaCopyVram((u8 *)(graphics + 64), tile + 256, 64);
-   slot->pending = 0;
-}
 
 static void snesObjStageTileDma(const DeceptusU8 *source, DeceptusU16 target)
 {
@@ -501,6 +493,17 @@ static void snesSpritesStagePalettes(void)
    }
 }
 
+static void snesObjStagePiece(DeceptusU16 index, SnesObjSlot *slot)
+{
+   DeceptusU16 tile;
+   const DeceptusU8 *graphics;
+   tile = 0x6000 + snesObjTile(index) * 16;
+   graphics = snes_sprite_resources[slot->resource].graphics + slot->piece * 128;
+   snesObjStageTileDma(graphics, tile);
+   snesObjStageTileDma(graphics + 64, tile + 256);
+   slot->pending = 0;
+}
+
 static DeceptusU16 snesSpritesPendingPieces(void)
 {
    DeceptusU16 index, pieces;
@@ -518,9 +521,7 @@ static DeceptusU16 snesSpritesPendingPieces(void)
 /* stages every pending piece for the commit vblank when there are few. */
 static DeceptusU8 snesSpritesDeferTiles(void)
 {
-   DeceptusU16 index, pieces, tile;
-   const DeceptusU8 *graphics;
-   SnesObjSlot *slot;
+   DeceptusU16 index, pieces;
    pieces = snesSpritesPendingPieces();
    if (!pieces || pieces > SNES_DEFERRED_PIECES)
    {
@@ -528,26 +529,30 @@ static DeceptusU8 snesSpritesDeferTiles(void)
    }
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
-      slot = &snes_obj_slots[index];
-      if (!slot->pending)
+      if (snes_obj_slots[index].pending)
       {
-         continue;
+         snesObjStagePiece(index, &snes_obj_slots[index]);
       }
-      tile = 0x6000 + snesObjTile(index) * 16;
-      graphics = snes_sprite_resources[slot->resource].graphics + slot->piece * 128;
-      snesObjStageTileDma(graphics, tile);
-      snesObjStageTileDma(graphics + 64, tile + 256);
-      slot->pending = 0;
    }
    snes_sprite_upload_bytes = pieces * 128;
    return 1;
 }
 
+/* the staged tiles, in forced blank at once, else in a vblank of their own. */
+static void snesSpritesRunTileDma(DeceptusU8 forced_blank)
+{
+   if (!forced_blank)
+   {
+      WaitForVBlank();
+   }
+   snesVramRunDma(snes_sprite_tile_dma, snes_sprite_tile_dma_count);
+   snes_sprite_tile_dma_count = 0;
+}
+
 static void snesSpritesPreload(void)
 {
-   DeceptusU16 index, budget;
-   SnesObjSlot *slot;
-   budget = 0;
+   DeceptusU16 index, staged;
+   DeceptusU8 forced_blank;
    snes_sprite_upload_bytes = 0;
    snes_sprite_tile_dma_count = 0;
    snesSpritesStagePalettes();
@@ -555,28 +560,32 @@ static void snesSpritesPreload(void)
    {
       setScreenOff();
    }
+   forced_blank = snes_sprite_room_load || snes_sprite_blank;
+   snes_sprite_room_load = 0;
    /* a vblank of its own costs up to a display frame; the commit vblank takes a few tiles. */
-   if (!snes_sprite_room_load && !snes_sprite_blank && snesSpritesDeferTiles())
+   if (!forced_blank && snesSpritesDeferTiles())
    {
       return;
    }
+   staged = 0;
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
-      slot = &snes_obj_slots[index];
-      if (!slot->pending)
+      if (!snes_obj_slots[index].pending)
       {
          continue;
       }
-      if (!snes_sprite_room_load && !snes_sprite_blank && (!budget || budget >= 2048))
-      {
-         WaitForVBlank();
-         budget = 0;
-      }
-      snesObjUploadPiece(index, slot);
-      budget += 128;
+      snesObjStagePiece(index, &snes_obj_slots[index]);
       snes_sprite_upload_bytes += 128;
+      if (++staged == SNES_PRELOAD_PIECES)
+      {
+         snesSpritesRunTileDma(forced_blank);
+         staged = 0;
+      }
    }
-   snes_sprite_room_load = 0;
+   if (staged)
+   {
+      snesSpritesRunTileDma(forced_blank);
+   }
 }
 
 #ifdef SNES_SPRITES_ASM
