@@ -452,9 +452,9 @@ static void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFram
 }
 
 /* vblank lines the sprite commit needs, measured: palettes and oam take about six with their library
-   calls, each staged 64-byte tile transfer about one; plus a margin. more pieces than this are
-   uploaded in a vblank of their own. */
+   calls, each staged 64-byte tile transfer about one; plus a margin. */
 #define SNES_COMMIT_FIXED_LINES 10
+/* newly needed pieces the commit vblank takes; more are uploaded in vblanks of their own. */
 #define SNES_DEFERRED_PIECES 8
 /* pieces one vblank of its own takes: two transfers each at about 0.7 lines, after the sdk's five
    lines of interrupt handler, within the 37 lines of vblank. */
