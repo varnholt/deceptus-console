@@ -503,6 +503,13 @@ including odd widths and split-bank reads, plus cache hits, overlapping eviction
 room reset, malformed resources and guarded output. Target performance is measured
 separately from accelerated full-route checks; see the opening scope above.
 
+The native renderer's hardware-sprite player mirrors a left-facing frame while
+decoding it into the sprite frame cache. After the mirror, the row's padding
+(row width minus frame width) is at the left, and the pixels move left by it,
+whole bytes first. Before this was done in whole bytes, frames 8 or more pixels
+narrower than their row (the 22 and 23 pixel frames of the run cycle) decoded
+as empty rows, and the player vanished for those frames when walking left.
+
 ## Verified prototype scope
 
 ### Interleaved renderer starting point
@@ -650,6 +657,64 @@ The prototype has no opening menus, audio, disk streaming or persistent saves.
 The imported layers are flattened as in the existing one-room console prototype.
 The synthetic patrol and portal are disabled; the original player is the only
 rendered actor.
+
+## Message box
+
+The native opening shows dialogue and notifications in the GBA message box,
+built offline from `assets/game/data/game/messagebox.psd` (window frame,
+`yes_xbox_1`, `next_page`, the map object `01_background_color` fill and the
+source font) by `tools/amiga_message_box.py`. Each room with dialogue pages gets
+its own `assets/area<room>/messagebox.amb`: that room's frame templates (LZ4,
+interleaved planes, exactly the region the copper shows, with their RGB444
+palettes) and one-bit text masks per page, 1.2 to 4.6 KB. The executable holds
+only the file sizes (`amiga_box_room_bytes`). `build.json` records the files
+under `message_boxes`, and `tools/amiga_package.py` copies them into the HDF.
+
+- **Loading.** `loadTileGraphics` reads the room's file after its graphics,
+  while the screen is blank for the room load anyway, into the non-chip
+  scratch after the sprites, or into Chip scratch when a room fills the other
+  bank (room 18 with the sword). `check_native_budget` accounts for it. A
+  room without a file, or a file that disagrees with the shared page counts,
+  shows the plain box.
+- **Decode memory.** A shown box needs 34,000 bytes of Chip RAM: the region
+  (13,776), the decoded template (13,776), the composed text rows (5,208) and
+  the text mask (1,240). They are lent by the end of the decoded sprite arena,
+  which is 58 to 72 KB in every room, when a dialogue opens, and returned once
+  neither copper list shows the box. The world stands still during a dialogue,
+  so the smaller arena decodes almost nothing again. Nothing of the box is
+  allocated at startup.
+- **Separate region.** The copper shows the region on screen rows 134-215 at
+  x=8. The scroll surface, the dirty cells and the bobs never touch it, and it
+  is written once per page, not per frame.
+- **Priority by copper split.** At row 134 the copper switches the bitplane
+  pointers and modulos to the region and sets BPLCON1=0 and BPLCON2=0
+  (playfield in front of the sprites, so the box covers the hardware-sprite
+  player). At row 216 it restores the room pointers (including the scroll-ring
+  wrap), modulos, fine scroll and BPLCON2=0x0024. The copper lists hold 272
+  words, the most a list with the box needs.
+- **Palette split.** COLOR01-15 get the box's own colours on two empty region
+  rows above the frame, and the room palette comes back on transparent rows
+  below it. The box keeps its original colours without taking entries from the
+  room palette, which uses all 16. COLOR00 stays the room's colour 0.
+- **Margins.** The region replaces the room's fetch for whole lines, so its
+  margins (columns 0-7 and 312-319, the empty rows 134-135 and 212-215) show
+  colour 0 where the GBA shows the room. Showing the room there would mean
+  copying room pixels at the current fine scroll into the region every frame,
+  and the palette loads need empty rows anyway: 15 colour moves plus the
+  pointer moves take about a scan line, during which the colours are mixed.
+- **Page turns.** The new page's text mask is decoded and combined with the
+  template's text rows first. After the vertical blank only plain copies run,
+  top row first, ahead of the beam: 5,208 bytes for a page turn, and for a
+  template change the whole 13,776 bytes plus the 15 box colours patched into
+  the shown copper list. No presentation shows an empty or half-written box
+  (checked frame by frame in a cycle-exact capture).
+- **Memory on Kickstart 1.3 with 512K Chip and 512K slow RAM.** The room data
+  bank comes to 259,400 bytes (259,184 before the box) and the Chip bank to
+  323,312 (323,376). To keep the room data bank, code that runs once per room
+  or per page turn is compiled for size (`ROOM_CODE`, `BOX_CODE` in
+  `opening_streamed.c`, `system.c` with `-Os`). `__attribute__((cold))` is not
+  usable with this toolchain: the split `.text.unlikely` parts make the
+  executable fail at startup.
 
 ## Implementation and build
 
