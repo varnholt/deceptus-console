@@ -22,6 +22,21 @@ def collision_data(source, recipe):
     return bytes(collision), columns, rows
 
 
+def capped_rope(mechanism, recipe):
+    """Bounds and value of a mechanism after the platform's rope node cap, if any.
+
+    A platform may cap grab rope nodes, since the physics cost grows with them. Node k of n rests
+    at k / n of the rope height, so fewer nodes would lift the lowest one; the height is stretched
+    to keep that node, and the reach of the rope, where the source chain ends."""
+    bounds, value = list(mechanism['bounds']), mechanism['value']
+    if mechanism['kind'] not in ('DECEPTUS_MECH_GRAB_ROPE', 13) or 'rope_segments_max' not in recipe:
+        return bounds, value
+    capped = max(2, min(value, recipe['rope_segments_max']))
+    if capped < value:
+        bounds[3] = round(bounds[3] * (value - 1) * capped / (value * (capped - 1)))
+    return bounds, capped
+
+
 def export_world(source, output, recipe):
     source, output = Path(source), Path(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -36,9 +51,10 @@ def export_world(source, output, recipe):
     if definitions:
         lines += ['static const DeceptusMechanismDef room_mechanisms[] = {']
         for definition in definitions:
-            bounds = ', '.join(map(str, definition['bounds']))
+            bounds, value = capped_rope(definition, recipe)
+            bounds = ', '.join(map(str, bounds))
             lines.append(f"    {{{definition['source_id']}, {{{bounds}}}, {definition['target_first']}, "
-                         f"{definition['target_count']}, {definition['value']}, {definition['kind']}, "
+                         f"{definition['target_count']}, {value}, {definition['kind']}, "
                          f"{definition['enabled']}, {definition['flags']}}},")
         lines += ['};', '']
     if definitions:

@@ -11,7 +11,7 @@ import sys
 from uuid import uuid4
 
 from emulator import Emulator, ROOT
-from verify_opening import ROUTE, check, native_state as opening_native_state
+from verify_opening import ROUTE, check, route_steps, native_state as opening_native_state
 
 
 def native_state(library):
@@ -88,7 +88,7 @@ def verify(core=None, rom=None, route_path=ROUTE, clang='clang', milestone='full
     checkpoints = {point['step']: point for point in route['checkpoints']}
     last_step = (next(point['step'] for point in route['checkpoints'] if point['expected']['room'] == 1)
                  if milestone == 'boot' else len(route['steps']) - 1)
-    steps = route['steps'][:last_step + 1]
+    steps = route_steps(route, 'snes')[:last_step + 1]
     library = compile_native(clang)
     library.openingInit()
     library.openingTick(16)

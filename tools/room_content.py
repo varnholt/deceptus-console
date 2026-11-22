@@ -8,7 +8,7 @@ import re
 import struct
 
 from assets import ROOT
-from world_export import collision_data
+from world_export import capped_rope, collision_data
 
 
 def _constants():
@@ -46,11 +46,9 @@ def encode_room(source, recipe):
     for mechanism in definitions:
         kind = mechanism['kind']
         values = [mechanism[name] for name in ('target_first', 'target_count', 'value')]
-        if kind in ('DECEPTUS_MECH_GRAB_ROPE', 13) and 'rope_segments_max' in recipe:
-            # a platform may cap rope nodes (physics cost grows with them); unset keeps the source.
-            values[2] = max(2, min(values[2], recipe['rope_segments_max']))
+        bounds, values[2] = capped_rope(mechanism, recipe)
         payload.extend(struct.pack(
-            '>H4h3H3B', mechanism['source_id'], *mechanism['bounds'], *values,
+            '>H4h3H3B', mechanism['source_id'], *bounds, *values,
             constants[kind] if isinstance(kind, str) else kind,
             mechanism['enabled'], mechanism['flags']))
         payload.extend(struct.pack('>5HB', *mechanism.get('timing', [0] * 6)))
