@@ -2,6 +2,12 @@
 #include "deceptus/physics.h"
 #include <string.h>
 
+#if defined(SNES_ENGINE_ASM)
+/* 65816 versions in src/platform/snes/engine_math.asm; they return what the c below returns. */
+DeceptusU16 snesRopeDistance(DeceptusI32 x, DeceptusI32 y);
+DeceptusI32 snesRopeQuotient(DeceptusI32 numerator, DeceptusU16 denominator);
+#endif
+
 /* exact 16x16 products where both factors fit; 16-bit cpus otherwise pay a 32-bit multiply call. */
 static DeceptusU32 square(DeceptusI32 value)
 {
@@ -50,7 +56,12 @@ static DeceptusI32 quotient(DeceptusI32 numerator, DeceptusU16 denominator)
       return (DeceptusI16)result;
    }
 #endif
+#if defined(SNES_ENGINE_ASM)
+   /* every caller passes a positive denominator. */
+   return snesRopeQuotient(numerator, denominator);
+#else
    return numerator / (DeceptusI32)denominator;
+#endif
 }
 
 /* value / 256 truncated toward zero, as c division, without a 32-bit divide call. */
@@ -67,6 +78,12 @@ DeceptusU16 deceptusGrabRopeDistance(DeceptusI32 x, DeceptusI32 y)
 {
    DeceptusU32 value, result, bit;
    DeceptusU16 short_value, short_result, short_bit;
+#if defined(SNES_ENGINE_ASM)
+   if ((DeceptusU32)(x + 65535L) <= 131070UL && (DeceptusU32)(y + 65535L) <= 131070UL)
+   {
+      return snesRopeDistance(x, y);
+   }
+#endif
    value = square(x) + square(y);
    if (value <= 65535UL)
    {
