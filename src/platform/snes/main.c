@@ -378,11 +378,14 @@ int main(void)
       }
       WaitForVBlank();
       deceptus_debug[11] = 15;
-      /* every video transfer first, while vblank lasts; sprite tiles and the oam that refers to
-         them land in the same vblank, so the order among them does not show. */
-      snesSpritesCommitTransfers();
+      /* every video transfer first, while vblank lasts. a frame whose transfers exceed one vblank
+         gives the sprites the next one; their tiles and the oam that refers to them stay together. */
       snesBackgroundCommit();
-      snesSpritesCommitTiles();
+      if (!screen_blanked && snes_background_dma_bytes + snesSpritesCommitBytes() > SNES_COMMIT_DMA_BUDGET)
+      {
+         WaitForVBlank();
+      }
+      snesSpritesCommitTransfers();
       deceptus_debug[11] = 16;
       snesSpritesPublish();
       deceptus_debug[11] = 17;
