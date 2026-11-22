@@ -207,6 +207,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         objects.append("background_dma.obj")
         run([assembler, "-d", "-s", "-x", "-o", "background_hash.obj", ROOT / "src/platform/snes/background_hash.asm"], folder)
         objects.append("background_hash.obj")
+        run([assembler, "-d", "-s", "-x", "-o", "background_cell.obj", ROOT / "src/platform/snes/background_cell.asm"], folder)
+        objects.append("background_cell.obj")
         run([assembler, "-d", "-s", "-x", "-o", "sprites_emit.obj", ROOT / "src/platform/snes/sprites_emit.asm"], folder)
         objects.append("sprites_emit.obj")
         run([assembler, "-d", "-s", "-x", "-o", "sprites_quads.obj", ROOT / "src/platform/snes/sprites_quads.asm"], folder)
