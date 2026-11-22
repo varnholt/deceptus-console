@@ -179,7 +179,7 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     pacing_flags = ["-DDECEPTUS_PACING_LOCKED"] if os.environ.get("DECEPTUS_PACING_LOCKED") == "1" else []
     for source in sources:
         stem = source.stem
-        run([compiler, *(["-H", "-DDECEPTUS_SNES_OPENING=1", "-DSNES_SPRITES_ASM=1", "-DSNES_BACKGROUND_ASM=1"] if opening else []), *pacing_flags, "-I" + str(ROOT / "include"), "-I" + str(generated), "-I" + str(sdk / "pvsneslib/include"),
+        run([compiler, *(["-H", "-DDECEPTUS_SNES_OPENING=1", "-DSNES_SPRITES_ASM=1", "-DSNES_BACKGROUND_ASM=1", "-DSNES_ENGINE_ASM=1"] if opening else []), *pacing_flags, "-I" + str(ROOT / "include"), "-I" + str(generated), "-I" + str(sdk / "pvsneslib/include"),
              "-I" + str(sdk / "devkitsnes/include"), "-I" + str(folder), "-Wall", "-c", source,
              "-F", "-o", stem + ".ps"], folder)
         run([optimizer, "-i", stem + ".ps", "-o", stem + ".asm"], folder)
@@ -209,6 +209,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         objects.append("background_hash.obj")
         run([assembler, "-d", "-s", "-x", "-o", "background_cell.obj", ROOT / "src/platform/snes/background_cell.asm"], folder)
         objects.append("background_cell.obj")
+        run([assembler, "-d", "-s", "-x", "-o", "engine_math.obj", ROOT / "src/platform/snes/engine_math.asm"], folder)
+        objects.append("engine_math.obj")
         run([assembler, "-d", "-s", "-x", "-o", "sprites_emit.obj", ROOT / "src/platform/snes/sprites_emit.asm"], folder)
         objects.append("sprites_emit.obj")
         run([assembler, "-d", "-s", "-x", "-o", "sprites_quads.obj", ROOT / "src/platform/snes/sprites_quads.asm"], folder)

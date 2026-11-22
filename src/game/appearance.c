@@ -179,11 +179,12 @@ static DeceptusU8 mechanismSprites(const DeceptusEngine *engine, DeceptusAppeara
 static DeceptusU8 ropeSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
 {
    DeceptusU16 distance, length, height;
-   DeceptusU8 rope;
+   DeceptusU8 rope, node;
    DeceptusI16 x, y;
    for (rope = 0; rope < engine->grab_ropes.count; ++rope)
    {
       length = deceptusGrabRopeLength(engine, rope);
+      node = 1;
       for (distance = 0; distance < length; distance += height)
       {
          height = distance ? 8 : 16;
@@ -191,7 +192,7 @@ static DeceptusU8 ropeSprites(const DeceptusEngine *engine, DeceptusAppearanceOu
          {
             height = length - distance;
          }
-         deceptusGrabRopePointAt(engine, rope, distance, &x, &y);
+         deceptusGrabRopePointFrom(engine, rope, distance, &node, &x, &y);
          if (!addSprite(output, DECEPTUS_SPRITE_GRAB_ROPE, distance ? height : 0, x - engine->camera_x - 7,
                         y - engine->camera_y - (distance ? 4 : 0), 0))
          {

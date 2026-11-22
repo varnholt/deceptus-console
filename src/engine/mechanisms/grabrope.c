@@ -2,6 +2,13 @@
 #include "deceptus/physics.h"
 #include <string.h>
 
+#if defined(SNES_ENGINE_ASM)
+/* 65816 versions in src/platform/snes/engine_math.asm; they return what the c below returns. */
+DeceptusU16 snesRopeDistance(DeceptusI32 x, DeceptusI32 y);
+DeceptusI32 snesRopeQuotient(DeceptusI32 numerator, DeceptusU16 denominator);
+DeceptusI32 snesRopeProduct(DeceptusI16 left, DeceptusI16 right);
+#endif
+
 /* exact 16x16 products where both factors fit; 16-bit cpus otherwise pay a 32-bit multiply call. */
 static DeceptusU32 square(DeceptusI32 value)
 {
@@ -27,6 +34,8 @@ static DeceptusI32 product(DeceptusI32 left, DeceptusI32 right)
 #if defined(__mc68000__) || defined(__m68k__)
       __asm__("muls.w %1,%0" : "+d"(left) : "d"((DeceptusI16)right) : "cc");
       return left;
+#elif defined(SNES_ENGINE_ASM)
+      return snesRopeProduct((DeceptusI16)left, (DeceptusI16)right);
 #else
       return (DeceptusI32)(DeceptusI16)left * (DeceptusI16)right;
 #endif
@@ -50,7 +59,12 @@ static DeceptusI32 quotient(DeceptusI32 numerator, DeceptusU16 denominator)
       return (DeceptusI16)result;
    }
 #endif
+#if defined(SNES_ENGINE_ASM)
+   /* every caller passes a positive denominator. */
+   return snesRopeQuotient(numerator, denominator);
+#else
    return numerator / (DeceptusI32)denominator;
+#endif
 }
 
 /* value / 256 truncated toward zero, as c division, without a 32-bit divide call. */
@@ -67,6 +81,12 @@ DeceptusU16 deceptusGrabRopeDistance(DeceptusI32 x, DeceptusI32 y)
 {
    DeceptusU32 value, result, bit;
    DeceptusU16 short_value, short_result, short_bit;
+#if defined(SNES_ENGINE_ASM)
+   if ((DeceptusU32)(x + 65535L) <= 131070UL && (DeceptusU32)(y + 65535L) <= 131070UL)
+   {
+      return snesRopeDistance(x, y);
+   }
+#endif
    value = square(x) + square(y);
    if (value <= 65535UL)
    {
@@ -425,13 +445,14 @@ DeceptusU16 deceptusGrabRopeLength(const DeceptusEngine *engine, DeceptusU8 inde
    return (rope->total_length + 15) / 16;
 }
 
-DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusI16 *x, DeceptusI16 *y)
+DeceptusU8 deceptusGrabRopePointFrom(const DeceptusEngine *engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusU8 *node_hint,
+                                    DeceptusI16 *x, DeceptusI16 *y)
 {
    const DeceptusGrabRope *rope;
    DeceptusU16 remaining, length;
    DeceptusI32 dx, dy;
    DeceptusU8 node;
-   if (index >= engine->grab_ropes.count || !x || !y)
+   if (index >= engine->grab_ropes.count || !x || !y || !node_hint || !*node_hint)
    {
       return 0;
    }
@@ -441,20 +462,36 @@ DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 inde
       return 0;
    }
    remaining = distance_px > 2047 ? 32752 : distance_px * 16;
-   for (node = 1; node < rope->node_count; ++node)
+   node = *node_hint;
+   if (node < rope->node_count)
+   {
+      /* the links before the hint were passed by a shorter distance, so they are passed again: the
+         walk from the anchor would arrive here with exactly this remainder. */
+      remaining -= rope->cumulative_length[node - 1];
+   }
+   for (; node < rope->node_count; ++node)
    {
       dx = (DeceptusI32)rope->x[node] - rope->x[node - 1];
       dy = (DeceptusI32)rope->y[node] - rope->y[node - 1];
       length = rope->cumulative_length[node] - rope->cumulative_length[node - 1];
       if (remaining <= length && length)
       {
+         *node_hint = node;
          *x = deceptusFloor((DeceptusFixed)(rope->x[node - 1] + quotient(product(dx, remaining), length)));
          *y = deceptusFloor((DeceptusFixed)(rope->y[node - 1] + quotient(product(dy, remaining), length)));
          return 1;
       }
       remaining -= length;
    }
+   *node_hint = rope->node_count;
    *x = deceptusFloor(rope->x[rope->node_count - 1]);
    *y = deceptusFloor(rope->y[rope->node_count - 1]);
    return 1;
+}
+
+DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusI16 *x, DeceptusI16 *y)
+{
+   DeceptusU8 node;
+   node = 1;
+   return deceptusGrabRopePointFrom(engine, index, distance_px, &node, x, y);
 }
