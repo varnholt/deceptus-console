@@ -10,19 +10,27 @@
 ; handle the common cases and call the c reference functions in background.c,
 ; before changing any state, for everything else:
 ; - load: cell inside the room and outside the union of the plane's enabled
-;   clip rectangles, row in the row table, pattern zero or already resident.
-; - release: blank or unreferenced cell, or a reference count that stays above
-;   zero.
+;   clip rectangles, row in the row table, pattern zero, resident, or placed in
+;   a free slot the plane can address (acquirePattern).
+; - release: every case (releaseCell), with the backward-shift hash deletion.
 ; the offsets are those of SnesBackgroundWork and SnesBackgroundCellView;
 ; background.c fails to compile if the layouts move them.
+.define SNES_BG_RESIDENT 0
 .define SNES_BG_REFERENCES 2144
+.define SNES_BG_FREE_SLOTS 4288
 .define SNES_BG_HASH_KEYS 6432
 .define SNES_BG_HASH_SLOTS 10528
 .define SNES_BG_MAPS 14624
+.define SNES_BG_UPLOADS 22816
+.define SNES_BG_PENDING 26738
+.define SNES_BG_DOMAINS 27810
 .define SNES_BG_DIRTY_COLUMN 28882
 .define SNES_BG_DIRTY_ROWS 29842
 .define SNES_BG_DMA_BYTES 29850
+.define SNES_BG_FREE_COUNT 29852
+.define SNES_BG_UPLOAD_COUNT 29854
 .define SNES_BG_ROOM_CELLS 29858
+.define SNES_BG_HASH_TOMBSTONES 29860
 .define SNES_BG_ROW_OFFSETS 29868
 .define VIEW_COLUMNS 0
 .define VIEW_ROWS 2
@@ -66,6 +74,94 @@ cell_map_low:
 
 cell_bits:
     .dw 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768
+
+; a = slot, kept. carry clear when the plane at 15,s (one jsr deeper than the
+; entry points) can address the slot: slotAddressable in background.c.
+slot_addressable:
+    pha
+    lda 15,s
+    beq slot_addressable_zero
+    pla
+    cmp #768
+    bcc slot_addressable_done
+    cmp #1024
+    bcs slot_addressable_yes
+    sec
+    rts
+slot_addressable_yes:
+    clc
+slot_addressable_done:
+    rts
+slot_addressable_zero:
+    pla
+    cmp #1024
+    rts
+
+; a = domain key. removes its hash entry, if any: hashRemove in background.c.
+release_domain:
+    pea 0
+    pha
+    jsl snesBackgroundHashFind
+    pla
+    pla
+    lda.b tcc__r0
+    cmp #$ffff
+    beq release_domain_done
+    ; tcc__r0 = hole, x = next entry, both as byte offsets.
+    asl a
+    sta.b tcc__r0
+    tax
+release_shift_next:
+    txa
+    inc a
+    inc a
+    and #4095
+    tax
+    lda.l snes_background_storage+SNES_BG_HASH_KEYS,x
+    cmp #$ffff
+    beq release_shift_end
+    cmp #$fffe
+    beq release_shift_next
+    sta.b tcc__r1
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    eor.b tcc__r1
+    and #2047
+    asl a
+    sta.b tcc__r3
+    ; an entry may fill the hole when the hole lies on its probe path:
+    ; (next - home) >= (next - hole), all modulo the table.
+    txa
+    sec
+    sbc.b tcc__r3
+    and #4095
+    sta.b tcc__r3
+    txa
+    sec
+    sbc.b tcc__r0
+    and #4095
+    cmp.b tcc__r3
+    beq release_shift_move
+    bcs release_shift_next
+release_shift_move:
+    lda.l snes_background_storage+SNES_BG_HASH_SLOTS,x
+    phx
+    ldx.b tcc__r0
+    sta.l snes_background_storage+SNES_BG_HASH_SLOTS,x
+    lda.b tcc__r1
+    sta.l snes_background_storage+SNES_BG_HASH_KEYS,x
+    plx
+    stx.b tcc__r0
+    bra release_shift_next
+release_shift_end:
+    ldx.b tcc__r0
+    lda #$ffff
+    sta.l snes_background_storage+SNES_BG_HASH_KEYS,x
+release_domain_done:
+    rts
 
 ; early bail-outs of the load path branch here; load_slow is out of 8-bit reach.
 load_slow_near:
@@ -151,7 +247,9 @@ load_outside_clips:
     dey
     dey
     lda [tcc__r1],y
-    beq load_tile
+    bne load_pattern
+    jmp load_tile
+load_pattern:
     cmp.l snes_background_cell_view+VIEW_PATTERNS
     bcs load_slow
     sta.b tcc__r2
@@ -174,7 +272,7 @@ load_domain:
     tax
     lda.l snes_background_storage+SNES_BG_HASH_KEYS,x
     cmp.b tcc__r2
-    bne load_slow
+    bne load_miss
     lda.l snes_background_storage+SNES_BG_HASH_SLOTS,x
     asl a
     tax
@@ -183,7 +281,7 @@ load_domain:
     sta.l snes_background_storage+SNES_BG_REFERENCES,x
     txa
     lsr a
-    bra load_tile
+    jmp load_tile
 
 load_slow:
     ; each push moves the next argument to 17,s.
@@ -201,6 +299,113 @@ load_slow:
     pla
     pla
     jmp load_return
+
+load_miss:
+    ; x = key * 2 of the insert position, tcc__r2 = domain key. the other
+    ; plane's entry for the pattern may share its slot.
+    stx.b tcc__r4
+    pea 0
+    lda.b tcc__r2
+    eor #$4000
+    pha
+    jsl snesBackgroundHashFind
+    pla
+    pla
+    lda.b tcc__r0
+    cmp #$ffff
+    beq load_free
+    asl a
+    tax
+    lda.b tcc__r2
+    eor #$4000
+    cmp.l snes_background_storage+SNES_BG_HASH_KEYS,x
+    bne load_free
+    lda.l snes_background_storage+SNES_BG_HASH_SLOTS,x
+    jsr slot_addressable
+    bcc load_insert
+load_free:
+    ; the last free slot this plane can address, searched from the top.
+    lda.l snes_background_storage+SNES_BG_FREE_COUNT
+    asl a
+    tax
+load_free_next:
+    cpx #0
+    bne load_free_test
+    ; no slot: the c path reports the full cache.
+    jmp load_slow
+load_free_test:
+    dex
+    dex
+    lda.l snes_background_storage+SNES_BG_FREE_SLOTS,x
+    jsr slot_addressable
+    bcs load_free_next
+    sta.b tcc__r5
+    lda.l snes_background_storage+SNES_BG_FREE_COUNT
+    dec a
+    sta.l snes_background_storage+SNES_BG_FREE_COUNT
+    phx
+    asl a
+    tax
+    lda.l snes_background_storage+SNES_BG_FREE_SLOTS,x
+    plx
+    sta.l snes_background_storage+SNES_BG_FREE_SLOTS,x
+    lda.b tcc__r5
+    asl a
+    tax
+    lda.b tcc__r2
+    and #$3fff
+    sta.l snes_background_storage+SNES_BG_RESIDENT,x
+    ldx.b tcc__r5
+    sep #$20
+    lda.l snes_background_storage+SNES_BG_PENDING,x
+    bne load_pending
+    lda #1
+    sta.l snes_background_storage+SNES_BG_PENDING,x
+    rep #$20
+    lda.l snes_background_storage+SNES_BG_UPLOAD_COUNT
+    asl a
+    tax
+    lda.b tcc__r5
+    sta.l snes_background_storage+SNES_BG_UPLOADS,x
+    lda.l snes_background_storage+SNES_BG_UPLOAD_COUNT
+    inc a
+    sta.l snes_background_storage+SNES_BG_UPLOAD_COUNT
+    lda.l snes_background_storage+SNES_BG_DMA_BYTES
+    clc
+    adc #32
+    sta.l snes_background_storage+SNES_BG_DMA_BYTES
+load_pending:
+    rep #$20
+    lda.b tcc__r5
+load_insert:
+    ; a = slot. claim the hash entry and count the reference.
+    sta.b tcc__r5
+    ldx.b tcc__r4
+    lda.l snes_background_storage+SNES_BG_HASH_KEYS,x
+    cmp #$fffe
+    bne load_insert_key
+    lda.l snes_background_storage+SNES_BG_HASH_TOMBSTONES
+    dec a
+    sta.l snes_background_storage+SNES_BG_HASH_TOMBSTONES
+load_insert_key:
+    lda.b tcc__r2
+    sta.l snes_background_storage+SNES_BG_HASH_KEYS,x
+    lda.b tcc__r5
+    sta.l snes_background_storage+SNES_BG_HASH_SLOTS,x
+    tax
+    lda 11,s
+    inc a
+    sep #$20
+    ora.l snes_background_storage+SNES_BG_DOMAINS,x
+    sta.l snes_background_storage+SNES_BG_DOMAINS,x
+    rep #$20
+    lda.b tcc__r5
+    asl a
+    tax
+    lda.l snes_background_storage+SNES_BG_REFERENCES,x
+    inc a
+    sta.l snes_background_storage+SNES_BG_REFERENCES,x
+    lda.b tcc__r5
 
 load_tile:
     ; a = slot. slotTile(plane, slot) with the plane's priority bit.
@@ -325,10 +530,52 @@ release_slot:
     tax
     lda.l snes_background_storage+SNES_BG_REFERENCES,x
     beq release_clear
-    cmp #1
-    beq release_slow
     dec a
     sta.l snes_background_storage+SNES_BG_REFERENCES,x
+    bne release_clear
+    ; last reference: drop the slot's hash entries and free it.
+    txa
+    lsr a
+    sta.b tcc__r5
+    tax
+    sep #$20
+    lda.l snes_background_storage+SNES_BG_DOMAINS,x
+    sta.b tcc__r4
+    lda #0
+    sta.l snes_background_storage+SNES_BG_DOMAINS,x
+    rep #$20
+    lda.b tcc__r4
+    and #1
+    beq release_domain_one
+    lda.b tcc__r5
+    asl a
+    tax
+    lda.l snes_background_storage+SNES_BG_RESIDENT,x
+    jsr release_domain
+release_domain_one:
+    lda.b tcc__r4
+    and #2
+    beq release_free
+    lda.b tcc__r5
+    asl a
+    tax
+    lda.l snes_background_storage+SNES_BG_RESIDENT,x
+    ora #$4000
+    jsr release_domain
+release_free:
+    lda.b tcc__r5
+    asl a
+    tax
+    lda #$ffff
+    sta.l snes_background_storage+SNES_BG_RESIDENT,x
+    lda.l snes_background_storage+SNES_BG_FREE_COUNT
+    asl a
+    tax
+    lda.b tcc__r5
+    sta.l snes_background_storage+SNES_BG_FREE_SLOTS,x
+    lda.l snes_background_storage+SNES_BG_FREE_COUNT
+    inc a
+    sta.l snes_background_storage+SNES_BG_FREE_COUNT
 release_clear:
     ldx.b tcc__r2
     lda 11,s
@@ -342,16 +589,4 @@ release_return:
     pld
     plp
     rtl
-release_slow:
-    lda 15,s
-    pha
-    lda 15,s
-    pha
-    lda 15,s
-    pha
-    jsl snesBackgroundReleaseCell
-    pla
-    pla
-    pla
-    bra release_return
 .ends
