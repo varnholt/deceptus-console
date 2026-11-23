@@ -2,6 +2,9 @@
 #include "vram_dma.h"
 #include "snes_assets.h"
 #include <snes.h>
+#ifdef SNES_SA1
+#include "sa1.h"
+#endif
 
 #define SNES_BG_SLOTS 1072
 #define SNES_BG_HASH 2048
@@ -637,6 +640,9 @@ void snesBackgroundLoad(DeceptusU8 room)
       room = 0;
    }
    stage = &snes_stages[room];
+#ifdef SNES_SA1
+   SNES_SA1_FXB = snes_stage_rom_blocks[room];
+#endif
    if (stage->animation_count > SNES_BG_CLIPS || stage->pattern_count > 16384)
    {
       snes_background_error = 1;

@@ -175,15 +175,28 @@ int main(void)
 #include "snes_assets.h"
 #include <snes.h>
 
-extern const DeceptusAdventureDef snes_tutorial_definition;
-static DeceptusAdventure adventure;
-static DeceptusFrame frame;
 #ifndef SNES_PACING_MAX_TICKS
 #define SNES_PACING_MAX_TICKS 1
 #endif
 static DeceptusPacing pacing;
-static const DeceptusVideoCaps video = {256, 224, DECEPTUS_DRAW_CAPACITY};
 volatile DeceptusU16 deceptus_debug[56];
+
+#ifdef SNES_SA1
+#include "sa1.h"
+#include "sa1_mailbox.h"
+/* the SA-1 stack low-water mark, copied to work RAM for the emulator checks. */
+DeceptusU16 snes_sa1_stack_low_water;
+/* the SA-1 runs the game and keeps its state in BW-RAM; this cpu reads it through pointers only. */
+#define SNES_GAME (&snes_sa1_adventure)
+#define SNES_FRAME (&snes_sa1_frame)
+#else
+extern const DeceptusAdventureDef snes_tutorial_definition;
+static const DeceptusVideoCaps video = {256, 224, DECEPTUS_DRAW_CAPACITY};
+static DeceptusAdventure adventure;
+static DeceptusFrame frame;
+#define SNES_GAME (&adventure)
+#define SNES_FRAME (&frame)
+#endif
 
 #include "background.h"
 #include "sprites.h"
@@ -244,8 +257,10 @@ static DeceptusU16 inputRead(void)
 
 static void debugWrite(void)
 {
+   const DeceptusAdventure *game;
    const DeceptusEngine *engine;
-   engine = &adventure.campaign.engine;
+   game = SNES_GAME;
+   engine = &game->campaign.engine;
    deceptus_debug[0] = 0xD3CE;
    deceptus_debug[1] = deceptusFloor(engine->entities[0].x);
    deceptus_debug[2] = deceptusFloor(engine->entities[0].y);
@@ -256,7 +271,7 @@ static void debugWrite(void)
    deceptus_debug[7] = engine->entities[0].grounded;
    deceptus_debug[8] = engine->door_entries;
    deceptus_debug[9] = engine->event_count;
-   deceptus_debug[10] = frame.count;
+   deceptus_debug[10] = SNES_FRAME->count;
    deceptus_debug[12] = engine->checkpoint_id;
    deceptus_debug[13] = engine->checkpoint_x;
    deceptus_debug[14] = engine->checkpoint_y;
@@ -273,28 +288,28 @@ static void debugWrite(void)
    deceptus_debug[25] = snes_sprite_blank;
    deceptus_debug[26] = engine->previous_buttons;
    deceptus_debug[27] = padsCurrent(0);
-   deceptus_debug[28] = adventure.campaign.room_index;
-   deceptus_debug[29] = adventure.campaign.mode;
-   deceptus_debug[30] = adventure.campaign.deaths;
-   deceptus_debug[31] = adventure.campaign.seconds;
+   deceptus_debug[28] = game->campaign.room_index;
+   deceptus_debug[29] = game->campaign.mode;
+   deceptus_debug[30] = game->campaign.deaths;
+   deceptus_debug[31] = game->campaign.seconds;
    deceptus_debug[32] = engine->projectiles_fired;
-   deceptus_debug[33] = adventure.campaign.restarts;
-   deceptus_debug[36] = adventure.flags;
-   deceptus_debug[37] = adventure.inventory.counts[1];
-   deceptus_debug[38] = adventure.inventory.counts[2];
-   deceptus_debug[39] = adventure.page;
+   deceptus_debug[33] = game->campaign.restarts;
+   deceptus_debug[36] = game->flags;
+   deceptus_debug[37] = game->inventory.counts[1];
+   deceptus_debug[38] = game->inventory.counts[2];
+   deceptus_debug[39] = game->page;
    deceptus_debug[40] = engine->entities[0].velocity_x;
    deceptus_debug[41] = engine->entities[0].velocity_y;
    deceptus_debug[42] = engine->entities[0].x;
    deceptus_debug[43] = engine->entities[0].y;
-   deceptus_debug[44] = adventure.campaign.previous_buttons;
-   deceptus_debug[46] = adventure.inventory.counts[3];
-   deceptus_debug[47] = adventure.inventory.counts[4];
-   deceptus_debug[48] = adventure.inventory.counts[5];
-   deceptus_debug[49] = adventure.inventory.counts[6];
-   deceptus_debug[50] = adventure.pending_ticks;
-   deceptus_debug[51] = adventure.has_sword;
-   deceptus_debug[52] = adventure.inventory.counts[7];
+   deceptus_debug[44] = game->campaign.previous_buttons;
+   deceptus_debug[46] = game->inventory.counts[3];
+   deceptus_debug[47] = game->inventory.counts[4];
+   deceptus_debug[48] = game->inventory.counts[5];
+   deceptus_debug[49] = game->inventory.counts[6];
+   deceptus_debug[50] = game->pending_ticks;
+   deceptus_debug[51] = game->has_sword;
+   deceptus_debug[52] = game->inventory.counts[7];
    deceptus_debug[53] = engine->player_rope.attached;
    deceptus_debug[54] = engine->player_rope.rope_index;
    deceptus_debug[55] = engine->player_rope.node_index;
@@ -309,7 +324,7 @@ static void videoLoad(void)
    deceptus_debug[11] = 3;
    setScreenOff();
    screen_blanked = 1;
-   snesBackgroundLoad(adventure.campaign.room_index);
+   snesBackgroundLoad(SNES_GAME->campaign.room_index);
    deceptus_debug[11] = 4;
    snesSpritesInit();
    deceptus_debug[11] = 5;
@@ -317,13 +332,75 @@ static void videoLoad(void)
    deceptus_debug[11] = 6;
 }
 
+#ifdef SNES_SA1
+/* hands one command to the SA-1 and waits until it is done. */
+static void gameRequest(DeceptusU16 command)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   mailbox->command = command;
+   ++mailbox->request;
+   while (mailbox->done != mailbox->request)
+   {
+   }
+}
+
+static void gameStart(void)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   mailbox->request = 0;
+   mailbox->done = 0;
+   snesSa1Start();
+   gameRequest(SNES_SA1_INIT);
+}
+
+/* runs up to ticks simulation ticks and renders the frame; nonzero when a tick entered another
+ * room, which ends the ticks early. */
+static DeceptusU8 gameAdvance(DeceptusU16 buttons, DeceptusU8 ticks)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   mailbox->buttons = buttons;
+   mailbox->ticks = ticks;
+   gameRequest(SNES_SA1_ADVANCE);
+   snes_sa1_stack_low_water = mailbox->stack_low_water;
+   return (DeceptusU8)mailbox->room_changed;
+}
+#else
+static void gameStart(void)
+{
+   deceptusAdventureInit(&adventure, &snes_tutorial_definition, &video);
+}
+
+static DeceptusU8 gameAdvance(DeceptusU16 buttons, DeceptusU8 ticks)
+{
+   DeceptusU8 room_changed;
+   room_changed = 0;
+   while (ticks)
+   {
+      --ticks;
+      if (deceptusAdventureTick(&adventure, buttons))
+      {
+         room_changed = 1;
+         break;
+      }
+   }
+   deceptusRender(&adventure.campaign.engine, &frame);
+   return room_changed;
+}
+#endif
+
 int main(void)
 {
    DeceptusU16 scenery_flags, buttons, previous_vblank, current_vblank;
    DeceptusU8 ticks, room_loaded;
+#ifdef SNES_SA1
+   snesSa1MapDefaultBlocks();
+#endif
    deceptus_debug[0] = 0xD3CE;
    deceptus_debug[11] = 1;
-   deceptusAdventureInit(&adventure, &snes_tutorial_definition, &video);
+   gameStart();
    deceptus_debug[11] = 2;
    videoLoad();
    deceptus_debug[11] = 7;
@@ -339,27 +416,21 @@ int main(void)
       previous_vblank = current_vblank;
       room_loaded = 0;
       buttons = inputRead();
-      while (ticks)
-      {
-         --ticks;
-         if (deceptusAdventureTick(&adventure, buttons))
-         {
-            videoLoad();
-            deceptusPacingReset(&pacing);
-            room_loaded = 1;
-            break;
-         }
-      }
       deceptus_debug[11] = 9;
-      deceptusRender(&adventure.campaign.engine, &frame);
+      if (gameAdvance(buttons, ticks))
+      {
+         videoLoad();
+         deceptusPacingReset(&pacing);
+         room_loaded = 1;
+      }
       deceptus_debug[11] = 10;
-      scenery_flags = deceptusAdventurePresentationFlags(&adventure);
+      scenery_flags = deceptusAdventurePresentationFlags(SNES_GAME);
       snesBackgroundSetFlags(scenery_flags);
-      snesBackgroundPrepare(frame.camera_x, frame.camera_y);
+      snesBackgroundPrepare(SNES_FRAME->camera_x, SNES_FRAME->camera_y);
       deceptus_debug[11] = 11;
-      snesSpritesPrepare(&adventure, &frame);
+      snesSpritesPrepare(SNES_GAME, SNES_FRAME);
       deceptus_debug[11] = 12;
-      snesUiPrepare(&adventure);
+      snesUiPrepare(SNES_GAME);
       deceptus_debug[11] = 13;
       snesSpritesPreload();
       deceptus_debug[11] = 14;
