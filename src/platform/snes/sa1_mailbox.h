@@ -6,9 +6,9 @@
 /* commands the S-CPU hands to the SA-1, which runs the game. */
 #define SNES_SA1_INIT 1
 #define SNES_SA1_ADVANCE 2
-/* the current room's background data, after the S-CPU set up its video side. */
+/* the current room's background data and sprite cache, after the S-CPU set up their video side. */
 #define SNES_SA1_LOAD_ROOM 3
-/* scenery flags and the background window for the rendered frame. */
+/* scenery flags, the background window and the sprites for the rendered frame. */
 #define SNES_SA1_PREPARE 4
 
 /* the mailbox lives in I-RAM, which both CPUs address at 00:3100 (the SA-1 also at 00:0100).

@@ -5,6 +5,7 @@
 #include "snes_assets.h"
 #include "sa1_mailbox.h"
 #include "background.h"
+#include "sprites.h"
 
 extern const DeceptusAdventureDef snes_tutorial_definition;
 
@@ -65,11 +66,14 @@ void snesSa1Main(void)
       else if (mailbox->command == SNES_SA1_LOAD_ROOM)
       {
          snesBackgroundLoad(snes_sa1_adventure.campaign.room_index);
+         snesSpritesReset();
       }
       else if (mailbox->command == SNES_SA1_PREPARE)
       {
          snesBackgroundSetFlags(deceptusAdventurePresentationFlags(&snes_sa1_adventure));
          snesBackgroundPrepare(snes_sa1_frame.camera_x, snes_sa1_frame.camera_y);
+         snesSpritesPrepare(&snes_sa1_adventure, &snes_sa1_frame);
+         snesSpritesStage();
       }
       recordStackLowWater(mailbox);
       mailbox->done = request;

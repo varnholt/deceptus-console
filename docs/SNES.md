@@ -71,7 +71,7 @@ after copying the reserved startup mirror.
 
 `tools/build_snes.py --cartridge sa1` builds the same opening for an SA-1
 cartridge (map mode `23`, type `34`, 128 KiB BW-RAM), where the game runs on the
-SA-1 and the S-CPU keeps pacing, input, video preparation and VBlank commits.
+SA-1 and the S-CPU keeps pacing, input, the interface and the video transfers.
 
 ROM layout: both CPUs see four 1 MiB blocks at banks c0-ff, selected by
 `$2220-$2223`. Block 0 (c0-cf) holds code and tables, blocks 1-2 (d0-ef) the
@@ -86,10 +86,20 @@ map. `main` writes the power-on block numbers once, because Snes9x maps the LoRO
 windows like plain LoROM until the first write.
 
 CPU split: `sa1_main.c` owns the adventure and frame in BW-RAM (bank 40) and
-answers a mailbox in I-RAM (`sa1_mailbox.h`, 00:3100 for both CPUs): initialise,
-or run the paced ticks and render. The S-CPU waits for each answer, so the order
-of ticks, room loads and presentation is unchanged and the route stays
-tick-exact. Every object except `main.c` and `background.c` is built for the
+answers a mailbox in I-RAM (`sa1_mailbox.h`, 00:3100 for both CPUs): initialise;
+run the paced ticks and render; load the room's background data and reset the
+sprite cache; prepare a presentation (scenery flags, background window, sprites
+and their staged transfers). The S-CPU waits for each answer, so the order of
+ticks, room loads and presentation is unchanged and the route stays tick-exact.
+Background and sprites are split along that line on both cartridges:
+`background.c` and `sprites.c` prepare without video access, while
+`background_commit.c` and `sprites_commit.c` set up video at room loads (OBJ
+registers, background pointers and palette, the room's ROM block) and perform
+the transfers. The background work area moves to BW-RAM bank 41 on the SA-1
+cartridge; both halves reach it, the sprite staging and the OAM shadow through
+24-bit addresses. Sprite tiles that do not fit the commit VBlank are staged in
+full; the S-CPU uploads them sixteen pieces per VBlank, or at once in forced
+blank. Every object except `main.c` and `background.c` is built for the
 SA-1: its initialised data becomes ROM, its globals move to BW-RAM, and its
 arithmetic avoids the S-CPU multiplier/divider and their lock in work RAM
 (`tcc__mul_sw`, `tcc__mull_sw`, `tcc__udiv_sw`, and `sa1_runtime.asm` for the
@@ -99,6 +109,12 @@ code that accesses BW-RAM globals with 16-bit absolute addressing (which would
 go through the S-CPU's data bank); 24-bit accesses and addresses are fine. The
 SA-1 stack lies in I-RAM below `7ff`; `snes_sa1_stack_low_water` reports its
 deepest point.
+
+Initialised statics in SA-1 objects become ROM, so the build rejects writable
+ones. The SDK start-up zeroes only one section named `.bss`; the build gathers
+every game object's work-RAM globals in `game_bss`, which `snesClearGameRam`
+(`game_ram.asm`) zeroes first thing in `main`, and the SA-1 start-up zeroes its
+BW-RAM globals.
 
 Native cache tests exercise the actual C backend across bank-sized map chunks,
 camera movement in both directions, diagonal movement, jumps, room edges and

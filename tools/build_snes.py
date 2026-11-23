@@ -130,12 +130,32 @@ def sa1_layout_assembly(room_blocks, rooms):
 
 # SA-1 objects run on the SA-1: their globals live in BW-RAM, which the SA-1 addresses through its
 # data bank $40; the S-CPU keeps work RAM and its multiplier/divider, which the SA-1 cannot reach.
-SA1_HOST_SOURCES = ("main.c", "background_commit.c")
+SA1_HOST_SOURCES = ("main.c", "background_commit.c", "sprites_commit.c")
 SA1_BSS = '.RAMSECTION ".bss" BANK $40 SLOT 2'
 SA1_RUNTIME = {"tcc__mul": "tcc__mul_sw", "tcc__mull": "tcc__mull_sw", "tcc__udiv": "tcc__udiv_sw",
                "tcc__div": "snesSa1Div", "snesMulS16": "snesSa1MulS16", "snesSquareU16": "snesSa1SquareU16"}
 SA1_FORBIDDEN = ("tcc__hwlock",)
 BSS_SECTION = re.compile(r'\.RAMSECTION "\.bss" BANK \$(?:7e|40) SLOT 2\n(.*?)\.ENDS', re.S)
+
+
+# a static or file-scope object with an initializer, up to the "=": "static T name[N]".
+STATIC_INITIALIZED = re.compile(r'\bstatic\s+([^;{}()=]*?)=[^;]*;')
+
+
+def reject_writable_initialized_statics(paths):
+    """SA-1 objects keep initialized data in ROM, so an initialized static must be const."""
+    findings = []
+    for path in paths:
+        text = COMMENT_OR_STRING.sub(lambda match: re.sub(r"[^\n]", " ", match[0]), path.read_text())
+        for match in STATIC_INITIALIZED.finditer(text):
+            declaration = match[1]
+            pointer = declaration.rfind('*')
+            if re.search(r'\bconst\b', declaration[pointer + 1:]):
+                continue
+            findings.append(f"{path.relative_to(ROOT)}:{text.count(chr(10), 0, match.start()) + 1}")
+    if findings:
+        raise SystemExit("SA-1 objects keep initialized data in ROM; these initialized statics are writable:\n  " +
+                         "\n  ".join(findings))
 
 
 def bss_globals(assembly):
@@ -176,6 +196,15 @@ def check_sa1_boundary(host_assemblies, sa1_assemblies):
                     findings.append(f"{name}: S-CPU code accesses BW-RAM {label} directly: {line.strip()}")
     if findings:
         raise SystemExit("SA-1 boundary violated:\n  " + "\n  ".join(sorted(set(findings))))
+
+
+# the sdk start-up clears work RAM from SECTIONSTART_.bss to SECTIONEND_.bss, which name only one
+# of the many ".bss" sections (the libraries' among them). the game's work RAM globals go into one
+# section, game_bss, owned by main; snesClearGameRam (game_ram.asm) zeroes it first thing in main.
+BSS_OWNER = "main"
+WORK_RAM_BSS = '.RAMSECTION ".bss" BANK $7e SLOT 2'
+OWNED_BSS = '.RAMSECTION "game_bss" BANK $7e SLOT 2'
+APPENDED_BSS = '.RAMSECTION "game_bss_{WLA_FILENAME}" APPENDTO "game_bss"'
 
 
 def banked_hirom_assembly(assembly, exhirom=False):
@@ -343,7 +372,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
                ROOT / "src/platform/snes/main.c"]
     if opening:
         sources += [ROOT / "src/game/campaign.c", ROOT / "src/platform/snes/background.c",
-                    ROOT / "src/platform/snes/background_commit.c"]
+                    ROOT / "src/platform/snes/background_commit.c", ROOT / "src/platform/snes/sprites.c",
+                    ROOT / "src/platform/snes/sprites_commit.c"]
         sources += [generated / name for name in metadata["c_sources"]]
         if sa1:
             sources.append(ROOT / "src/platform/snes/sa1_main.c")
@@ -353,6 +383,9 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     pacing_flags = ["-DDECEPTUS_PACING_LOCKED"] if os.environ.get("DECEPTUS_PACING_LOCKED") == "1" else []
     headers = [path for folder_name in ("include", "src/platform/snes") for path in (ROOT / folder_name).rglob("*.h")]
     reject_or_not_conditions([source for source in sources if source.parent != generated] + headers)
+    if sa1:
+        reject_writable_initialized_statics([source for source in sources
+                                             if (source.parent != generated) and (source.name not in SA1_HOST_SOURCES)])
     host_assemblies, sa1_assemblies = {}, {}
     for source in sources:
         stem = source.stem
@@ -370,6 +403,7 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
                 assembly = readonly_export_assembly(assembly, stem)
             elif sa1:
                 host_assemblies[stem] = assembly
+            assembly = assembly.replace(WORK_RAM_BSS, OWNED_BSS if stem == BSS_OWNER else APPENDED_BSS)
             assembly_path.write_text(banked_hirom_assembly(assembly, rom_mib == 8))
         run([assembler, "-d", "-s", "-x", "-o", stem + ".obj", stem + ".asm"], folder)
         objects.append(stem + ".obj")
@@ -398,6 +432,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         objects.append("background_ram.obj")
         run([assembler, "-d", "-s", "-x", "-o", "vram_dma.obj", ROOT / "src/platform/snes/vram_dma.asm"], folder)
         objects.append("vram_dma.obj")
+        run([assembler, "-d", "-s", "-x", "-o", "game_ram.obj", ROOT / "src/platform/snes/game_ram.asm"], folder)
+        objects.append("game_ram.obj")
         run([assembler, "-d", "-s", "-x", "-o", "background_hash.obj", ROOT / "src/platform/snes/background_hash.asm"], folder)
         objects.append("background_hash.obj")
         run([assembler, "-d", "-s", "-x", "-o", "background_cell.obj", ROOT / "src/platform/snes/background_cell.asm"], folder)
