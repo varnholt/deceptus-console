@@ -110,10 +110,17 @@ def compile_background(image,foreground,clips,output):
                 palette=palette_bytes,pattern_count=len(patterns),metrics=metrics)
 
 
+# the interface's 2bpp font starts at VRAM 1400 (tile 128 of character base 1000); the foreground's
+# overflow patterns begin at 1880, so the font may take 0x480 words.
+FONT_TILE_BASE=128
+FONT_VRAM_BYTES=(0x1880-0x1400)*2
+
+
 def compile_font(data,output,writer):
     font=NativePixelFont(Path(data)/'fonts')
     graphics=bytearray(bytes(16)+bytes([0,255]*8))
-    glyphs=[]
+    tiles={bytes(graphics[:16]):FONT_TILE_BASE,bytes(graphics[16:]):FONT_TILE_BASE+1}
+    glyphs=[];layout=[]
     for code in range(32,127):
         source=font.glyph(chr(code));bounds=source.getbbox()
         width=(bounds[2]-bounds[0]) if bounds else 1
@@ -122,17 +129,22 @@ def compile_font(data,output,writer):
         if bounds:
             alpha=source.getchannel('A').crop((bounds[0],0,bounds[2],18))
             image.paste(1,(0,0,width,18),alpha)
-        first=128+len(graphics)//16
+        glyphs.append((len(layout),columns))
         for row in range(3):
             for column in range(columns):
-                graphics.extend(planar2(image.crop((column*8,row*8,column*8+8,row*8+8))))
-        glyphs.append((first,columns))
-    if len(graphics)>6144:
-        raise ValueError('native SNES font exceeds its 6KiB VRAM budget')
+                packed=bytes(planar2(image.crop((column*8,row*8,column*8+8,row*8+8))))
+                if packed not in tiles:
+                    tiles[packed]=FONT_TILE_BASE+len(graphics)//16
+                    graphics.extend(packed)
+                layout.append(tiles[packed])
+    # identical glyph pieces share one tile; the space below VRAM 1880 is all the font may take.
+    if len(graphics)>FONT_VRAM_BYTES:
+        raise ValueError(f'native SNES font needs {len(graphics)} bytes, more than its {FONT_VRAM_BYTES}-byte VRAM budget')
     writer.binary('snes_font',graphics)
     lines=['const SnesFontGlyph snes_font_glyphs[95] = {']
-    lines+=['    {'+str(tile)+','+str(columns)+'},' for tile,columns in glyphs]
-    lines+=['};','const DeceptusU16 snes_ui_palette[16] = {0,32767,4226,1599,0,0,0,0,0,0,0,0,0,0,0,0};']
+    lines+=['    {'+str(first)+','+str(columns)+'},' for first,columns in glyphs]
+    lines+=['};','const DeceptusU16 snes_font_layout['+str(len(layout))+'] = {'+','.join(map(str,layout))+'};']
+    lines+=['const DeceptusU16 snes_ui_palette[16] = {0,32767,4226,1599,0,0,0,0,0,0,0,0,0,0,0,0};']
     return lines,len(graphics)
 
 
@@ -401,7 +413,7 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
         (output/f'snes_{stem}_resources.h').write_text(text)
     header=['#ifndef SNES_ASSETS_H','#define SNES_ASSETS_H','#include "deceptus/adventure.h"',
             '#define DECEPTUS_SNES_OPENING 1',f'#define SNES_STAGE_COUNT {rooms}',f'#define SNES_FONT_BYTES {font_bytes}',
-            '#define SNES_FONT_TILE_BASE 128','#define SNES_SPRITE_COUNT 1039','#define SNES_ACTOR_COUNT 26',
+            f'#define SNES_FONT_TILE_BASE {FONT_TILE_BASE}','#define SNES_SPRITE_COUNT 1039','#define SNES_ACTOR_COUNT 26',
             '#define SNES_SPRITE_RESOURCE_COUNT 1065','#define SNES_ACTOR_FIRST 0',
             '#define SNES_SPRITE_OPAQUE_MASK 1',
             '#define SNES_SPRITE_QUADS 1',
@@ -409,12 +421,12 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
             'typedef struct SnesBackgroundAnimation { DeceptusU16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags; const DeceptusU16 *durations; SnesRomBlob cells; DeceptusU8 plane; } SnesBackgroundAnimation;',
             'typedef struct SnesStage { SnesRomBlob patterns,background,foreground; const DeceptusU8 *palette; DeceptusU16 columns,rows,pattern_count; const SnesBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; } SnesStage;',
             'typedef struct SnesSpriteResource { const DeceptusU8 *graphics; const DeceptusU16 *palette; DeceptusU16 bytes; DeceptusU8 columns,rows,trim_x,trim_y; } SnesSpriteResource;',
-            'typedef struct SnesFontGlyph { DeceptusU16 tile; DeceptusU8 columns; } SnesFontGlyph;',
+            'typedef struct SnesFontGlyph { DeceptusU16 layout; DeceptusU8 columns; } SnesFontGlyph;',
             'extern const SnesStage snes_stages[SNES_STAGE_COUNT];','extern const SnesSpriteResource snes_sprite_resources[SNES_SPRITE_RESOURCE_COUNT];',
             'extern const DeceptusU8 snes_sprite_opaque[1065][8];',
             'extern const DeceptusU16 snes_sprite_quad_offsets[1065];','extern const DeceptusU8 snes_sprite_quads[];',
             '#define snes_actors (snes_sprite_resources)','#define snes_sprites (snes_sprite_resources+26)',
-            'extern const SnesFontGlyph snes_font_glyphs[95];','extern const DeceptusU8 snes_font[];','extern const DeceptusU16 snes_ui_palette[16];',
+            'extern const SnesFontGlyph snes_font_glyphs[95];','extern const DeceptusU16 snes_font_layout[];','extern const DeceptusU8 snes_font[];','extern const DeceptusU16 snes_ui_palette[16];',
             'extern const DeceptusCampaignDef snes_campaign_definition;','extern const DeceptusAdventureDef snes_tutorial_definition;']
     # logical resource family prefixes are shared, never their target pixel encodings.
     gba_header=(ROOT/'assets/generated/gba/gba_assets.h').read_text()

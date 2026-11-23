@@ -27,8 +27,8 @@ VRAM word addresses are:
 | `0000â€“07ff` | Background 64Ã—32 map |
 | `0800â€“0fff` | Foreground 64Ã—32 map |
 | `1000â€“13ff` | Interface map |
-| `1400â€“1cff` | Source bitmap font, maximum 4,608 bytes |
-| `1d00â€“1fff` | 48 foreground overflow patterns |
+| `1400-187f` | Source bitmap font, identical glyph tiles shared, maximum 2,304 bytes |
+| `1880-1fff` | 120 foreground overflow patterns |
 | `2000â€“5fff` | Shared 1,024-pattern world cache |
 | `6000â€“7fff` | Sprite cache |
 
@@ -42,7 +42,7 @@ upload queues, conditional clips and map staging have fixed capacities. Room
 loads and large camera jumps require forced blank; ordinary updates stage
 incoming rows and columns. The backend reports malformed resources and cache
 exhaustion instead of replacing art. Foreground uses character base `1000`, so
-it can address 768 shared-cache slots plus 48 overflow patterns below `2000`.
+it can address 768 shared-cache slots plus 120 overflow patterns below `2000`.
 Background uses all 1,024 shared slots. Patterns may share physical storage when
 both planes can address it; otherwise the cache keeps an exact duplicate. A
 fragmented allocation gets one full, atomic rebuild before reporting failure.

@@ -27,7 +27,7 @@ static void snesUiGlyph(DeceptusU16 row, DeceptusU16 column, DeceptusU8 characte
    {
       for (x = 0; x < glyph->columns && column + x < 32; ++x)
       {
-         snes_ui_map[(row + y) * 32 + column + x] = (glyph->tile + y * glyph->columns + x) | 0x2000;
+         snes_ui_map[(row + y) * 32 + column + x] = snes_font_layout[glyph->layout + y * glyph->columns + x] | 0x2000;
       }
    }
 }

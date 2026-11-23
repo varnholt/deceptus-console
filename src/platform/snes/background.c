@@ -2,8 +2,9 @@
 #include "background_work.h"
 #include <snes.h>
 
-#if SNES_FONT_BYTES > 4608
-#error source_font_overlaps_foreground_scratch_tiles
+/* the interface font, from VRAM 1400, ends below the foreground overflow patterns. */
+#if SNES_FONT_BYTES > (SNES_BG_OVERFLOW_ADDRESS - 0x1400) * 2
+#error source_font_overlaps_foreground_overflow_patterns
 #endif
 
 DeceptusU16 snes_background_dma_bytes;
@@ -23,7 +24,7 @@ static DeceptusU16 slotTile(DeceptusU8 plane, DeceptusU16 slot)
    {
       return slot;
    }
-   return slot < 768 ? slot + 256 : slot - 1024 + 208;
+   return slot < 768 ? slot + 256 : slot - 1024 + SNES_BG_OVERFLOW_TILE;
 }
 
 static DeceptusU16 tileSlot(DeceptusU8 plane, DeceptusU16 tile)
@@ -33,7 +34,7 @@ static DeceptusU16 tileSlot(DeceptusU8 plane, DeceptusU16 tile)
    {
       return tile;
    }
-   return tile >= 256 ? tile - 256 : tile - 208 + 1024;
+   return tile >= 256 ? tile - 256 : tile - SNES_BG_OVERFLOW_TILE + 1024;
 }
 
 static DeceptusU8 slotAddressable(DeceptusU8 plane, DeceptusU16 slot)
@@ -51,7 +52,7 @@ static DeceptusU8 slotAddressable(DeceptusU8 plane, DeceptusU16 slot)
 
 #ifdef SNES_BACKGROUND_ASM
 /* background_hash.asm addresses the hash arrays by these fixed offsets. */
-typedef char SnesBackgroundHashKeysOffset[(DECEPTUS_BG_OFFSET(hash_keys) == 6432) ? 1 : -1];
+typedef char SnesBackgroundHashKeysOffset[(DECEPTUS_BG_OFFSET(hash_keys) == 6864) ? 1 : -1];
 DeceptusU16 snesBackgroundHashFind(DeceptusU16 pattern, DeceptusU16 insert);
 #define hashFind(pattern, insert) snesBackgroundHashFind((pattern), (insert))
 
@@ -59,21 +60,21 @@ DeceptusU16 snesBackgroundHashFind(DeceptusU16 pattern, DeceptusU16 insert);
  * enabled clip of the plane, resident pattern, release that keeps a reference.
  * it reads the work area by these fixed offsets and the room through this view,
  * and calls the c functions below for every other case before changing state. */
-typedef char SnesBackgroundReferencesOffset[(DECEPTUS_BG_OFFSET(references) == 2144) ? 1 : -1];
-typedef char SnesBackgroundHashSlotsOffset[(DECEPTUS_BG_OFFSET(hash_slots) == 10528) ? 1 : -1];
-typedef char SnesBackgroundMapsOffset[(DECEPTUS_BG_OFFSET(maps) == 14624) ? 1 : -1];
-typedef char SnesBackgroundDirtyColumnOffset[(DECEPTUS_BG_OFFSET(dirty_column) == 28882) ? 1 : -1];
-typedef char SnesBackgroundRefreshChangedOffset[(DECEPTUS_BG_OFFSET(refresh_changed) == 28884) ? 1 : -1];
-typedef char SnesBackgroundSlotListsOffset[(DECEPTUS_BG_OFFSET(resident) == 0 && DECEPTUS_BG_OFFSET(free_slots) == 4288 &&
-                                            DECEPTUS_BG_OFFSET(uploads) == 22816 && DECEPTUS_BG_OFFSET(pending) == 26738 &&
-                                            DECEPTUS_BG_OFFSET(domains) == 27810) ? 1 : -1];
-typedef char SnesBackgroundCountsOffset[(DECEPTUS_BG_OFFSET(free_count) == 29852 && DECEPTUS_BG_OFFSET(upload_count) == 29854 &&
-                                         DECEPTUS_BG_OFFSET(hash_tombstones) == 29860) ? 1 : -1];
-typedef char SnesBackgroundDirtyRowsOffset[(DECEPTUS_BG_OFFSET(dirty_rows) == 29842) ? 1 : -1];
-typedef char SnesBackgroundDmaBytesOffset[(DECEPTUS_BG_OFFSET(dma_bytes) == 29850) ? 1 : -1];
-typedef char SnesBackgroundRoomCellsOffset[(DECEPTUS_BG_OFFSET(room_cells) == 29858) ? 1 : -1];
-typedef char SnesBackgroundRowOffsetsOffset[(DECEPTUS_BG_OFFSET(row_offsets) == 29868) ? 1 : -1];
-typedef char SnesBackgroundStatusErrorOffset[(DECEPTUS_BG_OFFSET(status.error) == 31924) ? 1 : -1];
+typedef char SnesBackgroundReferencesOffset[(DECEPTUS_BG_OFFSET(references) == 2288) ? 1 : -1];
+typedef char SnesBackgroundHashSlotsOffset[(DECEPTUS_BG_OFFSET(hash_slots) == 10960) ? 1 : -1];
+typedef char SnesBackgroundMapsOffset[(DECEPTUS_BG_OFFSET(maps) == 15056) ? 1 : -1];
+typedef char SnesBackgroundDirtyColumnOffset[(DECEPTUS_BG_OFFSET(dirty_column) == 29602) ? 1 : -1];
+typedef char SnesBackgroundRefreshChangedOffset[(DECEPTUS_BG_OFFSET(refresh_changed) == 29604) ? 1 : -1];
+typedef char SnesBackgroundSlotListsOffset[(DECEPTUS_BG_OFFSET(resident) == 0 && DECEPTUS_BG_OFFSET(free_slots) == 4576 &&
+                                            DECEPTUS_BG_OFFSET(uploads) == 23248 && DECEPTUS_BG_OFFSET(pending) == 27314 &&
+                                            DECEPTUS_BG_OFFSET(domains) == 28458) ? 1 : -1];
+typedef char SnesBackgroundCountsOffset[(DECEPTUS_BG_OFFSET(free_count) == 30572 && DECEPTUS_BG_OFFSET(upload_count) == 30574 &&
+                                         DECEPTUS_BG_OFFSET(hash_tombstones) == 30580) ? 1 : -1];
+typedef char SnesBackgroundDirtyRowsOffset[(DECEPTUS_BG_OFFSET(dirty_rows) == 30562) ? 1 : -1];
+typedef char SnesBackgroundDmaBytesOffset[(DECEPTUS_BG_OFFSET(dma_bytes) == 30570) ? 1 : -1];
+typedef char SnesBackgroundRoomCellsOffset[(DECEPTUS_BG_OFFSET(room_cells) == 30578) ? 1 : -1];
+typedef char SnesBackgroundRowOffsetsOffset[(DECEPTUS_BG_OFFSET(row_offsets) == 30588) ? 1 : -1];
+typedef char SnesBackgroundStatusErrorOffset[(DECEPTUS_BG_OFFSET(status.error) == 32644) ? 1 : -1];
 typedef struct SnesBackgroundCellView
 {
    DeceptusU16 columns, rows, pattern_count;

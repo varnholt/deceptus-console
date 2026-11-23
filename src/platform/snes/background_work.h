@@ -8,7 +8,11 @@
 #include "vram_dma.h"
 #include "snes_assets.h"
 
-#define SNES_BG_SLOTS 1072
+/* slots 0-1023 are VRAM 2000-5fff; the foreground also addresses 120 overflow patterns at 1880-1fff,
+ * tile 136 of its character base 1000, below the interface font. */
+#define SNES_BG_SLOTS 1144
+#define SNES_BG_OVERFLOW_TILE 136
+#define SNES_BG_OVERFLOW_ADDRESS 0x1880
 #define SNES_BG_HASH 2048
 #define SNES_BG_WIDTH 33
 #define SNES_BG_HEIGHT 29
@@ -57,6 +61,6 @@ extern DeceptusU8 snes_background_storage[];
 #define DECEPTUS_BG_OFFSET(member) ((unsigned long)&((SnesBackgroundWork *)0)->member)
 
 /* the VRAM word address of a pattern slot: the shared cache, then the foreground overflow. */
-#define SNES_BG_SLOT_ADDRESS(slot) (((slot) < 1024) ? (0x2000 + (slot) * 16) : (0x1d00 + ((slot) - 1024) * 16))
+#define SNES_BG_SLOT_ADDRESS(slot) (((slot) < 1024) ? (0x2000 + (slot) * 16) : (SNES_BG_OVERFLOW_ADDRESS + ((slot) - 1024) * 16))
 
 #endif
