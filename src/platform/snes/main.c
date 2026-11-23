@@ -277,9 +277,9 @@ static void debugWrite(void)
    deceptus_debug[14] = engine->checkpoint_y;
    deceptus_debug[15] = engine->content_error;
    deceptus_debug[16] = engine->camera_y;
-   deceptus_debug[17] = snes_background_error;
-   deceptus_debug[18] = snes_background_uploads;
-   deceptus_debug[19] = snes_background_full;
+   deceptus_debug[17] = snesBackgroundError();
+   deceptus_debug[18] = snesBackgroundUploads();
+   deceptus_debug[19] = snesBackgroundFull();
    deceptus_debug[20] = snes_ui_overflow;
    deceptus_debug[21] = snes_sprite_overflow;
    deceptus_debug[22] = snes_sprite_upload_bytes;
@@ -319,18 +319,6 @@ static void debugWrite(void)
  * the screen was actually blanked. */
 static DeceptusU8 screen_blanked;
 
-static void videoLoad(void)
-{
-   deceptus_debug[11] = 3;
-   setScreenOff();
-   screen_blanked = 1;
-   snesBackgroundLoad(SNES_GAME->campaign.room_index);
-   deceptus_debug[11] = 4;
-   snesSpritesInit();
-   deceptus_debug[11] = 5;
-   snesUiInit();
-   deceptus_debug[11] = 6;
-}
 
 #ifdef SNES_SA1
 /* hands one command to the SA-1 and waits until it is done. */
@@ -367,6 +355,18 @@ static DeceptusU8 gameAdvance(DeceptusU16 buttons, DeceptusU8 ticks)
    snes_sa1_stack_low_water = mailbox->stack_low_water;
    return (DeceptusU8)mailbox->room_changed;
 }
+
+/* the background data of the current room; its video half has run already. */
+static void gameLoadRoom(void)
+{
+   gameRequest(SNES_SA1_LOAD_ROOM);
+}
+
+/* the presentation work that needs no video access: scenery flags and the background window. */
+static void gamePrepare(void)
+{
+   gameRequest(SNES_SA1_PREPARE);
+}
 #else
 static void gameStart(void)
 {
@@ -389,11 +389,36 @@ static DeceptusU8 gameAdvance(DeceptusU16 buttons, DeceptusU8 ticks)
    deceptusRender(&adventure.campaign.engine, &frame);
    return room_changed;
 }
+
+static void gameLoadRoom(void)
+{
+   snesBackgroundLoad(adventure.campaign.room_index);
+}
+
+static void gamePrepare(void)
+{
+   snesBackgroundSetFlags(deceptusAdventurePresentationFlags(&adventure));
+   snesBackgroundPrepare(frame.camera_x, frame.camera_y);
+}
 #endif
+
+static void videoLoad(void)
+{
+   deceptus_debug[11] = 3;
+   setScreenOff();
+   screen_blanked = 1;
+   snesBackgroundLoadVideo(SNES_GAME->campaign.room_index);
+   gameLoadRoom();
+   deceptus_debug[11] = 4;
+   snesSpritesInit();
+   deceptus_debug[11] = 5;
+   snesUiInit();
+   deceptus_debug[11] = 6;
+}
 
 int main(void)
 {
-   DeceptusU16 scenery_flags, buttons, previous_vblank, current_vblank;
+   DeceptusU16 buttons, previous_vblank, current_vblank;
    DeceptusU8 ticks, room_loaded;
 #ifdef SNES_SA1
    snesSa1MapDefaultBlocks();
@@ -424,9 +449,7 @@ int main(void)
          room_loaded = 1;
       }
       deceptus_debug[11] = 10;
-      scenery_flags = deceptusAdventurePresentationFlags(SNES_GAME);
-      snesBackgroundSetFlags(scenery_flags);
-      snesBackgroundPrepare(SNES_FRAME->camera_x, SNES_FRAME->camera_y);
+      gamePrepare();
       deceptus_debug[11] = 11;
       snesSpritesPrepare(SNES_GAME, SNES_FRAME);
       deceptus_debug[11] = 12;
@@ -443,7 +466,7 @@ int main(void)
       {
          screen_blanked = 1;
       }
-      if (snes_background_full)
+      if (snesBackgroundFull())
       {
          setScreenOff();
          screen_blanked = 1;

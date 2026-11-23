@@ -27,7 +27,7 @@ def audit(assets, output):
             'static void bgSetScroll(int a,int b,int c){(void)a;(void)b;(void)c;}',
             'static void dmaCopyCGram(u8*a,int b,int c){(void)a;(void)b;(void)c;}',
             'static void dmaCopyVram(u8*a,int b,int c){(void)a;(void)b;(void)c;}']
-    (output / 'snes.h').write_text('\n'.join(sdk) + '\n')
+    (output / 'snes.h').write_text('\n'.join(['#ifndef SNES_STUB_H', '#define SNES_STUB_H', *sdk, '#endif']) + '\n')
     resources = (assets / 'opening_resources.c').read_text()
     stages = {int(room): tuple(map(int, values)) for room, *values in re.findall(
         r'snes_area(\d+)_palette,(\d+),(\d+),(\d+),', resources)}
@@ -49,6 +49,7 @@ def audit(assets, output):
 #include <assert.h>
 #include <stdio.h>
 #include "BACKGROUND"
+#include "COMMIT"
 void snesVramRunDma(const SnesVramDmaCommand *commands,DeceptusU16 count) {(void)commands;(void)count;}
 DeceptusU8 snes_background_storage[32768];
 static DeceptusU8 bg[131072],fg[131072],cells[131072],dummy[32768],palette[256];
@@ -69,8 +70,8 @@ int main(void) {
   for(y=0;y<=HEIGHT-29;++y)for(step=0;step<=WIDTH-33;++step) {
    x=(y&1)?WIDTH-33-step:step;
    snesBackgroundPrepare((DeceptusI16)(x*8),(DeceptusI16)(y*8));
-   if(snes_background_error) {fprintf(stderr,"cache_error=%u frame=%d x=%d y=%d\n",snes_background_error,frame,x,y);return 2;}
-   if(snes_background_full)++rebuilds;
+   if(snesBackgroundError()) {fprintf(stderr,"cache_error=%u frame=%d x=%d y=%d\n",snesBackgroundError(),frame,x,y);return 2;}
+   if(snesBackgroundFull())++rebuilds;
    used=0;scratch=0;
    for(slot=1;slot<SNES_BG_SLOTS;++slot)if(work->references[slot]) {
     ++used;if(slot>=1024)++scratch;
@@ -83,7 +84,8 @@ int main(void) {
  printf("{\"views\":%u,\"peak_slots\":%u,\"peak_scratch\":%u,\"compactions\":%u,\"extra_forced_blank_batches\":%u}\n",views,peak,peak_scratch,compactions,rebuilds-12);return 0;
 }
 '''
-            replacements = dict(BACKGROUND=(ROOT / 'src/platform/snes/background.c').as_posix(), LEFT=left, TOP=top,
+            replacements = dict(BACKGROUND=(ROOT / 'src/platform/snes/background.c').as_posix(),
+                                COMMIT=(ROOT / 'src/platform/snes/background_commit.c').as_posix(), LEFT=left, TOP=top,
                                 COLS=columns, ROWS=rows, ANIMBYTES=animation_bytes, WIDTH=width, HEIGHT=height,
                                 COUNT=count, ANIM=animation)
             for key, value in replacements.items():

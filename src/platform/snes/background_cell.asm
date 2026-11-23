@@ -36,6 +36,7 @@
 .define SNES_BG_ROOM_CELLS 29858
 .define SNES_BG_HASH_TOMBSTONES 29860
 .define SNES_BG_ROW_OFFSETS 29868
+.define SNES_BG_STATUS_ERROR 31924
 .define VIEW_COLUMNS 0
 .define VIEW_ROWS 2
 .define VIEW_PATTERNS 4
@@ -510,7 +511,7 @@ load_dirty_column:
     cmp.b tcc__r1
     beq load_column_done
     lda #1
-    sta.l snes_background_error
+    sta.l snes_background_storage+SNES_BG_STATUS_ERROR
     bra load_column_done
 load_column_first:
     lda.b tcc__r1

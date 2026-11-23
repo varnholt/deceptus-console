@@ -130,7 +130,7 @@ def sa1_layout_assembly(room_blocks, rooms):
 
 # SA-1 objects run on the SA-1: their globals live in BW-RAM, which the SA-1 addresses through its
 # data bank $40; the S-CPU keeps work RAM and its multiplier/divider, which the SA-1 cannot reach.
-SA1_HOST_SOURCES = ("main.c", "background.c")
+SA1_HOST_SOURCES = ("main.c", "background_commit.c")
 SA1_BSS = '.RAMSECTION ".bss" BANK $40 SLOT 2'
 SA1_RUNTIME = {"tcc__mul": "tcc__mul_sw", "tcc__mull": "tcc__mull_sw", "tcc__udiv": "tcc__udiv_sw",
                "tcc__div": "snesSa1Div", "snesMulS16": "snesSa1MulS16", "snesSquareU16": "snesSa1SquareU16"}
@@ -342,7 +342,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
                ROOT / "src/engine/logic.c", ROOT / "src/engine/pacing.c", ROOT / "src/engine/arith.c", ROOT / "src/game/enemies.c", ROOT / "src/game/deceptus.c",
                ROOT / "src/platform/snes/main.c"]
     if opening:
-        sources += [ROOT / "src/game/campaign.c", ROOT / "src/platform/snes/background.c"]
+        sources += [ROOT / "src/game/campaign.c", ROOT / "src/platform/snes/background.c",
+                    ROOT / "src/platform/snes/background_commit.c"]
         sources += [generated / name for name in metadata["c_sources"]]
         if sa1:
             sources.append(ROOT / "src/platform/snes/sa1_main.c")
@@ -392,7 +393,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     run([assembler, "-d", "-s", "-x", "-o", "data.obj", "data.asm"], folder)
     objects.append("data.obj")
     if opening:
-        run([assembler, "-d", "-s", "-x", "-o", "background_ram.obj", ROOT / "src/platform/snes/background_ram.asm"], folder)
+        run([assembler, *(["-DSNES_SA1"] if sa1 else []), "-d", "-s", "-x", "-o", "background_ram.obj",
+             ROOT / "src/platform/snes/background_ram.asm"], folder)
         objects.append("background_ram.obj")
         run([assembler, "-d", "-s", "-x", "-o", "vram_dma.obj", ROOT / "src/platform/snes/vram_dma.asm"], folder)
         objects.append("vram_dma.obj")

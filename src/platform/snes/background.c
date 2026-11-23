@@ -1,56 +1,16 @@
 #include "background.h"
-#include "vram_dma.h"
-#include "snes_assets.h"
+#include "background_work.h"
 #include <snes.h>
-#ifdef SNES_SA1
-#include "sa1.h"
-#endif
-
-#define SNES_BG_SLOTS 1072
-#define SNES_BG_HASH 2048
-#define SNES_BG_WIDTH 33
-#define SNES_BG_HEIGHT 29
-#define SNES_BG_CLIPS 8
-#define SNES_BG_EMPTY 65535U
-#define SNES_BG_DELETED 65534U
-#define SNES_BG_DMA_COMMANDS 192
-#define SNES_BG_ROW_TABLE 1024
 
 #if SNES_FONT_BYTES > 4608
 #error source_font_overlaps_foreground_scratch_tiles
 #endif
 
-typedef struct SnesBackgroundWork
-{
-   DeceptusU16 resident[SNES_BG_SLOTS], references[SNES_BG_SLOTS], free_slots[SNES_BG_SLOTS];
-   DeceptusU16 hash_keys[SNES_BG_HASH], hash_slots[SNES_BG_HASH];
-   DeceptusU16 maps[2][2048], uploads[SNES_BG_SLOTS], column[32];
-   DeceptusU16 staged_columns[2][32], dma_count;
-   SnesVramDmaCommand dma[SNES_BG_DMA_COMMANDS];
-   DeceptusU16 clip_frame[SNES_BG_CLIPS], clip_elapsed[SNES_BG_CLIPS], clip_cells[SNES_BG_CLIPS];
-   DeceptusU8 pending[SNES_BG_SLOTS], domains[SNES_BG_SLOTS], dirty_column[2];
-   DeceptusU8 refresh_changed[SNES_BG_WIDTH * SNES_BG_HEIGHT];
-   DeceptusU16 dirty_rows[2][2], dma_bytes, free_count, upload_count, flags, room_cells, hash_tombstones;
-   DeceptusI16 left, top;
-   DeceptusU8 loaded;
-   /* first source cell of each room row. the compiler multiplies through a
-    * library routine, which cost a noticeable share of every streamed cell. */
-   DeceptusU16 row_offsets[SNES_BG_ROW_TABLE];
-} SnesBackgroundWork;
-
-typedef char SnesBackgroundStorageFits[(sizeof(SnesBackgroundWork) <= 32768) ? 1 : -1];
-extern DeceptusU8 snes_background_storage[];
-#define work ((SnesBackgroundWork *)snes_background_storage)
-#define DECEPTUS_BG_OFFSET(member) ((unsigned long)&((SnesBackgroundWork *)0)->member)
-
-DeceptusU8 snes_background_error, snes_background_full;
-DeceptusU16 snes_background_uploads;
 DeceptusU16 snes_background_dma_bytes;
 DeceptusU16 snes_background_compactions;
 DeceptusU16 snes_background_hash_probes, snes_background_hash_rebuilds;
 static const SnesStage *stage;
 static DeceptusU16 source_flags;
-static DeceptusI16 scroll_x, scroll_y;
 
 static DeceptusU16 mapAddress(DeceptusI16 x, DeceptusI16 y)
 {
@@ -113,6 +73,7 @@ typedef char SnesBackgroundDirtyRowsOffset[(DECEPTUS_BG_OFFSET(dirty_rows) == 29
 typedef char SnesBackgroundDmaBytesOffset[(DECEPTUS_BG_OFFSET(dma_bytes) == 29850) ? 1 : -1];
 typedef char SnesBackgroundRoomCellsOffset[(DECEPTUS_BG_OFFSET(room_cells) == 29858) ? 1 : -1];
 typedef char SnesBackgroundRowOffsetsOffset[(DECEPTUS_BG_OFFSET(row_offsets) == 29868) ? 1 : -1];
+typedef char SnesBackgroundStatusErrorOffset[(DECEPTUS_BG_OFFSET(status.error) == 31924) ? 1 : -1];
 typedef struct SnesBackgroundCellView
 {
    DeceptusU16 columns, rows, pattern_count;
@@ -235,7 +196,7 @@ static void rebuildHash(void)
             key = hashFind(pattern, 1);
             if (key == SNES_BG_EMPTY)
             {
-               snes_background_error = 2;
+               work->status.error = 2;
                return;
             }
             work->hash_keys[key] = pattern;
@@ -328,14 +289,14 @@ static DeceptusU16 acquirePattern(DeceptusU8 plane, DeceptusU16 pattern)
    }
    if (pattern >= stage->pattern_count)
    {
-      snes_background_error = 1;
+      work->status.error = 1;
       return 0;
    }
    domain_key = pattern | ((DeceptusU16)plane << 14);
    key = hashFind(domain_key, 1);
    if (key == SNES_BG_EMPTY)
    {
-      snes_background_error = 2;
+      work->status.error = 2;
       return 0;
    }
    if (work->hash_keys[key] == domain_key)
@@ -369,7 +330,7 @@ static DeceptusU16 acquirePattern(DeceptusU8 plane, DeceptusU16 pattern)
          }
          if (slot == SNES_BG_EMPTY)
          {
-            snes_background_error = 2;
+            work->status.error = 2;
             return 0;
          }
          work->resident[slot] = pattern;
@@ -512,7 +473,7 @@ static void cellSource(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU
       }
       if (offset >= limit)
       {
-         snes_background_error = 1;
+         work->status.error = 1;
       }
       else
       {
@@ -545,7 +506,7 @@ void snesBackgroundLoadCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI16 
       }
       else if (work->dirty_column[plane] != (x & 63))
       {
-         snes_background_error = 1;
+         work->status.error = 1;
       }
    }
    else if (dirty == 2)
@@ -628,30 +589,28 @@ void snesBackgroundLoad(DeceptusU8 room)
    DeceptusU16 index, row_offset;
    DeceptusU32 cells;
    const SnesBackgroundAnimation *clip;
-   snes_background_error = 0;
-   snes_background_uploads = 0;
+   work->status.error = 0;
+   work->status.uploads = 0;
    snes_background_compactions = 0;
    snes_background_hash_probes = 0;
    snes_background_hash_rebuilds = 0;
-   snes_background_full = 1;
+   work->status.full = 1;
    if (room >= SNES_STAGE_COUNT)
    {
-      snes_background_error = 1;
+      work->status.error = 1;
       room = 0;
    }
    stage = &snes_stages[room];
-#ifdef SNES_SA1
-   SNES_SA1_FXB = snes_stage_rom_blocks[room];
-#endif
+   work->stage = stage;
    if (stage->animation_count > SNES_BG_CLIPS || stage->pattern_count > 16384)
    {
-      snes_background_error = 1;
+      work->status.error = 1;
    }
    cells = (DeceptusU32)stage->columns * stage->rows;
    if (cells == 0 || cells > 65535 || stage->background.bytes != cells * 4 || stage->foreground.bytes != cells * 4 ||
        stage->patterns.bytes != (DeceptusU32)stage->pattern_count * 32)
    {
-      snes_background_error = 1;
+      work->status.error = 1;
    }
    work->room_cells = (DeceptusU16)cells;
    row_offset = 0;
@@ -675,16 +634,11 @@ void snesBackgroundLoad(DeceptusU8 room)
          cells = (DeceptusU32)clip->frames * clip->columns * clip->rows;
          if (cells == 0 || cells > 65535 || clip->cells.bytes != cells * 4)
          {
-            snes_background_error = 1;
+            work->status.error = 1;
          }
          work->clip_cells[index] = (DeceptusU16)cells;
       }
    }
-   bgSetGfxPtr(0, 0x2000);
-   bgSetGfxPtr(1, 0x1000);
-   bgSetMapPtr(0, 0x0000, SC_64x32);
-   bgSetMapPtr(1, 0x0800, SC_64x32);
-   dmaCopyCGram((u8 *)stage->palette + 32, 16, 224);
 }
 
 void snesBackgroundSetFlags(DeceptusU16 flags)
@@ -702,7 +656,7 @@ static void loadWindow(DeceptusI16 left, DeceptusI16 top)
    DeceptusI16 x, y;
    DeceptusU16 plane;
    resetCache();
-   snes_background_full = 1;
+   work->status.full = 1;
    for (plane = 0; plane < 2; ++plane)
    {
       for (y = top; y < top + SNES_BG_HEIGHT; ++y)
@@ -750,7 +704,7 @@ static void prepareDma(void)
       if (pattern != SNES_BG_EMPTY)
       {
          bytes = stage->patterns.chunks[pattern >> 10] + (pattern & 1023) * 32;
-         target = slot < 1024 ? 0x2000 + slot * 16 : 0x1d00 + (slot - 1024) * 16;
+         target = SNES_BG_SLOT_ADDRESS(slot);
          stageDma(bytes, target, 32, 0x80);
       }
    }
@@ -785,12 +739,12 @@ static void prepareDma(void)
    }
    if (work->dma_count == SNES_BG_EMPTY)
    {
-      snes_background_full = 1;
+      work->status.full = 1;
    }
    else if ((DeceptusU32)work->dma_count * 768 + (DeceptusU32)snes_background_dma_bytes * 8 > 36000)
    {
       /* leave time for the sdk nmi and oam transfer in the ntsc vblank. */
-      snes_background_full = 1;
+      work->status.full = 1;
    }
    if (work->dma_count != SNES_BG_EMPTY)
    {
@@ -822,12 +776,12 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
 #endif
    const DeceptusU16 *words;
    const SnesBackgroundAnimation *clip;
-   if (snes_background_error)
+   if (work->status.error)
    {
       return;
    }
-   scroll_x = camera_x;
-   scroll_y = camera_y;
+   work->scroll_x = camera_x;
+   work->scroll_y = camera_y;
    work->dma_bytes = 0;
    snes_background_hash_probes = 0;
    if (work->loaded)
@@ -855,7 +809,7 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          duration = clip->durations ? clip->durations[work->clip_frame[index]] : clip->frame_ticks;
          if (!duration)
          {
-            snes_background_error = 1;
+            work->status.error = 1;
             return;
          }
          if (++work->clip_elapsed[index] >= duration)
@@ -1022,13 +976,13 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          }
       }
    }
-   if (snes_background_error == 2)
+   if (work->status.error == 2)
    {
-      if (snes_background_full == 0)
+      if (work->status.full == 0)
       {
          /* plane address domains can fragment although the visible set fits.
           * rebuild once before publishing; a genuine budget failure stays an error. */
-         snes_background_error = 0;
+         work->status.error = 0;
          ++snes_background_compactions;
          loadWindow(left, top);
       }
@@ -1036,88 +990,7 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
    work->left = left;
    work->top = top;
    work->flags = source_flags;
-   snes_background_uploads = work->upload_count;
+   work->status.uploads = work->upload_count;
    snes_background_dma_bytes = work->dma_bytes;
    prepareDma();
-}
-
-static void copyColumn(const DeceptusU16 *source, DeceptusU16 address)
-{
-   dmaMemory memory;
-   memory.mem.p = (void *)source;
-   REG_VMAIN = 0x81;
-   REG_VMADDLH = address;
-   REG_DMAP0 = 1;
-   REG_BBAD0 = 0x18;
-   REG_A1T0LH = memory.mem.c.addr;
-   REG_A1B0 = memory.mem.c.bank;
-   REG_DAS0LH = 64;
-   REG_MDMAEN = 1;
-   REG_VMAIN = 0x80;
-}
-
-void snesBackgroundCommit(void)
-{
-   DeceptusU16 index, slot, pattern, plane, row, column, base, mask;
-   const DeceptusU8 *bytes;
-   if (snes_background_error)
-   {
-      return;
-   }
-   if (work->dma_count != SNES_BG_EMPTY)
-   {
-      snesVramRunDma(work->dma, work->dma_count);
-      bgSetScroll(0, scroll_x, scroll_y);
-      bgSetScroll(1, scroll_x, scroll_y);
-      snes_background_full = 0;
-      return;
-   }
-   for (index = 0; index < work->upload_count; ++index)
-   {
-      slot = work->uploads[index];
-      pattern = work->resident[slot];
-      if (pattern != SNES_BG_EMPTY)
-      {
-         bytes = stage->patterns.chunks[pattern >> 10] + (pattern & 1023) * 32;
-         row = slot < 1024 ? 0x2000 + slot * 16 : 0x1d00 + (slot - 1024) * 16;
-         dmaCopyVram((u8 *)bytes, row, 32);
-      }
-      work->pending[slot] = 0;
-   }
-   work->upload_count = 0;
-   for (plane = 0; plane < 2; ++plane)
-   {
-      base = plane ? 0x0800 : 0;
-      mask = work->dirty_rows[plane][0];
-      for (row = 0; row < 32; ++row)
-      {
-         if (row == 16)
-         {
-            mask = work->dirty_rows[plane][1];
-         }
-         if (mask & 1)
-         {
-            dmaCopyVram((u8 *)&work->maps[plane][row * 32], base + row * 32, 64);
-            dmaCopyVram((u8 *)&work->maps[plane][1024 + row * 32], base + 1024 + row * 32, 64);
-         }
-         mask >>= 1;
-      }
-      work->dirty_rows[plane][0] = 0;
-      work->dirty_rows[plane][1] = 0;
-      column = work->dirty_column[plane];
-      if (column < 64)
-      {
-         for (row = 0; row < 32; ++row)
-         {
-            index = (column & 31) + row * 32 + (column >= 32 ? 1024 : 0);
-            slot = work->maps[plane][index];
-            work->column[row] = slot;
-         }
-         copyColumn(work->column, base + (column & 31) + (column >= 32 ? 1024 : 0));
-         work->dirty_column[plane] = 255;
-      }
-   }
-   bgSetScroll(0, scroll_x, scroll_y);
-   bgSetScroll(1, scroll_x, scroll_y);
-   snes_background_full = 0;
 }
