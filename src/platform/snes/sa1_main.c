@@ -29,18 +29,35 @@ static void advance(volatile SnesSa1Mailbox *mailbox)
    deceptusRender(&snes_sa1_adventure.campaign.engine, &snes_sa1_frame);
 }
 
+/* the deepest overwritten stack byte found so far; zero until the first request. */
+static DeceptusU16 stack_low_water;
+
+/* a deeper stack shows in the bytes just below the previous low-water mark, so only a window there
+ * is read: a scan of the whole stack before every answer cost a third of the SA-1's time. a frame
+ * that leaves more than a window of untouched bytes below it is reported shallower. */
 static void recordStackLowWater(volatile SnesSa1Mailbox *mailbox)
 {
-   const volatile DeceptusU8 *stack;
-   DeceptusU16 address;
-   stack = (const volatile DeceptusU8 *)SNES_SA1_STACK_FLOOR;
-   address = SNES_SA1_STACK_FLOOR;
-   while ((address < SNES_SA1_STACK_TOP) && (*stack == SNES_SA1_STACK_PATTERN))
+   const volatile DeceptusU8 *floor;
+   DeceptusU16 address, previous;
+   floor = (const volatile DeceptusU8 *)SNES_SA1_STACK_FLOOR;
+   if (stack_low_water == 0)
    {
-      ++stack;
-      ++address;
+      stack_low_water = SNES_SA1_STACK_TOP;
    }
-   mailbox->stack_low_water = address;
+   do
+   {
+      previous = stack_low_water;
+      address = previous;
+      while ((address > SNES_SA1_STACK_FLOOR) && (address + SNES_SA1_STACK_WINDOW > previous))
+      {
+         --address;
+         if (floor[address - SNES_SA1_STACK_FLOOR] != SNES_SA1_STACK_PATTERN)
+         {
+            stack_low_water = address;
+         }
+      }
+   } while (stack_low_water != previous);
+   mailbox->stack_low_water = stack_low_water;
 }
 
 void snesSa1Main(void)
@@ -75,7 +92,8 @@ void snesSa1Main(void)
          snesSpritesPrepare(&snes_sa1_adventure, &snes_sa1_frame);
          snesSpritesStage();
       }
-      recordStackLowWater(mailbox);
       mailbox->done = request;
+      /* after the answer, while the S-CPU presents; it reads the value with the next answer. */
+      recordStackLowWater(mailbox);
    }
 }

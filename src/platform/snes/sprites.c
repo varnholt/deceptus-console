@@ -481,20 +481,6 @@ static void snesObjStagePiece(DeceptusU16 index, SnesObjSlot *slot)
    slot->pending = 0;
 }
 
-static DeceptusU16 snesSpritesPendingPieces(void)
-{
-   DeceptusU16 index, pieces;
-   pieces = 0;
-   for (index = 0; index < SNES_OBJ_PIECES; ++index)
-   {
-      if (snes_obj_slots[index].pending)
-      {
-         ++pieces;
-      }
-   }
-   return pieces;
-}
-
 void snesSpritesStage(void)
 {
    DeceptusU16 index, pieces;
@@ -504,15 +490,16 @@ void snesSpritesStage(void)
    snesSpritesStagePalettes();
    staging->forced_blank = snes_sprite_room_load || staging->blank;
    snes_sprite_room_load = 0;
-   pieces = snesSpritesPendingPieces();
-   /* a vblank of its own costs up to a display frame; the commit vblank takes a few tiles. */
-   staging->deferred = (!staging->forced_blank) && (pieces != 0) && (pieces <= SNES_DEFERRED_PIECES);
-   staging->upload_bytes = pieces * 128;
+   pieces = 0;
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
       if (snes_obj_slots[index].pending)
       {
          snesObjStagePiece(index, &snes_obj_slots[index]);
+         ++pieces;
       }
    }
+   /* a vblank of its own costs up to a display frame; the commit vblank takes a few tiles. */
+   staging->deferred = (!staging->forced_blank) && (pieces != 0) && (pieces <= SNES_DEFERRED_PIECES);
+   staging->upload_bytes = pieces * 128;
 }

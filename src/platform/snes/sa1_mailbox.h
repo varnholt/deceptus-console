@@ -33,6 +33,8 @@ typedef struct SnesSa1Mailbox
 #define SNES_SA1_STACK_FLOOR 0x3140
 #define SNES_SA1_STACK_TOP 0x37FF
 #define SNES_SA1_STACK_PATTERN 0xA5
+/* how far below the previous low-water mark a request looks for a deeper stack. */
+#define SNES_SA1_STACK_WINDOW 64
 
 /* the game state the SA-1 owns, in BW-RAM; the S-CPU reads it through these addresses only. */
 extern DeceptusAdventure snes_sa1_adventure;
