@@ -31,10 +31,16 @@ Kickstart 1.3 ROM:
 python run_amiga.py --kickstart C:/path/to/kick13.rom
 ```
 
+`python deceptus.py play amiga --kickstart C:/path/to/kick13.rom` does the same
+for the opening.
+
 The configured machine has 512 KiB Chip RAM and a 512 KiB slow-RAM expansion.
-`--slowmem 0` selects an unexpanded machine, but that configuration currently
-fails to load the executable under AROS because too little memory remains.
-A 512 KiB machine with original Kickstart has not been verified.
+Under AROS that machine shows only a grey screen: the opening does not start.
+Without a Kickstart ROM the launcher therefore adds 1 MiB of fast RAM, with
+which the opening starts under AROS. With Kickstart 1.3 the opening starts on
+the stock machine, and no fast RAM is added. `--slowmem 0` selects an
+unexpanded machine. A 512 KiB machine with original Kickstart has not been
+verified.
 
 ## Experimental opening
 
@@ -166,7 +172,7 @@ A subsequent native-layer checkpoint traverses x=100..550 repeatedly while
 jumping and acknowledging dialogue through ordinary inputs. Across 6,081 PAL
 refreshes it measures 10.4 displayed frames/s and 51.1 simulation ticks/s; the
 worst presentation gap is 16 PAL frames (0.32 seconds). Simulation time is still
-dropped. This is an improvement, but remains below the requested steady 25–30
+dropped. This is an improvement, but remains below the requested steady 25â€“30
 frames/s and does not establish a playable opening. A vertical ring-buffer
 experiment regressed this measurement and is excluded from this checkpoint.
 
@@ -229,7 +235,7 @@ existing storage raises this to 12.0 frames/s. Optional CPU-RAM sprite staging
 raises it to 12.5 frames/s (443 presentations over 1,772 PAL refreshes), with
 52.6 simulation ticks/s. The worst recorded gap is 17 PAL refreshes (0.34 s),
 versus 16 in the starting sample. Both still drop simulation time; the steady
-25–30 frames/s target is unmet. Changing cadence changes simulation work per
+25â€“30 frames/s target is unmet. Changing cadence changes simulation work per
 presentation, so the gameplay row is not an independent gameplay optimization.
 
 A fresh CPU sample also attributes approximately 22% to blitter waits, 17% to
@@ -303,7 +309,7 @@ The user reports unusable frame rates during vertical traversal, swimming,
 graveyard play and rope use despite acceptable visuals. The Lower Cells result
 must not be used as evidence of a playable opening. A subsequent cycle-exact
 normal-input route, with host throttling disabled but the original CPU/memory
-settings retained, samples about 2–3 presentations/s in Main Hall and sometimes
+settings retained, samples about 2â€“3 presentations/s in Main Hall and sometimes
 below 1 presentation/s near the altar. It reaches only checkpoint 17 before its
 measurement deadline. The accelerated 56-checkpoint pass remains a logical
 correctness check and does not override this performance failure.
