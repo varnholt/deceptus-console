@@ -132,7 +132,7 @@ def sa1_layout_assembly(room_blocks, rooms):
 # data bank $40; the S-CPU keeps work RAM and its multiplier/divider, which the SA-1 cannot reach.
 SA1_HOST_SOURCES = ("main.c", "background_commit.c", "sprites_commit.c")
 SA1_BSS = '.RAMSECTION ".bss" BANK $40 SLOT 2'
-SA1_RUNTIME = {"tcc__mul": "tcc__mul_sw", "tcc__mull": "tcc__mull_sw", "tcc__udiv": "tcc__udiv_sw",
+SA1_RUNTIME = {"tcc__mul": "snesSa1Mul", "tcc__mull": "snesSa1Mull", "tcc__udiv": "snesSa1Udiv",
                "tcc__div": "snesSa1Div", "snesMulS16": "snesSa1MulS16", "snesSquareU16": "snesSa1SquareU16"}
 SA1_FORBIDDEN = ("tcc__hwlock",)
 BSS_SECTION = re.compile(r'\.RAMSECTION "\.bss" BANK \$(?:7e|40) SLOT 2\n(.*?)\.ENDS', re.S)

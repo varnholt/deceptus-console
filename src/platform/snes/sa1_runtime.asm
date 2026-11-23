@@ -6,17 +6,88 @@
 
 ; arithmetic for code that runs on the SA-1. the library's tcc__mul, tcc__mull, tcc__udiv and
 ; tcc__div use the S-CPU multiplier/divider and a lock in S-CPU work RAM, which the SA-1 cannot
-; reach; the build points SA-1 objects at tcc__mul_sw, tcc__mull_sw, tcc__udiv_sw and these.
+; reach; the build points SA-1 objects at these, which keep the library routines' contracts and
+; results and use the SA-1 arithmetic unit: a signed 16x16 multiplier and a divider of a signed
+; 16-bit dividend by an unsigned 16-bit divisor. results are ready five SA-1 cycles after the
+; write to MB; the nop and the following long load take longer.
 
 .DEFINE SA1_MCNT $002250
 .DEFINE SA1_MA $002251
 .DEFINE SA1_MB $002253
 .DEFINE SA1_MR $002306
 .DEFINE SA1_MCNT_MULTIPLY 0
+.DEFINE SA1_MCNT_DIVIDE 1
 
 .section "snes_sa1_runtime" semisuperfree banks 2-15
 
-; tcc__div with the software unsigned division: x / a, signed.
+; tcc__mul: a = low word of tcc__r9 * tcc__r10, flags from a. the low word of a product does not
+; depend on the operands' signedness.
+snesSa1Mul:
+    sep #$20
+    lda #SA1_MCNT_MULTIPLY
+    sta.l SA1_MCNT
+    rep #$20
+    lda.b tcc__r9
+    sta.l SA1_MA
+    lda.b tcc__r10
+    sta.l SA1_MB
+    nop
+    lda.l SA1_MR
+    rtl
+
+; tcc__mull: tcc__r9 * tcc__r10 unsigned (16x16, high words ignored like the library's hardware
+; version); y = low word, x = high word. from the signed product, an operand with bit 15 set adds
+; the other operand times 65536.
+snesSa1Mull:
+    sep #$20
+    lda #SA1_MCNT_MULTIPLY
+    sta.l SA1_MCNT
+    rep #$20
+    lda.b tcc__r9
+    sta.l SA1_MA
+    lda.b tcc__r10
+    sta.l SA1_MB
+    nop
+    lda.l SA1_MR + 2
+    bit.b tcc__r9
+    bpl +
+    clc
+    adc.b tcc__r10
++   bit.b tcc__r10
+    bpl +
+    clc
+    adc.b tcc__r9
++   tax
+    lda.l SA1_MR
+    tay
+    rtl
+
+; tcc__udiv: x / a unsigned; tcc__r9 = quotient, x = remainder, destroys y. the divider takes a
+; signed dividend, so dividends from $8000 and division by zero use the library's software routine.
+snesSa1Udiv:
+    cmp #0
+    beq udiv_software
+    cpx #$8000
+    bcs udiv_software
+    tay
+    sep #$20
+    lda #SA1_MCNT_DIVIDE
+    sta.l SA1_MCNT
+    rep #$20
+    txa
+    sta.l SA1_MA
+    tya
+    sta.l SA1_MB
+    nop
+    lda.l SA1_MR
+    sta.b tcc__r9
+    lda.l SA1_MR + 2
+    tax
+    rtl
+udiv_software:
+    jml tcc__udiv_sw
+
+; tcc__div: x / a, signed, through snesSa1Udiv.
 ; out: tcc__r9 = quotient, x = remainder with the dividend's sign. destroys y, tcc__r10.
 snesSa1Div:
     pha
@@ -35,7 +106,7 @@ snesSa1Div:
     ina
     iny
 +   phy
-    jsr.l tcc__udiv_sw
+    jsr.l snesSa1Udiv
     lda.b tcc__r9
     ply
     cpy #1
