@@ -67,7 +67,7 @@ static DeceptusU8 ropePointClear(const DeceptusEngine *engine, const DeceptusGra
          }
       }
    }
-   return !rope->dynamic_solids || !deceptusMechanismProjectileSolid(&engine->mechanisms, &point);
+   return (rope->dynamic_solids == 0) || (deceptusMechanismProjectileSolid(&engine->mechanisms, &point) == 0);
 }
 
 static void ropeMeasure(DeceptusGrabRope *rope)
@@ -362,7 +362,7 @@ DeceptusU8 deceptusGrabRopePointFrom(const DeceptusEngine *engine, DeceptusU8 in
    DeceptusU16 remaining, length;
    DeceptusI32 dx, dy;
    DeceptusU8 node;
-   if (index >= engine->grab_ropes.count || !x || !y || !node_hint || !*node_hint)
+   if ((index >= engine->grab_ropes.count) || (x == 0) || (y == 0) || (node_hint == 0) || (*node_hint == 0))
    {
       return 0;
    }

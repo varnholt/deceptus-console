@@ -79,15 +79,15 @@ static DeceptusU8 playerSprites(const DeceptusAdventure *game, const DeceptusDra
    }
    if (deceptusItemHeadtorchEquipped(game) && pose && pose->valid)
    {
-      if (pose->side > 1 || !definition->lamp_offsets)
+      if ((pose->side > 1) || (definition->lamp_offsets == 0))
       {
          return 0;
       }
       helmet_x = deceptusFloor(engine->entities[0].x) - engine->camera_x + pose->x;
       helmet_y = deceptusFloor(engine->entities[0].y) - engine->camera_y + pose->y;
-      if (!addSprite(output, DECEPTUS_SPRITE_HEADTORCH, pose->side, helmet_x, helmet_y, 0) ||
-          !addSprite(output, DECEPTUS_SPRITE_HEADTORCH_BEAM, 0, helmet_x + definition->lamp_offsets[pose->side][0] - (pose->side ? 64 : 0),
-                     helmet_y + definition->lamp_offsets[pose->side][1] - 16, pose->side))
+      if ((addSprite(output, DECEPTUS_SPRITE_HEADTORCH, pose->side, helmet_x, helmet_y, 0) == 0) ||
+          (addSprite(output, DECEPTUS_SPRITE_HEADTORCH_BEAM, 0, helmet_x + definition->lamp_offsets[pose->side][0] - (pose->side ? 64 : 0),
+                     helmet_y + definition->lamp_offsets[pose->side][1] - 16, pose->side) == 0))
       {
          return 0;
       }

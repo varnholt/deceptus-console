@@ -12,11 +12,11 @@ DeceptusU8 deceptusPlayerWaterTick(DeceptusEngine *engine, const DeceptusInput *
    water = engine->room->water;
    if (engine->splash_active)
    {
-      if (!water || !water->splash_durations[engine->splash_frame] ||
-          ++engine->splash_elapsed >= water->splash_durations[engine->splash_frame])
+      if ((water == 0) || (water->splash_durations[engine->splash_frame] == 0) ||
+          (++engine->splash_elapsed >= water->splash_durations[engine->splash_frame]))
       {
          engine->splash_elapsed = 0;
-         if (++engine->splash_frame >= 20 || !water)
+         if ((++engine->splash_frame >= 20) || (water == 0))
          {
             engine->splash_active = 0;
          }

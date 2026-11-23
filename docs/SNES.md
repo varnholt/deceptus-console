@@ -24,19 +24,19 @@ VRAM word addresses are:
 
 | Range | Use |
 | --- | --- |
-| `0000–07ff` | Background 64×32 map |
-| `0800–0fff` | Foreground 64×32 map |
-| `1000–13ff` | Interface map |
-| `1400–1cff` | Source bitmap font, maximum 4,608 bytes |
-| `1d00–1fff` | 48 foreground overflow patterns |
-| `2000–5fff` | Shared 1,024-pattern world cache |
-| `6000–7fff` | Sprite cache |
+| `0000â€“07ff` | Background 64Ã—32 map |
+| `0800â€“0fff` | Foreground 64Ã—32 map |
+| `1000â€“13ff` | Interface map |
+| `1400â€“1cff` | Source bitmap font, maximum 4,608 bytes |
+| `1d00â€“1fff` | 48 foreground overflow patterns |
+| `2000â€“5fff` | Shared 1,024-pattern world cache |
+| `6000â€“7fff` | Sprite cache |
 
 The interface character base is `1000`, so the font begins at tile index 128.
-CGRAM entries 0–15 belong to the interface; world tiles use banks 1–7. Sprite
+CGRAM entries 0â€“15 belong to the interface; world tiles use banks 1â€“7. Sprite
 palettes use the separate OBJ half of CGRAM.
 
-`snes_background_prepare` maintains both layers' active 33×29-tile window in a
+`snes_background_prepare` maintains both layers' active 33Ã—29-tile window in a
 caller-owned 32 KiB allocation in WRAM bank 7f. Pattern references, hash entries,
 upload queues, conditional clips and map staging have fixed capacities. Room
 loads and large camera jumps require forced blank; ordinary updates stage
@@ -60,10 +60,10 @@ still being measured.
 
 The SDK compiler needs `-H -F`. Its bank-zero constant sections are converted to
 bankable far-data sections. ExHiROM places compiled code and tables in physical
-banks 2–15, reserves SDK startup banks 0–1, and packs binary chunks into banks
-16–63 and 65–125. CPU addresses use banks c0–ff for the lower four MiB and
-40–7d for the upper portion. Bank 64 contains the reset-code mirror; banks
-126–127 are excluded because their CPU addresses select work RAM. The linker
+banks 2â€“15, reserves SDK startup banks 0â€“1, and packs binary chunks into banks
+16â€“63 and 65â€“125. CPU addresses use banks c0â€“ff for the lower four MiB and
+40â€“7d for the upper portion. Bank 64 contains the reset-code mirror; banks
+126â€“127 are excluded because their CPU addresses select work RAM. The linker
 produces both headers and vectors, and the builder recalculates both checksums
 after copying the reserved startup mirror.
 
@@ -79,8 +79,8 @@ code over every viewport of every converted twelve-frame water clip. The initial
 with no compactions; Sewers peaked at 1,042 with three compactions over 81,672
 views. This is a cache-capacity check, separate from console timing verification.
 
-The OBJ backend uses the hardware 8×8/16×16 size pair. Converted metadata marks
-each occupied 8×8 quadrant of a source 16×16 piece. Fully occupied pieces use
+The OBJ backend uses the hardware 8Ã—8/16Ã—16 size pair. Converted metadata marks
+each occupied 8Ã—8 quadrant of a source 16Ã—16 piece. Fully occupied pieces use
 one large OBJ; partial pieces use only their occupied small OBJs. This keeps
 the original pixels while reducing transparent fetches against the hardware
 32-object/34-sliver scanline limits. Both limits are checked before publishing
@@ -145,8 +145,8 @@ frames. This remains substantially below a playable console frame rate.
 ### Frame-phase profile and loop changes
 
 A local profiling build latched the PPU vertical counter at every phase write of
-the main loop and summed scanlines per phase. On the Main Hall → Altar walk
-(route steps 127–134), a presentation took about 2,200 scanlines (8.4 display
+the main loop and summed scanlines per phase. On the Main Hall â†’ Altar walk
+(route steps 127â€“134), a presentation took about 2,200 scanlines (8.4 display
 frames). The largest costs were background preparation (about 1,190 lines, of
 which periodic hash-table rebuilds were roughly 250 and animated-clip refreshes
 about 290), the simulation tick (about 200), sprite preparation (about 250) and
@@ -170,7 +170,7 @@ Measured under Snes9x 1.63 at 60.0988 Hz with the 8 MiB ExHiROM opening:
 
 | Measurement | Before | After |
 | --- | --- | --- |
-| Main Hall → Altar walk (`capture_showcase.py`, steps 127–134) | 6.8 presentations/s | 9.0 presentations/s |
+| Main Hall â†’ Altar walk (`capture_showcase.py`, steps 127â€“134) | 6.8 presentations/s | 9.0 presentations/s |
 | Stationary Loop (room 9, 370/696) | 7.51 updates/s | 8.46 updates/s |
 | Stationary Crypt (room 25, 597/264) | 8.41 updates/s | 8.51 updates/s |
 | Stationary Altar, cage open (room 7, 536/312) | 6.31 updates/s | 8.71 updates/s |
@@ -213,8 +213,8 @@ pieces are resident, so the common case no longer enters compiled C at all.
 
 | Measurement | Before | After |
 | --- | --- | --- |
-| Main Hall → Altar walk (`capture_showcase.py`, steps 127–134) | 9.0 presentations/s | 9.9 presentations/s |
-| First room (`showcase-route.json`, steps 2–5) | 14.0 presentations/s | 14.5 presentations/s |
+| Main Hall â†’ Altar walk (`capture_showcase.py`, steps 127â€“134) | 9.0 presentations/s | 9.9 presentations/s |
+| First room (`showcase-route.json`, steps 2â€“5) | 14.0 presentations/s | 14.5 presentations/s |
 | Stationary Loop (room 9, 370/696) | 8.46 updates/s | 8.56 updates/s |
 | Stationary Crypt (room 25, 597/264) | 8.51 updates/s | 9.11 updates/s |
 | Stationary Altar, cage open (room 7, 536/312) | 8.71 updates/s | 9.27 updates/s |
@@ -237,7 +237,7 @@ The same phase marks placed around the calls in `deceptusTick` (a local build
 only) show where the portable simulation spends its time on this CPU, in
 scanlines per presentation:
 
-| Part of the tick | Walk (steps 127�134) | Stationary Loop |
+| Part of the tick | Walk (steps 127–134) | Stationary Loop |
 | --- | --- | --- |
 | Input, pacing, adventure and campaign around the engine tick | 39 | 35 |
 | `updatePlayer` | 78 | 195 |
@@ -294,8 +294,8 @@ the background.
 
 | Measurement | Before | After |
 | --- | --- | --- |
-| Main Hall → Altar walk (`capture_showcase.py`, steps 127–134) | 9.9 presentations/s | 13.0 presentations/s |
-| First room (`showcase-route.json`, steps 2–5) | 14.5 presentations/s | 16.5 presentations/s |
+| Main Hall â†’ Altar walk (`capture_showcase.py`, steps 127â€“134) | 9.9 presentations/s | 13.0 presentations/s |
+| First room (`showcase-route.json`, steps 2â€“5) | 14.5 presentations/s | 16.5 presentations/s |
 | Full route, tick-exact cartridge, display frames | 194,370 | 171,403 |
 
 Each step contributed: the resident-pattern load path raised the walk from 9.9
@@ -418,5 +418,23 @@ Each detector was confirmed by corrupting one background tile and one object
 tile in video memory, which it reported. On the current code it finds the black
 flashes from sprite slot pressure (32 in the first 40 route steps) and no wrong
 background or object tiles. A paced build additionally requests two player
-bodies in some frames of the Main Hall walk; that is being traced. The SNES
-rebuild uses this check as its acceptance test.
+bodies in some frames of the Main Hall walk; that was the water splash (see
+below). The SNES rebuild uses this check as its acceptance test.
+
+### Compiler: `a || !b`
+
+816-tcc (PVSnesLib 4.7.0) generates wrong code for a logical or whose right
+operand is a logical not. In `if (a || !b)` a true `a` jumps past the body
+instead of into it, so the body runs only when both `a` and `b` are false; the
+same holds for `a || !b` used as a value or loop condition. Parentheses do not
+change it; `a || (b == 0)`, `a || b` and `a && !b` compile correctly.
+
+The water splash showed it: `if (++splash_frame >= 20 || !water)` never ended
+the splash, its frame number ran past the last of its 20 images, and resource
+numbers 520 and up are the sword player. The Main Hall then showed a second,
+sword-holding player standing on the water.
+
+Shared code writes these tests as `(a) || (b == 0)`, which also reads more
+plainly, and `tools/build_snes.py` stops with the file and line of any `|| !` in
+the code it compiles, so the pattern cannot come back. The check is textual and
+also rejects the harmless `a || (!b && c)`.

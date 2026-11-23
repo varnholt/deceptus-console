@@ -48,6 +48,12 @@ it" is never an argument).
 - Fixed layouts shared between C and assembly are tied together by compile-time checks, never by
   convention alone.
 
+## Expressions
+
+- Use parentheses wherever they make a condition read intuitively, even when precedence makes
+  them redundant: `(frame >= LAST) || (water == 0)`, `(flags & MASK) != 0`. Never make the
+  reader recall the precedence of mixed `||`, `&&`, `!`, comparisons and bit operators.
+
 ## Constants, comments and leftovers
 
 - No magic numbers: name them, and assert relations between them at compile time.

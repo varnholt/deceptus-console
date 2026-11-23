@@ -9,7 +9,7 @@ void deceptusCampaignInit(DeceptusCampaign *campaign, const DeceptusCampaignDef 
    memset(campaign, 0, sizeof(*campaign));
    campaign->definition = definition;
    campaign->video = saved_video;
-   if (!definition || !definition->room_count || !definition->rooms || !definition->goals)
+   if ((definition == 0) || (definition->room_count == 0) || (definition->rooms == 0) || (definition->goals == 0))
    {
       campaign->engine.content_error = 7;
       return;

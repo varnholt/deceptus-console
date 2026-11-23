@@ -56,11 +56,12 @@ DeceptusU8 deceptusRoomContentLoad(DeceptusRoomContent *content, const DeceptusU
    room.player_speed = *cursor++;
    room.player_fall_gravity = *cursor++;
    has_water = *cursor++;
-   if (!room.columns || !room.rows || room.columns > 255 || room.rows > 255 || has_water > 1 ||
-       room.mechanism_count > content->mechanism_capacity || room.mechanism_target_count > content->target_capacity ||
-       room.enemy_count > content->enemy_capacity || room.enemy_path_count > content->path_capacity ||
-       (room.mechanism_count && (!content->mechanisms || !content->timings)) || (room.mechanism_target_count && !content->targets) ||
-       (room.enemy_count && !content->enemies) || (room.enemy_path_count && !content->paths))
+   if ((room.columns == 0) || (room.rows == 0) || (room.columns > 255) || (room.rows > 255) || (has_water > 1) ||
+       (room.mechanism_count > content->mechanism_capacity) || (room.mechanism_target_count > content->target_capacity) ||
+       (room.enemy_count > content->enemy_capacity) || (room.enemy_path_count > content->path_capacity) ||
+       ((room.mechanism_count != 0) && ((content->mechanisms == 0) || (content->timings == 0))) ||
+       ((room.mechanism_target_count != 0) && (content->targets == 0)) || ((room.enemy_count != 0) && (content->enemies == 0)) ||
+       ((room.enemy_path_count != 0) && (content->paths == 0)))
    {
       return 0;
    }

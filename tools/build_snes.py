@@ -111,6 +111,24 @@ def exhirom_binary_assembly(assembly):
     return '\n'.join(lines) + '\n'
 
 
+# 816-tcc inverts the left operand of `a || !b`: when a is true, the code skips what should run.
+# write such tests as `(a) || (b == 0)`; parentheses alone do not help.
+OR_NOT = re.compile(r"\|\|\s*\(*\s*!(?!=)")
+COMMENT_OR_STRING = re.compile(r'/\*.*?\*/|//[^\n]*|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', re.S)
+
+
+def reject_or_not_conditions(paths):
+    """Stop the build on any `|| !` in code 816-tcc compiles."""
+    findings = []
+    for path in paths:
+        # blank comments and literals but keep their line breaks, so line numbers stay right.
+        text = COMMENT_OR_STRING.sub(lambda match: re.sub(r"[^\n]", " ", match[0]), path.read_text())
+        for match in OR_NOT.finditer(text):
+            findings.append(f"{path.relative_to(ROOT)}:{text.count(chr(10), 0, match.start()) + 1}")
+    if findings:
+        raise SystemExit("816-tcc miscompiles `a || !b`; write `(a) || (b == 0)` instead:\n  " + "\n  ".join(findings))
+
+
 def run(command, folder):
     print(" ".join(map(str, command)), flush=True)
     subprocess.run(list(map(str, command)), cwd=folder, check=True)
@@ -177,6 +195,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         sources += [ROOT / "assets/generated/room.c"]
     # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
     pacing_flags = ["-DDECEPTUS_PACING_LOCKED"] if os.environ.get("DECEPTUS_PACING_LOCKED") == "1" else []
+    headers = [path for folder_name in ("include", "src/platform/snes") for path in (ROOT / folder_name).rglob("*.h")]
+    reject_or_not_conditions([source for source in sources if source.parent != generated] + headers)
     for source in sources:
         stem = source.stem
         run([compiler, *(["-H", "-DDECEPTUS_SNES_OPENING=1", "-DSNES_SPRITES_ASM=1", "-DSNES_BACKGROUND_ASM=1", "-DPLATFORM_ARITH=1", "-I" + str(ROOT / "src/platform/snes")] if opening else []), *pacing_flags, "-I" + str(ROOT / "include"), "-I" + str(generated), "-I" + str(sdk / "pvsneslib/include"),

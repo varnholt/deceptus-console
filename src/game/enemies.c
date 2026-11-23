@@ -50,7 +50,7 @@ void deceptusEnemiesInit(DeceptusEngine *engine)
       }
       if (definition->kind == DECEPTUS_RAT)
       {
-         if (!definition->path_count || definition->path_count > 8 || !definition->acceleration)
+         if ((definition->path_count == 0) || (definition->path_count > 8) || (definition->acceleration == 0))
          {
             engine->content_error = 6;
             return;
@@ -66,7 +66,7 @@ void deceptusEnemiesInit(DeceptusEngine *engine)
       }
       else if (definition->kind == DECEPTUS_BLOB_2)
       {
-         if (!definition->path_count || !definition->acceleration)
+         if ((definition->path_count == 0) || (definition->acceleration == 0))
          {
             engine->content_error = 6;
             return;
@@ -98,9 +98,9 @@ void deceptusEnemiesInit(DeceptusEngine *engine)
          }
       }
       else if (definition->kind == DECEPTUS_FROG_BLUE &&
-               (!definition->period || definition->period >= 65000 || definition->alignment > 1 || !definition->delays[0] ||
-                definition->delays[0] > 1000 || definition->delays[1] >= 32768 || definition->delays[2] > 1024 || !definition->cycles[0] ||
-                definition->cycles[0] > 64))
+               ((definition->period == 0) || (definition->period >= 65000) || (definition->alignment > 1) || (definition->delays[0] == 0) ||
+                (definition->delays[0] > 1000) || (definition->delays[1] >= 32768) || (definition->delays[2] > 1024) ||
+                (definition->cycles[0] == 0) || (definition->cycles[0] > 64)))
       {
          engine->content_error = 6;
          return;

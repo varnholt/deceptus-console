@@ -74,7 +74,7 @@ static DeceptusU8 mechanismSolidQuery(const DeceptusMechanismSet *set, const Dec
 {
    DeceptusU16 candidate, index;
    DeceptusU32 mask;
-   if (!set || !set->solid_count)
+   if ((set == 0) || (set->solid_count == 0))
    {
       return 0;
    }
