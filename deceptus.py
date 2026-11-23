@@ -152,7 +152,8 @@ def play(args, config):
     scene = args.scene or 'tutorial'
     renderer = ['--renderer', 'native'] if scene == 'tutorial' else []
     sdk = ['--sdk', config['amiga_sdk']] if 'amiga_sdk' in config else []
-    return run(python('run_amiga.py', '--scene', scene, *renderer, *data, *sdk, *extra))
+    kickstart = ['--kickstart', args.kickstart] if args.kickstart else []
+    return run(python('run_amiga.py', '--scene', scene, *renderer, *data, *sdk, *kickstart, *extra))
 
 
 # build
@@ -235,6 +236,7 @@ def main(arguments=None):
     command.add_argument('--build', action='store_true', help='rebuild before playing')
     command.add_argument('--prepare', action='store_true', help='set up and build without opening a window')
     command.add_argument('--scene', help='another scene than the opening (see the run_<target>.py --help)')
+    command.add_argument('--kickstart', help='Amiga only: a Kickstart 1.3 ROM file instead of the built-in AROS firmware')
     command = commands.add_parser('build', help='build the opening cartridges and Amiga image')
     command.add_argument('targets', nargs='*', metavar='target', help='gba, snes, smd or amiga')
     command.add_argument('--all', action='store_true', help='build every target')

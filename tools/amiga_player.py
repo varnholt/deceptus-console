@@ -19,6 +19,12 @@ def prepare_drive(executable, output):
     return drive
 
 
+# under WinUAE's AROS firmware the opening does not start on the stock A500 (512 KiB chip plus
+# 512 KiB slow RAM): the screen stays grey. 1 MiB of fast RAM added makes it start; Kickstart 1.3
+# runs it on the stock machine, so the extra RAM is only given when no Kickstart ROM is set.
+AROS_FAST_MIB = 1
+
+
 def write_config(executable, output, kickstart=None, slowmem=512, scene="prototype"):
     drive = prepare_drive(executable, output)
     settings = dict(
@@ -28,7 +34,7 @@ def write_config(executable, output, kickstart=None, slowmem=512, scene="prototy
         kickstart_rom_file=str(kickstart) if kickstart else ':AROS',
         cpu_model='68000', cpu_cycle_exact='true',
         cpu_memory_cycle_exact='true', blitter_cycle_exact='true',
-        chipmem_size=1, bogomem_size=2 if slowmem else 0, fastmem_size=0,
+        chipmem_size=1, bogomem_size=2 if slowmem else 0, fastmem_size=0 if kickstart else AROS_FAST_MIB,
         ntsc='false', boot_rom_uae='automatic',
         gfx_width_windowed=752, gfx_height_windowed=574,
         gfx_resolution='hires', gfx_linemode='double',
