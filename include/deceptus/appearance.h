@@ -45,6 +45,9 @@ typedef struct DeceptusAppearanceDef
    const DeceptusHeadtorchPose (*normal)[26];
    const DeceptusHeadtorchPose *swim, *rope, *sword_poses;
    const DeceptusI16 (*lamp_offsets)[2];
+   /* a platform's own drawing of the grab ropes, which must emit what the shared one does; zero for
+    * the shared one. */
+   DeceptusU8 (*rope_sprites)(const struct DeceptusEngine *engine, DeceptusSpriteEmitter emit, void *context);
 } DeceptusAppearanceDef;
 
 DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const DeceptusFrame *frame, const DeceptusAppearanceDef *definition,

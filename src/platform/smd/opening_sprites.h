@@ -514,7 +514,8 @@ static void smdSpritesPreparePass(const DeceptusAdventure *game, const DeceptusF
       smd_headtorch_swim,
       smd_headtorch_rope,
       smd_headtorch_sword,
-      smd_headtorch_lamp_offsets};
+      smd_headtorch_lamp_offsets,
+      0};
    smd_obj_request_count = smd_obj_count = 0;
    smd_sprite_overflow = smd_sprite_blank = 0;
    smd_obj_free_cursor = 0;

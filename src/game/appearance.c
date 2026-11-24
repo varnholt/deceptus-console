@@ -275,5 +275,13 @@ DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const Deceptus
          return 0;
       }
    }
-   return mechanismSprites(&game->campaign.engine, output) && ropeSprites(&game->campaign.engine, output);
+   if (!mechanismSprites(&game->campaign.engine, output))
+   {
+      return 0;
+   }
+   if (definition->rope_sprites)
+   {
+      return definition->rope_sprites(&game->campaign.engine, output->emit, output->context);
+   }
+   return ropeSprites(&game->campaign.engine, output);
 }

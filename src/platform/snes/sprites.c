@@ -4,6 +4,8 @@
 #include "snes_assets.h"
 #include "deceptus/appearance.h"
 #include "deceptus/enemies.h"
+#include "deceptus/physics.h"
+#include "arith.h"
 #include "snes_headtorch_resources.h"
 #include "snes_sword_resources.h"
 #include <snes.h>
@@ -350,6 +352,166 @@ static void snesObjDrawResourceReference(const SnesObjRequest *request, Deceptus
 }
 #endif
 
+/* one coordinate of the points along a rope link: start + delta * remaining / length, truncated
+ * toward zero as the shared deceptusGrabRopePointFrom computes it, kept as the quotient and
+ * remainder of |delta| * remaining so that each further piece only adds its step. */
+typedef struct SnesRopeAxis
+{
+   DeceptusFixed start;
+   DeceptusU16 magnitude, quotient, remainder, step_quotient, step_remainder;
+   DeceptusU8 negative;
+} SnesRopeAxis;
+
+static void snesRopeAxisStart(SnesRopeAxis *axis, DeceptusFixed start, DeceptusI32 delta, DeceptusU16 remaining, DeceptusU16 length)
+{
+   DeceptusI32 product;
+   axis->start = start;
+   axis->negative = delta < 0;
+   axis->magnitude = (DeceptusU16)(axis->negative ? -delta : delta);
+   product = arithMulS16((DeceptusI16)axis->magnitude, (DeceptusI16)remaining);
+   axis->quotient = (DeceptusU16)arithDivS32U16(product, length);
+   axis->remainder = (DeceptusU16)(product - arithMulS16((DeceptusI16)axis->quotient, (DeceptusI16)length));
+}
+
+static void snesRopeAxisSetStep(SnesRopeAxis *axis, DeceptusU16 step, DeceptusU16 length)
+{
+   DeceptusI32 product;
+   product = arithMulS16((DeceptusI16)axis->magnitude, (DeceptusI16)step);
+   axis->step_quotient = (DeceptusU16)arithDivS32U16(product, length);
+   axis->step_remainder = (DeceptusU16)(product - arithMulS16((DeceptusI16)axis->step_quotient, (DeceptusI16)length));
+}
+
+static void snesRopeAxisAdvance(SnesRopeAxis *axis, DeceptusU16 length)
+{
+   axis->quotient += axis->step_quotient;
+   axis->remainder += axis->step_remainder;
+   if (axis->remainder >= length)
+   {
+      axis->remainder -= length;
+      ++axis->quotient;
+   }
+}
+
+static DeceptusI16 snesRopeAxisPixel(const SnesRopeAxis *axis)
+{
+   if (axis->negative)
+   {
+      return deceptusFloor((DeceptusFixed)(axis->start - (DeceptusI16)axis->quotient));
+   }
+   return deceptusFloor((DeceptusFixed)(axis->start + (DeceptusI16)axis->quotient));
+}
+
+/* whether every link's coordinate deltas and length fit the 16-bit products the stepping uses. */
+static DeceptusU8 snesRopeSteppable(const DeceptusGrabRope *chain)
+{
+   DeceptusU8 node;
+   DeceptusI32 dx, dy;
+   for (node = 1; node < chain->node_count; ++node)
+   {
+      dx = (DeceptusI32)chain->x[node] - chain->x[node - 1];
+      dy = (DeceptusI32)chain->y[node] - chain->y[node - 1];
+      if ((dx > 32767L) || (dx < -32767L) || (dy > 32767L) || (dy < -32767L) ||
+          (chain->cumulative_length[node] - chain->cumulative_length[node - 1] > 32767U))
+      {
+         return 0;
+      }
+   }
+   return 1;
+}
+
+/* the grab ropes' pieces exactly as the shared appearance emits them. the shared drawing finds each
+ * piece's point with a 32-bit multiply and divide; here a link costs one division per step size and
+ * each piece some additions. */
+static DeceptusU8 snesRopeSprites(const DeceptusEngine *engine, DeceptusSpriteEmitter emit, void *context)
+{
+   const DeceptusGrabRope *chain;
+   DeceptusSpriteAppearance sprite;
+   SnesRopeAxis axis_x, axis_y;
+   DeceptusU16 distance, length, height, total, previous_total, remaining, link, step;
+   DeceptusU8 rope, node, started, steppable;
+   DeceptusI16 x, y;
+   sprite.family = DECEPTUS_SPRITE_GRAB_ROPE;
+   sprite.flip_x = 0;
+   remaining = 0;
+   for (rope = 0; rope < engine->grab_ropes.count; ++rope)
+   {
+      length = deceptusGrabRopeLength(engine, rope);
+      chain = &engine->grab_ropes.ropes[rope];
+      steppable = snesRopeSteppable(chain);
+      node = 1;
+      started = 0;
+      step = 0;
+      previous_total = 0;
+      link = 0;
+      for (distance = 0; distance < length; distance += height)
+      {
+         height = distance ? 8 : 16;
+         if (height > length - distance)
+         {
+            height = length - distance;
+         }
+         total = (distance > 2047) ? 32752 : distance * 16;
+         if (steppable == 0)
+         {
+            node = 1;
+            deceptusGrabRopePointFrom(engine, rope, distance, &node, &x, &y);
+         }
+         else
+         {
+            /* the link holding the point: the first whose end is not passed, as the shared walk. */
+            while (node < chain->node_count)
+            {
+               link = chain->cumulative_length[node] - chain->cumulative_length[node - 1];
+               remaining = total - chain->cumulative_length[node - 1];
+               if ((remaining <= link) && (link != 0))
+               {
+                  break;
+               }
+               ++node;
+               started = 0;
+            }
+            if (node >= chain->node_count)
+            {
+               x = deceptusFloor(chain->x[chain->node_count - 1]);
+               y = deceptusFloor(chain->y[chain->node_count - 1]);
+            }
+            else
+            {
+               if (started == 0)
+               {
+                  snesRopeAxisStart(&axis_x, chain->x[node - 1], (DeceptusI32)chain->x[node] - chain->x[node - 1], remaining, link);
+                  snesRopeAxisStart(&axis_y, chain->y[node - 1], (DeceptusI32)chain->y[node] - chain->y[node - 1], remaining, link);
+                  started = 1;
+                  step = 0;
+               }
+               else
+               {
+                  if (total - previous_total != step)
+                  {
+                     step = total - previous_total;
+                     snesRopeAxisSetStep(&axis_x, step, link);
+                     snesRopeAxisSetStep(&axis_y, step, link);
+                  }
+                  snesRopeAxisAdvance(&axis_x, link);
+                  snesRopeAxisAdvance(&axis_y, link);
+               }
+               x = snesRopeAxisPixel(&axis_x);
+               y = snesRopeAxisPixel(&axis_y);
+            }
+            previous_total = total;
+         }
+         sprite.frame = distance ? height : 0;
+         sprite.x = x - engine->camera_x - 7;
+         sprite.y = y - engine->camera_y - (distance ? 4 : 0);
+         if (!emit(context, &sprite))
+         {
+            return 0;
+         }
+      }
+   }
+   return 1;
+}
+
 static DeceptusU8 snesObjAppearance(void *context, const DeceptusSpriteAppearance *sprite)
 {
    static const DeceptusU16 first[DECEPTUS_SPRITE_FAMILY_COUNT] = {
@@ -395,7 +557,8 @@ void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *fram
       snes_headtorch_swim,
       snes_headtorch_rope,
       snes_headtorch_sword,
-      snes_headtorch_lamp_offsets};
+      snes_headtorch_lamp_offsets,
+      snesRopeSprites};
    const SnesSpriteResource *entry;
    const SnesObjRequest *request;
    SNES_OBJ_PROFILE(1);

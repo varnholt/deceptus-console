@@ -315,7 +315,7 @@ def write_common(data, output, recipes, simulation, families, sprite_bytes, clip
         '   {amiga_sword_clips, amiga_sword_durations, sizeof(amiga_sword_durations),',
         '    sizeof(amiga_sword_clips)/sizeof(amiga_sword_clips[0])},',
         '   amiga_headtorch_normal, amiga_headtorch_swim, amiga_headtorch_rope,',
-        '   amiga_headtorch_sword, amiga_headtorch_lamp_offsets};',
+        '   amiga_headtorch_sword, amiga_headtorch_lamp_offsets, 0};',
         'const DeceptusU16 amiga_sprite_families[DECEPTUS_SPRITE_FAMILY_COUNT] = {'
         + ','.join(str(family['first']) for family in families) + '};',
         'const char *const amiga_room_titles[AMIGA_OPENING_ROOMS] = {'

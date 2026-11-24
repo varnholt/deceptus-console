@@ -147,6 +147,10 @@ the original pixels while reducing transparent fetches against the hardware
 32-object/34-sliver scanline limits. Both limits are checked before publishing
 OAM. A persistent 128-piece cache stages graphics before displaying new OAM;
 resource-linked lookup avoids searching the full cache for every rope segment.
+The grab ropes are drawn by the SNES sprites code through the appearance
+definition's `rope_sprites` hook: the same pieces as the shared drawing, but each
+link steps from piece to piece with a quotient and remainder instead of a 32-bit
+multiply and divide per piece.
 
 The interface preserves source bitmap glyphs and text in console-sized panels.
 Ropes follow the shared simulated curve using source strips; the backend does
