@@ -1,6 +1,7 @@
 /* the S-CPU half of the sprites: OBJ video setup and the transfers sprites.c staged. the staging
  * may live in SA-1 BW-RAM, so it is reached through its 24-bit address. */
 #include "sprites.h"
+#include "ppu_timing.h"
 #include <snes.h>
 #include <string.h>
 
@@ -66,11 +67,27 @@ void snesSpritesCommitTransfers(void)
 }
 
 /* bookkeeping without video writes, which may run after vblank. */
+/* vblank lines the copy of the oam shadow takes: 544 bytes at 8 master cycles each, plus setup. */
+#define SNES_OAM_COPY_LINES 5
+
+/* the sdk copies the oam shadow at its next vblank, which starts the following presentation, while
+ * the scroll the background commit set shows from this vblank on: the sprites trailed the scenery
+ * by a presentation, which shows as jitter whenever the camera moves. copying it in the same
+ * vblank keeps them together; without the time the sdk copy remains. */
+static void copyOamNow(void)
+{
+   if (snesVblankLinesLeft() >= SNES_OAM_COPY_LINES)
+   {
+      dmaCopyOAram(oamMemory, 0, SNES_OBJ_OAM_BYTES);
+   }
+}
+
 void snesSpritesPublish(void)
 {
 #ifdef SNES_SPRITES_ASM
    /* the sdk's next vblank also copies this shadow to oam. */
    snesObjPublish();
+   copyOamNow();
 #else
    DeceptusU16 index;
    SnesObjSlot *slots;
@@ -80,6 +97,7 @@ void snesSpritesPublish(void)
    {
       slots[index].held = slots[index].used;
    }
+   copyOamNow();
 #endif
 }
 
