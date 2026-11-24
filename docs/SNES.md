@@ -46,6 +46,16 @@ it can address 768 shared-cache slots plus 120 overflow patterns below `2000`.
 Background uses all 1,024 shared slots. Patterns may share physical storage when
 both planes can address it; otherwise the cache keeps an exact duplicate. A
 fragmented allocation gets one full, atomic rebuild before reporting failure.
+
+Most rooms give their static cells fixed slots instead. The converter
+(`tools/snes_tile_slots.py`) colours each room's pattern copies so that no two
+patterns that can be visible together share a slot, and marks those cells: bit 15
+of the pattern word, with the slot's tile in the attribute word's low ten bits.
+Loading such a cell only uploads its pattern when the slot last held another one;
+it takes no reference and no hash entry. Animated clips and copies left over are
+served by the cache from the room's pool (`pool_first`, `pool_end` in
+`SnesStage`), which is the whole cache for rooms that keep it. Plans are cached
+in `slot_plans` next to the converted assets.
 This rebuild uses forced blank. The caller gives sprites and dirty interface
 maps separate VBlanks. `snes_background_dma_bytes` describes the next background
 commit's transfer volume.
@@ -53,8 +63,10 @@ commit's transfer volume.
 Column staging, DMA command selection and cache bookkeeping run before VBlank.
 The ordinary commit consumes eight-byte commands through a small 65816 DMA
 runner on channel 6, then publishes scrolling. A conservative transfer and
-command-cost estimate reserves time for SDK NMI/OAM work; larger batches use
-forced blank. Initial loads that exceed the bounded command array retain the
+command-cost estimate reserves time for SDK NMI/OAM work. A commit beyond it
+runs over up to four VBlanks while the previous frame stays on screen; the map
+row and column that left the window go first, so no visible cell shows a slot
+whose pattern changes. Only a commit needing more uses forced blank. Initial loads that exceed the bounded command array retain the
 slower forced-blank path. This protects artwork while timing and throughput are
 still being measured.
 

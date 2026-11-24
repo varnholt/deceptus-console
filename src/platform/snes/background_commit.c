@@ -56,7 +56,7 @@ static void copyColumn(const DeceptusU16 *source, DeceptusU16 address)
 
 void snesBackgroundCommit(void)
 {
-   DeceptusU16 index, slot, pattern, plane, row, column, base, mask;
+   DeceptusU16 index, slot, pattern, plane, row, column, base, mask, first, batch;
    const DeceptusU8 *bytes;
    if (work->status.error)
    {
@@ -64,7 +64,24 @@ void snesBackgroundCommit(void)
    }
    if (work->dma_count != SNES_BG_EMPTY)
    {
-      snesVramRunDma(work->dma, work->dma_count);
+      if (work->status.full || (work->dma_batch_count <= 1))
+      {
+         snesVramRunDma(work->dma, work->dma_count);
+      }
+      else
+      {
+         /* the frame on screen stays until the last batch, then the scroll moves to the new one. */
+         first = 0;
+         for (batch = 0; batch < work->dma_batch_count; ++batch)
+         {
+            if (batch)
+            {
+               WaitForVBlank();
+            }
+            snesVramRunDma(&work->dma[first], work->dma_batch_ends[batch] - first);
+            first = work->dma_batch_ends[batch];
+         }
+      }
       bgSetScroll(0, work->scroll_x, work->scroll_y);
       bgSetScroll(1, work->scroll_x, work->scroll_y);
       work->status.full = 0;

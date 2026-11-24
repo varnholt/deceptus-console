@@ -24,7 +24,7 @@ static DeceptusU16 slotTile(DeceptusU8 plane, DeceptusU16 slot)
    {
       return slot;
    }
-   return slot < 768 ? slot + 256 : slot - 1024 + SNES_BG_OVERFLOW_TILE;
+   return slot < SNES_BG_SHARED_SLOTS ? slot + 256 : slot - 1024 + SNES_BG_OVERFLOW_TILE;
 }
 
 static DeceptusU16 tileSlot(DeceptusU8 plane, DeceptusU16 tile)
@@ -43,7 +43,7 @@ static DeceptusU8 slotAddressable(DeceptusU8 plane, DeceptusU16 slot)
    {
       return slot < 1024;
    }
-   if (slot < 768)
+   if (slot < SNES_BG_SHARED_SLOTS)
    {
       return 1;
    }
@@ -64,7 +64,7 @@ typedef char SnesBackgroundReferencesOffset[(DECEPTUS_BG_OFFSET(references) == 2
 typedef char SnesBackgroundHashSlotsOffset[(DECEPTUS_BG_OFFSET(hash_slots) == 10960) ? 1 : -1];
 typedef char SnesBackgroundMapsOffset[(DECEPTUS_BG_OFFSET(maps) == 15056) ? 1 : -1];
 typedef char SnesBackgroundDirtyColumnOffset[(DECEPTUS_BG_OFFSET(dirty_column) == 29602) ? 1 : -1];
-typedef char SnesBackgroundRefreshChangedOffset[(DECEPTUS_BG_OFFSET(refresh_changed) == 29604) ? 1 : -1];
+typedef char SnesBackgroundRefreshChangedOffset[(DECEPTUS_BG_OFFSET(scratch.refresh_changed) == 29604) ? 1 : -1];
 typedef char SnesBackgroundSlotListsOffset[(DECEPTUS_BG_OFFSET(resident) == 0 && DECEPTUS_BG_OFFSET(free_slots) == 4576 &&
                                             DECEPTUS_BG_OFFSET(uploads) == 23248 && DECEPTUS_BG_OFFSET(pending) == 27314 &&
                                             DECEPTUS_BG_OFFSET(domains) == 28458) ? 1 : -1];
@@ -81,9 +81,13 @@ typedef struct SnesBackgroundCellView
    const DeceptusU8 *const *chunks[2];
    /* per plane, the union of the enabled clip rectangles; right 0 when none. */
    DeceptusU16 clip_left[2], clip_top[2], clip_right[2], clip_bottom[2];
+   /* the room's cache pool, which static cells never name. */
+   DeceptusU16 pool_first, pool_end;
 } SnesBackgroundCellView;
 #define DECEPTUS_VIEW_OFFSET(member) ((unsigned long)&((SnesBackgroundCellView *)0)->member)
-typedef char SnesBackgroundCellViewSize[(sizeof(SnesBackgroundCellView) == 32) ? 1 : -1];
+typedef char SnesBackgroundCellViewSize[(sizeof(SnesBackgroundCellView) == 36) ? 1 : -1];
+typedef char SnesBackgroundCellViewPool[(DECEPTUS_VIEW_OFFSET(pool_first) == 32 && DECEPTUS_VIEW_OFFSET(pool_end) == 34) ? 1 : -1];
+typedef char SnesBackgroundOverflowTile[(SNES_BG_OVERFLOW_TILE == 136) ? 1 : -1];
 typedef char SnesBackgroundCellViewChunks[(DECEPTUS_VIEW_OFFSET(chunks) == 8) ? 1 : -1];
 typedef char SnesBackgroundCellViewClips[(DECEPTUS_VIEW_OFFSET(clip_left) == 16 && DECEPTUS_VIEW_OFFSET(clip_top) == 20 &&
                                           DECEPTUS_VIEW_OFFSET(clip_right) == 24 && DECEPTUS_VIEW_OFFSET(clip_bottom) == 28) ? 1 : -1];
@@ -210,7 +214,7 @@ static void rebuildHash(void)
 
 static void resetCache(void)
 {
-   DeceptusU16 index, plane;
+   DeceptusU16 index, plane, slot;
    for (index = 0; index < SNES_BG_HASH; ++index)
    {
       work->hash_keys[index] = SNES_BG_EMPTY;
@@ -221,10 +225,13 @@ static void resetCache(void)
       work->references[index] = 0;
       work->pending[index] = 0;
       work->domains[index] = 0;
-      if (index)
-      {
-         work->free_slots[index - 1] = index;
-      }
+   }
+   /* the cache allocates from the room's pool only; every other slot is fixed to the patterns
+    * the converter placed there. */
+   work->free_count = 0;
+   for (slot = stage->pool_first; slot < stage->pool_end; ++slot)
+   {
+      work->free_slots[work->free_count++] = slot;
    }
    for (plane = 0; plane < 2; ++plane)
    {
@@ -242,7 +249,6 @@ static void resetCache(void)
    work->pending[0] = 1;
    work->upload_count = 1;
    work->dma_bytes = 8192 + 32;
-   work->free_count = SNES_BG_SLOTS - 1;
    work->hash_tombstones = 0;
 }
 
@@ -279,6 +285,36 @@ void snesBackgroundReleaseCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI
       work->resident[slot] = SNES_BG_EMPTY;
       work->free_slots[work->free_count++] = slot;
    }
+}
+
+static void queueUpload(DeceptusU16 slot)
+{
+   if (!work->pending[slot])
+   {
+      work->pending[slot] = 1;
+      work->uploads[work->upload_count++] = slot;
+      work->dma_bytes += 32;
+   }
+}
+
+/* the slot of a static cell, whose attribute word names its fixed tile; uploads the pattern when
+ * the slot last held another one. */
+static DeceptusU16 placeStaticPattern(DeceptusU8 plane, DeceptusU16 pattern, DeceptusU16 attributes)
+{
+   DeceptusU16 slot;
+   slot = tileSlot(plane, attributes);
+   if ((pattern >= stage->pattern_count) || (slot >= SNES_BG_SLOTS) || (slotAddressable(plane, slot) == 0) ||
+       ((slot >= stage->pool_first) && (slot < stage->pool_end)))
+   {
+      work->status.error = 1;
+      return 0;
+   }
+   if (work->resident[slot] != pattern)
+   {
+      work->resident[slot] = pattern;
+      queueUpload(slot);
+   }
+   return slot;
 }
 
 static DeceptusU16 acquirePattern(DeceptusU8 plane, DeceptusU16 pattern)
@@ -335,12 +371,7 @@ static DeceptusU16 acquirePattern(DeceptusU8 plane, DeceptusU16 pattern)
             return 0;
          }
          work->resident[slot] = pattern;
-         if (!work->pending[slot])
-         {
-            work->pending[slot] = 1;
-            work->uploads[work->upload_count++] = slot;
-            work->dma_bytes += 32;
-         }
+         queueUpload(slot);
       }
       if (work->hash_keys[key] == SNES_BG_DELETED)
       {
@@ -385,6 +416,8 @@ static void updateClipPlanes(void)
    view->columns = stage->columns;
    view->rows = stage->rows;
    view->pattern_count = stage->pattern_count;
+   view->pool_first = stage->pool_first;
+   view->pool_end = stage->pool_end;
    view->chunks[0] = stage->background.chunks;
    view->chunks[1] = stage->foreground.chunks;
    view->clip_right[0] = 0;
@@ -495,7 +528,14 @@ void snesBackgroundLoadCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI16 
    plane = (DeceptusU8)plane_index;
    cellSource(plane, x, y, &pattern, &attributes);
    index = mapAddress(x, y);
-   pattern = acquirePattern(plane, pattern);
+   if (pattern & SNES_BG_STATIC_CELL)
+   {
+      pattern = placeStaticPattern(plane, pattern & SNES_BG_PATTERN_BITS, attributes);
+   }
+   else
+   {
+      pattern = acquirePattern(plane, pattern);
+   }
    attributes = (attributes & 0xdc00) | (plane ? 0x2000 : 0);
    work->maps[plane][index] = slotTile(plane, pattern) | attributes;
    if (dirty == 1)
@@ -607,6 +647,12 @@ void snesBackgroundLoad(DeceptusU8 room)
    {
       work->status.error = 1;
    }
+   /* the pool is the whole cache, or shared slots both planes address. */
+   if ((stage->pool_first == 0) || (stage->pool_first > stage->pool_end) ||
+       ((stage->pool_end != SNES_BG_SLOTS) && (stage->pool_end > SNES_BG_SHARED_SLOTS)))
+   {
+      work->status.error = 1;
+   }
    cells = (DeceptusU32)stage->columns * stage->rows;
    if (cells == 0 || cells > 65535 || stage->background.bytes != cells * 4 || stage->foreground.bytes != cells * 4 ||
        stage->patterns.bytes != (DeceptusU32)stage->pattern_count * 32)
@@ -689,15 +735,10 @@ static void stageDma(const void *source, DeceptusU16 target, DeceptusU16 bytes, 
    work->dma[index].bytes = bytes;
 }
 
-static void prepareDma(void)
+static void stageUploads(void)
 {
-   DeceptusU16 index, slot, pattern, target, plane, row, column, base, mask;
+   DeceptusU16 index, slot, pattern;
    const DeceptusU8 *bytes;
-   work->dma_count = 0;
-   if (work->dma_bytes == 0)
-   {
-      return;
-   }
    for (index = 0; index < work->upload_count; ++index)
    {
       slot = work->uploads[index];
@@ -705,10 +746,19 @@ static void prepareDma(void)
       if (pattern != SNES_BG_EMPTY)
       {
          bytes = stage->patterns.chunks[pattern >> 10] + (pattern & 1023) * 32;
-         target = SNES_BG_SLOT_ADDRESS(slot);
-         stageDma(bytes, target, 32, 0x80);
+         stageDma(bytes, SNES_BG_SLOT_ADDRESS(slot), 32, 0x80);
       }
    }
+}
+
+static DeceptusU16 columnAddress(DeceptusU16 column, DeceptusU16 row)
+{
+   return (column & 31) + row * 32 + ((column >= 32) ? 1024 : 0);
+}
+
+static void stageMaps(void)
+{
+   DeceptusU16 plane, row, column, base, mask, address;
    for (plane = 0; plane < 2; ++plane)
    {
       base = plane ? 0x0800 : 0;
@@ -731,21 +781,102 @@ static void prepareDma(void)
       {
          for (row = 0; row < 32; ++row)
          {
-            index = (column & 31) + row * 32 + (column >= 32 ? 1024 : 0);
-            slot = work->maps[plane][index];
-            work->staged_columns[plane][row] = slot;
+            /* separate statements: 816-tcc fails on calls nested inside array indices. */
+            address = columnAddress(column, row);
+            work->staged_columns[plane][row] = work->maps[plane][address];
          }
-         stageDma(work->staged_columns[plane], base + (column & 31) + (column >= 32 ? 1024 : 0), 64, 0x81);
+         stageDma(work->staged_columns[plane], base + columnAddress(column, 0), 64, 0x81);
       }
    }
+}
+
+/* the map row and column that left the window, blank by now. a commit spread over several vblanks
+ * writes them first: a slot whose pattern changes for an entering cell served only cells that left,
+ * so the frame still showing meanwhile never shows a pattern before its map. */
+static void stageReleasedEdges(void)
+{
+   DeceptusU16 plane, row, column, base, address;
+   for (plane = 0; plane < 2; ++plane)
+   {
+      base = plane ? 0x0800 : 0;
+      row = work->released_row;
+      if (row != SNES_BG_NONE)
+      {
+         stageDma(&work->maps[plane][row * 32], base + row * 32, 64, 0x80);
+         stageDma(&work->maps[plane][1024 + row * 32], base + 1024 + row * 32, 64, 0x80);
+      }
+      column = work->released_column;
+      if (column != SNES_BG_NONE)
+      {
+         for (row = 0; row < 32; ++row)
+         {
+            /* separate statements: 816-tcc fails on calls nested inside array indices. */
+            address = columnAddress(column, row);
+            work->scratch.released_columns[plane][row] = work->maps[plane][address];
+         }
+         stageDma(work->scratch.released_columns[plane], base + columnAddress(column, 0), 64, 0x81);
+      }
+   }
+}
+
+/* ends the staged commands' vblank batches where a batch would exceed the budget; zero when the
+ * commit would need more vblanks than SNES_BG_DMA_BATCHES. */
+static DeceptusU8 batchDma(void)
+{
+   /* 16 bits hold a batch: the budget plus one command stays below 65536. */
+   DeceptusU16 cost, command, index;
+   work->dma_batch_count = 0;
+   cost = 0;
+   for (index = 0; index < work->dma_count; ++index)
+   {
+      command = SNES_BG_DMA_COMMAND_COST + work->dma[index].bytes * 8;
+      if ((cost + command > SNES_BG_DMA_BUDGET) && (cost != 0))
+      {
+         if (work->dma_batch_count == SNES_BG_DMA_BATCHES - 1)
+         {
+            return 0;
+         }
+         work->dma_batch_ends[work->dma_batch_count++] = index;
+         cost = 0;
+      }
+      cost += command;
+   }
+   work->dma_batch_ends[work->dma_batch_count++] = work->dma_count;
+   return 1;
+}
+
+static void prepareDma(void)
+{
+   DeceptusU16 index, slot, plane;
+   work->dma_count = 0;
+   work->dma_batch_count = 0;
+   if (work->dma_bytes == 0)
+   {
+      return;
+   }
+   stageUploads();
+   stageMaps();
    if (work->dma_count == SNES_BG_EMPTY)
    {
       work->status.full = 1;
    }
-   else if ((DeceptusU32)work->dma_count * 768 + (DeceptusU32)snes_background_dma_bytes * 8 > 36000)
+   else if (!work->status.full)
    {
-      /* leave time for the sdk nmi and oam transfer in the ntsc vblank. */
-      work->status.full = 1;
+      if (!batchDma())
+      {
+         work->status.full = 1;
+      }
+      else if (work->dma_batch_count > 1)
+      {
+         work->dma_count = 0;
+         stageReleasedEdges();
+         stageUploads();
+         stageMaps();
+         if ((work->dma_count == SNES_BG_EMPTY) || (batchDma() == 0))
+         {
+            work->status.full = 1;
+         }
+      }
    }
    if (work->dma_count != SNES_BG_EMPTY)
    {
@@ -824,6 +955,8 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          }
       }
    }
+   work->released_row = SNES_BG_NONE;
+   work->released_column = SNES_BG_NONE;
    full_refresh = work->loaded == 0;
    if (left < work->left - 1 || left > work->left + 1 || top < work->top - 1 || top > work->top + 1)
    {
@@ -840,6 +973,7 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          if (left != work->left)
          {
             x = left > work->left ? work->left : work->left + SNES_BG_WIDTH - 1;
+            work->released_column = (DeceptusU8)(x & 63);
             for (y = work->top; y < work->top + SNES_BG_HEIGHT; ++y)
             {
                releaseCell((DeceptusU8)plane, x, y);
@@ -848,6 +982,7 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          if (top != work->top)
          {
             y = top > work->top ? work->top : work->top + SNES_BG_HEIGHT - 1;
+            work->released_row = (DeceptusU8)(y & 31);
             for (x = work->left; x < work->left + SNES_BG_WIDTH; ++x)
             {
                releaseCell((DeceptusU8)plane, x, y);
@@ -925,7 +1060,7 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
             }
          }
 #endif
-         changed = work->refresh_changed;
+         changed = work->scratch.refresh_changed;
          direct = clipDirect(index);
          for (y = refresh_top; y < refresh_bottom; ++y)
          {
@@ -963,7 +1098,7 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
                ++changed;
             }
          }
-         changed = work->refresh_changed;
+         changed = work->scratch.refresh_changed;
          for (y = refresh_top; y < refresh_bottom; ++y)
          {
             for (x = refresh_left; x < refresh_right; ++x)

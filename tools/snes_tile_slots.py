@@ -16,6 +16,9 @@ first 768), 1024-1143 are foreground-only overflow patterns at 1880-1fff. Slot 0
 pattern 0.
 """
 
+import hashlib
+from pathlib import Path
+
 import numpy as np
 
 SLOTS = 1144
@@ -25,6 +28,11 @@ FOREGROUND_ONLY = range(1024, 1144)
 WINDOW_COLUMNS, WINDOW_ROWS = 33, 29
 REGION_COLUMNS, REGION_ROWS = 33, 29
 MAX_ROUNDS = 6
+# the foreground's tile for slot 1024, SNES_BG_OVERFLOW_TILE in background_work.h.
+OVERFLOW_TILE = 136
+# a static cell's pattern word carries this flag; its attribute word's tile bits name the slot.
+STATIC_FLAG = 0x8000
+TILE_BITS = 0x03ff
 
 
 class Cells:
@@ -38,18 +46,20 @@ class Cells:
 
 
 def _static_cells(cells):
-    """(plane, y, x, pattern) of every cell a fixed slot may serve; pattern 0 is the blank slot 0."""
+    """(plane, y, x, pattern, source) of every cell a fixed slot may serve; pattern 0 is the blank
+    slot 0. source 0 and 1 are the map layers, 2 + k the single-frame clip k."""
     entries = []
     for plane, grid in ((0, cells.background), (1, cells.foreground)):
         ys, xs = np.nonzero(grid)
-        entries.append(np.stack([np.full_like(ys, plane), ys, xs, grid[ys, xs]], axis=1))
-    for clip in cells.clips:
+        entries.append(np.stack([np.full_like(ys, plane), ys, xs, grid[ys, xs], np.full_like(ys, plane)], axis=1))
+    for number, clip in enumerate(cells.clips):
         if len(clip['frames']) != 1:
             continue
         grid = clip['frames'][0]
         ys, xs = np.nonzero(grid)
-        entries.append(np.stack([np.full_like(ys, clip['plane']), ys + clip['top'], xs + clip['left'], grid[ys, xs]], axis=1))
-    return np.concatenate(entries) if entries else np.zeros((0, 4), dtype=np.int64)
+        entries.append(np.stack([np.full_like(ys, clip['plane']), ys + clip['top'], xs + clip['left'], grid[ys, xs],
+                                 np.full_like(ys, 2 + number)], axis=1))
+    return np.concatenate(entries) if entries else np.zeros((0, 5), dtype=np.int64)
 
 
 def _copies(entries):
@@ -192,7 +202,7 @@ def _dynamic_demand(cells, leftover_entries, rows, columns):
             busiest = np.maximum(busiest, _window_counts(frame_grids, rows, columns))
         total += busiest
     patterns = {}
-    for plane, y, x, pattern in leftover_entries:
+    for plane, y, x, pattern, _ in leftover_entries:
         grid = patterns.setdefault(int(pattern), np.zeros((rows, columns), dtype=np.int64))
         grid[y, x] = 1
     total += _window_counts(list(patterns.values()), rows, columns)
@@ -200,9 +210,8 @@ def _dynamic_demand(cells, leftover_entries, rows, columns):
 
 
 def plan(cells):
-    """Fixed slots for one room: dict(pool_first, pool_count, slots) where slots maps (plane, y, x,
-    pattern) of every static cell, map layers and single-frame clips alike, to its slot or -1 when
-    the runtime cache serves it; None when the room keeps the fully dynamic cache."""
+    """Fixed slots for one room: (pool_first, slots) with the slot of every _static_cells entry, -1
+    where the runtime cache serves it; None when the room keeps the fully dynamic cache."""
     rows, columns = cells.background.shape
     entries = _static_cells(cells)
     index, patterns, masks = _copies(entries)
@@ -223,7 +232,62 @@ def plan(cells):
         demand = needed
     else:
         return None
-    slots = {}
-    for plane, y, x, pattern, copy in zip(entries[:, 0], entries[:, 1], entries[:, 2], entries[:, 3], index):
-        slots[(int(plane), int(y), int(x), int(pattern))] = colour[copy]
-    return dict(pool_first=pool_first, pool_count=SHARED_SLOTS - pool_first, slots=slots)
+    return pool_first, colour[index]
+
+
+def slot_tile(plane, slot):
+    """The map tile that shows a slot on a plane: slotTile in background.c."""
+    if plane == 0:
+        return slot
+    if slot < SHARED_SLOTS:
+        return slot + 256
+    return slot - FOREGROUND_ONLY.start + OVERFLOW_TILE
+
+
+def _cache_key(background, foreground, clips, columns, rows):
+    digest = hashlib.sha256(Path(__file__).read_bytes())
+    digest.update(np.array([columns, rows], dtype='<u4').tobytes() + background + foreground)
+    for clip in clips:
+        digest.update(np.array([clip[name] for name in ('left', 'top', 'columns', 'rows', 'frames', 'plane')], dtype='<u4').tobytes())
+        digest.update(clip['cells'])
+    return digest.hexdigest()
+
+
+def fix_room(background, foreground, clips, columns, rows, cache=None):
+    """Plan a converted room and mark its static cells. background and foreground are the layers'
+    cell words (pattern, attributes per cell, row by row); each clip is dict(left, top, columns,
+    rows, frames, plane, cells) with its frames' cell words. Returns dict(pool_first, pool_end,
+    background, foreground, clips) with the cell words rewritten; the runtime cache allocates from
+    slots pool_first..pool_end - 1. Plans are kept in the cache folder, when given, by input."""
+    planes = [np.frombuffer(data, dtype='<u2').reshape(rows, columns, 2).copy() for data in (background, foreground)]
+    clip_words = [np.frombuffer(clip['cells'], dtype='<u2').reshape(clip['frames'], clip['rows'], clip['columns'], 2).copy()
+                  for clip in clips]
+    cells = Cells(planes[0][:, :, 0].astype(np.int64), planes[1][:, :, 0].astype(np.int64),
+                  [dict(left=clip['left'], top=clip['top'], plane=clip['plane'],
+                        frames=[frame[:, :, 0].astype(np.int64) for frame in words])
+                   for clip, words in zip(clips, clip_words)])
+    entries = _static_cells(cells)
+    stored = None
+    if cache is not None:
+        stored = Path(cache) / (_cache_key(background, foreground, clips, columns, rows) + '.npy')
+    if stored is not None and stored.is_file():
+        saved = np.load(stored)
+        pool_first, slots = int(saved[0]), saved[1:]
+    else:
+        result = plan(cells)
+        pool_first, slots = result if result is not None else (1, np.full(len(entries), -1, dtype=np.int64))
+        if stored is not None:
+            stored.parent.mkdir(parents=True, exist_ok=True)
+            np.save(stored, np.concatenate([[pool_first], slots]).astype(np.int64))
+    pool_end = SLOTS if pool_first == 1 else SHARED_SLOTS
+    for source, words in enumerate(planes + [frames[0] for frames in clip_words]):
+        chosen = (entries[:, 4] == source) & (slots >= 0)
+        if not chosen.any():
+            continue
+        top, left = (0, 0) if source < 2 else (clips[source - 2]['top'], clips[source - 2]['left'])
+        ys, xs = entries[chosen, 1] - top, entries[chosen, 2] - left
+        tiles = np.array([slot_tile(int(plane), int(slot)) for plane, slot in zip(entries[chosen, 0], slots[chosen])])
+        words[ys, xs, 0] |= STATIC_FLAG
+        words[ys, xs, 1] = (words[ys, xs, 1] & (0xffff ^ TILE_BITS)) | tiles
+    return dict(pool_first=pool_first, pool_end=pool_end, background=planes[0].tobytes(), foreground=planes[1].tobytes(),
+                clips=[words.tobytes() for words in clip_words])

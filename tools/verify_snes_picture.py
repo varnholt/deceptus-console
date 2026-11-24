@@ -8,7 +8,7 @@ player body may be requested.
 
     python tools/verify_snes_picture.py --rom build/snes-verify/deceptus-tutorial.sfc --output artifacts/snes-picture.json
 """
-import argparse, json, re, struct
+import argparse, json, re, struct, subprocess
 from pathlib import Path
 import numpy as np
 import ctypes as C
@@ -19,7 +19,6 @@ from verify_opening import route_steps
 
 ASSETS = ROOT / 'assets/generated/snes'
 WORK = 0x10000                      # snes_background_storage at $7f0000
-WORK_MAPS, WORK_CLIP_FRAME, WORK_FLAGS, WORK_LEFT, WORK_TOP, WORK_LOADED = 14624, 26690, 29856, 29862, 29864, 29866
 WIDTH, HEIGHT = 33, 29
 MAP_BASE = (0x0000, 0x1000)         # byte addresses of the plane maps in vram
 TILE_BASE = (0x4000, 0x2000)        # byte addresses of tile 0 per plane
@@ -30,6 +29,23 @@ ROOM_CHANGE_MARGIN = 90             # display frames around a room change where 
 def chunks(stem):
     paths = sorted(ASSETS.glob(stem + '_*.bin'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))
     return b''.join(p.read_bytes() for p in paths)
+
+
+def work_offsets(clang):
+    """Byte offsets of the work-area members the checks read, from background_work.h itself. They
+    all precede the first pointer member, so the host layout matches the SNES one."""
+    folder = ROOT / 'build/tests/snes-picture'
+    folder.mkdir(parents=True, exist_ok=True)
+    members = ('maps', 'clip_frame', 'flags', 'left', 'top', 'loaded')
+    source = ['#include <stddef.h>', '#include <stdio.h>', '#include "background_work.h"', 'int main(void)', '{']
+    source += [f'   printf("%u\\n", (unsigned)offsetof(SnesBackgroundWork, {name}));' for name in members]
+    source += ['   return 0;', '}']
+    (folder / 'offsets.c').write_text('\n'.join(source) + '\n')
+    executable = folder / 'offsets.exe'
+    subprocess.run([clang, '-std=c90', '-I' + str(ROOT / 'src/platform/snes'), '-I' + str(ROOT / 'include'),
+                    '-I' + str(ASSETS), str(folder / 'offsets.c'), '-o', str(executable)], check=True)
+    values = subprocess.run([str(executable)], check=True, capture_output=True, text=True).stdout.split()
+    return dict(zip(members, map(int, values)))
 
 
 def load_rooms():
@@ -165,14 +181,16 @@ def expected_cell(room, plane, x, y, flags, clip_frames):
         if clip['left'] <= x < clip['left'] + clip['columns'] and clip['top'] <= y < clip['top'] + clip['rows']:
             offset = (clip_frames[index] * clip['rows'] + y - clip['top']) * clip['columns'] + x - clip['left']
             pattern, attributes = clip['cells'][offset]
-    return int(pattern), int(attributes)
+    # the static-cell flag and fixed tile do not change what the cell shows.
+    return int(pattern) & 0x3fff, int(attributes)
 
 
-def check_background(rooms, room_index, wram, vram):
+def check_background(rooms, room_index, wram, vram, offsets):
     room = rooms[room_index]
-    left, top = struct.unpack_from('<hh', wram, WORK + WORK_LEFT)
-    flags = struct.unpack_from('<H', wram, WORK + WORK_FLAGS)[0]
-    clip_frames = struct.unpack_from('<8H', wram, WORK + WORK_CLIP_FRAME)
+    left = struct.unpack_from('<h', wram, WORK + offsets['left'])[0]
+    top = struct.unpack_from('<h', wram, WORK + offsets['top'])[0]
+    flags = struct.unpack_from('<H', wram, WORK + offsets['flags'])[0]
+    clip_frames = struct.unpack_from('<8H', wram, WORK + offsets['clip_frame'])
     wrong = []
     for plane in (0, 1):
         for y in range(top, top + HEIGHT):
@@ -222,6 +240,7 @@ def main():
     route = json.loads(Path(ROUTE).read_text())
     steps = route_steps(route, 'snes')[:args.last_step + 1]
     states = native_targets(steps, args.clang)
+    offsets = work_offsets(args.clang)
     emulator = Emulator(args.core, args.rom, SNES_CORE_OPTIONS)
     emulator.run(120)
     for _ in range(3600):
@@ -259,9 +278,9 @@ def main():
                 presentations += 1
                 if presentations % args.every == 0:
                     wram = emulator.memory()
-                    if wram[WORK + WORK_LOADED] and s['phase'] <= 9:
+                    if wram[WORK + offsets['loaded']] and s['phase'] <= 9:
                         vram = video_ram(emulator)
-                        wrong = check_background(rooms, s['room'], wram, vram)
+                        wrong = check_background(rooms, s['room'], wram, vram, offsets)
                         if wrong:
                             background.append(dict(frame=frame, step=index, room=s['room'], cells=len(wrong), first=wrong[:6]))
                         bodies = check_player_count(ranges, sym, wram)

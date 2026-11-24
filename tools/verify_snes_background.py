@@ -25,12 +25,14 @@ def audit(assets, output):
     sdk += ['static void bgSetGfxPtr(int a,int b){(void)a;(void)b;}',
             'static void bgSetMapPtr(int a,int b,int c){(void)a;(void)b;(void)c;}',
             'static void bgSetScroll(int a,int b,int c){(void)a;(void)b;(void)c;}',
+            'static void WaitForVBlank(void){}',
             'static void dmaCopyCGram(u8*a,int b,int c){(void)a;(void)b;(void)c;}',
             'static void dmaCopyVram(u8*a,int b,int c){(void)a;(void)b;(void)c;}']
     (output / 'snes.h').write_text('\n'.join(['#ifndef SNES_STUB_H', '#define SNES_STUB_H', *sdk, '#endif']) + '\n')
     resources = (assets / 'opening_resources.c').read_text()
+    # columns, rows, pattern count, then the cache pool after the title.
     stages = {int(room): tuple(map(int, values)) for room, *values in re.findall(
-        r'snes_area(\d+)_palette,(\d+),(\d+),(\d+),', resources)}
+        r'snes_area(\d+)_palette,(\d+),(\d+),(\d+),[^\n]*,(\d+),(\d+)\},\n', resources)}
     reports = []
     for room, body in re.findall(r'static const SnesBackgroundAnimation snes_area(\d+)_animations\[\] = \{(.*?)\n\};', resources, re.S):
         room = int(room)
@@ -39,7 +41,7 @@ def audit(assets, output):
             if not match:
                 continue
             left, top, columns, rows, animation_bytes = map(int, match.groups())
-            width, height, count = stages[room]
+            width, height, count, pool_first, pool_end = stages[room]
             for name in ('background', 'foreground', f'animation{animation}_cells'):
                 chunks = sorted(assets.glob(f'snes_area{room}_{name}_*.bin'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))
                 if not chunks:
@@ -58,7 +60,7 @@ static const DeceptusU8 *const fc[]={fg,fg+32768,fg+65536,fg+98304};
 static const DeceptusU8 *const ac[]={cells,cells+32768,cells+65536,cells+98304};
 static const DeceptusU8 *const pc[]={dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy};
 static const SnesBackgroundAnimation clips[]={{LEFT,TOP,COLS,ROWS,12,65535,0,0,0,{ac,ANIMBYTES},0}};
-const SnesStage snes_stages[SNES_STAGE_COUNT]={{{pc,COUNT*32L},{bc,WIDTH*HEIGHT*4L},{fc,WIDTH*HEIGHT*4L},palette,WIDTH,HEIGHT,COUNT,clips,1,"water"}};
+const SnesStage snes_stages[SNES_STAGE_COUNT]={{{pc,COUNT*32L},{bc,WIDTH*HEIGHT*4L},{fc,WIDTH*HEIGHT*4L},palette,WIDTH,HEIGHT,COUNT,clips,1,"water",POOLFIRST,POOLEND}};
 static void read_cells(const char*name,DeceptusU8*target,unsigned long bytes) {
  FILE*f=fopen(name,"rb");assert(f);assert(fread(target,1,bytes,f)==bytes);fclose(f);
 }
@@ -87,7 +89,7 @@ int main(void) {
             replacements = dict(BACKGROUND=(ROOT / 'src/platform/snes/background.c').as_posix(),
                                 COMMIT=(ROOT / 'src/platform/snes/background_commit.c').as_posix(), LEFT=left, TOP=top,
                                 COLS=columns, ROWS=rows, ANIMBYTES=animation_bytes, WIDTH=width, HEIGHT=height,
-                                COUNT=count, ANIM=animation)
+                                COUNT=count, POOLFIRST=pool_first, POOLEND=pool_end, ANIM=animation)
             for key, value in replacements.items():
                 if key == 'ANIM':
                     source = source.replace('animationANIM_cells', 'animation' + str(value) + '_cells')
