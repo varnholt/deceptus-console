@@ -29,9 +29,21 @@ DeceptusU8 snesBackgroundError(void)
    return work->status.error;
 }
 
-DeceptusU8 snesBackgroundFull(void)
+static const SnesBackgroundPacket *packetAt(DeceptusU8 index)
 {
-   return work->status.full;
+   const SnesBackgroundPacket *packets;
+   packets = snes_background_packets;
+   return &packets[index];
+}
+
+DeceptusU8 snesBackgroundFull(DeceptusU8 packet)
+{
+   return packetAt(packet)->full;
+}
+
+DeceptusU8 snesBackgroundSerial(DeceptusU8 packet)
+{
+   return packetAt(packet)->serial;
 }
 
 DeceptusU16 snesBackgroundUploads(void)
@@ -54,39 +66,41 @@ static void copyColumn(const DeceptusU16 *source, DeceptusU16 address)
    REG_VMAIN = 0x80;
 }
 
-void snesBackgroundCommit(void)
+void snesBackgroundCommit(DeceptusU8 packet_index)
 {
    DeceptusU16 index, slot, pattern, plane, row, column, base, mask, first, batch, entry;
    const DeceptusU8 *bytes;
+   const SnesBackgroundPacket *packet;
+   packet = packetAt(packet_index);
    if (work->status.error)
    {
       return;
    }
-   if (work->dma_count != SNES_BG_EMPTY)
+   if (packet->dma_count != SNES_BG_EMPTY)
    {
-      if (work->status.full || (work->dma_batch_count <= 1))
+      if (packet->full || (packet->dma_batch_count <= 1))
       {
-         snesVramRunDma(work->dma, work->dma_count);
+         snesVramRunDma(packet->commands, packet->dma_count);
       }
       else
       {
          /* the frame on screen stays until the last batch, then the scroll moves to the new one. */
          first = 0;
-         for (batch = 0; batch < work->dma_batch_count; ++batch)
+         for (batch = 0; batch < packet->dma_batch_count; ++batch)
          {
             if (batch)
             {
                WaitForVBlank();
             }
-            snesVramRunDma(&work->dma[first], work->dma_batch_ends[batch] - first);
-            first = work->dma_batch_ends[batch];
+            snesVramRunDma(&packet->commands[first], packet->dma_batch_ends[batch] - first);
+            first = packet->dma_batch_ends[batch];
          }
       }
-      bgSetScroll(0, work->scroll_x, work->scroll_y);
-      bgSetScroll(1, work->scroll_x, work->scroll_y);
-      work->status.full = 0;
+      bgSetScroll(0, packet->scroll_x, packet->scroll_y);
+      bgSetScroll(1, packet->scroll_x, packet->scroll_y);
       return;
    }
+   /* the staged list overflowed: a serial packet, so the work area holds this frame still. */
    for (index = 0; index < work->upload_count; ++index)
    {
       slot = work->uploads[index];
@@ -131,7 +145,6 @@ void snesBackgroundCommit(void)
       }
       work->dirty_columns[plane][0] = 0;
    }
-   bgSetScroll(0, work->scroll_x, work->scroll_y);
-   bgSetScroll(1, work->scroll_x, work->scroll_y);
-   work->status.full = 0;
+   bgSetScroll(0, packet->scroll_x, packet->scroll_y);
+   bgSetScroll(1, packet->scroll_x, packet->scroll_y);
 }

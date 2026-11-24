@@ -171,6 +171,7 @@ int main(void)
 }
 #else
 #include "deceptus/adventure.h"
+#include "deceptus/game.h"
 #include "deceptus/pacing.h"
 #include "snes_assets.h"
 #include <snes.h>
@@ -260,7 +261,7 @@ static DeceptusU16 inputRead(void)
    return buttons;
 }
 
-static void debugWrite(void)
+static void debugWrite(DeceptusU8 buffer)
 {
    const DeceptusAdventure *game;
    const DeceptusEngine *engine;
@@ -284,13 +285,13 @@ static void debugWrite(void)
    deceptus_debug[16] = engine->camera_y;
    deceptus_debug[17] = snesBackgroundError();
    deceptus_debug[18] = snesBackgroundUploads();
-   deceptus_debug[19] = snesBackgroundFull();
+   deceptus_debug[19] = snesBackgroundFull(buffer);
    deceptus_debug[20] = snes_ui_overflow;
    deceptus_debug[21] = snesSpritesOverflow();
-   deceptus_debug[22] = snesSpritesUploadBytes();
+   deceptus_debug[22] = snesSpritesUploadBytes(buffer);
    deceptus_debug[23] = snesSpritesObjects();
-   deceptus_debug[24] = snesSpritesPalettes();
-   deceptus_debug[25] = snesSpritesBlank();
+   deceptus_debug[24] = snesSpritesPalettes(buffer);
+   deceptus_debug[25] = snesSpritesBlank(buffer);
    deceptus_debug[26] = engine->previous_buttons;
    deceptus_debug[27] = padsCurrent(0);
    deceptus_debug[28] = game->campaign.room_index;
@@ -326,16 +327,29 @@ static DeceptusU8 screen_blanked;
 
 
 #ifdef SNES_SA1
-/* hands one command to the SA-1 and waits until it is done. */
-static void gameRequest(DeceptusU16 command)
+/* hands one command to the SA-1, which runs it while this cpu goes on. */
+static void gameRequestStart(DeceptusU16 command)
 {
    volatile SnesSa1Mailbox *mailbox;
    mailbox = SNES_SA1_MAILBOX;
    mailbox->command = command;
    ++mailbox->request;
+}
+
+/* waits until the SA-1 has done the last command. */
+static void gameRequestWait(void)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
    while (mailbox->done != mailbox->request)
    {
    }
+}
+
+static void gameRequest(DeceptusU16 command)
+{
+   gameRequestStart(command);
+   gameRequestWait();
 }
 
 static void gameStart(void)
@@ -348,15 +362,25 @@ static void gameStart(void)
    gameRequest(SNES_SA1_INIT);
 }
 
-/* runs up to ticks simulation ticks and renders the frame; nonzero when a tick entered another
- * room, which ends the ticks early. */
-static DeceptusU8 gameAdvance(DeceptusU16 buttons, DeceptusU8 ticks)
+/* starts up to ticks simulation ticks on the SA-1, the rendering of their frame and its preparation
+ * into the presentation buffer. */
+static void gamePresentStart(DeceptusU16 buttons, DeceptusU8 ticks, DeceptusU8 buffer)
 {
    volatile SnesSa1Mailbox *mailbox;
    mailbox = SNES_SA1_MAILBOX;
    mailbox->buttons = buttons;
    mailbox->ticks = ticks;
-   gameRequest(SNES_SA1_ADVANCE);
+   mailbox->buffer = buffer;
+   gameRequestStart(SNES_SA1_PRESENT);
+}
+
+/* waits for the started presentation; nonzero when a tick entered another room, which ends the
+ * ticks early and leaves the frame unprepared. */
+static DeceptusU8 gamePresentFinish(void)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   gameRequestWait();
    snes_sa1_stack_low_water = mailbox->stack_low_water;
    return (DeceptusU8)mailbox->room_changed;
 }
@@ -368,9 +392,12 @@ static void gameLoadRoom(void)
 }
 
 /* the presentation work that needs no video access: scenery flags, the background window, the
- * sprites and their staged transfers. */
-static void gamePrepare(void)
+ * sprites and their staged transfers, into the presentation buffer. */
+static void gamePrepare(DeceptusU8 buffer)
 {
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   mailbox->buffer = buffer;
    gameRequest(SNES_SA1_PREPARE);
 }
 #else
@@ -379,35 +406,48 @@ static void gameStart(void)
    deceptusAdventureInit(&adventure, &snes_tutorial_definition, &video);
 }
 
-static DeceptusU8 gameAdvance(DeceptusU16 buttons, DeceptusU8 ticks)
-{
-   DeceptusU8 room_changed;
-   room_changed = 0;
-   while (ticks)
-   {
-      --ticks;
-      if (deceptusAdventureTick(&adventure, buttons))
-      {
-         room_changed = 1;
-         break;
-      }
-   }
-   deceptusRender(&adventure.campaign.engine, &frame);
-   return room_changed;
-}
-
 static void gameLoadRoom(void)
 {
    snesBackgroundLoad(adventure.campaign.room_index);
    snesSpritesReset();
 }
 
-static void gamePrepare(void)
+static void gamePrepare(DeceptusU8 buffer)
 {
    snesBackgroundSetFlags(deceptusAdventurePresentationFlags(&adventure));
    snesBackgroundPrepare(frame.camera_x, frame.camera_y);
+   snesBackgroundStage(buffer);
    snesSpritesPrepare(&adventure, &frame);
-   snesSpritesStage();
+   snesSpritesStage(buffer);
+}
+
+/* without a second cpu the presentation waits for gamePresentFinish, after the transfers of the
+ * previous one. */
+static DeceptusU16 present_buttons;
+static DeceptusU8 present_ticks, present_buffer;
+
+static void gamePresentStart(DeceptusU16 buttons, DeceptusU8 ticks, DeceptusU8 buffer)
+{
+   present_buttons = buttons;
+   present_ticks = ticks;
+   present_buffer = buffer;
+}
+
+static DeceptusU8 gamePresentFinish(void)
+{
+   while (present_ticks)
+   {
+      --present_ticks;
+      if (deceptusAdventureTick(&adventure, present_buttons))
+      {
+         deceptusRender(&adventure.campaign.engine, &frame);
+         return 1;
+      }
+   }
+   deceptusRender(&adventure.campaign.engine, &frame);
+   deceptus_debug[11] = 10;
+   gamePrepare(present_buffer);
+   return 0;
 }
 #endif
 
@@ -425,10 +465,36 @@ static void videoLoad(void)
    deceptus_debug[11] = 6;
 }
 
+/* the vblank the previous ticks started in. */
+static DeceptusU16 previous_vblank;
+
+/* the next ticks have their input while the commit runs: below phase 15, which tells the emulator
+ * checks that the packet is complete and the pad not read yet, and above 9, during which they
+ * compare video memory with the work area. */
+#define SNES_PHASE_COMMITTING 11
+
+static void presentStart(DeceptusU8 ticks, DeceptusU8 buffer)
+{
+   gamePresentStart(inputRead(), ticks, buffer);
+   deceptus_debug[11] = SNES_PHASE_COMMITTING;
+}
+
+/* the ticks for the time from the previous start to the coming vblank, which starts the next ones.
+ * counted before the wait, which leaves vblank to the transfers; should the vblank arrive before
+ * the wait, the following count includes the missed frame. a room load is not made up for. */
+static DeceptusU8 ticksUntilNextVblank(DeceptusU8 room_loaded)
+{
+   DeceptusU16 next_vblank;
+   DeceptusU8 ticks;
+   next_vblank = snes_vblank_count + 1;
+   ticks = deceptusPacingTicks(&pacing, room_loaded ? 1 : next_vblank - previous_vblank);
+   previous_vblank = next_vblank;
+   return ticks;
+}
+
 int main(void)
 {
-   DeceptusU16 buttons, previous_vblank, current_vblank;
-   DeceptusU8 ticks, room_loaded;
+   DeceptusU8 room_loaded, ticks, buffer, committed, serial;
    snesClearGameRam();
 #ifdef SNES_SA1
    snesSa1MapDefaultBlocks();
@@ -440,66 +506,69 @@ int main(void)
    videoLoad();
    deceptus_debug[11] = 7;
    deceptusPacingInit(&pacing, snes_50hz ? 50 : 60, SNES_PACING_MAX_TICKS);
-   previous_vblank = snes_vblank_count - 1;
-   room_loaded = 0;
+   previous_vblank = snes_vblank_count;
+   buffer = 0;
+   presentStart(1, buffer);
    while (1)
    {
-      deceptus_debug[11] = 8;
-      current_vblank = snes_vblank_count;
-      /* a room load is not made up for. */
-      ticks = deceptusPacingTicks(&pacing, room_loaded ? 1 : current_vblank - previous_vblank);
-      previous_vblank = current_vblank;
       room_loaded = 0;
-      buttons = inputRead();
       deceptus_debug[11] = 9;
-      if (gameAdvance(buttons, ticks))
+      if (gamePresentFinish())
       {
          videoLoad();
          deceptusPacingReset(&pacing);
          room_loaded = 1;
+         deceptus_debug[11] = 10;
+         gamePrepare(buffer);
       }
-      deceptus_debug[11] = 10;
-      gamePrepare();
       deceptus_debug[11] = 12;
       snesUiPrepare(SNES_GAME);
       deceptus_debug[11] = 13;
-      snesSpritesUploadTiles();
+      snesSpritesUploadTiles(buffer);
       deceptus_debug[11] = 14;
-      debugWrite();
-      /* phase 15 tells emulator checks the packet is complete. it used to be
-       * observable for most of a display frame while setScreenOn waited; the
-       * commits now fit in VBlank, so the wait for it is marked as well. */
+      debugWrite(buffer);
+      ticks = ticksUntilNextVblank(room_loaded);
+      /* phase 15 tells emulator checks the packet is complete and the pad not read yet. */
       deceptus_debug[11] = 15;
-      if (snesSpritesBlank())
+      if (snesSpritesBlank(buffer))
       {
          screen_blanked = 1;
       }
-      if (snesBackgroundFull())
+      if (snesBackgroundFull(buffer))
       {
          setScreenOff();
          screen_blanked = 1;
       }
       WaitForVBlank();
-      deceptus_debug[11] = 15;
+      committed = buffer;
+      buffer ^= 1;
+      /* the pad as this vblank read it. the SA-1 runs the next ticks and prepares their frame into
+       * the other buffer while this cpu commits this one; a commit that still reads the work area
+       * finishes first. */
+      serial = snesBackgroundSerial(committed);
+      if (serial == 0)
+      {
+         presentStart(ticks, buffer);
+      }
       /* every video transfer first, while vblank lasts. when the background leaves too little of it,
          the sprites take the next vblank; their tiles and the oam that refers to them stay together. */
-      snesBackgroundCommit();
-      if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines())
+      snesBackgroundCommit(committed);
+      if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines(committed))
       {
          WaitForVBlank();
       }
-      snesSpritesCommitTransfers();
-      deceptus_debug[11] = 16;
-      snesSpritesPublish();
-      deceptus_debug[11] = 17;
+      snesSpritesCommitTransfers(committed);
+      snesSpritesPublish(committed);
       snesUiCommit();
-      deceptus_debug[11] = 18;
       if (screen_blanked)
       {
          setScreenOn();
          screen_blanked = 0;
       }
-      deceptus_debug[11] = 19;
+      if (serial)
+      {
+         presentStart(ticks, buffer);
+      }
    }
    return 0;
 }

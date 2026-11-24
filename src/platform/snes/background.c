@@ -1,6 +1,7 @@
 #include "background.h"
 #include "background_work.h"
 #include <snes.h>
+#include <string.h>
 
 /* the interface font, from VRAM 1400, ends below the foreground overflow patterns. */
 #if SNES_FONT_BYTES > (SNES_BG_OVERFLOW_ADDRESS - 0x1400) * 2
@@ -1293,4 +1294,85 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
    work->status.uploads = work->upload_count;
    snes_background_dma_bytes = work->dma_bytes;
    prepareDma();
+}
+
+#ifdef SNES_SA1
+/* gives a staged command that sends map words from the work area, at offset there, the packet's
+ * own copy of them; zero when the packet has no room left. */
+static DeceptusU8 copyMapWords(SnesBackgroundPacket *packet, SnesVramDmaCommand *command, DeceptusU16 offset, DeceptusU16 *used)
+{
+   dmaMemory copy;
+   DeceptusU16 words;
+   words = command->bytes / 2;
+   if (*used + words > SNES_BG_PACKET_WORDS)
+   {
+      return 0;
+   }
+   memcpy(&packet->map_words[*used], snes_background_storage + offset, command->bytes);
+   copy.mem.p = (void *)&packet->map_words[*used];
+   command->source = copy.mem.c.addr;
+   command->bank = copy.mem.c.bank;
+   *used += words;
+   return 1;
+}
+
+/* the packet's own copy of the staged commands and of the map words they send from the work area,
+ * which the SA-1 changes while the S-CPU commits this packet. */
+static void copyCommands(SnesBackgroundPacket *packet)
+{
+   dmaMemory storage;
+   DeceptusU16 index, used, offset;
+   storage.mem.p = (void *)snes_background_storage;
+   memcpy(packet->dma, work->dma, packet->dma_count * sizeof(SnesVramDmaCommand));
+   packet->commands = packet->dma;
+   /* the work area lies within one bank, so a command reads it when it names that bank and an
+    * address in its range. */
+   used = 0;
+   for (index = 0; (index < packet->dma_count) && (packet->serial == 0); ++index)
+   {
+      offset = (DeceptusU16)(packet->dma[index].source - storage.mem.c.addr);
+      if ((packet->dma[index].bank != storage.mem.c.bank) || (offset >= sizeof(SnesBackgroundWork)))
+      {
+         continue;
+      }
+      if (copyMapWords(packet, &packet->dma[index], offset, &used) == 0)
+      {
+         packet->serial = 1;
+      }
+   }
+}
+#endif
+
+void snesBackgroundStage(DeceptusU8 packet_index)
+{
+   SnesBackgroundPacket *packet;
+   packet = &snes_background_packets[packet_index];
+   packet->scroll_x = work->scroll_x;
+   packet->scroll_y = work->scroll_y;
+   packet->full = work->status.full;
+   work->status.full = 0;
+   /* values through the packet pointer are set by if and else: 816-tcc stores the value of a ?:,
+    * && or || expression through an address it spills on one branch only. */
+   packet->dma_count = work->dma_count;
+   if (work->status.error)
+   {
+      packet->dma_count = 0;
+   }
+   /* an overflowed list leaves the commit to read the work area itself, and a full refresh sends
+    * every map row from it. */
+   packet->serial = packet->full;
+   if (packet->dma_count == SNES_BG_EMPTY)
+   {
+      packet->serial = 1;
+      return;
+   }
+   packet->dma_batch_count = work->dma_batch_count;
+   memcpy(packet->dma_batch_ends, work->dma_batch_ends, sizeof(packet->dma_batch_ends));
+#ifdef SNES_SA1
+   copyCommands(packet);
+#else
+   /* one cpu prepares and commits in turn, so the commit reads the list in the work area. */
+   packet->commands = work->dma;
+   packet->serial = 1;
+#endif
 }

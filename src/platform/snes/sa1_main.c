@@ -29,6 +29,15 @@ static void advance(volatile SnesSa1Mailbox *mailbox)
    deceptusRender(&snes_sa1_adventure.campaign.engine, &snes_sa1_frame);
 }
 
+static void prepare(DeceptusU8 buffer)
+{
+   snesBackgroundSetFlags(deceptusAdventurePresentationFlags(&snes_sa1_adventure));
+   snesBackgroundPrepare(snes_sa1_frame.camera_x, snes_sa1_frame.camera_y);
+   snesBackgroundStage(buffer);
+   snesSpritesPrepare(&snes_sa1_adventure, &snes_sa1_frame);
+   snesSpritesStage(buffer);
+}
+
 /* the deepest overwritten stack byte found so far; zero until the first request. */
 static DeceptusU16 stack_low_water;
 
@@ -76,9 +85,13 @@ void snesSa1Main(void)
       {
          deceptusAdventureInit(&snes_sa1_adventure, &snes_tutorial_definition, &video);
       }
-      else if (mailbox->command == SNES_SA1_ADVANCE)
+      else if (mailbox->command == SNES_SA1_PRESENT)
       {
          advance(mailbox);
+         if (mailbox->room_changed == 0)
+         {
+            prepare((DeceptusU8)mailbox->buffer);
+         }
       }
       else if (mailbox->command == SNES_SA1_LOAD_ROOM)
       {
@@ -87,10 +100,7 @@ void snesSa1Main(void)
       }
       else if (mailbox->command == SNES_SA1_PREPARE)
       {
-         snesBackgroundSetFlags(deceptusAdventurePresentationFlags(&snes_sa1_adventure));
-         snesBackgroundPrepare(snes_sa1_frame.camera_x, snes_sa1_frame.camera_y);
-         snesSpritesPrepare(&snes_sa1_adventure, &snes_sa1_frame);
-         snesSpritesStage();
+         prepare((DeceptusU8)mailbox->buffer);
       }
       mailbox->done = request;
       /* after the answer, while the S-CPU presents; it reads the value with the next answer. */

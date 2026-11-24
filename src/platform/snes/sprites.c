@@ -39,6 +39,9 @@ static DeceptusU16 snes_obj_unused, snes_obj_free_cursor;
 DeceptusU8 snes_obj_oam[SNES_OBJ_OAM_BYTES];
 DeceptusU8 snes_obj_lines[224], snes_obj_slivers[224];
 static const DeceptusU16 *snes_obj_palettes[8];
+static DeceptusU16 snes_obj_palette_count;
+/* tile pressure: a needed piece found no slot that is neither used nor on screen. */
+static DeceptusU8 snes_sprite_blank;
 static DeceptusU16 snes_obj_request_count;
 DeceptusU16 snes_obj_count;
 static DeceptusU8 snes_sprite_room_load;
@@ -46,7 +49,7 @@ DeceptusU8 snes_sprite_overflow;
 static DeceptusU8 snes_sprite_initialized;
 /* the player's pose history across presentations. */
 static DeceptusPlayerAnimation snes_sprite_animation;
-SnesSpriteStaging snes_sprite_staging;
+SnesSpriteStaging snes_sprite_stagings[SNES_SPRITE_STAGINGS];
 
 static void snesObjAdd(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y, DeceptusU8 flip, DeceptusU8 priority)
 {
@@ -125,7 +128,7 @@ DeceptusU16 SNES_OBJ_SLOT_ALLOCATE(DeceptusU16 resource, DeceptusU16 piece)
    if (index >= SNES_OBJ_PIECES)
    {
       /* explicit pressure fallback: never overwrite displayed tiles unblanked. */
-      snes_sprite_staging.blank = 1;
+      snes_sprite_blank = 1;
       for (index = 0; index < SNES_OBJ_PIECES && snes_obj_slots[index].used; ++index)
       {
       }
@@ -172,7 +175,7 @@ static void snesObjResetCache(void)
 static DeceptusU8 snesObjPalette(const DeceptusU16 *palette)
 {
    DeceptusU16 index, colour;
-   for (index = 0; index < snes_sprite_staging.palette_count; ++index)
+   for (index = 0; index < snes_obj_palette_count; ++index)
    {
       if (snes_obj_palettes[index] == palette)
       {
@@ -186,13 +189,13 @@ static DeceptusU8 snesObjPalette(const DeceptusU16 *palette)
          return (DeceptusU8)index;
       }
    }
-   if (snes_sprite_staging.palette_count == 8)
+   if (snes_obj_palette_count == 8)
    {
       snes_sprite_overflow = 1;
       return 0;
    }
-   snes_obj_palettes[snes_sprite_staging.palette_count++] = palette;
-   return (DeceptusU8)(snes_sprite_staging.palette_count - 1);
+   snes_obj_palettes[snes_obj_palette_count++] = palette;
+   return (DeceptusU8)(snes_obj_palette_count - 1);
 }
 
 #if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
@@ -302,6 +305,7 @@ static void snesObjBeginReference(void)
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
       snes_obj_oam[index * 4 + 1] = 240;
+      snes_obj_slots[index].held = snes_obj_slots[index].used;
       snes_obj_slots[index].used = 0;
    }
 }
@@ -562,8 +566,8 @@ void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *fram
    const SnesSpriteResource *entry;
    const SnesObjRequest *request;
    SNES_OBJ_PROFILE(1);
-   snes_obj_request_count = snes_obj_count = snes_sprite_staging.palette_count = 0;
-   snes_sprite_overflow = snes_sprite_staging.blank = 0;
+   snes_obj_request_count = snes_obj_count = snes_obj_palette_count = 0;
+   snes_sprite_overflow = snes_sprite_blank = 0;
    snes_obj_free_cursor = 0;
    snesObjBegin();
    SNES_OBJ_PROFILE(2);
@@ -611,12 +615,12 @@ void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *fram
    SNES_OBJ_PROFILE(8);
 }
 
-static void snesObjStageTileDma(const DeceptusU8 *source, DeceptusU16 target)
+static void snesObjStageTileDma(SnesSpriteStaging *staging, const DeceptusU8 *source, DeceptusU16 target)
 {
    dmaMemory memory;
    SnesVramDmaCommand *command;
    memory.mem.p = (void *)source;
-   command = &snes_sprite_staging.tile_dma[snes_sprite_staging.tile_dma_count++];
+   command = &staging->tile_dma[staging->tile_dma_count++];
    command->source = memory.mem.c.addr;
    command->bank = memory.mem.c.bank;
    command->increment = 0x80;
@@ -624,45 +628,64 @@ static void snesObjStageTileDma(const DeceptusU8 *source, DeceptusU16 target)
    command->bytes = 64;
 }
 
-static void snesSpritesStagePalettes(void)
+static void snesSpritesStagePalettes(SnesSpriteStaging *staging)
 {
    DeceptusU16 index;
-   for (index = 0; index < snes_sprite_staging.palette_count; ++index)
+   staging->palette_count = snes_obj_palette_count;
+   for (index = 0; index < snes_obj_palette_count; ++index)
    {
-      memcpy(snes_sprite_staging.palette_buffer[index], snes_obj_palettes[index], 32);
+      memcpy(staging->palette_buffer[index], snes_obj_palettes[index], 32);
    }
 }
 
-static void snesObjStagePiece(DeceptusU16 index, SnesObjSlot *slot)
+static void snesObjStagePiece(SnesSpriteStaging *staging, DeceptusU16 index, SnesObjSlot *slot)
 {
    DeceptusU16 tile;
    const DeceptusU8 *graphics;
    tile = 0x6000 + snesObjTile(index) * 16;
    graphics = snes_sprite_resources[slot->resource].graphics + slot->piece * 128;
-   snesObjStageTileDma(graphics, tile);
-   snesObjStageTileDma(graphics + 64, tile + 256);
+   snesObjStageTileDma(staging, graphics, tile);
+   snesObjStageTileDma(staging, graphics + 64, tile + 256);
    slot->pending = 0;
 }
 
-void snesSpritesStage(void)
+void snesSpritesStage(DeceptusU8 staging_index)
 {
    DeceptusU16 index, pieces;
    SnesSpriteStaging *staging;
-   staging = &snes_sprite_staging;
+   staging = &snes_sprite_stagings[staging_index];
    staging->tile_dma_count = 0;
-   snesSpritesStagePalettes();
-   staging->forced_blank = snes_sprite_room_load || staging->blank;
+   snesSpritesStagePalettes(staging);
+#ifdef SNES_SA1
+   memcpy(staging->oam_copy, snes_obj_oam, SNES_OBJ_OAM_BYTES);
+   staging->oam = staging->oam_copy;
+#else
+   staging->oam = snes_obj_oam;
+#endif
+   /* flags through a computed pointer are set by if and else: 816-tcc stores the value of an && or
+    * || chain through an address it spills on one branch only, so the other branch writes
+    * through stale stack contents. */
+   staging->blank = snes_sprite_blank;
+   staging->forced_blank = 0;
+   if ((snes_sprite_room_load != 0) || (snes_sprite_blank != 0))
+   {
+      staging->forced_blank = 1;
+   }
    snes_sprite_room_load = 0;
    pieces = 0;
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
       if (snes_obj_slots[index].pending)
       {
-         snesObjStagePiece(index, &snes_obj_slots[index]);
+         snesObjStagePiece(staging, index, &snes_obj_slots[index]);
          ++pieces;
       }
    }
    /* a vblank of its own costs up to a display frame; the commit vblank takes a few tiles. */
-   staging->deferred = (!staging->forced_blank) && (pieces != 0) && (pieces <= SNES_DEFERRED_PIECES);
+   staging->deferred = 0;
+   if ((staging->forced_blank == 0) && (pieces != 0) && (pieces <= SNES_DEFERRED_PIECES))
+   {
+      staging->deferred = 1;
+   }
    staging->upload_bytes = pieces * 128;
 }

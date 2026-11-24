@@ -5,7 +5,9 @@
 
 /* commands the S-CPU hands to the SA-1, which runs the game. */
 #define SNES_SA1_INIT 1
-#define SNES_SA1_ADVANCE 2
+/* the simulation ticks and their rendered frame, then, unless a tick entered another room, the
+ * preparation of that frame. */
+#define SNES_SA1_PRESENT 2
 /* the current room's background data and sprite cache, after the S-CPU set up their video side. */
 #define SNES_SA1_LOAD_ROOM 3
 /* scenery flags, the background window and the sprites for the rendered frame. */
@@ -18,12 +20,16 @@ typedef struct SnesSa1Mailbox
    /* bytes, so neither cpu ever reads a half-written sequence number. */
    DeceptusU8 request, done;
    DeceptusU16 command;
-   /* advance: the pad state and the number of simulation ticks to run. */
+   /* present: the pad state and the number of simulation ticks to run. */
    DeceptusU16 buttons, ticks;
-   /* advance: nonzero when a tick entered another room; the remaining ticks were not run. */
+   /* present: nonzero when a tick entered another room; the remaining ticks and the preparation
+    * were not run. */
    DeceptusU16 room_changed;
    /* the lowest SA-1 stack address the stack has reached so far, for the emulator checks. */
    DeceptusU16 stack_low_water;
+   /* present and prepare: the presentation buffer (background packet and sprite staging) the
+    * preparation fills; the S-CPU commits the other one meanwhile. */
+   DeceptusU16 buffer;
 } SnesSa1Mailbox;
 
 #define SNES_SA1_MAILBOX ((volatile SnesSa1Mailbox *)0x3100)

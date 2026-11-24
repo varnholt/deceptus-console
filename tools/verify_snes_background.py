@@ -54,6 +54,7 @@ def audit(assets, output):
 #include "COMMIT"
 void snesVramRunDma(const SnesVramDmaCommand *commands,DeceptusU16 count) {(void)commands;(void)count;}
 DeceptusU8 snes_background_storage[32768];
+SnesBackgroundPacket snes_background_packets[SNES_BG_PACKETS];
 static DeceptusU8 bg[131072],fg[131072],cells[131072],dummy[32768],palette[256];
 static const DeceptusU8 *const bc[]={bg,bg+32768,bg+65536,bg+98304};
 static const DeceptusU8 *const fc[]={fg,fg+32768,fg+65536,fg+98304};
@@ -71,15 +72,15 @@ int main(void) {
   snesBackgroundLoad(0);work->clip_frame[0]=(DeceptusU16)frame;
   for(y=0;y<=HEIGHT-29;++y)for(step=0;step<=WIDTH-33;++step) {
    x=(y&1)?WIDTH-33-step:step;
-   snesBackgroundPrepare((DeceptusI16)(x*8),(DeceptusI16)(y*8));
+   snesBackgroundPrepare((DeceptusI16)(x*8),(DeceptusI16)(y*8));snesBackgroundStage(0);
    if(snesBackgroundError()) {fprintf(stderr,"cache_error=%u frame=%d x=%d y=%d\n",snesBackgroundError(),frame,x,y);return 2;}
-   if(snesBackgroundFull())++rebuilds;
+   if(snesBackgroundFull(0))++rebuilds;
    used=0;scratch=0;
    for(slot=1;slot<SNES_BG_SLOTS;++slot)if(work->references[slot]) {
     ++used;if(slot>=1024)++scratch;
    }
    if(used>peak)peak=used;if(scratch>peak_scratch)peak_scratch=scratch;
-   ++views;snesBackgroundCommit();
+   ++views;snesBackgroundCommit(0);
   }
   compactions+=snes_background_compactions;
  }

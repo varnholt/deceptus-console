@@ -93,6 +93,35 @@ extern DeceptusU8 snes_background_storage[];
 #define work ((SnesBackgroundWork *)snes_background_storage)
 #define DECEPTUS_BG_OFFSET(member) ((unsigned long)&((SnesBackgroundWork *)0)->member)
 
+/* map words a packet carries: the rows and columns of a window that moves three cells on both
+ * axes, entering and leaving ones, on both planes. */
+#define SNES_BG_PACKET_WORDS (2 * 2 * SNES_BG_SCROLL_CELLS * (64 + 32))
+/* the presentation buffers: preparation fills one packet while the S-CPU commits the other. */
+#define SNES_BG_PACKETS 2
+
+/* what the commit of one presentation reads. with a second cpu the commands and the map words they
+ * send are copied here, so the next preparation may change the work area meanwhile; without one
+ * the commit reads the list staged in the work area. */
+typedef struct SnesBackgroundPacket
+{
+   SnesVramDmaCommand dma[SNES_BG_DMA_COMMANDS];
+   const SnesVramDmaCommand *commands;
+   DeceptusU16 dma_count;
+   DeceptusU16 dma_batch_ends[SNES_BG_DMA_BATCHES];
+   DeceptusU8 dma_batch_count;
+   /* the commit needs forced blank. */
+   DeceptusU8 full;
+   /* some commands still read the work area: the commit finishes before the next preparation. */
+   DeceptusU8 serial;
+   DeceptusI16 scroll_x, scroll_y;
+   DeceptusU16 map_words[SNES_BG_PACKET_WORDS];
+} SnesBackgroundPacket;
+
+extern SnesBackgroundPacket snes_background_packets[SNES_BG_PACKETS];
+/* the bytes background_ram.asm reserves for the packets. */
+#define SNES_BG_PACKET_STORAGE 8192
+typedef char SnesBackgroundPacketsFit[(sizeof(SnesBackgroundPacket) * SNES_BG_PACKETS <= SNES_BG_PACKET_STORAGE) ? 1 : -1];
+
 /* the VRAM word address of a pattern slot: the shared cache, then the foreground overflow. */
 #define SNES_BG_SLOT_ADDRESS(slot) (((slot) < 1024) ? (0x2000 + (slot) * 16) : (SNES_BG_OVERFLOW_ADDRESS + ((slot) - 1024) * 16))
 

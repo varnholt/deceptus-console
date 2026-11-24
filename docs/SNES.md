@@ -99,10 +99,28 @@ windows like plain LoROM until the first write.
 
 CPU split: `sa1_main.c` owns the adventure and frame in BW-RAM (bank 40) and
 answers a mailbox in I-RAM (`sa1_mailbox.h`, 00:3100 for both CPUs): initialise;
-run the paced ticks and render; load the room's background data and reset the
-sprite cache; prepare a presentation (scenery flags, background window, sprites
-and their staged transfers). The S-CPU waits for each answer, so the order of
-ticks, room loads and presentation is unchanged and the route stays tick-exact.
+load the room's background data and reset the sprite cache; prepare a
+presentation (scenery flags, background window, sprites and their staged
+transfers); and present: run the paced ticks, render, and unless a tick entered
+another room prepare that frame.
+
+The two CPUs overlap. A prepared frame goes into one of two presentation buffers
+(a background packet, `SnesBackgroundPacket`, and a sprite staging), named by
+the mailbox. At each commit vblank the S-CPU reads the pad, starts the next
+presentation into the other buffer and then commits this one, so a picture costs
+the longer of the SA-1 work and the commit rather than their sum. The packet
+carries copies of the DMA list and of the map rows and columns it sends, the
+staging a copy of the OAM shadow, because the SA-1 rebuilds both meanwhile. A
+packet whose commit still reads the work area (a full refresh, an overflowed
+list, more map words than the packet holds) is marked serial: the S-CPU then
+commits before it starts the next presentation. The pad is read at the same
+point as before, right after the vblank that latched it, so neither the input
+delay nor the tick-locked route changes; phase 11 in the debug mailbox marks
+that the next ticks have their input while the commit runs. Without a second CPU
+(ExHiROM) the same loop runs the presentation after the commit and the commit
+reads the work area directly. The S-CPU copies the staged OAM into the SDK's OAM
+shadow with a DMA through the work RAM port on the SA-1 cartridge (the copy lies
+in BW-RAM; DMA cannot copy work RAM into work RAM, so ExHiROM uses a CPU copy).
 Background and sprites are split along that line on both cartridges:
 `background.c` and `sprites.c` prepare without video access, while
 `background_commit.c` and `sprites_commit.c` set up video at room loads (OBJ
@@ -503,3 +521,16 @@ Shared code writes these tests as `(a) || (b == 0)`, which also reads more
 plainly, and `tools/build_snes.py` stops with the file and line of any `|| !` in
 the code it compiles, so the pattern cannot come back. The check is textual and
 also rejects the harmless `a || (!b && c)`.
+
+### Compiler: `p->x = a && b`
+
+816-tcc also miscompiles the value of an `&&`, `||` or `?:` expression stored
+through a computed pointer. It computes the target address, but saves it to a
+stack temporary on one branch of the condition only; the other branch stores
+through whatever that temporary held. In `staging->deferred = !forced && pieces
+&& pieces <= 8` with `forced` false, the store went to SA-1 I-RAM 00:0100, the
+mailbox's request counter, and made the SA-1 run a presentation twice. Through a
+fixed address (`snes_sprite_staging.deferred = ...`) the same line compiled
+correctly, which is why it only appeared once the stagings were doubled. The
+SNES platform code sets such values with `if`/`else` instead; conditions in `if`
+and loop headers are not affected.

@@ -24,7 +24,9 @@ typedef struct SnesObjSlot
    DeceptusU8 piece, valid, used, held, pending, next;
 } SnesObjSlot;
 
-/* what preparation hands to the transfers of one presentation. */
+/* what preparation hands to the transfers of one presentation. there are two, as for the
+ * background: the preparation fills one while the S-CPU commits the other. */
+#define SNES_SPRITE_STAGINGS 2
 typedef struct SnesSpriteStaging
 {
    /* the frame's object palettes in cgram order, so one transfer carries them all. */
@@ -36,33 +38,39 @@ typedef struct SnesSpriteStaging
    /* blank: tile pressure needs forced blank. forced_blank: the tiles go up without waiting for
     * vblank. deferred: few enough tiles for the commit vblank to carry them. */
    DeceptusU8 blank, forced_blank, deferred;
+   /* the frame's oam. with a second cpu it is the copy below, since the next preparation rebuilds
+    * the shadow while this staging is committed; without one it is the shadow itself. */
+   const DeceptusU8 *oam;
+   DeceptusU8 oam_copy[SNES_OBJ_OAM_BYTES];
 } SnesSpriteStaging;
 
-/* the OAM shadow and the tile slots (shared with sprites_*.asm), the staging, the frame counters. */
+/* the OAM shadow and the tile slots (shared with sprites_*.asm), the stagings, the frame counters. */
 extern DeceptusU8 snes_obj_oam[SNES_OBJ_OAM_BYTES];
 extern SnesObjSlot snes_obj_slots[SNES_OBJ_PIECES];
-extern SnesSpriteStaging snes_sprite_staging;
+extern SnesSpriteStaging snes_sprite_stagings[SNES_SPRITE_STAGINGS];
 extern DeceptusU16 snes_obj_count;
 extern DeceptusU8 snes_sprite_overflow;
 
-/* preparation: once per room, once per presentation, then staging of its transfers. */
+/* preparation: once per room, once per presentation, then staging of its transfers into one of
+ * the stagings. */
 void snesSpritesReset(void);
 void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *frame);
-void snesSpritesStage(void);
+void snesSpritesStage(DeceptusU8 staging);
 
-/* S-CPU: OBJ video setup at room load; the tiles that do not wait for the commit vblank (forced
- * blank at tile pressure, then vblanks of their own); the commit; bookkeeping after it. */
+/* S-CPU, on a staging the preparation is done with: OBJ video setup at room load; the tiles that
+ * do not wait for the commit vblank (forced blank at tile pressure, then vblanks of their own);
+ * the commit; the oam shadow the sdk copies. */
 void snesSpritesInitVideo(void);
-void snesSpritesUploadTiles(void);
-DeceptusU16 snesSpritesCommitLines(void);
-void snesSpritesCommitTransfers(void);
-void snesSpritesPublish(void);
+void snesSpritesUploadTiles(DeceptusU8 staging);
+DeceptusU16 snesSpritesCommitLines(DeceptusU8 staging);
+void snesSpritesCommitTransfers(DeceptusU8 staging);
+void snesSpritesPublish(DeceptusU8 staging);
 
 /* the prepared presentation, for the main loop and the emulator checks. */
-DeceptusU8 snesSpritesBlank(void);
+DeceptusU8 snesSpritesBlank(DeceptusU8 staging);
 DeceptusU8 snesSpritesOverflow(void);
-DeceptusU16 snesSpritesUploadBytes(void);
+DeceptusU16 snesSpritesUploadBytes(DeceptusU8 staging);
 DeceptusU16 snesSpritesObjects(void);
-DeceptusU16 snesSpritesPalettes(void);
+DeceptusU16 snesSpritesPalettes(DeceptusU8 staging);
 
 #endif
