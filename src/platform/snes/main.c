@@ -209,10 +209,36 @@ static DeceptusFrame frame;
 #include "ppu_timing.h"
 #include "ui.h"
 
+#define SNES_HVBJOY (*(volatile DeceptusU8 *)0x4212)
+#define SNES_JOY1 (*(volatile DeceptusU16 *)0x4218)
+#define SNES_JOYPAD_READING 0x01
+/* a standard pad reports zero in the low four bits; anything else counts as no pad. */
+#define SNES_JOYPAD_SIGNATURE 0x000F
+
+/* the pad the last read returned, for the emulator checks. */
+static DeceptusU16 snes_pad;
+
+/* the pad as the automatic read at the last vblank start left it, once that read is done. the sdk
+ * copies it only in vblanks its own WaitForVBlank waited for, which this loop no longer uses. */
+static DeceptusU16 padRead(void)
+{
+   DeceptusU16 pad;
+   while ((SNES_HVBJOY & SNES_JOYPAD_READING) != 0)
+   {
+   }
+   pad = SNES_JOY1;
+   if ((pad & SNES_JOYPAD_SIGNATURE) != 0)
+   {
+      pad = 0;
+   }
+   snes_pad = pad;
+   return pad;
+}
+
 static DeceptusU16 inputRead(void)
 {
    DeceptusU16 pad, buttons;
-   pad = padsCurrent(0);
+   pad = padRead();
    buttons = 0;
    if (pad & KEY_LEFT)
    {
@@ -293,7 +319,7 @@ static void debugWrite(DeceptusU8 buffer)
    deceptus_debug[24] = snesSpritesPalettes(buffer);
    deceptus_debug[25] = snesSpritesBlank(buffer);
    deceptus_debug[26] = engine->previous_buttons;
-   deceptus_debug[27] = padsCurrent(0);
+   deceptus_debug[27] = snes_pad;
    deceptus_debug[28] = game->campaign.room_index;
    deceptus_debug[29] = game->campaign.mode;
    deceptus_debug[30] = game->campaign.deaths;
@@ -321,8 +347,7 @@ static void debugWrite(DeceptusU8 buffer)
    deceptus_debug[55] = engine->player_rope.node_index;
 }
 
-/* setScreenOn waits for a further VBlank, so it is only worth paying after
- * the screen was actually blanked. */
+/* the screen goes back on after a commit only when it was actually blanked. */
 static DeceptusU8 screen_blanked;
 
 
@@ -539,7 +564,7 @@ int main(void)
          setScreenOff();
          screen_blanked = 1;
       }
-      WaitForVBlank();
+      snesWaitForVblank();
       committed = buffer;
       buffer ^= 1;
       /* the pad as this vblank read it. the SA-1 runs the next ticks and prepares their frame into
@@ -555,14 +580,13 @@ int main(void)
       snesBackgroundCommit(committed);
       if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines(committed))
       {
-         WaitForVBlank();
+         snesWaitForVblank();
       }
       snesSpritesCommitTransfers(committed);
-      snesSpritesPublish(committed);
       snesUiCommit();
       if (screen_blanked)
       {
-         setScreenOn();
+         snesScreenOn();
          screen_blanked = 0;
       }
       if (serial)

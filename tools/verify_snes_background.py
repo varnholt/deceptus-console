@@ -20,7 +20,11 @@ def audit(assets, output):
     registers = 'VMAIN VMADDLH DMAP0 BBAD0 A1T0LH A1B0 DAS0LH MDMAEN'.split()
     sdk = ['typedef unsigned char u8;',
            'typedef struct {union {void*p;struct {unsigned short addr;unsigned char bank;} c;} mem;} dmaMemory;',
-           'static unsigned short reg;', '#define SC_64x32 1']
+           'static unsigned short reg;', '#define SC_64x32 1',
+           # every read of the vblank counter advances it, so a wait for the next vblank ends.
+           'static unsigned short audit_vblank;',
+           'static unsigned short *auditVblankNow(void){++audit_vblank;return &audit_vblank;}',
+           '#define snes_vblank_count (*auditVblankNow())']
     sdk += ['#define REG_' + name + ' reg' for name in registers]
     sdk += ['static void bgSetGfxPtr(int a,int b){(void)a;(void)b;}',
             'static void bgSetMapPtr(int a,int b,int c){(void)a;(void)b;(void)c;}',

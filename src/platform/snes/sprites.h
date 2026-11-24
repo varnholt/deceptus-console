@@ -59,12 +59,11 @@ void snesSpritesStage(DeceptusU8 staging);
 
 /* S-CPU, on a staging the preparation is done with: OBJ video setup at room load; the tiles that
  * do not wait for the commit vblank (forced blank at tile pressure, then vblanks of their own);
- * the commit; the oam shadow the sdk copies. */
+ * the commit, which writes oam itself. */
 void snesSpritesInitVideo(void);
 void snesSpritesUploadTiles(DeceptusU8 staging);
 DeceptusU16 snesSpritesCommitLines(DeceptusU8 staging);
 void snesSpritesCommitTransfers(DeceptusU8 staging);
-void snesSpritesPublish(DeceptusU8 staging);
 
 /* the prepared presentation, for the main loop and the emulator checks. */
 DeceptusU8 snesSpritesBlank(DeceptusU8 staging);

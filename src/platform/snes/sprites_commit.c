@@ -1,14 +1,17 @@
 /* the S-CPU half of the sprites: OBJ video setup and the transfers sprites.c staged. the stagings
  * may live in SA-1 BW-RAM, so they are reached through their 24-bit address. */
 #include "sprites.h"
+#include "ppu_timing.h"
 #include <snes.h>
-#include <string.h>
+
+/* the stagings by index from a table: indexing the array itself multiplies by the staging size in a
+ * library routine, several times in every commit vblank. */
+static SnesSpriteStaging *const staging_table[SNES_SPRITE_STAGINGS] = {&snes_sprite_stagings[0], &snes_sprite_stagings[1]};
+typedef char SnesStagingTableComplete[(SNES_SPRITE_STAGINGS == 2) ? 1 : -1];
 
 static SnesSpriteStaging *stagingAt(DeceptusU8 index)
 {
-   SnesSpriteStaging *stagings;
-   stagings = snes_sprite_stagings;
-   return &stagings[index];
+   return staging_table[index];
 }
 
 void snesSpritesInitVideo(void)
@@ -39,7 +42,7 @@ void snesSpritesUploadTiles(DeceptusU8 index)
       }
       if (!staging->forced_blank)
       {
-         WaitForVBlank();
+         snesWaitForVblank();
       }
       snesVramRunDma(&staging->tile_dma[first], count);
    }
@@ -67,40 +70,6 @@ void snesSpritesCommitTransfers(DeceptusU8 index)
    snesVramRunDma(staging->tile_dma, staging->tile_dma_count);
    staging->tile_dma_count = 0;
 }
-
-/* the sdk copies its oam shadow to oam at every vblank it waited for, so the shadow follows the
- * frame the commit showed. no video access, so this may run after vblank. */
-#ifdef SNES_SA1
-/* the frame's oam lies in BW-RAM: a dma through the work RAM port takes about three lines, a cpu
- * copy about twenty-five. it uses channel six, which snesVramRunDma sets up in full for every
- * list: the sdk's channel zero keeps its own setup. */
-#define SNES_PUBLISH_DMA_CHANNEL (1 << 6)
-/* the work RAM port: a dma to it fills work RAM from any address outside work RAM. */
-#define SNES_WRAM_ADDRESS_LOW (*(vuint16 *)0x2181)
-#define SNES_WRAM_ADDRESS_BANK (*(vuint8 *)0x2183)
-#define SNES_WRAM_DATA_PORT 0x80
-
-void snesSpritesPublish(DeceptusU8 index)
-{
-   dmaMemory source, target;
-   source.mem.p = (void *)stagingAt(index)->oam;
-   target.mem.p = (void *)oamMemory;
-   SNES_WRAM_ADDRESS_LOW = target.mem.c.addr;
-   SNES_WRAM_ADDRESS_BANK = target.mem.c.bank & 1;
-   REG_DMAP6 = 0;
-   REG_BBAD6 = SNES_WRAM_DATA_PORT;
-   REG_A1T6LH = source.mem.c.addr;
-   REG_A1B6 = source.mem.c.bank;
-   REG_DAS6LH = SNES_OBJ_OAM_BYTES;
-   REG_MDMAEN = SNES_PUBLISH_DMA_CHANNEL;
-}
-#else
-/* the frame's oam lies in work RAM, which dma cannot copy into work RAM. */
-void snesSpritesPublish(DeceptusU8 index)
-{
-   memcpy(oamMemory, stagingAt(index)->oam, SNES_OBJ_OAM_BYTES);
-}
-#endif
 
 DeceptusU8 snesSpritesBlank(DeceptusU8 index)
 {

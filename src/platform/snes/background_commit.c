@@ -2,6 +2,7 @@
  * snesBackgroundPrepare staged in the work area. */
 #include "background.h"
 #include "background_work.h"
+#include "ppu_timing.h"
 #include <snes.h>
 #ifdef SNES_SA1
 #include "sa1.h"
@@ -29,11 +30,15 @@ DeceptusU8 snesBackgroundError(void)
    return work->status.error;
 }
 
+/* the packets by index from a table: indexing the array itself multiplies by the packet size in a
+ * library routine, several times in every commit vblank. */
+static const SnesBackgroundPacket *const packet_table[SNES_BG_PACKETS] = {&snes_background_packets[0],
+                                                                         &snes_background_packets[1]};
+typedef char SnesPacketTableComplete[(SNES_BG_PACKETS == 2) ? 1 : -1];
+
 static const SnesBackgroundPacket *packetAt(DeceptusU8 index)
 {
-   const SnesBackgroundPacket *packets;
-   packets = snes_background_packets;
-   return &packets[index];
+   return packet_table[index];
 }
 
 DeceptusU8 snesBackgroundFull(DeceptusU8 packet)
@@ -90,7 +95,7 @@ void snesBackgroundCommit(DeceptusU8 packet_index)
          {
             if (batch)
             {
-               WaitForVBlank();
+               snesWaitForVblank();
             }
             snesVramRunDma(&packet->commands[first], packet->dma_batch_ends[batch] - first);
             first = packet->dma_batch_ends[batch];

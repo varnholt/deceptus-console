@@ -2,6 +2,7 @@
 #define SNES_PPU_TIMING_H
 
 #include "deceptus/types.h"
+#include <snes.h>
 
 /* ntsc vblank: lines 225 to 261 of 262. video memory accepts writes only then (or in forced blank). */
 #define SNES_VBLANK_FIRST_LINE 225
@@ -33,6 +34,36 @@ static DeceptusU16 snesVblankLinesLeft(void)
       return 0;
    }
    return SNES_LINES_PER_FRAME - line;
+}
+
+/* waits for the next vblank start. the sdk's WaitForVBlank makes its vblank interrupt copy the
+ * sdk's oam shadow to oam, about four lines of every vblank, although the sprite commit writes oam
+ * itself; this wait only watches the vblank counter, which the interrupt advances every vblank. */
+static DeceptusU16 snesVblankCount(void)
+{
+   return *(const volatile DeceptusU16 *)&snes_vblank_count;
+}
+
+static void snesWaitForVblank(void)
+{
+   DeceptusU16 start;
+   start = snesVblankCount();
+   while (snesVblankCount() == start)
+   {
+   }
+}
+
+#define SNES_INIDISP (*(volatile DeceptusU8 *)0x2100)
+#define SNES_FULL_BRIGHTNESS 0x0F
+
+/* the display on at full brightness, in vblank so that no picture starts half drawn. */
+static void snesScreenOn(void)
+{
+   if (snesVblankLinesLeft() == 0)
+   {
+      snesWaitForVblank();
+   }
+   SNES_INIDISP = SNES_FULL_BRIGHTNESS;
 }
 
 #endif

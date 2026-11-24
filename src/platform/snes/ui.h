@@ -239,7 +239,7 @@ static void snesUiCommit(void)
 {
    if (snes_ui_dirty)
    {
-      WaitForVBlank();
+      snesWaitForVblank();
       dmaCopyVram((u8 *)snes_ui_map, 0x1000, sizeof(snes_ui_map));
       snes_ui_dirty = 0;
    }

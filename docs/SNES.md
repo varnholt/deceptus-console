@@ -118,9 +118,15 @@ point as before, right after the vblank that latched it, so neither the input
 delay nor the tick-locked route changes; phase 11 in the debug mailbox marks
 that the next ticks have their input while the commit runs. Without a second CPU
 (ExHiROM) the same loop runs the presentation after the commit and the commit
-reads the work area directly. The S-CPU copies the staged OAM into the SDK's OAM
-shadow with a DMA through the work RAM port on the SA-1 cartridge (the copy lies
-in BW-RAM; DMA cannot copy work RAM into work RAM, so ExHiROM uses a CPU copy).
+reads the work area directly.
+
+The tutorial loop does not use the SDK's `WaitForVBlank`: after it, the SDK's
+vblank interrupt copies its OAM shadow to OAM (about four lines of every vblank)
+and reads the pads. `snesWaitForVblank` (`ppu_timing.h`) only watches the vblank
+counter, the sprite commit writes OAM itself, `padRead` takes the pad from
+`$4218` once the automatic read is done, and `snesScreenOn` replaces
+`setScreenOn`. With that, the background commit starts with 29 of the 37 vblank
+lines left instead of 25.
 Background and sprites are split along that line on both cartridges:
 `background.c` and `sprites.c` prepare without video access, while
 `background_commit.c` and `sprites_commit.c` set up video at room loads (OBJ

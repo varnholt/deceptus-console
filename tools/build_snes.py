@@ -192,7 +192,8 @@ def check_sa1_boundary(host_assemblies, sa1_assemblies):
     for name, text in host_assemblies.items():
         for label in sa1_globals:
             for line in re.findall(r'^.*\b' + label + r'\b.*$', text, re.M):
-                address_or_long = re.search(r'#:?' + label + r'\b|^\s*pea\.w\s|\.l\s', line)
+                # an immediate, a pushed address, a long access, or an entry of a data table (.dw, .dl).
+                address_or_long = re.search(r'#:?' + label + r'\b|^\s*pea\.w\s|\.l\s|^\s*(?:\S+:\s*)?\.d[wl]\s', line)
                 if not address_or_long and not line.lstrip().startswith(label):
                     findings.append(f"{name}: S-CPU code accesses BW-RAM {label} directly: {line.strip()}")
     if findings:
