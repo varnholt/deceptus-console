@@ -63,18 +63,19 @@ DeceptusU16 snesBackgroundHashFind(DeceptusU16 pattern, DeceptusU16 insert);
 typedef char SnesBackgroundReferencesOffset[(DECEPTUS_BG_OFFSET(references) == 2288) ? 1 : -1];
 typedef char SnesBackgroundHashSlotsOffset[(DECEPTUS_BG_OFFSET(hash_slots) == 10960) ? 1 : -1];
 typedef char SnesBackgroundMapsOffset[(DECEPTUS_BG_OFFSET(maps) == 15056) ? 1 : -1];
-typedef char SnesBackgroundDirtyColumnOffset[(DECEPTUS_BG_OFFSET(dirty_column) == 29602) ? 1 : -1];
-typedef char SnesBackgroundRefreshChangedOffset[(DECEPTUS_BG_OFFSET(scratch.refresh_changed) == 29604) ? 1 : -1];
+typedef char SnesBackgroundDirtyColumnsOffset[(DECEPTUS_BG_OFFSET(dirty_columns) == 29474) ? 1 : -1];
+typedef char SnesBackgroundScrollCells[(SNES_BG_SCROLL_CELLS == 3) ? 1 : -1];
+typedef char SnesBackgroundRefreshChangedOffset[(DECEPTUS_BG_OFFSET(scratch.refresh_changed) == 29482) ? 1 : -1];
 typedef char SnesBackgroundSlotListsOffset[(DECEPTUS_BG_OFFSET(resident) == 0 && DECEPTUS_BG_OFFSET(free_slots) == 4576 &&
-                                            DECEPTUS_BG_OFFSET(uploads) == 23248 && DECEPTUS_BG_OFFSET(pending) == 27314 &&
-                                            DECEPTUS_BG_OFFSET(domains) == 28458) ? 1 : -1];
-typedef char SnesBackgroundCountsOffset[(DECEPTUS_BG_OFFSET(free_count) == 30572 && DECEPTUS_BG_OFFSET(upload_count) == 30574 &&
-                                         DECEPTUS_BG_OFFSET(hash_tombstones) == 30580) ? 1 : -1];
-typedef char SnesBackgroundDirtyRowsOffset[(DECEPTUS_BG_OFFSET(dirty_rows) == 30562) ? 1 : -1];
-typedef char SnesBackgroundDmaBytesOffset[(DECEPTUS_BG_OFFSET(dma_bytes) == 30570) ? 1 : -1];
-typedef char SnesBackgroundRoomCellsOffset[(DECEPTUS_BG_OFFSET(room_cells) == 30578) ? 1 : -1];
-typedef char SnesBackgroundRowOffsetsOffset[(DECEPTUS_BG_OFFSET(row_offsets) == 30588) ? 1 : -1];
-typedef char SnesBackgroundStatusErrorOffset[(DECEPTUS_BG_OFFSET(status.error) == 32644) ? 1 : -1];
+                                            DECEPTUS_BG_OFFSET(uploads) == 23248 && DECEPTUS_BG_OFFSET(pending) == 27186 &&
+                                            DECEPTUS_BG_OFFSET(domains) == 28330) ? 1 : -1];
+typedef char SnesBackgroundCountsOffset[(DECEPTUS_BG_OFFSET(free_count) == 30450 && DECEPTUS_BG_OFFSET(upload_count) == 30452 &&
+                                         DECEPTUS_BG_OFFSET(hash_tombstones) == 30458) ? 1 : -1];
+typedef char SnesBackgroundDirtyRowsOffset[(DECEPTUS_BG_OFFSET(dirty_rows) == 30440) ? 1 : -1];
+typedef char SnesBackgroundDmaBytesOffset[(DECEPTUS_BG_OFFSET(dma_bytes) == 30448) ? 1 : -1];
+typedef char SnesBackgroundRoomCellsOffset[(DECEPTUS_BG_OFFSET(room_cells) == 30456) ? 1 : -1];
+typedef char SnesBackgroundRowOffsetsOffset[(DECEPTUS_BG_OFFSET(row_offsets) == 30466) ? 1 : -1];
+typedef char SnesBackgroundStatusErrorOffset[(DECEPTUS_BG_OFFSET(status.error) == 32524) ? 1 : -1];
 typedef struct SnesBackgroundCellView
 {
    DeceptusU16 columns, rows, pattern_count;
@@ -241,7 +242,7 @@ static void resetCache(void)
       }
       work->dirty_rows[plane][0] = 65535U;
       work->dirty_rows[plane][1] = 65535U;
-      work->dirty_column[plane] = 255;
+      work->dirty_columns[plane][0] = 0;
    }
    work->resident[0] = 0;
    work->references[0] = SNES_BG_EMPTY;
@@ -521,6 +522,28 @@ static void cellSource(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU
    *attributes_out = attributes;
 }
 
+/* adds a map column to the plane's changed columns; more than SNES_BG_SCROLL_CELLS is an error. */
+static void markColumnDirty(DeceptusU8 plane, DeceptusU8 column)
+{
+   DeceptusU8 *columns;
+   DeceptusU8 index;
+   columns = work->dirty_columns[plane];
+   for (index = 1; index <= columns[0]; ++index)
+   {
+      if (columns[index] == column)
+      {
+         return;
+      }
+   }
+   if (columns[0] == SNES_BG_SCROLL_CELLS)
+   {
+      work->status.error = 1;
+      return;
+   }
+   columns[++columns[0]] = column;
+   work->dma_bytes += 64;
+}
+
 void snesBackgroundLoadCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI16 y, DeceptusU16 dirty)
 {
    DeceptusU16 pattern, attributes, index, bit, row;
@@ -540,15 +563,7 @@ void snesBackgroundLoadCell(DeceptusU16 plane_index, DeceptusI16 x, DeceptusI16 
    work->maps[plane][index] = slotTile(plane, pattern) | attributes;
    if (dirty == 1)
    {
-      if (work->dirty_column[plane] == 255)
-      {
-         work->dirty_column[plane] = (DeceptusU8)(x & 63);
-         work->dma_bytes += 64;
-      }
-      else if (work->dirty_column[plane] != (x & 63))
-      {
-         work->status.error = 1;
-      }
+      markColumnDirty(plane, (DeceptusU8)(x & 63));
    }
    else if (dirty == 2)
    {
@@ -870,9 +885,23 @@ static DeceptusU16 columnAddress(DeceptusU16 column, DeceptusU16 row)
    return (column & 31) + row * 32 + ((column >= 32) ? 1024 : 0);
 }
 
+/* one map column through a buffer of 32 words, which the commit reads. */
+static void stageColumn(DeceptusU16 *buffer, DeceptusU16 plane, DeceptusU16 column)
+{
+   DeceptusU16 row, address;
+   for (row = 0; row < 32; ++row)
+   {
+      /* separate statements: 816-tcc fails on calls nested inside array indices. */
+      address = columnAddress(column, row);
+      buffer[row] = work->maps[plane][address];
+   }
+   address = columnAddress(column, 0);
+   stageDma(buffer, (plane ? 0x0800 : 0) + address, 64, 0x81);
+}
+
 static void stageMaps(void)
 {
-   DeceptusU16 plane, row, column, base, mask, address;
+   DeceptusU16 plane, row, column, base, mask, index;
    for (plane = 0; plane < 2; ++plane)
    {
       base = plane ? 0x0800 : 0;
@@ -890,16 +919,10 @@ static void stageMaps(void)
          }
          mask >>= 1;
       }
-      column = work->dirty_column[plane];
-      if (column < 64)
+      for (index = 0; index < work->dirty_columns[plane][0]; ++index)
       {
-         for (row = 0; row < 32; ++row)
-         {
-            /* separate statements: 816-tcc fails on calls nested inside array indices. */
-            address = columnAddress(column, row);
-            work->staged_columns[plane][row] = work->maps[plane][address];
-         }
-         stageDma(work->staged_columns[plane], base + columnAddress(column, 0), 64, 0x81);
+         column = work->dirty_columns[plane][index + 1];
+         stageColumn(work->scratch.columns.changed[plane][index], plane, column);
       }
    }
 }
@@ -909,26 +932,19 @@ static void stageMaps(void)
  * so the frame still showing meanwhile never shows a pattern before its map. */
 static void stageReleasedEdges(void)
 {
-   DeceptusU16 plane, row, column, base, address;
+   DeceptusU16 plane, row, base, index;
    for (plane = 0; plane < 2; ++plane)
    {
       base = plane ? 0x0800 : 0;
-      row = work->released_row;
-      if (row != SNES_BG_NONE)
+      for (index = 0; index < work->released_rows[0]; ++index)
       {
+         row = work->released_rows[index + 1];
          stageDma(&work->maps[plane][row * 32], base + row * 32, 64, 0x80);
          stageDma(&work->maps[plane][1024 + row * 32], base + 1024 + row * 32, 64, 0x80);
       }
-      column = work->released_column;
-      if (column != SNES_BG_NONE)
+      for (index = 0; index < work->released_columns[0]; ++index)
       {
-         for (row = 0; row < 32; ++row)
-         {
-            /* separate statements: 816-tcc fails on calls nested inside array indices. */
-            address = columnAddress(column, row);
-            work->scratch.released_columns[plane][row] = work->maps[plane][address];
-         }
-         stageDma(work->scratch.released_columns[plane], base + columnAddress(column, 0), 64, 0x81);
+         stageColumn(work->scratch.columns.released[plane][index], plane, work->released_columns[index + 1]);
       }
    }
 }
@@ -1004,15 +1020,87 @@ static void prepareDma(void)
       {
          work->dirty_rows[plane][0] = 0;
          work->dirty_rows[plane][1] = 0;
-         work->dirty_column[plane] = 255;
+         work->dirty_columns[plane][0] = 0;
       }
    }
 }
 
+static DeceptusI16 stepToward(DeceptusI16 from, DeceptusI16 to)
+{
+   if (from < to)
+   {
+      return from + 1;
+   }
+   if (from > to)
+   {
+      return from - 1;
+   }
+   return from;
+}
+
+/* moves the window by at most one cell on each axis: releases the column and row that leave it,
+ * loads those that enter, and notes the released ones for a commit spread over several vblanks. */
+static void scrollStep(DeceptusI16 left, DeceptusI16 top)
+{
+   DeceptusI16 x, y, added_column;
+   DeceptusU16 plane;
+   if (left != work->left)
+   {
+      x = (left > work->left) ? work->left : work->left + SNES_BG_WIDTH - 1;
+      work->released_columns[++work->released_columns[0]] = (DeceptusU8)(x & 63);
+   }
+   if (top != work->top)
+   {
+      y = (top > work->top) ? work->top : work->top + SNES_BG_HEIGHT - 1;
+      work->released_rows[++work->released_rows[0]] = (DeceptusU8)(y & 31);
+   }
+   for (plane = 0; plane < 2; ++plane)
+   {
+      if (left != work->left)
+      {
+         x = (left > work->left) ? work->left : work->left + SNES_BG_WIDTH - 1;
+         for (y = work->top; y < work->top + SNES_BG_HEIGHT; ++y)
+         {
+            releaseCell((DeceptusU8)plane, x, y);
+         }
+      }
+      if (top != work->top)
+      {
+         y = (top > work->top) ? work->top : work->top + SNES_BG_HEIGHT - 1;
+         for (x = work->left; x < work->left + SNES_BG_WIDTH; ++x)
+         {
+            releaseCell((DeceptusU8)plane, x, y);
+         }
+      }
+      added_column = -1;
+      if (left != work->left)
+      {
+         added_column = (left > work->left) ? left + SNES_BG_WIDTH - 1 : left;
+         for (y = top; y < top + SNES_BG_HEIGHT; ++y)
+         {
+            loadCell((DeceptusU8)plane, added_column, y, 1);
+         }
+      }
+      if (top != work->top)
+      {
+         y = (top > work->top) ? top + SNES_BG_HEIGHT - 1 : top;
+         for (x = left; x < left + SNES_BG_WIDTH; ++x)
+         {
+            if (x != added_column)
+            {
+               loadCell((DeceptusU8)plane, x, y, 2);
+            }
+         }
+      }
+   }
+   work->left = left;
+   work->top = top;
+}
+
 void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
 {
-   DeceptusI16 left, top, x, y, added_column, refresh_left, refresh_top, refresh_right, refresh_bottom;
-   DeceptusU16 index, plane, duration;
+   DeceptusI16 left, top, x, y, refresh_left, refresh_top, refresh_right, refresh_bottom;
+   DeceptusU16 index, duration;
    DeceptusU8 dirty_clips, active, full_refresh;
    DeceptusU16 offset, within, address, word, slot, expected;
    DeceptusU8 *changed;
@@ -1070,10 +1158,11 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          }
       }
    }
-   work->released_row = SNES_BG_NONE;
-   work->released_column = SNES_BG_NONE;
+   work->released_rows[0] = 0;
+   work->released_columns[0] = 0;
    full_refresh = work->loaded == 0;
-   if (left < work->left - 1 || left > work->left + 1 || top < work->top - 1 || top > work->top + 1)
+   if ((left < work->left - SNES_BG_SCROLL_CELLS) || (left > work->left + SNES_BG_SCROLL_CELLS) ||
+       (top < work->top - SNES_BG_SCROLL_CELLS) || (top > work->top + SNES_BG_SCROLL_CELLS))
    {
       full_refresh = 1;
    }
@@ -1083,46 +1172,10 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
    }
    else
    {
-      for (plane = 0; plane < 2; ++plane)
+      /* one cell at a time: each step streams one column, one row or both. */
+      while ((work->left != left) || (work->top != top))
       {
-         if (left != work->left)
-         {
-            x = left > work->left ? work->left : work->left + SNES_BG_WIDTH - 1;
-            work->released_column = (DeceptusU8)(x & 63);
-            for (y = work->top; y < work->top + SNES_BG_HEIGHT; ++y)
-            {
-               releaseCell((DeceptusU8)plane, x, y);
-            }
-         }
-         if (top != work->top)
-         {
-            y = top > work->top ? work->top : work->top + SNES_BG_HEIGHT - 1;
-            work->released_row = (DeceptusU8)(y & 31);
-            for (x = work->left; x < work->left + SNES_BG_WIDTH; ++x)
-            {
-               releaseCell((DeceptusU8)plane, x, y);
-            }
-         }
-         added_column = -1;
-         if (left != work->left)
-         {
-            added_column = left > work->left ? left + SNES_BG_WIDTH - 1 : left;
-            for (y = top; y < top + SNES_BG_HEIGHT; ++y)
-            {
-               loadCell((DeceptusU8)plane, added_column, y, 1);
-            }
-         }
-         if (top != work->top)
-         {
-            y = top > work->top ? top + SNES_BG_HEIGHT - 1 : top;
-            for (x = left; x < left + SNES_BG_WIDTH; ++x)
-            {
-               if (x != added_column)
-               {
-                  loadCell((DeceptusU8)plane, x, y, 2);
-               }
-            }
-         }
+         scrollStep(stepToward(work->left, left), stepToward(work->top, top));
       }
       for (index = 0; index < stage->animation_count; ++index)
       {

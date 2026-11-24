@@ -175,8 +175,11 @@ int main(void)
 #include "snes_assets.h"
 #include <snes.h>
 
+/* the simulation runs at 60 ticks per second; a presentation that takes longer than a display frame
+ * catches up with up to three ticks, as on the Amiga, so the game keeps its speed down to 20
+ * presentations per second. */
 #ifndef SNES_PACING_MAX_TICKS
-#define SNES_PACING_MAX_TICKS 1
+#define SNES_PACING_MAX_TICKS 3
 #endif
 static DeceptusPacing pacing;
 volatile DeceptusU16 deceptus_debug[56];

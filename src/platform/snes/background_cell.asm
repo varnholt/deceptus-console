@@ -26,18 +26,19 @@
 .define SNES_BG_HASH_SLOTS 10960
 .define SNES_BG_MAPS 15056
 .define SNES_BG_UPLOADS 23248
-.define SNES_BG_PENDING 27314
-.define SNES_BG_DOMAINS 28458
-.define SNES_BG_DIRTY_COLUMN 29602
-.define SNES_BG_REFRESH_CHANGED 29604
-.define SNES_BG_DIRTY_ROWS 30562
-.define SNES_BG_DMA_BYTES 30570
-.define SNES_BG_FREE_COUNT 30572
-.define SNES_BG_UPLOAD_COUNT 30574
-.define SNES_BG_ROOM_CELLS 30578
-.define SNES_BG_HASH_TOMBSTONES 30580
-.define SNES_BG_ROW_OFFSETS 30588
-.define SNES_BG_STATUS_ERROR 32644
+.define SNES_BG_PENDING 27186
+.define SNES_BG_DOMAINS 28330
+.define SNES_BG_DIRTY_COLUMNS 29474
+.define SCROLL_CELLS 3
+.define SNES_BG_REFRESH_CHANGED 29482
+.define SNES_BG_DIRTY_ROWS 30440
+.define SNES_BG_DMA_BYTES 30448
+.define SNES_BG_FREE_COUNT 30450
+.define SNES_BG_UPLOAD_COUNT 30452
+.define SNES_BG_ROOM_CELLS 30456
+.define SNES_BG_HASH_TOMBSTONES 30458
+.define SNES_BG_ROW_OFFSETS 30466
+.define SNES_BG_STATUS_ERROR 32524
 .define VIEW_COLUMNS 0
 .define VIEW_ROWS 2
 .define VIEW_PATTERNS 4
@@ -483,7 +484,9 @@ load_word:
     cmp #1
     beq load_dirty_column
     cmp #2
-    bne load_return
+    beq load_dirty_row
+    jmp load_return
+load_dirty_row:
     ; dirty row: dirty_rows[plane][(y & 31) >> 4] bit (y & 15).
     lda 15,s
     and #15
@@ -513,28 +516,55 @@ load_word:
     sta.l snes_background_storage+SNES_BG_DMA_BYTES
     bra load_return
 load_dirty_column:
-    lda 11,s
-    tax
+    ; markColumnDirty: dirty_columns[plane] holds a count, then the columns.
     lda 13,s
     and #63
     sta.b tcc__r1
-    sep #$20
-    lda.l snes_background_storage+SNES_BG_DIRTY_COLUMN,x
-    cmp #255
-    beq load_column_first
+    lda 11,s
+    asl a
+    asl a
+    tax
+    lda.l snes_background_storage+SNES_BG_DIRTY_COLUMNS,x
+    and #$00ff
+    sta.b tcc__r2
+    tay
+    beq load_column_append
+load_column_scan:
+    inx
+    lda.l snes_background_storage+SNES_BG_DIRTY_COLUMNS,x
+    and #$00ff
     cmp.b tcc__r1
     beq load_column_done
-    lda #1
-    sta.l snes_background_storage+SNES_BG_STATUS_ERROR
-    bra load_column_done
-load_column_first:
+    dey
+    bne load_column_scan
+load_column_append:
+    ; x = plane * 4 + count: the new column goes after the last one.
+    lda.b tcc__r2
+    cmp #SCROLL_CELLS
+    bcs load_column_overflow
+    inx
+    sep #$20
     lda.b tcc__r1
-    sta.l snes_background_storage+SNES_BG_DIRTY_COLUMN,x
+    sta.l snes_background_storage+SNES_BG_DIRTY_COLUMNS,x
+    rep #$20
+    lda 11,s
+    asl a
+    asl a
+    tax
+    sep #$20
+    lda.b tcc__r2
+    inc a
+    sta.l snes_background_storage+SNES_BG_DIRTY_COLUMNS,x
     rep #$20
     lda.l snes_background_storage+SNES_BG_DMA_BYTES
     clc
     adc #64
     sta.l snes_background_storage+SNES_BG_DMA_BYTES
+    bra load_column_done
+load_column_overflow:
+    sep #$20
+    lda #1
+    sta.l snes_background_storage+SNES_BG_STATUS_ERROR
 load_column_done:
     rep #$20
 load_return:

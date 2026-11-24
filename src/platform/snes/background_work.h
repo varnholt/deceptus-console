@@ -33,6 +33,9 @@
 #define SNES_BG_DMA_BUDGET 36000U
 #define SNES_BG_DMA_COMMAND_COST 768U
 #define SNES_BG_NONE 255
+/* rows and columns the window may scroll in one presentation before it reloads in forced blank: a
+ * presentation that catches up with three ticks moves the camera up to three cells. */
+#define SNES_BG_SCROLL_CELLS 3
 #define SNES_BG_ROW_TABLE 1024
 
 /* what the commit and the main loop need to know about the prepared frame. */
@@ -51,16 +54,21 @@ typedef struct SnesBackgroundWork
    DeceptusU16 resident[SNES_BG_SLOTS], references[SNES_BG_SLOTS], free_slots[SNES_BG_SLOTS];
    DeceptusU16 hash_keys[SNES_BG_HASH], hash_slots[SNES_BG_HASH];
    DeceptusU16 maps[2][2048], uploads[SNES_BG_SLOTS], column[32];
-   DeceptusU16 staged_columns[2][32], dma_count;
+   DeceptusU16 dma_count;
    SnesVramDmaCommand dma[SNES_BG_DMA_COMMANDS];
    DeceptusU16 clip_frame[SNES_BG_CLIPS], clip_elapsed[SNES_BG_CLIPS], clip_cells[SNES_BG_CLIPS];
-   DeceptusU8 pending[SNES_BG_SLOTS], domains[SNES_BG_SLOTS], dirty_column[2];
-   /* scratch: the cells a clip refresh changes while preparing, then the map columns that left
-    * the window while the commit runs. */
+   DeceptusU8 pending[SNES_BG_SLOTS], domains[SNES_BG_SLOTS];
+   /* per plane, the count of map columns (0-63) that changed, then those columns. */
+   DeceptusU8 dirty_columns[2][SNES_BG_SCROLL_CELLS + 1];
+   /* scratch: the cells a clip refresh changes while preparing, then the map columns the commit
+    * transfers, changed ones and those that left the window. */
    union
    {
       DeceptusU8 refresh_changed[SNES_BG_WIDTH * SNES_BG_HEIGHT];
-      DeceptusU16 released_columns[2][32];
+      struct
+      {
+         DeceptusU16 changed[2][SNES_BG_SCROLL_CELLS][32], released[2][SNES_BG_SCROLL_CELLS][32];
+      } columns;
    } scratch;
    DeceptusU16 dirty_rows[2][2], dma_bytes, free_count, upload_count, flags, room_cells, hash_tombstones;
    DeceptusI16 left, top;
@@ -72,9 +80,9 @@ typedef struct SnesBackgroundWork
    const SnesStage *stage;
    DeceptusI16 scroll_x, scroll_y;
    SnesBackgroundStatus status;
-   /* the map row (0-31) and column (0-63) whose cells left the window this presentation, or
-    * SNES_BG_NONE. */
-   DeceptusU8 released_row, released_column;
+   /* the count of map rows (0-31) and columns (0-63) whose cells left the window this
+    * presentation, then those rows and columns. */
+   DeceptusU8 released_rows[SNES_BG_SCROLL_CELLS + 1], released_columns[SNES_BG_SCROLL_CELLS + 1];
    /* a commit too long for one vblank runs its commands up to each end in a vblank of its own. */
    DeceptusU8 dma_batch_count;
    DeceptusU16 dma_batch_ends[SNES_BG_DMA_BATCHES];

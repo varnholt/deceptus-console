@@ -56,7 +56,7 @@ static void copyColumn(const DeceptusU16 *source, DeceptusU16 address)
 
 void snesBackgroundCommit(void)
 {
-   DeceptusU16 index, slot, pattern, plane, row, column, base, mask, first, batch;
+   DeceptusU16 index, slot, pattern, plane, row, column, base, mask, first, batch, entry;
    const DeceptusU8 *bytes;
    if (work->status.error)
    {
@@ -118,9 +118,9 @@ void snesBackgroundCommit(void)
       }
       work->dirty_rows[plane][0] = 0;
       work->dirty_rows[plane][1] = 0;
-      column = work->dirty_column[plane];
-      if (column < 64)
+      for (entry = 0; entry < work->dirty_columns[plane][0]; ++entry)
       {
+         column = work->dirty_columns[plane][entry + 1];
          for (row = 0; row < 32; ++row)
          {
             index = (column & 31) + row * 32 + (column >= 32 ? 1024 : 0);
@@ -128,8 +128,8 @@ void snesBackgroundCommit(void)
             work->column[row] = slot;
          }
          copyColumn(work->column, base + (column & 31) + (column >= 32 ? 1024 : 0));
-         work->dirty_column[plane] = 255;
       }
+      work->dirty_columns[plane][0] = 0;
    }
    bgSetScroll(0, work->scroll_x, work->scroll_y);
    bgSetScroll(1, work->scroll_x, work->scroll_y);
