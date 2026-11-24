@@ -30,13 +30,14 @@ sprite_begin_high:
     inx
     cpx #544
     bne sprite_begin_high
+    ; every scanline empty: SNES_OBJ_LINE_EMPTY in sprites.c.
+    lda #$5D5F
     ldx #0
 sprite_begin_lines:
-    sta.l snes_obj_lines,x
-    sta.l snes_obj_slivers,x
+    sta.l snes_obj_line_load,x
     inx
     inx
-    cpx #224
+    cpx #448
     bne sprite_begin_lines
     sep #$20
     ldx #0

@@ -169,7 +169,10 @@ each occupied 8Ã—8 quadrant of a source 16Ã—16 piece. Fully occupied piece
 one large OBJ; partial pieces use only their occupied small OBJs. This keeps
 the original pixels while reducing transparent fetches against the hardware
 32-object/34-sliver scanline limits. Both limits are checked before publishing
-OAM. A persistent 128-piece cache stages graphics before displaying new OAM;
+OAM, with one load word per scanline: objects plus 95 in the low byte, slivers
+plus 93 in the high byte, so adding a piece's load sets bit 7 or 15 exactly when
+a line would exceed a limit, and one add per line checks and counts (a piece
+that does not fit gives back what it already added). A persistent 128-piece cache stages graphics before displaying new OAM;
 resource-linked lookup avoids searching the full cache for every rope segment.
 The grab ropes are drawn by the SNES sprites code through the appearance
 definition's `rope_sprites` hook: the same pieces as the shared drawing, but each

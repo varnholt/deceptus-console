@@ -37,7 +37,13 @@ static DeceptusU8 snes_obj_epochs[SNES_SPRITE_RESOURCE_COUNT];
 static DeceptusU8 snes_obj_epoch;
 static DeceptusU16 snes_obj_unused, snes_obj_free_cursor;
 DeceptusU8 snes_obj_oam[SNES_OBJ_OAM_BYTES];
-DeceptusU8 snes_obj_lines[224], snes_obj_slivers[224];
+/* per scanline one load word: the objects on the line plus 95 in the low byte, its 8-pixel slivers
+ * plus 93 in the high byte. adding a piece sets bit 7 or 15 exactly when the line would hold more
+ * than 32 objects or 34 slivers, the hardware limits, so one add both checks and counts
+ * (sprites_emit.asm, which defines the same values). */
+#define SNES_OBJ_LINE_EMPTY 0x5D5FU
+#define SNES_OBJ_LINE_FULL 0x8080U
+DeceptusU16 snes_obj_line_load[224];
 static const DeceptusU16 *snes_obj_palettes[8];
 static DeceptusU16 snes_obj_palette_count;
 /* tile pressure: a needed piece found no slot that is neither used nor on screen. */
@@ -203,7 +209,7 @@ static void snesObjPieceReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile
                                   DeceptusU8 size)
 {
    DeceptusI16 line, top, bottom;
-   DeceptusU16 object, high, shift;
+   DeceptusU16 object, high, shift, load;
    if (x <= -(DeceptusI16)size)
    {
       return;
@@ -222,14 +228,10 @@ static void snesObjPieceReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile
    }
    top = y < 0 ? 0 : y;
    bottom = y + size > 224 ? 224 : y + size;
+   load = 1 | ((DeceptusU16)(size / 8) << 8);
    for (line = top; line < bottom; ++line)
    {
-      if (snes_obj_lines[line] >= 32)
-      {
-         snes_sprite_overflow = 1;
-         return;
-      }
-      if (snes_obj_slivers[line] + size / 8 > 34)
+      if (((snes_obj_line_load[line] + load) & SNES_OBJ_LINE_FULL) != 0)
       {
          snes_sprite_overflow = 1;
          return;
@@ -242,8 +244,7 @@ static void snesObjPieceReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile
    }
    for (line = top; line < bottom; ++line)
    {
-      ++snes_obj_lines[line];
-      snes_obj_slivers[line] += size / 8;
+      snes_obj_line_load[line] += load;
    }
    object = snes_obj_count * 4;
    snes_obj_oam[object] = (DeceptusU8)x;
@@ -300,8 +301,10 @@ static void snesObjBeginReference(void)
 {
    DeceptusU16 index;
    memset(snes_obj_oam, 0, sizeof(snes_obj_oam));
-   memset(snes_obj_lines, 0, sizeof(snes_obj_lines));
-   memset(snes_obj_slivers, 0, sizeof(snes_obj_slivers));
+   for (index = 0; index < 224; ++index)
+   {
+      snes_obj_line_load[index] = SNES_OBJ_LINE_EMPTY;
+   }
    for (index = 0; index < SNES_OBJ_PIECES; ++index)
    {
       snes_obj_oam[index * 4 + 1] = 240;

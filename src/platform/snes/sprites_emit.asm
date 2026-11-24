@@ -6,6 +6,9 @@
 
 ; packed c arguments: x/y/tile words, then palette/flip/priority/size bytes.
 ; validate the complete scanline range before changing either counters or oam.
+; a scanline's load word with bit 7 or 15 set holds too much: SNES_OBJ_LINE_FULL in sprites.c.
+.define SNES_OBJ_LINE_FULL $8080
+
 .section "snes_sprite_emit" semisuperfree banks 2-15
 snesObjPiece:
     php
@@ -60,41 +63,54 @@ sprite_bottom_ready:
     lda #0
 sprite_top_ready:
     sta.b tcc__r5
-    tax
     lda.l snes_obj_count
     cmp #128
-    bcc sprite_check_start
+    bcc sprite_lines_start
     jmp.w sprite_overflow
-sprite_check_start:
-    sep #$20
-sprite_check_line:
-    lda.l snes_obj_lines,x
-    cmp #32
-    bcc sprite_check_slivers
-    jmp.w sprite_overflow
-sprite_check_slivers:
-    lda.l snes_obj_slivers,x
+sprite_lines_start:
+    ; one add per line counts the piece and sets bit 7 or 15 of the line's load word when the line
+    ; would hold too many objects or slivers (snes_obj_line_load in sprites.c). r10: the load of
+    ; this piece, r3: the end offset, x: the offset of the current line.
+    lda.b tcc__r9
+    xba
+    ora #1
+    sta.b tcc__r10
+    lda.b tcc__r5h
+    asl a
+    sta.b tcc__r3
+    lda.b tcc__r5
+    asl a
+    tax
+sprite_line_add:
+    lda.l snes_obj_line_load,x
     clc
-    adc.b tcc__r9
-    cmp #35
-    bcc sprite_check_next
+    adc.b tcc__r10
+    bit #SNES_OBJ_LINE_FULL
+    bne sprite_line_full
+    sta.l snes_obj_line_load,x
+    inx
+    inx
+    cpx.b tcc__r3
+    bcc sprite_line_add
+    bra sprite_lines_counted
+sprite_line_full:
+    ; the piece does not fit: the lines it counted already give their load back.
+    lda.b tcc__r5
+    asl a
+    sta.b tcc__r3
+sprite_line_undo:
+    cpx.b tcc__r3
+    beq sprite_line_dropped
+    dex
+    dex
+    lda.l snes_obj_line_load,x
+    sec
+    sbc.b tcc__r10
+    sta.l snes_obj_line_load,x
+    bra sprite_line_undo
+sprite_line_dropped:
     jmp.w sprite_overflow
-sprite_check_next:
-    inx
-    cpx.b tcc__r5h
-    bcc sprite_check_line
-    ldx.b tcc__r5
-sprite_count_line:
-    lda.l snes_obj_lines,x
-    inc a
-    sta.l snes_obj_lines,x
-    lda.l snes_obj_slivers,x
-    clc
-    adc.b tcc__r9
-    sta.l snes_obj_slivers,x
-    inx
-    cpx.b tcc__r5h
-    bcc sprite_count_line
+sprite_lines_counted:
     rep #$20
     lda 18,s
     and #255
