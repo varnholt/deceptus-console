@@ -144,6 +144,61 @@ snesSa1MulS16:
     plp
     rtl
 
+; DeceptusI32 snesDivS32U16(DeceptusI32 numerator, DeceptusU16 denominator) on the SA-1 divider
+; when the numerator's magnitude is below $8000, the divider's signed 16-bit range; every other
+; numerator, and a zero denominator, takes the software routine in engine_math.asm. the divider
+; floors negative dividends, so it divides the magnitude and the sign follows, truncating toward
+; zero as c does. numerator 5,s (low) and 7,s (high), denominator 9,s after php. result in
+; tcc__r0 (low), tcc__r1 (high).
+snesSa1DivS32U16:
+    php
+    rep #$30
+    lda 9,s
+    beq sdiv_software
+    ldy #0
+    lda 7,s
+    beq sdiv_positive
+    cmp #$ffff
+    bne sdiv_software
+    ; negative: magnitude 65536 - low, below $8000 from low $8001 up.
+    lda 5,s
+    cmp #$8001
+    bcc sdiv_software
+    eor #$ffff
+    inc a
+    ldy #1
+    bra sdiv_hardware
+sdiv_positive:
+    lda 5,s
+    bmi sdiv_software
+sdiv_hardware:
+    tax
+    sep #$20
+    lda #SA1_MCNT_DIVIDE
+    sta.l SA1_MCNT
+    rep #$20
+    txa
+    sta.l SA1_MA
+    lda 9,s
+    sta.l SA1_MB
+    ; the quotient is ready five SA-1 cycles after the write to MB.
+    nop
+    lda.l SA1_MR
+    stz.b tcc__r1
+    cpy #0
+    beq sdiv_store
+    eor #$ffff
+    inc a
+    beq sdiv_store
+    dec.b tcc__r1
+sdiv_store:
+    sta.b tcc__r0
+    plp
+    rtl
+sdiv_software:
+    plp
+    jml snesDivS32U16
+
 ; DeceptusU32 snesSquareU16(DeceptusU16 magnitude) on the SA-1 signed multiplier. the multiplier
 ; squares m as a signed s = m - 65536 when m >= $8000; then m*m = s*s + (m << 17) modulo 2^32.
 snesSa1SquareU16:

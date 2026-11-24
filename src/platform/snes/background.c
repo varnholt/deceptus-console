@@ -625,6 +625,132 @@ static DeceptusU8 clipDirect(DeceptusU16 index)
    return 1;
 }
 
+#ifdef SNES_BACKGROUND_ASM
+typedef struct SnesCellRect
+{
+   DeceptusI16 left, top, right, bottom;
+} SnesCellRect;
+
+/* whether a refresh of this clip may read its cells directly, as clipDirect, except that one later
+ * enabled clip of the plane may cover part of it: cover is that part (right 0 when none). its
+ * cells show the later clip, so this clip's frame changes never reach them. */
+static DeceptusU8 clipDirectCover(DeceptusU16 index, SnesCellRect *cover)
+{
+   DeceptusU16 other;
+   const SnesBackgroundAnimation *clip, *later;
+   clip = &stage->animations[index];
+   cover->right = 0;
+   if ((clip_planes[index] != clip->plane + 1) || (clip->left + clip->columns > stage->columns) ||
+       (clip->top + clip->rows > stage->rows))
+   {
+      return 0;
+   }
+   for (other = index + 1; other < stage->animation_count; ++other)
+   {
+      if (clip_planes[other] != clip->plane + 1)
+      {
+         continue;
+      }
+      later = &stage->animations[other];
+      if ((later->left >= clip->left + clip->columns) || (clip->left >= later->left + later->columns) ||
+          (later->top >= clip->top + clip->rows) || (clip->top >= later->top + later->rows))
+      {
+         continue;
+      }
+      if (cover->right)
+      {
+         return 0;
+      }
+      cover->left = (DeceptusI16)((later->left > clip->left) ? later->left : clip->left);
+      cover->top = (DeceptusI16)((later->top > clip->top) ? later->top : clip->top);
+      cover->right = (DeceptusI16)((later->left + later->columns < clip->left + clip->columns) ? later->left + later->columns
+                                                                                            : clip->left + clip->columns);
+      cover->bottom = (DeceptusI16)((later->top + later->rows < clip->top + clip->rows) ? later->top + later->rows
+                                                                                      : clip->top + clip->rows);
+   }
+   return 1;
+}
+
+/* both refresh passes over one rectangle of a clip in assembly. */
+static void refreshClipRect(DeceptusU16 index, DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, DeceptusI16 bottom)
+{
+   const SnesBackgroundAnimation *clip;
+   if ((left >= right) || (top >= bottom))
+   {
+      return;
+   }
+   clip = &stage->animations[index];
+   snes_background_clip_refresh.chunks = clip->cells.chunks;
+   snes_background_clip_refresh.plane = clip->plane;
+   snes_background_clip_refresh.left = (DeceptusU16)left;
+   snes_background_clip_refresh.top = (DeceptusU16)top;
+   snes_background_clip_refresh.right = (DeceptusU16)right;
+   snes_background_clip_refresh.bottom = (DeceptusU16)bottom;
+   snes_background_clip_refresh.offset = (work->clip_frame[index] * clip->rows + (top - clip->top)) * clip->columns + (left - clip->left);
+   snes_background_clip_refresh.columns = clip->columns;
+   snesBackgroundRefreshClipFast();
+}
+
+/* the refresh rectangle without the covered part: the bands above and below it, then the cells
+ * left and right of it. */
+static void refreshClipAround(DeceptusU16 index, const SnesCellRect *refresh, const SnesCellRect *cover)
+{
+   DeceptusI16 top, bottom, left, right;
+   if (cover->right == 0)
+   {
+      refreshClipRect(index, refresh->left, refresh->top, refresh->right, refresh->bottom);
+      return;
+   }
+   top = (cover->top > refresh->top) ? cover->top : refresh->top;
+   bottom = (cover->bottom < refresh->bottom) ? cover->bottom : refresh->bottom;
+   if (top > refresh->bottom)
+   {
+      top = refresh->bottom;
+   }
+   if (bottom < top)
+   {
+      bottom = top;
+   }
+   left = (cover->left > refresh->left) ? cover->left : refresh->left;
+   if (left > refresh->right)
+   {
+      left = refresh->right;
+   }
+   right = (cover->right < refresh->right) ? cover->right : refresh->right;
+   if (right < left)
+   {
+      right = left;
+   }
+   refreshClipRect(index, refresh->left, refresh->top, refresh->right, top);
+   refreshClipRect(index, refresh->left, top, left, bottom);
+   refreshClipRect(index, right, top, refresh->right, bottom);
+   refreshClipRect(index, refresh->left, bottom, refresh->right, refresh->bottom);
+}
+#endif
+
+/* whether the loaded room's sizes agree with its resources and its pool is one the cache can use:
+ * the whole cache, or shared slots both planes address. */
+static DeceptusU8 stageValid(void)
+{
+   DeceptusU32 cells;
+   if ((stage->animation_count > SNES_BG_CLIPS) || (stage->pattern_count > 16384))
+   {
+      return 0;
+   }
+   if ((stage->pool_first == 0) || (stage->pool_first > stage->pool_end) ||
+       ((stage->pool_end != SNES_BG_SLOTS) && (stage->pool_end > SNES_BG_SHARED_SLOTS)))
+   {
+      return 0;
+   }
+   cells = (DeceptusU32)stage->columns * stage->rows;
+   if ((cells == 0) || (cells > 65535) || (stage->background.bytes != cells * 4) || (stage->foreground.bytes != cells * 4) ||
+       (stage->patterns.bytes != (DeceptusU32)stage->pattern_count * 32))
+   {
+      return 0;
+   }
+   return 1;
+}
+
 void snesBackgroundLoad(DeceptusU8 room)
 {
    DeceptusU16 index, row_offset;
@@ -643,23 +769,11 @@ void snesBackgroundLoad(DeceptusU8 room)
    }
    stage = &snes_stages[room];
    work->stage = stage;
-   if (stage->animation_count > SNES_BG_CLIPS || stage->pattern_count > 16384)
+   if (stageValid() == 0)
    {
       work->status.error = 1;
    }
-   /* the pool is the whole cache, or shared slots both planes address. */
-   if ((stage->pool_first == 0) || (stage->pool_first > stage->pool_end) ||
-       ((stage->pool_end != SNES_BG_SLOTS) && (stage->pool_end > SNES_BG_SHARED_SLOTS)))
-   {
-      work->status.error = 1;
-   }
-   cells = (DeceptusU32)stage->columns * stage->rows;
-   if (cells == 0 || cells > 65535 || stage->background.bytes != cells * 4 || stage->foreground.bytes != cells * 4 ||
-       stage->patterns.bytes != (DeceptusU32)stage->pattern_count * 32)
-   {
-      work->status.error = 1;
-   }
-   work->room_cells = (DeceptusU16)cells;
+   work->room_cells = (DeceptusU16)((DeceptusU32)stage->columns * stage->rows);
    row_offset = 0;
    for (index = 0; index < SNES_BG_ROW_TABLE; ++index)
    {
@@ -905,6 +1019,7 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
    DeceptusU8 direct;
 #ifdef SNES_BACKGROUND_ASM
    DeceptusU32 last;
+   SnesCellRect refresh, cover;
 #endif
    const DeceptusU16 *words;
    const SnesBackgroundAnimation *clip;
@@ -1040,22 +1155,18 @@ void snesBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
           * keep their reference, slot and map word. the changed cells retain
           * row order and release every old reference before reloading. */
 #ifdef SNES_BACKGROUND_ASM
-         if (refresh_left < refresh_right && refresh_top < refresh_bottom && clipDirect(index))
+         if (refresh_left < refresh_right && refresh_top < refresh_bottom && clipDirectCover(index, &cover))
          {
+            /* the last cell of the refresh rectangle bounds every offset the passes read. */
             last = ((DeceptusU32)work->clip_frame[index] * clip->rows + (DeceptusU16)(refresh_bottom - 1 - clip->top)) *
                    clip->columns + (DeceptusU16)(refresh_right - 1 - clip->left);
             if (last < work->clip_cells[index])
             {
-               snes_background_clip_refresh.chunks = clip->cells.chunks;
-               snes_background_clip_refresh.plane = clip->plane;
-               snes_background_clip_refresh.left = (DeceptusU16)refresh_left;
-               snes_background_clip_refresh.top = (DeceptusU16)refresh_top;
-               snes_background_clip_refresh.right = (DeceptusU16)refresh_right;
-               snes_background_clip_refresh.bottom = (DeceptusU16)refresh_bottom;
-               snes_background_clip_refresh.offset = (work->clip_frame[index] * clip->rows + (refresh_top - clip->top)) * clip->columns +
-                                                     (refresh_left - clip->left);
-               snes_background_clip_refresh.columns = clip->columns;
-               snesBackgroundRefreshClipFast();
+               refresh.left = refresh_left;
+               refresh.top = refresh_top;
+               refresh.right = refresh_right;
+               refresh.bottom = refresh_bottom;
+               refreshClipAround(index, &refresh, &cover);
                continue;
             }
          }
