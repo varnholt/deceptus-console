@@ -900,25 +900,50 @@ static void stageColumn(DeceptusU16 *buffer, DeceptusU16 plane, DeceptusU16 colu
    stageDma(buffer, (plane ? 0x0800 : 0) + address, 64, 0x81);
 }
 
+#define SNES_BG_MAP_ROWS 32
+#define SNES_BG_MAP_ROW_WORDS 32
+#define SNES_BG_MAP_HALF_WORDS (SNES_BG_MAP_ROWS * SNES_BG_MAP_ROW_WORDS)
+
+/* map rows first to end - 1 of a plane. consecutive rows lie one after the other in the work area
+ * and in video memory, within each half of the 64-column map, so a run takes one command per half:
+ * a command costs the commit as much as 96 bytes (SNES_BG_DMA_COMMAND_COST). */
+static void stageMapRows(DeceptusU16 plane, DeceptusU16 first, DeceptusU16 end)
+{
+   DeceptusU16 base, offset, bytes;
+   base = plane ? 0x0800 : 0;
+   offset = first * SNES_BG_MAP_ROW_WORDS;
+   bytes = (end - first) * SNES_BG_MAP_ROW_WORDS * 2;
+   stageDma(&work->maps[plane][offset], base + offset, bytes, 0x80);
+   stageDma(&work->maps[plane][SNES_BG_MAP_HALF_WORDS + offset], base + SNES_BG_MAP_HALF_WORDS + offset, bytes, 0x80);
+}
+
 static void stageMaps(void)
 {
-   DeceptusU16 plane, row, column, base, mask, index;
+   DeceptusU16 plane, row, column, mask, index, run;
    for (plane = 0; plane < 2; ++plane)
    {
-      base = plane ? 0x0800 : 0;
       mask = work->dirty_rows[plane][0];
-      for (row = 0; row < 32; ++row)
+      run = 0;
+      for (row = 0; row < SNES_BG_MAP_ROWS; ++row)
       {
          if (row == 16)
          {
             mask = work->dirty_rows[plane][1];
          }
-         if (mask & 1)
+         if ((mask & 1) != 0)
          {
-            stageDma(&work->maps[plane][row * 32], base + row * 32, 64, 0x80);
-            stageDma(&work->maps[plane][1024 + row * 32], base + 1024 + row * 32, 64, 0x80);
+            ++run;
+         }
+         else if (run != 0)
+         {
+            stageMapRows(plane, row - run, row);
+            run = 0;
          }
          mask >>= 1;
+      }
+      if (run != 0)
+      {
+         stageMapRows(plane, SNES_BG_MAP_ROWS - run, SNES_BG_MAP_ROWS);
       }
       for (index = 0; index < work->dirty_columns[plane][0]; ++index)
       {

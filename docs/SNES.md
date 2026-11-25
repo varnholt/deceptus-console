@@ -62,8 +62,11 @@ commit's transfer volume.
 
 Column staging, DMA command selection and cache bookkeeping run before VBlank.
 The ordinary commit consumes eight-byte commands through a small 65816 DMA
-runner on channel 6, then publishes scrolling. A conservative transfer and
-command-cost estimate reserves time for SDK NMI/OAM work. A commit beyond it
+runner on channel 6, then publishes scrolling. A run of changed map rows goes
+as one command per map half, since rows follow each other in the work area and
+in video memory; in room 7, whose animated clips refresh several rows at once,
+that cut the commits needing a second VBlank from 37% to 24%. A conservative
+transfer and command-cost estimate reserves time for SDK NMI/OAM work. A commit beyond it
 runs over up to four VBlanks while the previous frame stays on screen; the map
 row and column that left the window go first, so no visible cell shows a slot
 whose pattern changes. Only a commit needing more uses forced blank. Initial loads that exceed the bounded command array retain the
