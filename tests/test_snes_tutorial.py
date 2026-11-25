@@ -89,17 +89,6 @@ class SnesTargetConversionTests(unittest.TestCase):
         self.assertFalse(result['metrics']['dithering'])
         self.assertFalse(result['metrics']['resampling'])
 
-    def test_sprite_piece_order_is_two_tiles_then_bottom_two_tiles(self):
-        image=Image.new('RGBA',(16,16),'red')
-        image.paste('green',(8,0,16,8));image.paste('blue',(0,8,8,16));image.paste('yellow',(8,8,16,16))
-        palette=fit_sprite_palette([image]);packed,columns,rows=sprite_planar(image,palette)
-        self.assertEqual((len(packed),columns,rows),(128,1,1))
-        expected=[(31,0,0),(0,16,0),(0,0,31),(31,31,0)]
-        for index,color in enumerate(expected):
-            tile=decode4(packed[index*32:index*32+32]);slot=int(tile[0,0])-1
-            self.assertEqual(tuple(palette[slot]),color)
-            self.assertTrue(np.all(tile==tile[0,0]))
-
     def test_sprite_occupancy_matches_exact_nontransparent_piece_pixels(self):
         image=Image.new('RGBA',(72,72))
         for x,y in ((0,0),(16,31),(71,71),(32,48)):

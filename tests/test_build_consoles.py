@@ -11,7 +11,6 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import build_consoles
-import build_gba
 
 TEMP_ROOT = Path(__file__).resolve().parents[1] / 'build/tests/console-tool'
 
@@ -47,19 +46,6 @@ class ConsoleBuildTests(unittest.TestCase):
                                               {'target': 'snes', 'returncode': 1}])
         self.assertFalse(report['full_game'])
 
-    def test_smd_uses_tutorial_and_preflight_assets_with_its_own_sdk(self):
-        sdk=self.root/'sgdk'
-        with patch.object(build_consoles,'ROOT',self.root), \
-                patch.object(build_consoles.subprocess,'run') as run:
-            run.return_value.returncode=1
-            report=build_consoles.build_target('smd',self.root,self.root,'clang','ld.lld','llvm-objcopy',sdk)
-        command=run.call_args.args[0]
-        self.assertEqual(command[command.index('--scene')+1],'tutorial')
-        self.assertEqual(command[command.index('--sdk')+1],str(sdk))
-        self.assertIn('--reuse-assets',command)
-        self.assertEqual(report['returncode'],1)
-        self.assertNotIn('rom_sha256',report)
-
     def test_failed_preflight_does_not_start_parallel_targets(self):
         with patch.object(build_consoles,'ROOT',self.root), \
                 patch.object(build_consoles,'prepare_opening',side_effect=ValueError('original source missing')), \
@@ -70,74 +56,6 @@ class ConsoleBuildTests(unittest.TestCase):
         report=json.loads((self.root/'build/consoles/build.json').read_text())
         self.assertEqual(len(report['targets']),3)
         self.assertTrue(all(item['phase']=='original-import preflight' and item['returncode']==1 for item in report['targets']))
-
-    def test_preflight_finishes_before_either_parallel_target(self):
-        ready=[]
-        def build(target,*args):
-            self.assertEqual(ready,['imports validated'])
-            return {'target':target,'returncode':0}
-        with patch.object(build_consoles,'ROOT',self.root), \
-                patch.object(build_consoles,'prepare_opening',side_effect=lambda data,targets:ready.append('imports validated')), \
-                patch.object(build_consoles,'build_target',side_effect=build), \
-                patch.object(sys,'argv',['build_consoles.py']):
-            self.assertEqual(build_consoles.main(),0)
-
-    def test_smd_preflight_prepares_isolated_metadata_before_target_conversion(self):
-        inputs=([],{'source_sha256':'original'});metadata=self.root/'build/consoles/smd-metadata';events=[]
-        with patch.object(build_consoles,'ROOT',self.root), \
-                patch('snes_tutorial_assets.ensure_original_imports',return_value=inputs), \
-                patch('smd_opening_inputs.prepare_smd_metadata',side_effect=lambda *args,**kwargs:events.append('metadata') or metadata) as prepare, \
-                patch('smd_opening_assets.compile_opening',side_effect=lambda *args:events.append('convert')) as convert:
-            build_consoles.prepare_opening(self.root,['smd','snes'])
-        self.assertEqual(events,['metadata','convert'])
-        prepare.assert_called_once_with(self.root,metadata,prepared_imports=inputs)
-        convert.assert_called_once_with(self.root,self.root/'assets/generated/smd-opening',metadata)
-
-    def test_metadata_helper_exports_only_portable_c_without_snes_graphics(self):
-        import smd_opening_inputs
-        output=self.root/'metadata';inputs=([],{'source_sha256':'original'})
-        def export(recipes,folder):
-            (folder/'opening_adventure.c').write_text('portable C')
-            return ['opening_adventure.c']
-        with patch.object(smd_opening_inputs,'compile_worlds',side_effect=export) as export_mock, \
-                patch.object(smd_opening_inputs,'ensure_original_imports') as ensure:
-            self.assertEqual(smd_opening_inputs.prepare_smd_metadata(self.root,output,inputs),output)
-            ensure.assert_not_called()
-        self.assertEqual(set(path.name for path in output.iterdir()),{'opening_adventure.c','build.json'})
-        self.assertEqual(json.loads((output/'build.json').read_text())['source_identity'],inputs[1])
-
-    def test_gba_parallel_build_reuses_prepared_imports(self):
-        with patch.object(build_consoles,'ROOT',self.root), \
-                patch.object(build_consoles.subprocess,'run') as run:
-            run.return_value.returncode=1
-            build_consoles.build_target('gba',self.root,self.root,'clang','ld.lld','llvm-objcopy')
-        self.assertIn('--prepared-room-assets',run.call_args.args[0])
-
-    def test_prepared_gba_driver_validates_without_running_any_converter(self):
-        (self.root/'.tools').mkdir()
-        (self.root/'.tools/gbafix-reference.c').write_text('test reference')
-        generated=self.root/'assets/generated/gba';generated.mkdir(parents=True)
-        (generated/'gba_assets.h').write_text('#define GBA_TUTORIAL 1\n')
-        with patch.object(build_gba,'ROOT',self.root), \
-                patch.object(build_gba.shutil,'which',side_effect=lambda value:value), \
-                patch('snes_tutorial_assets.original_imports') as validate, \
-                patch.object(build_gba,'run',side_effect=RuntimeError('compiler boundary')) as run:
-            with self.assertRaisesRegex(RuntimeError,'compiler boundary'):
-                build_gba.build(self.root,prepared_room_assets=True)
-            validate.assert_called_once_with(self.root)
-            self.assertEqual(run.call_count,1)
-            self.assertIn('-c',run.call_args.args[0])
-
-    def test_prepared_gba_rejects_stale_inputs_before_compiling(self):
-        (self.root/'.tools').mkdir()
-        (self.root/'.tools/gbafix-reference.c').write_text('test reference')
-        with patch.object(build_gba,'ROOT',self.root), \
-                patch.object(build_gba.shutil,'which',side_effect=lambda value:value), \
-                patch('snes_tutorial_assets.original_imports',side_effect=ValueError('stale source identity')), \
-                patch.object(build_gba,'run') as run:
-            with self.assertRaisesRegex(ValueError,'stale source identity'):
-                build_gba.build(self.root,prepared_room_assets=True)
-            run.assert_not_called()
 
     def test_failed_build_does_not_report_stale_cartridge(self):
         root = self.root

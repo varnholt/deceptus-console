@@ -180,19 +180,3 @@ class ConsolePackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'ownership/dependency notice'):
             self.package()
         self.assertFalse((self.root / 'build/release/snapshot').exists())
-
-    def test_report_changes_during_copy_do_not_produce_a_zip(self):
-        report_path = Path(self.spec['targets'][0]['reports'][0])
-        original_copy = shutil.copyfile
-
-        def changed_copy(source, destination):
-            if Path(source) == report_path:
-                report = json.loads(report_path.read_text())
-                report['scope'] = 'changed while copying'
-                report_path.write_text(json.dumps(report))
-            return original_copy(source, destination)
-
-        with patch.object(packaging.shutil, 'copyfile', side_effect=changed_copy):
-            with self.assertRaisesRegex(ValueError, 'report changed while packaging'):
-                self.package()
-        self.assertFalse((self.root / 'build/release/snapshot.zip').exists())

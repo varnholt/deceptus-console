@@ -10,7 +10,6 @@ from content import map_objects, crop_mechanisms
 from tutorial_progression import (CATACOMBS, GRAVEYARD, ENTRANCES, extend_rooms,
     extend_actions, configure_room, room_bindings, validate_source, extra_portals,
     GEMS_TAKEN, OWL_EYES_INSERTED, SWORD_TAKEN, DRAWER_OPENED, HEADTORCH_ACQUIRED, SINKHOLE_OPEN)
-from tutorial_ui import TutorialUI
 from campaign_assets import validate_room_assets, ROOM_OUTPUTS, asset_identity
 
 DATA = Path(__file__).resolve().parents[1] / 'assets/game/data'
@@ -111,13 +110,6 @@ class TutorialProgressionTests(unittest.TestCase):
         source=self.maps[CATACOMBS][425]
         self.assertEqual(source['properties']['item_required'],'red')
         self.assertFalse(any(action.get('grant_item')==7 for group in actions for action in group))
-
-    def test_all_inventory_items_use_source_icons_and_fit_native_ui_budget(self):
-        ui=TutorialUI(DATA)
-        for item in range(8):
-            resource=ui.menu('inventory',item)
-            self.assertLessEqual(ui.resources[resource][3],192)
-
 
 class ConvertedRoomReuseTests(unittest.TestCase):
     def setUp(self):

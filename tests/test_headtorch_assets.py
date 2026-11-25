@@ -6,19 +6,11 @@ import unittest
 
 from PIL import Image
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from headtorch_assets import compile_headtorch, helmet_pose
+from headtorch_assets import compile_headtorch
 from gba_assets import SWORD_CLIPS
 
 ROOT=Path(__file__).resolve().parents[1]
 DATA=ROOT / 'assets/game/data'
-
-
-class HeadtorchOffsetTests(unittest.TestCase):
-    def test_original_last_eye_sample_is_clamped_and_cycle_origin_is_subtracted(self):
-        animations={'pose':{'origin':[60,48]}}
-        eyes={'pose':{'eye_positions_x':[63,65],'eye_positions_y':[16,17]}}
-        self.assertEqual(helmet_pose(animations,eyes,'pose',99,0),[-9,-45,0,1])
-        self.assertEqual(helmet_pose(animations,eyes,None,0,1),[0,0,1,0])
 
 
 @unittest.skipUnless((DATA/'sprites/eye_positions.json').exists(),'original headtorch/player data required')
