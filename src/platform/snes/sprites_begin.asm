@@ -12,18 +12,27 @@ snesObjBegin:
     php
     rep #$30
     phx
-    ldx #0
+    ; only the entries the previous frame wrote can show (snes_obj_shown); the others stayed
+    ; hidden since.
+    lda.l snes_obj_shown
+    asl a
+    asl a
+    tax
+    beq sprite_begin_hidden
 sprite_begin_oam:
+    dex
+    dex
+    dex
+    dex
     lda #$f000
     sta.l snes_obj_oam,x
     lda #0
     sta.l snes_obj_oam+2,x
-    inx
-    inx
-    inx
-    inx
-    cpx #512
+    cpx #0
     bne sprite_begin_oam
+sprite_begin_hidden:
+    lda #0
+    ldx #512
 sprite_begin_high:
     sta.l snes_obj_oam,x
     inx

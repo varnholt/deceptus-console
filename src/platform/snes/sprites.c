@@ -50,6 +50,9 @@ static DeceptusU16 snes_obj_palette_count;
 static DeceptusU8 snes_sprite_blank;
 static DeceptusU16 snes_obj_request_count;
 DeceptusU16 snes_obj_count;
+/* the oam entries the previous frame wrote, which snesObjBegin hides (sprites_begin.asm); every
+ * entry above them is hidden already. all of them after a room load. */
+DeceptusU16 snes_obj_shown;
 static DeceptusU8 snes_sprite_room_load;
 DeceptusU8 snes_sprite_overflow;
 static DeceptusU8 snes_sprite_initialized;
@@ -552,6 +555,7 @@ void snesSpritesReset(void)
       snes_obj_slots[index].used = snes_obj_slots[index].held = 0;
    }
    snes_sprite_room_load = 1;
+   snes_obj_shown = SNES_OBJ_PIECES;
 }
 
 void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *frame)
@@ -615,6 +619,7 @@ void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *fram
       snesObjDrawResourceReference(request, palette);
 #endif
    }
+   snes_obj_shown = snes_obj_count;
    SNES_OBJ_PROFILE(8);
 }
 
