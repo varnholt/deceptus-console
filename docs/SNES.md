@@ -208,8 +208,9 @@ off the sword ring. Native tests also exercise a deliberately saturated table.
 controlled ROM measurements. Fixture snapshots and their ROM hashes are kept
 separate from normal-input progression evidence.
 
-Source-resource expansion, quadrant selection, presentation reset, scanline
-validation and OAM packing run in small 65816 backend functions. Cache allocation
+Drawing a request (its pieces' resident slots, quadrant selection, scanline
+validation and OAM packing) runs in one 65816 routine, `snesObjDrawResource` in
+`sprites_draw.asm`; the presentation reset is a second one (`sprites_begin.asm`). Cache allocation
 and eviction retain the existing bounded C implementation; shared simulation
 remains portable C90. The original C paths remain references. An actual Snes9x
 test ROM compares 6,482 cases: 2,048 object writes, 2,048 quadrant expansions,
@@ -300,7 +301,8 @@ results:
 
 In sprite preparation, `snesObjSlotFor` is now 65816 code that walks the
 resource's slot list and marks a resident piece used. It calls the unchanged C
-allocator, renamed `snesObjSlotAllocate`, only for a missing piece. Most drawn
+allocator only for a missing piece (today inside `snesObjDrawResource`, see
+"Sprite drawing in one routine"). Most drawn
 pieces are resident, so the common case no longer enters compiled C at all.
 
 | Measurement | Before | After |
@@ -512,6 +514,31 @@ flashes from sprite slot pressure (32 in the first 40 route steps) and no wrong
 background or object tiles. A paced build additionally requests two player
 bodies in some frames of the Main Hall walk; that was the water splash (see
 below). The SNES rebuild uses this check as its acceptance test.
+
+### Sprite drawing in one routine
+
+Drawing the sprite requests took 17-31% of the SA-1 time per room, and much of
+it went into calls: every piece called the slot lookup and the quadrant
+expansion, which called the object writer once per object, each through
+arguments on the stack. `sprites_draw.asm` now does a whole request in one
+routine. The request's values stay in the direct page; the objects are written
+by local subroutines, whose scanline loop is unrolled and entered at the
+object's first visible line. Only a missing piece still calls the C allocator.
+
+The C functions in `sprites.c` remain the reference: a feature changes there
+first, and the assembly has to match it. The routine works on the same tables
+as before (resources, opaque masks, quadrant masks, slots, scanline loads), so
+new content needs no assembly change. Compile-time checks tie the fields it
+reads to the C layouts.
+
+Checked: a test ROM compared it with `snesObjDrawResourceReference` in 6,000
+random requests (clip edges, near-full scanlines, full OAM, evictions and
+tile-pressure fallback; OAM, scanline loads, slots, lists and flags equal), and
+caught two injected faults. Tick-locked route: SA-1 31,189 display frames
+(32,483 before), ExHiROM 83,990 (89,089); `verify_snes_picture.py` on ExHiROM: no wrong
+background, sprite or player samples, flashes as before (83, was 84). Presentations per second on the SA-1
+cartridge: room 22 24.0 -> 25.1, room 7 26.9 -> 27.2, room 25 26.4 -> 30.3,
+room 20 28.1 -> 29.8; every room is now above 25.
 
 ### Compiler: `a || !b`
 

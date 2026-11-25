@@ -9,6 +9,7 @@
 #include "snes_headtorch_resources.h"
 #include "snes_sword_resources.h"
 #include <snes.h>
+#include <stddef.h>
 #include <string.h>
 
 #define SNES_OBJ_REQUESTS 96
@@ -31,7 +32,7 @@ static SnesObjRequest snes_obj_requests[SNES_OBJ_REQUESTS];
 static DeceptusU16 snes_obj_active_resources[SNES_OBJ_REQUESTS];
 SnesObjSlot snes_obj_slots[SNES_OBJ_PIECES];
 typedef char SnesObjSlotSize[(sizeof(SnesObjSlot) == 8) ? 1 : -1];
-/* the resource lists are walked by snesObjSlotFor in sprites_resource.asm. */
+/* the resource lists are walked by snesObjDrawResource in sprites_draw.asm. */
 DeceptusU8 snes_obj_heads[SNES_SPRITE_RESOURCE_COUNT];
 static DeceptusU8 snes_obj_epochs[SNES_SPRITE_RESOURCE_COUNT];
 static DeceptusU8 snes_obj_epoch;
@@ -40,7 +41,7 @@ DeceptusU8 snes_obj_oam[SNES_OBJ_OAM_BYTES];
 /* per scanline one load word: the objects on the line plus 95 in the low byte, its 8-pixel slivers
  * plus 93 in the high byte. adding a piece sets bit 7 or 15 exactly when the line would hold more
  * than 32 objects or 34 slivers, the hardware limits, so one add both checks and counts
- * (sprites_emit.asm, which defines the same values). */
+ * (sprites_draw.asm, which defines the same values). */
 #define SNES_OBJ_LINE_EMPTY 0x5D5FU
 #define SNES_OBJ_LINE_FULL 0x8080U
 DeceptusU16 snes_obj_line_load[224];
@@ -94,17 +95,9 @@ static DeceptusU16 snesObjTile(DeceptusU16 slot)
    return (slot / 64) * 256 + ((slot & 63) / 8) * 32 + (slot & 7) * 2;
 }
 
-#ifdef SNES_SPRITES_ASM
-/* sprites_resource.asm finds resident pieces itself and calls the c function
- * only to allocate a missing one; the lookup repeats inside it unchanged. */
-typedef char SnesObjSlotSize[(sizeof(SnesObjSlot) == 8) ? 1 : -1];
-DeceptusU16 snesObjSlotFor(DeceptusU16 resource, DeceptusU16 piece);
-#define SNES_OBJ_SLOT_ALLOCATE snesObjSlotAllocate
-#else
-#define SNES_OBJ_SLOT_ALLOCATE snesObjSlotFor
-#endif
-
-DeceptusU16 SNES_OBJ_SLOT_ALLOCATE(DeceptusU16 resource, DeceptusU16 piece)
+/* sprites_draw.asm finds resident pieces itself and calls this only for a missing one; the
+ * lookup repeats here unchanged. */
+DeceptusU16 snesObjSlotFor(DeceptusU16 resource, DeceptusU16 piece)
 {
    DeceptusU16 index;
    DeceptusU8 link, previous;
@@ -260,15 +253,6 @@ static void snesObjPieceReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile
    ++snes_obj_count;
 }
 
-#endif
-#ifdef SNES_SPRITES_ASM
-void snesObjPiece(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, DeceptusU8 palette, DeceptusU8 flip, DeceptusU8 priority,
-                  DeceptusU8 size);
-#else
-#define snesObjPiece snesObjPieceReference
-#endif
-
-#if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
 static void snesObjEmitQuadsReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 slot, DeceptusU8 palette, DeceptusU8 flip,
                                       DeceptusU8 priority, DeceptusU8 quads)
 {
@@ -291,12 +275,6 @@ static void snesObjEmitQuadsReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 
       }
    }
 }
-#endif
-#ifdef SNES_SPRITES_ASM
-void snesObjEmitQuads(DeceptusI16 x, DeceptusI16 y, DeceptusU16 slot, DeceptusU8 palette, DeceptusU8 flip, DeceptusU8 priority,
-                      DeceptusU8 quads);
-#else
-#define snesObjEmitQuads snesObjEmitQuadsReference
 #endif
 
 #if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
@@ -323,8 +301,12 @@ void snesObjBegin(void);
 #endif
 
 #ifdef SNES_SPRITES_ASM
+/* sprites_draw.asm reads requests, resources and slots by these layouts. */
 typedef char SnesObjResourceSize[(sizeof(SnesSpriteResource) == 16) ? 1 : -1];
+typedef char SnesObjResourceShape[(offsetof(SnesSpriteResource, columns) == 10) && (offsetof(SnesSpriteResource, rows) == 11) ? 1 : -1];
 typedef char SnesObjRequestSize[(sizeof(SnesObjRequest) == 8) ? 1 : -1];
+typedef char SnesObjRequestFlags[(offsetof(SnesObjRequest, flip) == 6) && (offsetof(SnesObjRequest, priority) == 7) ? 1 : -1];
+typedef char SnesObjSlotFields[(offsetof(SnesObjSlot, piece) == 2) && (offsetof(SnesObjSlot, used) == 4) && (offsetof(SnesObjSlot, next) == 7) ? 1 : -1];
 void snesObjDrawResource(const SnesObjRequest *request, DeceptusU16 palette);
 #endif
 
