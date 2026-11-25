@@ -213,11 +213,11 @@ validation and OAM packing) runs in one 65816 routine, `snesObjDrawResource` in
 `sprites_draw.asm`; the presentation reset is a second one (`sprites_begin.asm`). Cache allocation
 and eviction retain the existing bounded C implementation; shared simulation
 remains portable C90. The original C paths remain references. An actual Snes9x
-test ROM compares 6,482 cases: 2,048 object writes, 2,048 quadrant expansions,
-256 presentation resets and every one of the 1,065 resources in both directions.
-Cases include clipped coordinates, mixed 8/16-pixel sizes, saturated scanlines
-and full OAM. It checks every OAM byte, both scanline-counter arrays, object count,
-overflow and complete cache-slot contents.
+test ROM (`tests/snes_sprite_rom_tests.c`) compares `snesObjDrawResource` with
+`snesObjDrawResourceReference` in 6,000 random requests: clipped coordinates and
+clip edges, near-full scanlines, full OAM, resident pieces, evictions and the
+tile-pressure fallback. It checks every OAM byte, the scanline loads, object
+count, overflow and blank flags, and complete cache-slot and list contents.
 Run `python tools/verify_snes_sprites.py` after preparing the SNES assets.
 
 With the same 3,000-frame warmup and 1,200-frame sample, the Loop advances 145
