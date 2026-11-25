@@ -15,6 +15,8 @@ class BackgroundRuntimeTests(unittest.TestCase):
         output = ROOT / 'build/tests/snes-background-native'
         output.mkdir(parents=True, exist_ok=True)
         (output / 'snes.h').write_text('''
+#ifndef SNES_STUB_H
+#define SNES_STUB_H
 typedef unsigned char u8;
 typedef struct {union {void *p;struct {unsigned short addr;unsigned char bank;} c;} mem;} dmaMemory;
 static unsigned short reg;
@@ -32,30 +34,40 @@ static void bgSetMapPtr(int a,int b,int c) {(void)a;(void)b;(void)c;}
 static void bgSetScroll(int a,int b,int c) {(void)a;(void)b;(void)c;}
 static void dmaCopyCGram(u8*a,int b,int c) {(void)a;(void)b;(void)c;}
 static void dmaCopyVram(u8*a,int b,int c) {(void)a;(void)b;(void)c;}
+#endif
 ''')
         (output / 'snes_assets.h').write_text('''
 #include "deceptus/types.h"
 typedef struct {const DeceptusU8 *const *chunks;DeceptusU32 bytes;} SnesRomBlob;
 typedef struct {DeceptusU16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags;const DeceptusU16*durations;SnesRomBlob cells;DeceptusU8 plane;} SnesBackgroundAnimation;
-typedef struct {SnesRomBlob patterns,background,foreground;const DeceptusU8*palette;DeceptusU16 columns,rows,pattern_count;const SnesBackgroundAnimation*animations;DeceptusU8 animation_count;const char*title;} SnesStage;
+typedef struct {SnesRomBlob patterns,background,foreground;const DeceptusU8*palette;DeceptusU16 columns,rows,pattern_count;const SnesBackgroundAnimation*animations;DeceptusU8 animation_count;const char*title;DeceptusU16 pool_first,pool_end;} SnesStage;
 #define SNES_STAGE_COUNT 1
-#define SNES_FONT_BYTES 4592
+#define SNES_FONT_BYTES 2304
 extern const SnesStage snes_stages[1];
 ''')
         source = r'''
 #include <assert.h>
 #include <stdio.h>
+/* the commit's vblank wait reads video registers; the native test has none. */
+#define SNES_PPU_TIMING_H
+static void snesWaitForVblank(void) {}
 #include "BACKGROUND_SOURCE"
+#include "COMMIT_SOURCE"
+DeceptusU8 snes_background_storage[32768];
+SnesBackgroundPacket snes_background_packets[SNES_BG_PACKETS];
 void snesVramRunDma(const SnesVramDmaCommand *commands,DeceptusU16 count) {
  unsigned i;
  assert(count<=SNES_BG_DMA_COMMANDS);
  for(i=0;i<count;++i) {
   assert(commands[i].bytes>0);
   assert(commands[i].increment==0x80||commands[i].increment==0x81);
-  assert(commands[i].target<0x1000||(commands[i].target>=0x1d00&&commands[i].target<0x6000));
+  assert(commands[i].target<0x1000||(commands[i].target>=SNES_BG_OVERFLOW_ADDRESS&&commands[i].target<0x6000));
  }
 }
-DeceptusU8 snes_background_storage[32768];
+/* what the main loop does with a prepared frame: stage it into a packet, then commit that. */
+static void stageAndCommit(void) {
+ snesBackgroundStage(0);snesBackgroundCommit(0);
+}
 static DeceptusU16 bg[120*90*2],fg[120*90*2];
 static DeceptusU8 patterns[1600*32],palette[256];
 static const DeceptusU8 *const bg_chunks[]={(DeceptusU8*)bg,(DeceptusU8*)bg+32768};
@@ -64,11 +76,11 @@ static const DeceptusU8 *const pattern_chunks[]={patterns,patterns+32768};
 static DeceptusU16 clip_cells[16];
 static const DeceptusU8 *const clip_chunks[]={(DeceptusU8*)clip_cells};
 static const SnesBackgroundAnimation clips[]={{10,10,2,2,2,2,1,0,0,{clip_chunks,sizeof(clip_cells)},1}};
-const SnesStage snes_stages[]={{{pattern_chunks,sizeof(patterns)},{bg_chunks,sizeof(bg)},{fg_chunks,sizeof(fg)},palette,120,90,1600,clips,1,"test"}};
+const SnesStage snes_stages[]={{{pattern_chunks,sizeof(patterns)},{bg_chunks,sizeof(bg)},{fg_chunks,sizeof(fg)},palette,120,90,1600,clips,1,"test",1,SNES_BG_SLOTS}};
 static void check(int cx,int cy) {
- int x,y,p;unsigned slot,total,expected,actual[1072]={0};
+ int x,y,p;unsigned slot,total,expected,actual[SNES_BG_SLOTS]={0};
  snesBackgroundPrepare((DeceptusI16)(cx*8),(DeceptusI16)(cy*8));
- assert(!snes_background_error);
+ assert(!work->status.error);
  for(p=0;p<2;++p)for(y=cy;y<cy+29;++y)for(x=cx;x<cx+33;++x) {
   slot=tileSlot((DeceptusU8)p,work->maps[p][mapAddress((DeceptusI16)x,(DeceptusI16)y)]);
   if(x<0||y<0||x>=120||y>=90) {assert(slot==0);continue;}
@@ -78,9 +90,9 @@ static void check(int cx,int cy) {
   ++actual[slot];
  }
  total=0;
- for(slot=1;slot<1072;++slot) {assert(actual[slot]==work->references[slot]);total+=actual[slot];}
+ for(slot=1;slot<SNES_BG_SLOTS;++slot) {assert(actual[slot]==work->references[slot]);total+=actual[slot];}
  assert(total<=2*33*29);
- snesBackgroundCommit();assert(!snes_background_full);
+ stageAndCommit();
 }
 int main(void) {
  int x,y;unsigned a,b,scratch,key;
@@ -106,9 +118,9 @@ int main(void) {
  resetCache();
  for(x=1;x<=745;++x)acquirePattern(0,(DeceptusU16)x);
  for(x=746;x<=1042;++x)acquirePattern(1,(DeceptusU16)x);
- assert(!snes_background_error);scratch=0;
- for(x=1024;x<1072;++x)scratch+=work->references[x]!=0;
- assert(scratch>=19);prepareDma();snesBackgroundCommit();
+ assert(!work->status.error);scratch=0;
+ for(x=1024;x<SNES_BG_SLOTS;++x)scratch+=work->references[x]!=0;
+ assert(scratch>=19);prepareDma();stageAndCommit();
  snesBackgroundLoad(0);check(0,0);
  snesBackgroundSetFlags(1);for(x=0;x<12;++x)check(0,0);
  check(10,10);check(10,10);check(11,11);check(11,11);
@@ -121,10 +133,10 @@ int main(void) {
  for(x=86;x>=0;--x)check(x,61);
  for(y=60;y>=0;--y)check(0,y);
  check(60,45);check(-1,-1);check(0,0);
- snesBackgroundLoad(1);assert(snes_background_error==1);
+ snesBackgroundLoad(1);assert(snesBackgroundError()==1);
  puts("background streaming passed");return 0;
 }
-'''.replace('BACKGROUND_SOURCE', (ROOT / 'src/platform/snes/background.c').as_posix())
+'''.replace('BACKGROUND_SOURCE', (ROOT / 'src/platform/snes/background.c').as_posix()).replace('COMMIT_SOURCE', (ROOT / 'src/platform/snes/background_commit.c').as_posix())
         (output / 'test.c').write_text(source)
         executable = output / 'test.exe'
         subprocess.run([compiler, '-std=c90', '-pedantic-errors', '-I' + str(ROOT / 'include'),
@@ -132,12 +144,12 @@ int main(void) {
         subprocess.run([str(executable)], check=True)
         header = output / 'snes_assets.h'
         original = header.read_text()
-        header.write_text(original.replace('#define SNES_FONT_BYTES 4592', '#define SNES_FONT_BYTES 4609'))
+        header.write_text(original.replace('#define SNES_FONT_BYTES 2304', '#define SNES_FONT_BYTES 2305'))
         result = subprocess.run([compiler, '-std=c90', '-fsyntax-only', '-I' + str(ROOT / 'include'),
                                  '-I' + str(output), str(output / 'test.c')], capture_output=True, text=True)
         header.write_text(original)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('source_font_overlaps_foreground_scratch_tiles', result.stderr)
+        self.assertIn('source_font_overlaps_foreground_overflow_patterns', result.stderr)
 
 
 if __name__ == '__main__':
