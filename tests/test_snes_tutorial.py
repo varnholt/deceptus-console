@@ -130,15 +130,22 @@ class SnesTargetConversionTests(unittest.TestCase):
     @unittest.skipUnless((DATA/'fonts/deceptum.png').exists(),'native source font required')
     def test_native_font_retains_every_bitmap_pixel_with_only_horizontal_trim(self):
         writer=BinaryWriter(self.folder);lines,size=compile_font(DATA,self.folder,writer)
-        self.assertLessEqual(size,6144)
+        self.assertLessEqual(size,snes_tutorial_assets.FONT_VRAM_BYTES)
         payload=(self.folder/'snes_font.bin').read_bytes()
         self.assertEqual(payload[:16],bytes(16))
         self.assertTrue(np.all(decode2(payload[16:32])==2))
+        # glyph pieces share tiles: each glyph names its first layout entry and its columns, and
+        # the layout names a tile per piece, row by row.
+        glyphs=[tuple(map(int,line.strip(' {},').split(','))) for line in lines if line.startswith('    {')]
+        layout=[int(tile) for tile in next(line for line in lines if 'snes_font_layout' in line).split('{')[1].rstrip('};').split(',')]
         font=NativePixelFont(DATA/'fonts')
         code=ord('%');source=font.glyph('%');bounds=source.getbbox()
-        offset=(2+(code-32)*3)*16
-        actual=np.concatenate([decode2(payload[offset+row*16:offset+(row+1)*16]) for row in range(3)])
-        expected=Image.new('L',(8,24),2)
+        first,columns=glyphs[code-32]
+        def piece(row,column):
+            offset=(layout[first+row*columns+column]-snes_tutorial_assets.FONT_TILE_BASE)*16
+            return decode2(payload[offset:offset+16])
+        actual=np.concatenate([np.concatenate([piece(row,column) for column in range(columns)],axis=1) for row in range(3)])
+        expected=Image.new('L',(columns*8,24),2)
         alpha=source.getchannel('A').crop((bounds[0],0,bounds[2],18))
         expected.paste(1,(0,0,bounds[2]-bounds[0],18),alpha)
         self.assertTrue(np.array_equal(actual,np.asarray(expected)))
