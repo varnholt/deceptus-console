@@ -13,18 +13,19 @@ the reference game: it plays through on all four systems.
 | Game Boy Advance | Amiga 500 |
 | :---: | :---: |
 | ![GBA](docs/media/gba.gif) | ![Amiga 500](docs/media/amiga.gif) |
-| 60 fps | 40 fps, full game speed |
+| 60 fps | 39 fps, full game speed |
 
-| Mega Drive | Super Nintendo |
+| Mega Drive | Super Nintendo (SA-1) |
 | :---: | :---: |
-| ![Mega Drive](docs/media/mega-drive.png) | ![SNES](docs/media/snes.png) |
-| Being optimised | Being optimised |
+| ![Mega Drive](docs/media/mega-drive.gif) | ![SNES](docs/media/snes.gif) |
+| 36 fps, 60% game speed (being optimised) | 45 fps, full game speed |
 
 The clips are real-time recordings of the same start of a New Game in the first room: mGBA for
-the Game Boy Advance and cycle-exact WinUAE for the Amiga (stock A500, Kickstart 1.3, 512 KiB
-Chip + 512 KiB slow RAM), every display frame kept. The input is
-[`docs/media/showcase-route.json`](docs/media/showcase-route.json). The Mega Drive and SNES show
-the Main Hall until their performance pass.
+the Game Boy Advance, Snes9x for the SNES SA-1 cartridge, Genesis Plus GX for the Mega Drive and
+cycle-exact WinUAE for the Amiga (stock A500, Kickstart 1.3, 512 KiB Chip + 512 KiB slow RAM).
+The input is [`docs/media/showcase-route.json`](docs/media/showcase-route.json). The Mega Drive
+still runs one game tick per picture, so it plays slower than real time until its performance
+pass.
 
 ## Why this engine
 
@@ -143,7 +144,8 @@ python tools/capture_showcase.py gba --route docs/media/showcase-route.json --fi
 ```
 
 `capture_showcase.py` plays a route on an ordinary build and keeps every second display frame, so
-each clip shows the platform's real frame rate; use `smd` or `snes` for the other cartridges.
+each clip shows the platform's real frame rate; use `smd` or `snes` for the other cartridges
+(the SNES clip comes from the SA-1 cartridge: `--rom` with a `build_snes.py --cartridge sa1` build).
 `showcase_route.py` can derive a natural walk from the verification route for other rooms. The
 Amiga clip is recorded under cycle-exact WinUAE.
 
