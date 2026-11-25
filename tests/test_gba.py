@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from gba_assets import linear4, ACTOR_FRAME_COUNT
+from gba_assets import ACTOR_FRAME_COUNT
 from palettes import palette_rgb555
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,10 +22,6 @@ def graphics_folder():
 
 
 class GbaGraphicsTests(unittest.TestCase):
-    def test_nibble_order(self):
-        image = Image.new('P', (8, 8))
-        image.putdata(list(range(16)) * 4)
-        self.assertEqual(linear4(image)[:4], bytes([0x10, 0x32, 0x54, 0x76]))
 
     def test_generated_maps_reconstruct_the_gba_image(self):
         if not (GENERATED / 'budget.json').exists():

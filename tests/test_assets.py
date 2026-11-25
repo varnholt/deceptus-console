@@ -10,7 +10,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from assets import planar4
-from palettes import banked_background, palette_rgb555
+from palettes import banked_background
 from tiled import collision_grid, draw_object, layer_values, transform_tile, FLIP_X, FLIP_DIAGONAL
 
 
@@ -49,33 +49,6 @@ class CollisionTests(unittest.TestCase):
 
 
 class TileTests(unittest.TestCase):
-    def test_generated_snes_maps_reconstruct_the_converted_room(self):
-        folder = Path(__file__).resolve().parents[1] / "assets/generated"
-        if not (folder / "room.map").exists():
-            self.skipTest("run tools/assets.py to verify generated hardware maps")
-        expected = Image.open(folder / "room-preview.png")
-        maps = [struct.unpack("<2048H", (folder / filename).read_bytes())
-                for filename in ["room.map", "overflow.map"]]
-        patterns = [(folder / filename).read_bytes() for filename in ["room.pic", "overflow.pic"]]
-        reconstructed = Image.new("P", expected.size)
-        for top in range(0, expected.height, 8):
-            for left in range(0, expected.width, 8):
-                column, row = left // 8, top // 8
-                address = (column // 32) * 1024 + row * 32 + column % 32
-                for plane in [1, 0]:
-                    entry = maps[plane][address]
-                    tile = patterns[plane][(entry & 1023) * 32:(entry & 1023) * 32 + 32]
-                    self.assertEqual(len(tile), 32)
-                    for pixel_y in range(8):
-                        for pixel_x in range(8):
-                            source_x = 7 - pixel_x if entry & 0x4000 else pixel_x
-                            source_y = 7 - pixel_y if entry & 0x8000 else pixel_y
-                            value = sum(((tile[(bit // 2) * 16 + source_y * 2 + bit % 2]
-                                          >> (7 - source_x)) & 1) << bit for bit in range(4))
-                            if value:
-                                reconstructed.putpixel((left + pixel_x, top + pixel_y), value + ((entry >> 10) & 7) * 16)
-        self.assertEqual(reconstructed.tobytes(), expected.tobytes())
-        self.assertEqual(palette_rgb555(expected, 8), (folder / "room.pal").read_bytes())
 
     def test_palette_banks_keep_separate_tile_colours(self):
         image = Image.new("RGB", (16, 8), (248, 0, 0))

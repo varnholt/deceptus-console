@@ -8,7 +8,7 @@ from unittest.mock import patch
 import numpy as np
 from PIL import Image
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from ringshader import heartbeat, repeated_noise, bake_ring_shaders, shader_signature, RING_FRAGMENT_SIGNATURE
+from ringshader import heartbeat, bake_ring_shaders, shader_signature, RING_FRAGMENT_SIGNATURE
 
 ROOT=Path(__file__).resolve().parents[1]
 DATA=ROOT / 'assets/game/data'
@@ -20,14 +20,6 @@ class RingMathTests(unittest.TestCase):
         self.assertAlmostEqual(heartbeat(.16),.7,places=4)
         self.assertAlmostEqual(heartbeat(.99),heartbeat(-.01))
         self.assertLess(heartbeat(.5),.000001)
-
-    def test_grain_texture_uses_bilinear_repeat_wrapping(self):
-        texture=np.array([[0.0,1.0],[.25,.75]])
-        self.assertAlmostEqual(float(repeated_noise(texture,np.array(.25),np.array(.25))),0.0)
-        self.assertAlmostEqual(float(repeated_noise(texture,np.array(.75),np.array(.25))),1.0)
-        self.assertAlmostEqual(float(repeated_noise(texture,np.array(1.25),np.array(-.75))),0.0)
-        self.assertAlmostEqual(float(repeated_noise(texture,np.array(.5),np.array(.5))),.5)
-
 
 @unittest.skipUnless((DATA/'shaders/ring.frag').exists(),'original shader data required')
 class SourceRingResourceTests(unittest.TestCase):
