@@ -10,7 +10,7 @@
 ; reference hashFind in background.c exactly, including the probe statistic.
 ; the offsets are those of hash_keys and hash_slots in SnesBackgroundWork;
 ; background.c fails to compile if the structure layout moves them.
-.define SNES_BG_HASH_KEYS 6432
+.define SNES_BG_HASH_KEYS 6864
 
 .section "snes_background_hash_find" semisuperfree banks 2-15
 ; DeceptusU16 snesBackgroundHashFind(DeceptusU16 pattern, DeceptusU16 insert)

@@ -3,6 +3,7 @@
 The shared simulation tables may be reused; target-reduced GBA pixels are never read.
 """
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 import hashlib
 import json
 import math
@@ -16,6 +17,7 @@ from assets import ROOT, planar4
 from campaign_assets import asset_identity, validate_room_assets
 from palettes import banked_background, palette_rgb555
 from pixel_font import NativePixelFont
+from snes_tile_slots import fix_room
 from world_export import export_world
 
 CHUNK_BYTES=32768
@@ -110,10 +112,17 @@ def compile_background(image,foreground,clips,output):
                 palette=palette_bytes,pattern_count=len(patterns),metrics=metrics)
 
 
+# the interface's 2bpp font starts at VRAM 1400 (tile 128 of character base 1000); the foreground's
+# overflow patterns begin at 1880, so the font may take 0x480 words.
+FONT_TILE_BASE=128
+FONT_VRAM_BYTES=(0x1880-0x1400)*2
+
+
 def compile_font(data,output,writer):
     font=NativePixelFont(Path(data)/'fonts')
     graphics=bytearray(bytes(16)+bytes([0,255]*8))
-    glyphs=[]
+    tiles={bytes(graphics[:16]):FONT_TILE_BASE,bytes(graphics[16:]):FONT_TILE_BASE+1}
+    glyphs=[];layout=[]
     for code in range(32,127):
         source=font.glyph(chr(code));bounds=source.getbbox()
         width=(bounds[2]-bounds[0]) if bounds else 1
@@ -122,17 +131,22 @@ def compile_font(data,output,writer):
         if bounds:
             alpha=source.getchannel('A').crop((bounds[0],0,bounds[2],18))
             image.paste(1,(0,0,width,18),alpha)
-        first=128+len(graphics)//16
+        glyphs.append((len(layout),columns))
         for row in range(3):
             for column in range(columns):
-                graphics.extend(planar2(image.crop((column*8,row*8,column*8+8,row*8+8))))
-        glyphs.append((first,columns))
-    if len(graphics)>6144:
-        raise ValueError('native SNES font exceeds its 6KiB VRAM budget')
+                packed=bytes(planar2(image.crop((column*8,row*8,column*8+8,row*8+8))))
+                if packed not in tiles:
+                    tiles[packed]=FONT_TILE_BASE+len(graphics)//16
+                    graphics.extend(packed)
+                layout.append(tiles[packed])
+    # identical glyph pieces share one tile; the space below VRAM 1880 is all the font may take.
+    if len(graphics)>FONT_VRAM_BYTES:
+        raise ValueError(f'native SNES font needs {len(graphics)} bytes, more than its {FONT_VRAM_BYTES}-byte VRAM budget')
     writer.binary('snes_font',graphics)
     lines=['const SnesFontGlyph snes_font_glyphs[95] = {']
-    lines+=['    {'+str(tile)+','+str(columns)+'},' for tile,columns in glyphs]
-    lines+=['};','const DeceptusU16 snes_ui_palette[16] = {0,32767,4226,1599,0,0,0,0,0,0,0,0,0,0,0,0};']
+    lines+=['    {'+str(first)+','+str(columns)+'},' for first,columns in glyphs]
+    lines+=['};','const DeceptusU16 snes_font_layout['+str(len(layout))+'] = {'+','.join(map(str,layout))+'};']
+    lines+=['const DeceptusU16 snes_ui_palette[16] = {0,32767,4226,1599,0,0,0,0,0,0,0,0,0,0,0,0};']
     return lines,len(graphics)
 
 
@@ -363,18 +377,29 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
     writer=BinaryWriter(output)
     worlds=compile_worlds(recipes,output)
     stage_lines=[];animation_lines=[];reports=[]
+    rooms_converted=[]
     for index,(recipe,source) in enumerate(recipes[:rooms]):
         image=Image.open(source/'catacombs.png').convert('RGB')
         foreground=Image.open(source/'foreground.png').convert('RGBA') if (source/'foreground.png').exists() else Image.new('RGBA',image.size)
         clips=source_clips(data,recipe,image)
-        converted=compile_background(image,foreground,clips,output/f'area{index}')
+        rooms_converted.append((recipe,image,clips,compile_background(image,foreground,clips,output/f'area{index}')))
+    # fixed tile slots take seconds per room; plan the rooms side by side and keep the plans.
+    with ProcessPoolExecutor() as pool:
+        jobs=[pool.submit(fix_room,converted['background'],converted['foreground'],
+                          [dict(left=clip['bounds'][0]//8,top=clip['bounds'][1]//8,columns=clip['bounds'][2]//8,rows=clip['bounds'][3]//8,
+                                frames=clip['frame_count'],plane=clip.get('plane',0),cells=cells)
+                           for clip,cells in zip(clips,converted['animations'])],
+                          image.width//8,image.height//8,output/'slot_plans')
+              for recipe,image,clips,converted in rooms_converted]
+        fixed_rooms=[job.result() for job in jobs]
+    for index,((recipe,image,clips,converted),fixed) in enumerate(zip(rooms_converted,fixed_rooms)):
         prefix=f'snes_area{index}'
         patterns=writer.blob(prefix+'_patterns',converted['patterns'])
-        background=writer.blob(prefix+'_background',converted['background'])
-        front=writer.blob(prefix+'_foreground',converted['foreground'])
+        background=writer.blob(prefix+'_background',fixed['background'])
+        front=writer.blob(prefix+'_foreground',fixed['foreground'])
         palette=writer.binary(prefix+'_palette',converted['palette'])
         animations=[]
-        for clip_index,(clip,cells) in enumerate(zip(clips,converted['animations'])):
+        for clip_index,(clip,cells) in enumerate(zip(clips,fixed['clips'])):
             name=prefix+'_animation'+str(clip_index)
             blob=writer.blob(name+'_cells',cells)
             durations=clip.get('frame_durations',[])
@@ -388,9 +413,10 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
         if animations:
             pointer=prefix+'_animations'
             animation_lines+=['static const SnesBackgroundAnimation '+pointer+'[] = {',*['    '+value+',' for value in animations],'};']
-        stage_lines.append('    {'+','.join([patterns,background,front,palette,str(image.width//8),str(image.height//8),str(converted['pattern_count']),pointer,str(len(animations)),json.dumps(recipe['title'])])+'},')
-        reports.append(dict(room=index,patterns=converted['pattern_count'],animations=len(clips),world_palette_banks=7,color_fidelity=converted['metrics']))
-        print(f'converted SNES room{index}: {converted["pattern_count"]}patterns',flush=True)
+        stage_lines.append('    {'+','.join([patterns,background,front,palette,str(image.width//8),str(image.height//8),str(converted['pattern_count']),pointer,str(len(animations)),json.dumps(recipe['title']),str(fixed['pool_first']),str(fixed['pool_end'])])+'},')
+        reports.append(dict(room=index,patterns=converted['pattern_count'],animations=len(clips),world_palette_banks=7,color_fidelity=converted['metrics'],
+                            cache_pool=[fixed['pool_first'],fixed['pool_end']]))
+        print(f'converted SNES room{index}: {converted["pattern_count"]}patterns, cache pool {fixed["pool_first"]}-{fixed["pool_end"]-1}',flush=True)
     font_lines,font_bytes=compile_font(data,output,writer)
     sprite_lines,sprite_report=compile_sprites(data,output,writer) if sprites else ([],dict(logical_resources=0))
     for stem in ('sword','headtorch','rope'):
@@ -401,20 +427,20 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
         (output/f'snes_{stem}_resources.h').write_text(text)
     header=['#ifndef SNES_ASSETS_H','#define SNES_ASSETS_H','#include "deceptus/adventure.h"',
             '#define DECEPTUS_SNES_OPENING 1',f'#define SNES_STAGE_COUNT {rooms}',f'#define SNES_FONT_BYTES {font_bytes}',
-            '#define SNES_FONT_TILE_BASE 128','#define SNES_SPRITE_COUNT 1039','#define SNES_ACTOR_COUNT 26',
+            f'#define SNES_FONT_TILE_BASE {FONT_TILE_BASE}','#define SNES_SPRITE_COUNT 1039','#define SNES_ACTOR_COUNT 26',
             '#define SNES_SPRITE_RESOURCE_COUNT 1065','#define SNES_ACTOR_FIRST 0',
             '#define SNES_SPRITE_OPAQUE_MASK 1',
             '#define SNES_SPRITE_QUADS 1',
             'typedef struct SnesRomBlob { const DeceptusU8 *const *chunks; DeceptusU32 bytes; } SnesRomBlob;',
             'typedef struct SnesBackgroundAnimation { DeceptusU16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags; const DeceptusU16 *durations; SnesRomBlob cells; DeceptusU8 plane; } SnesBackgroundAnimation;',
-            'typedef struct SnesStage { SnesRomBlob patterns,background,foreground; const DeceptusU8 *palette; DeceptusU16 columns,rows,pattern_count; const SnesBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; } SnesStage;',
+            'typedef struct SnesStage { SnesRomBlob patterns,background,foreground; const DeceptusU8 *palette; DeceptusU16 columns,rows,pattern_count; const SnesBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; DeceptusU16 pool_first,pool_end; } SnesStage;',
             'typedef struct SnesSpriteResource { const DeceptusU8 *graphics; const DeceptusU16 *palette; DeceptusU16 bytes; DeceptusU8 columns,rows,trim_x,trim_y; } SnesSpriteResource;',
-            'typedef struct SnesFontGlyph { DeceptusU16 tile; DeceptusU8 columns; } SnesFontGlyph;',
+            'typedef struct SnesFontGlyph { DeceptusU16 layout; DeceptusU8 columns; } SnesFontGlyph;',
             'extern const SnesStage snes_stages[SNES_STAGE_COUNT];','extern const SnesSpriteResource snes_sprite_resources[SNES_SPRITE_RESOURCE_COUNT];',
             'extern const DeceptusU8 snes_sprite_opaque[1065][8];',
             'extern const DeceptusU16 snes_sprite_quad_offsets[1065];','extern const DeceptusU8 snes_sprite_quads[];',
             '#define snes_actors (snes_sprite_resources)','#define snes_sprites (snes_sprite_resources+26)',
-            'extern const SnesFontGlyph snes_font_glyphs[95];','extern const DeceptusU8 snes_font[];','extern const DeceptusU16 snes_ui_palette[16];',
+            'extern const SnesFontGlyph snes_font_glyphs[95];','extern const DeceptusU16 snes_font_layout[];','extern const DeceptusU8 snes_font[];','extern const DeceptusU16 snes_ui_palette[16];',
             'extern const DeceptusCampaignDef snes_campaign_definition;','extern const DeceptusAdventureDef snes_tutorial_definition;']
     # logical resource family prefixes are shared, never their target pixel encodings.
     gba_header=(ROOT/'assets/generated/gba/gba_assets.h').read_text()

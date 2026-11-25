@@ -20,17 +20,23 @@ def audit(assets, output):
     registers = 'VMAIN VMADDLH DMAP0 BBAD0 A1T0LH A1B0 DAS0LH MDMAEN'.split()
     sdk = ['typedef unsigned char u8;',
            'typedef struct {union {void*p;struct {unsigned short addr;unsigned char bank;} c;} mem;} dmaMemory;',
-           'static unsigned short reg;', '#define SC_64x32 1']
+           'static unsigned short reg;', '#define SC_64x32 1',
+           # every read of the vblank counter advances it, so a wait for the next vblank ends.
+           'static unsigned short audit_vblank;',
+           'static unsigned short *auditVblankNow(void){++audit_vblank;return &audit_vblank;}',
+           '#define snes_vblank_count (*auditVblankNow())']
     sdk += ['#define REG_' + name + ' reg' for name in registers]
     sdk += ['static void bgSetGfxPtr(int a,int b){(void)a;(void)b;}',
             'static void bgSetMapPtr(int a,int b,int c){(void)a;(void)b;(void)c;}',
             'static void bgSetScroll(int a,int b,int c){(void)a;(void)b;(void)c;}',
+            'static void WaitForVBlank(void){}',
             'static void dmaCopyCGram(u8*a,int b,int c){(void)a;(void)b;(void)c;}',
             'static void dmaCopyVram(u8*a,int b,int c){(void)a;(void)b;(void)c;}']
-    (output / 'snes.h').write_text('\n'.join(sdk) + '\n')
+    (output / 'snes.h').write_text('\n'.join(['#ifndef SNES_STUB_H', '#define SNES_STUB_H', *sdk, '#endif']) + '\n')
     resources = (assets / 'opening_resources.c').read_text()
+    # columns, rows, pattern count, then the cache pool after the title.
     stages = {int(room): tuple(map(int, values)) for room, *values in re.findall(
-        r'snes_area(\d+)_palette,(\d+),(\d+),(\d+),', resources)}
+        r'snes_area(\d+)_palette,(\d+),(\d+),(\d+),[^\n]*,(\d+),(\d+)\},\n', resources)}
     reports = []
     for room, body in re.findall(r'static const SnesBackgroundAnimation snes_area(\d+)_animations\[\] = \{(.*?)\n\};', resources, re.S):
         room = int(room)
@@ -39,7 +45,7 @@ def audit(assets, output):
             if not match:
                 continue
             left, top, columns, rows, animation_bytes = map(int, match.groups())
-            width, height, count = stages[room]
+            width, height, count, pool_first, pool_end = stages[room]
             for name in ('background', 'foreground', f'animation{animation}_cells'):
                 chunks = sorted(assets.glob(f'snes_area{room}_{name}_*.bin'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))
                 if not chunks:
@@ -49,15 +55,17 @@ def audit(assets, output):
 #include <assert.h>
 #include <stdio.h>
 #include "BACKGROUND"
+#include "COMMIT"
 void snesVramRunDma(const SnesVramDmaCommand *commands,DeceptusU16 count) {(void)commands;(void)count;}
 DeceptusU8 snes_background_storage[32768];
+SnesBackgroundPacket snes_background_packets[SNES_BG_PACKETS];
 static DeceptusU8 bg[131072],fg[131072],cells[131072],dummy[32768],palette[256];
 static const DeceptusU8 *const bc[]={bg,bg+32768,bg+65536,bg+98304};
 static const DeceptusU8 *const fc[]={fg,fg+32768,fg+65536,fg+98304};
 static const DeceptusU8 *const ac[]={cells,cells+32768,cells+65536,cells+98304};
 static const DeceptusU8 *const pc[]={dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy,dummy};
 static const SnesBackgroundAnimation clips[]={{LEFT,TOP,COLS,ROWS,12,65535,0,0,0,{ac,ANIMBYTES},0}};
-const SnesStage snes_stages[SNES_STAGE_COUNT]={{{pc,COUNT*32L},{bc,WIDTH*HEIGHT*4L},{fc,WIDTH*HEIGHT*4L},palette,WIDTH,HEIGHT,COUNT,clips,1,"water"}};
+const SnesStage snes_stages[SNES_STAGE_COUNT]={{{pc,COUNT*32L},{bc,WIDTH*HEIGHT*4L},{fc,WIDTH*HEIGHT*4L},palette,WIDTH,HEIGHT,COUNT,clips,1,"water",POOLFIRST,POOLEND}};
 static void read_cells(const char*name,DeceptusU8*target,unsigned long bytes) {
  FILE*f=fopen(name,"rb");assert(f);assert(fread(target,1,bytes,f)==bytes);fclose(f);
 }
@@ -68,24 +76,25 @@ int main(void) {
   snesBackgroundLoad(0);work->clip_frame[0]=(DeceptusU16)frame;
   for(y=0;y<=HEIGHT-29;++y)for(step=0;step<=WIDTH-33;++step) {
    x=(y&1)?WIDTH-33-step:step;
-   snesBackgroundPrepare((DeceptusI16)(x*8),(DeceptusI16)(y*8));
-   if(snes_background_error) {fprintf(stderr,"cache_error=%u frame=%d x=%d y=%d\n",snes_background_error,frame,x,y);return 2;}
-   if(snes_background_full)++rebuilds;
+   snesBackgroundPrepare((DeceptusI16)(x*8),(DeceptusI16)(y*8));snesBackgroundStage(0);
+   if(snesBackgroundError()) {fprintf(stderr,"cache_error=%u frame=%d x=%d y=%d\n",snesBackgroundError(),frame,x,y);return 2;}
+   if(snesBackgroundFull(0))++rebuilds;
    used=0;scratch=0;
    for(slot=1;slot<SNES_BG_SLOTS;++slot)if(work->references[slot]) {
     ++used;if(slot>=1024)++scratch;
    }
    if(used>peak)peak=used;if(scratch>peak_scratch)peak_scratch=scratch;
-   ++views;snesBackgroundCommit();
+   ++views;snesBackgroundCommit(0);
   }
   compactions+=snes_background_compactions;
  }
  printf("{\"views\":%u,\"peak_slots\":%u,\"peak_scratch\":%u,\"compactions\":%u,\"extra_forced_blank_batches\":%u}\n",views,peak,peak_scratch,compactions,rebuilds-12);return 0;
 }
 '''
-            replacements = dict(BACKGROUND=(ROOT / 'src/platform/snes/background.c').as_posix(), LEFT=left, TOP=top,
+            replacements = dict(BACKGROUND=(ROOT / 'src/platform/snes/background.c').as_posix(),
+                                COMMIT=(ROOT / 'src/platform/snes/background_commit.c').as_posix(), LEFT=left, TOP=top,
                                 COLS=columns, ROWS=rows, ANIMBYTES=animation_bytes, WIDTH=width, HEIGHT=height,
-                                COUNT=count, ANIM=animation)
+                                COUNT=count, POOLFIRST=pool_first, POOLEND=pool_end, ANIM=animation)
             for key, value in replacements.items():
                 if key == 'ANIM':
                     source = source.replace('animationANIM_cells', 'animation' + str(value) + '_cells')

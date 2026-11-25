@@ -171,29 +171,74 @@ int main(void)
 }
 #else
 #include "deceptus/adventure.h"
+#include "deceptus/game.h"
 #include "deceptus/pacing.h"
 #include "snes_assets.h"
 #include <snes.h>
 
-extern const DeceptusAdventureDef snes_tutorial_definition;
-static DeceptusAdventure adventure;
-static DeceptusFrame frame;
+/* the simulation runs at 60 ticks per second; a presentation that takes longer than a display frame
+ * catches up with up to three ticks, as on the Amiga, so the game keeps its speed down to 20
+ * presentations per second. */
 #ifndef SNES_PACING_MAX_TICKS
-#define SNES_PACING_MAX_TICKS 1
+#define SNES_PACING_MAX_TICKS 3
 #endif
 static DeceptusPacing pacing;
-static const DeceptusVideoCaps video = {256, 224, DECEPTUS_DRAW_CAPACITY};
 volatile DeceptusU16 deceptus_debug[56];
+/* zeroes the game's work RAM globals (game_ram.asm), which the sdk start-up leaves uncleared. */
+void snesClearGameRam(void);
+
+#ifdef SNES_SA1
+#include "sa1.h"
+#include "sa1_mailbox.h"
+/* the SA-1 stack low-water mark, copied to work RAM for the emulator checks. */
+DeceptusU16 snes_sa1_stack_low_water;
+/* the SA-1 runs the game and keeps its state in BW-RAM; this cpu reads it through pointers only. */
+#define SNES_GAME (&snes_sa1_adventure)
+#define SNES_FRAME (&snes_sa1_frame)
+#else
+extern const DeceptusAdventureDef snes_tutorial_definition;
+static const DeceptusVideoCaps video = {256, 224, DECEPTUS_DRAW_CAPACITY};
+static DeceptusAdventure adventure;
+static DeceptusFrame frame;
+#define SNES_GAME (&adventure)
+#define SNES_FRAME (&frame)
+#endif
 
 #include "background.h"
 #include "sprites.h"
 #include "ppu_timing.h"
 #include "ui.h"
 
+#define SNES_HVBJOY (*(volatile DeceptusU8 *)0x4212)
+#define SNES_JOY1 (*(volatile DeceptusU16 *)0x4218)
+#define SNES_JOYPAD_READING 0x01
+/* a standard pad reports zero in the low four bits; anything else counts as no pad. */
+#define SNES_JOYPAD_SIGNATURE 0x000F
+
+/* the pad the last read returned, for the emulator checks. */
+static DeceptusU16 snes_pad;
+
+/* the pad as the automatic read at the last vblank start left it, once that read is done. the sdk
+ * copies it only in vblanks its own WaitForVBlank waited for, which this loop no longer uses. */
+static DeceptusU16 padRead(void)
+{
+   DeceptusU16 pad;
+   while ((SNES_HVBJOY & SNES_JOYPAD_READING) != 0)
+   {
+   }
+   pad = SNES_JOY1;
+   if ((pad & SNES_JOYPAD_SIGNATURE) != 0)
+   {
+      pad = 0;
+   }
+   snes_pad = pad;
+   return pad;
+}
+
 static DeceptusU16 inputRead(void)
 {
    DeceptusU16 pad, buttons;
-   pad = padsCurrent(0);
+   pad = padRead();
    buttons = 0;
    if (pad & KEY_LEFT)
    {
@@ -242,10 +287,12 @@ static DeceptusU16 inputRead(void)
    return buttons;
 }
 
-static void debugWrite(void)
+static void debugWrite(DeceptusU8 buffer)
 {
+   const DeceptusAdventure *game;
    const DeceptusEngine *engine;
-   engine = &adventure.campaign.engine;
+   game = SNES_GAME;
+   engine = &game->campaign.engine;
    deceptus_debug[0] = 0xD3CE;
    deceptus_debug[1] = deceptusFloor(engine->entities[0].x);
    deceptus_debug[2] = deceptusFloor(engine->entities[0].y);
@@ -256,148 +303,296 @@ static void debugWrite(void)
    deceptus_debug[7] = engine->entities[0].grounded;
    deceptus_debug[8] = engine->door_entries;
    deceptus_debug[9] = engine->event_count;
-   deceptus_debug[10] = frame.count;
+   deceptus_debug[10] = SNES_FRAME->count;
    deceptus_debug[12] = engine->checkpoint_id;
    deceptus_debug[13] = engine->checkpoint_x;
    deceptus_debug[14] = engine->checkpoint_y;
    deceptus_debug[15] = engine->content_error;
    deceptus_debug[16] = engine->camera_y;
-   deceptus_debug[17] = snes_background_error;
-   deceptus_debug[18] = snes_background_uploads;
-   deceptus_debug[19] = snes_background_full;
+   deceptus_debug[17] = snesBackgroundError();
+   deceptus_debug[18] = snesBackgroundUploads();
+   deceptus_debug[19] = snesBackgroundFull(buffer);
    deceptus_debug[20] = snes_ui_overflow;
-   deceptus_debug[21] = snes_sprite_overflow;
-   deceptus_debug[22] = snes_sprite_upload_bytes;
-   deceptus_debug[23] = snes_obj_count;
-   deceptus_debug[24] = snes_obj_palette_count;
-   deceptus_debug[25] = snes_sprite_blank;
+   deceptus_debug[21] = snesSpritesOverflow();
+   deceptus_debug[22] = snesSpritesUploadBytes(buffer);
+   deceptus_debug[23] = snesSpritesObjects();
+   deceptus_debug[24] = snesSpritesPalettes(buffer);
+   deceptus_debug[25] = snesSpritesBlank(buffer);
    deceptus_debug[26] = engine->previous_buttons;
-   deceptus_debug[27] = padsCurrent(0);
-   deceptus_debug[28] = adventure.campaign.room_index;
-   deceptus_debug[29] = adventure.campaign.mode;
-   deceptus_debug[30] = adventure.campaign.deaths;
-   deceptus_debug[31] = adventure.campaign.seconds;
+   deceptus_debug[27] = snes_pad;
+   deceptus_debug[28] = game->campaign.room_index;
+   deceptus_debug[29] = game->campaign.mode;
+   deceptus_debug[30] = game->campaign.deaths;
+   deceptus_debug[31] = game->campaign.seconds;
    deceptus_debug[32] = engine->projectiles_fired;
-   deceptus_debug[33] = adventure.campaign.restarts;
-   deceptus_debug[36] = adventure.flags;
-   deceptus_debug[37] = adventure.inventory.counts[1];
-   deceptus_debug[38] = adventure.inventory.counts[2];
-   deceptus_debug[39] = adventure.page;
+   deceptus_debug[33] = game->campaign.restarts;
+   deceptus_debug[36] = game->flags;
+   deceptus_debug[37] = game->inventory.counts[1];
+   deceptus_debug[38] = game->inventory.counts[2];
+   deceptus_debug[39] = game->page;
    deceptus_debug[40] = engine->entities[0].velocity_x;
    deceptus_debug[41] = engine->entities[0].velocity_y;
    deceptus_debug[42] = engine->entities[0].x;
    deceptus_debug[43] = engine->entities[0].y;
-   deceptus_debug[44] = adventure.campaign.previous_buttons;
-   deceptus_debug[46] = adventure.inventory.counts[3];
-   deceptus_debug[47] = adventure.inventory.counts[4];
-   deceptus_debug[48] = adventure.inventory.counts[5];
-   deceptus_debug[49] = adventure.inventory.counts[6];
-   deceptus_debug[50] = adventure.pending_ticks;
-   deceptus_debug[51] = adventure.has_sword;
-   deceptus_debug[52] = adventure.inventory.counts[7];
+   deceptus_debug[44] = game->campaign.previous_buttons;
+   deceptus_debug[46] = game->inventory.counts[3];
+   deceptus_debug[47] = game->inventory.counts[4];
+   deceptus_debug[48] = game->inventory.counts[5];
+   deceptus_debug[49] = game->inventory.counts[6];
+   deceptus_debug[50] = game->pending_ticks;
+   deceptus_debug[51] = game->has_sword;
+   deceptus_debug[52] = game->inventory.counts[7];
    deceptus_debug[53] = engine->player_rope.attached;
    deceptus_debug[54] = engine->player_rope.rope_index;
    deceptus_debug[55] = engine->player_rope.node_index;
 }
 
-/* setScreenOn waits for a further VBlank, so it is only worth paying after
- * the screen was actually blanked. */
+/* the screen goes back on after a commit only when it was actually blanked. */
 static DeceptusU8 screen_blanked;
+
+
+#ifdef SNES_SA1
+/* hands one command to the SA-1, which runs it while this cpu goes on. */
+static void gameRequestStart(DeceptusU16 command)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   mailbox->command = command;
+   ++mailbox->request;
+}
+
+/* waits until the SA-1 has done the last command. */
+static void gameRequestWait(void)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   while (mailbox->done != mailbox->request)
+   {
+   }
+}
+
+static void gameRequest(DeceptusU16 command)
+{
+   gameRequestStart(command);
+   gameRequestWait();
+}
+
+static void gameStart(void)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   mailbox->request = 0;
+   mailbox->done = 0;
+   snesSa1Start();
+   gameRequest(SNES_SA1_INIT);
+}
+
+/* starts up to ticks simulation ticks on the SA-1, the rendering of their frame and its preparation
+ * into the presentation buffer. */
+static void gamePresentStart(DeceptusU16 buttons, DeceptusU8 ticks, DeceptusU8 buffer)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   mailbox->buttons = buttons;
+   mailbox->ticks = ticks;
+   mailbox->buffer = buffer;
+   gameRequestStart(SNES_SA1_PRESENT);
+}
+
+/* waits for the started presentation; nonzero when a tick entered another room, which ends the
+ * ticks early and leaves the frame unprepared. */
+static DeceptusU8 gamePresentFinish(void)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   gameRequestWait();
+   snes_sa1_stack_low_water = mailbox->stack_low_water;
+   return (DeceptusU8)mailbox->room_changed;
+}
+
+/* the background data and sprite cache of the current room; their video half has run already. */
+static void gameLoadRoom(void)
+{
+   gameRequest(SNES_SA1_LOAD_ROOM);
+}
+
+/* the presentation work that needs no video access: scenery flags, the background window, the
+ * sprites and their staged transfers, into the presentation buffer. */
+static void gamePrepare(DeceptusU8 buffer)
+{
+   volatile SnesSa1Mailbox *mailbox;
+   mailbox = SNES_SA1_MAILBOX;
+   mailbox->buffer = buffer;
+   gameRequest(SNES_SA1_PREPARE);
+}
+#else
+static void gameStart(void)
+{
+   deceptusAdventureInit(&adventure, &snes_tutorial_definition, &video);
+}
+
+static void gameLoadRoom(void)
+{
+   snesBackgroundLoad(adventure.campaign.room_index);
+   snesSpritesReset();
+}
+
+static void gamePrepare(DeceptusU8 buffer)
+{
+   snesBackgroundSetFlags(deceptusAdventurePresentationFlags(&adventure));
+   snesBackgroundPrepare(frame.camera_x, frame.camera_y);
+   snesBackgroundStage(buffer);
+   snesSpritesPrepare(&adventure, &frame);
+   snesSpritesStage(buffer);
+}
+
+/* without a second cpu the presentation waits for gamePresentFinish, after the transfers of the
+ * previous one. */
+static DeceptusU16 present_buttons;
+static DeceptusU8 present_ticks, present_buffer;
+
+static void gamePresentStart(DeceptusU16 buttons, DeceptusU8 ticks, DeceptusU8 buffer)
+{
+   present_buttons = buttons;
+   present_ticks = ticks;
+   present_buffer = buffer;
+}
+
+static DeceptusU8 gamePresentFinish(void)
+{
+   while (present_ticks)
+   {
+      --present_ticks;
+      if (deceptusAdventureTick(&adventure, present_buttons))
+      {
+         deceptusRender(&adventure.campaign.engine, &frame);
+         return 1;
+      }
+   }
+   deceptusRender(&adventure.campaign.engine, &frame);
+   deceptus_debug[11] = 10;
+   gamePrepare(present_buffer);
+   return 0;
+}
+#endif
 
 static void videoLoad(void)
 {
    deceptus_debug[11] = 3;
    setScreenOff();
    screen_blanked = 1;
-   snesBackgroundLoad(adventure.campaign.room_index);
+   snesBackgroundLoadVideo(SNES_GAME->campaign.room_index);
+   gameLoadRoom();
    deceptus_debug[11] = 4;
-   snesSpritesInit();
+   snesSpritesInitVideo();
    deceptus_debug[11] = 5;
    snesUiInit();
    deceptus_debug[11] = 6;
 }
 
+/* the vblank the previous ticks started in. */
+static DeceptusU16 previous_vblank;
+
+/* the next ticks have their input while the commit runs: below phase 15, which tells the emulator
+ * checks that the packet is complete and the pad not read yet, and above 9, during which they
+ * compare video memory with the work area. */
+#define SNES_PHASE_COMMITTING 11
+
+static void presentStart(DeceptusU8 ticks, DeceptusU8 buffer)
+{
+   gamePresentStart(inputRead(), ticks, buffer);
+   deceptus_debug[11] = SNES_PHASE_COMMITTING;
+}
+
+/* the ticks for the time from the previous start to the coming vblank, which starts the next ones.
+ * counted before the wait, which leaves vblank to the transfers; should the vblank arrive before
+ * the wait, the following count includes the missed frame. a room load is not made up for. */
+static DeceptusU8 ticksUntilNextVblank(DeceptusU8 room_loaded)
+{
+   DeceptusU16 next_vblank;
+   DeceptusU8 ticks;
+   next_vblank = snes_vblank_count + 1;
+   ticks = deceptusPacingTicks(&pacing, room_loaded ? 1 : next_vblank - previous_vblank);
+   previous_vblank = next_vblank;
+   return ticks;
+}
+
 int main(void)
 {
-   DeceptusU16 scenery_flags, buttons, previous_vblank, current_vblank;
-   DeceptusU8 ticks, room_loaded;
+   DeceptusU8 room_loaded, ticks, buffer, committed, serial;
+   snesClearGameRam();
+#ifdef SNES_SA1
+   snesSa1MapDefaultBlocks();
+#endif
    deceptus_debug[0] = 0xD3CE;
    deceptus_debug[11] = 1;
-   deceptusAdventureInit(&adventure, &snes_tutorial_definition, &video);
+   gameStart();
    deceptus_debug[11] = 2;
    videoLoad();
    deceptus_debug[11] = 7;
    deceptusPacingInit(&pacing, snes_50hz ? 50 : 60, SNES_PACING_MAX_TICKS);
-   previous_vblank = snes_vblank_count - 1;
-   room_loaded = 0;
+   previous_vblank = snes_vblank_count;
+   buffer = 0;
+   presentStart(1, buffer);
    while (1)
    {
-      deceptus_debug[11] = 8;
-      current_vblank = snes_vblank_count;
-      /* a room load is not made up for. */
-      ticks = deceptusPacingTicks(&pacing, room_loaded ? 1 : current_vblank - previous_vblank);
-      previous_vblank = current_vblank;
       room_loaded = 0;
-      buttons = inputRead();
-      while (ticks)
-      {
-         --ticks;
-         if (deceptusAdventureTick(&adventure, buttons))
-         {
-            videoLoad();
-            deceptusPacingReset(&pacing);
-            room_loaded = 1;
-            break;
-         }
-      }
       deceptus_debug[11] = 9;
-      deceptusRender(&adventure.campaign.engine, &frame);
-      deceptus_debug[11] = 10;
-      scenery_flags = deceptusAdventurePresentationFlags(&adventure);
-      snesBackgroundSetFlags(scenery_flags);
-      snesBackgroundPrepare(frame.camera_x, frame.camera_y);
-      deceptus_debug[11] = 11;
-      snesSpritesPrepare(&adventure, &frame);
+      if (gamePresentFinish())
+      {
+         videoLoad();
+         deceptusPacingReset(&pacing);
+         room_loaded = 1;
+         deceptus_debug[11] = 10;
+         gamePrepare(buffer);
+      }
       deceptus_debug[11] = 12;
-      snesUiPrepare(&adventure);
+      snesUiPrepare(SNES_GAME);
       deceptus_debug[11] = 13;
-      snesSpritesPreload();
+      snesSpritesUploadTiles(buffer);
       deceptus_debug[11] = 14;
-      debugWrite();
-      /* phase 15 tells emulator checks the packet is complete. it used to be
-       * observable for most of a display frame while setScreenOn waited; the
-       * commits now fit in VBlank, so the wait for it is marked as well. */
+      debugWrite(buffer);
+      ticks = ticksUntilNextVblank(room_loaded);
+      /* phase 15 tells emulator checks the packet is complete and the pad not read yet. */
       deceptus_debug[11] = 15;
-      if (snes_sprite_blank)
+      if (snesSpritesBlank(buffer))
       {
          screen_blanked = 1;
       }
-      if (snes_background_full)
+      if (snesBackgroundFull(buffer))
       {
          setScreenOff();
          screen_blanked = 1;
       }
-      WaitForVBlank();
-      deceptus_debug[11] = 15;
+      snesWaitForVblank();
+      committed = buffer;
+      buffer ^= 1;
+      /* the pad as this vblank read it. the SA-1 runs the next ticks and prepares their frame into
+       * the other buffer while this cpu commits this one; a commit that still reads the work area
+       * finishes first. */
+      serial = snesBackgroundSerial(committed);
+      if (serial == 0)
+      {
+         presentStart(ticks, buffer);
+      }
       /* every video transfer first, while vblank lasts. when the background leaves too little of it,
          the sprites take the next vblank; their tiles and the oam that refers to them stay together. */
-      snesBackgroundCommit();
-      if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines())
+      snesBackgroundCommit(committed);
+      if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines(committed))
       {
-         WaitForVBlank();
+         snesWaitForVblank();
       }
-      snesSpritesCommitTransfers();
-      deceptus_debug[11] = 16;
-      snesSpritesPublish();
-      deceptus_debug[11] = 17;
+      snesSpritesCommitTransfers(committed);
       snesUiCommit();
-      deceptus_debug[11] = 18;
       if (screen_blanked)
       {
-         setScreenOn();
+         snesScreenOn();
          screen_blanked = 0;
       }
-      deceptus_debug[11] = 19;
+      if (serial)
+      {
+         presentStart(ticks, buffer);
+      }
    }
    return 0;
 }

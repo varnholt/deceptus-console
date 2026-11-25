@@ -11,7 +11,8 @@
 ; before changing any state, for everything else:
 ; - load: cell inside the room and outside the union of the plane's enabled
 ;   clip rectangles, row in the row table, pattern zero, resident, or placed in
-;   a free slot the plane can address (acquirePattern).
+;   a free slot the plane can address (acquirePattern); a static cell whose
+;   fixed slot is valid (placeStaticPattern).
 ; - release: every case (releaseCell), with the backward-shift hash deletion.
 ; - place: a load whose pattern and attributes the caller already read.
 ; - direct clip refresh: both passes of the animated refresh in
@@ -19,23 +20,25 @@
 ; the offsets are those of SnesBackgroundWork and SnesBackgroundCellView;
 ; background.c fails to compile if the layouts move them.
 .define SNES_BG_RESIDENT 0
-.define SNES_BG_REFERENCES 2144
-.define SNES_BG_FREE_SLOTS 4288
-.define SNES_BG_HASH_KEYS 6432
-.define SNES_BG_HASH_SLOTS 10528
-.define SNES_BG_MAPS 14624
-.define SNES_BG_UPLOADS 22816
-.define SNES_BG_PENDING 26738
-.define SNES_BG_DOMAINS 27810
-.define SNES_BG_DIRTY_COLUMN 28882
-.define SNES_BG_REFRESH_CHANGED 28884
-.define SNES_BG_DIRTY_ROWS 29842
-.define SNES_BG_DMA_BYTES 29850
-.define SNES_BG_FREE_COUNT 29852
-.define SNES_BG_UPLOAD_COUNT 29854
-.define SNES_BG_ROOM_CELLS 29858
-.define SNES_BG_HASH_TOMBSTONES 29860
-.define SNES_BG_ROW_OFFSETS 29868
+.define SNES_BG_REFERENCES 2288
+.define SNES_BG_FREE_SLOTS 4576
+.define SNES_BG_HASH_KEYS 6864
+.define SNES_BG_HASH_SLOTS 10960
+.define SNES_BG_MAPS 15056
+.define SNES_BG_UPLOADS 23248
+.define SNES_BG_PENDING 27186
+.define SNES_BG_DOMAINS 28330
+.define SNES_BG_DIRTY_COLUMNS 29474
+.define SCROLL_CELLS 3
+.define SNES_BG_REFRESH_CHANGED 29482
+.define SNES_BG_DIRTY_ROWS 30440
+.define SNES_BG_DMA_BYTES 30448
+.define SNES_BG_FREE_COUNT 30450
+.define SNES_BG_UPLOAD_COUNT 30452
+.define SNES_BG_ROOM_CELLS 30456
+.define SNES_BG_HASH_TOMBSTONES 30458
+.define SNES_BG_ROW_OFFSETS 30466
+.define SNES_BG_STATUS_ERROR 32524
 .define VIEW_COLUMNS 0
 .define VIEW_ROWS 2
 .define VIEW_PATTERNS 4
@@ -44,6 +47,9 @@
 .define VIEW_CLIP_TOP 20
 .define VIEW_CLIP_RIGHT 24
 .define VIEW_CLIP_BOTTOM 28
+.define VIEW_POOL_FIRST 32
+.define VIEW_POOL_END 34
+.define OVERFLOW_TILE 136
 .define REFRESH_CHUNKS 0
 .define REFRESH_PLANE 4
 .define REFRESH_LEFT 6
@@ -175,6 +181,32 @@ release_shift_end:
 release_domain_done:
     rts
 
+; queues the upload of slot tcc__r5 unless it is pending: queueUpload in
+; background.c. a is not kept.
+queue_upload:
+    ldx.b tcc__r5
+    sep #$20
+    lda.l snes_background_storage+SNES_BG_PENDING,x
+    bne queue_upload_done
+    lda #1
+    sta.l snes_background_storage+SNES_BG_PENDING,x
+    rep #$20
+    lda.l snes_background_storage+SNES_BG_UPLOAD_COUNT
+    asl a
+    tax
+    lda.b tcc__r5
+    sta.l snes_background_storage+SNES_BG_UPLOADS,x
+    lda.l snes_background_storage+SNES_BG_UPLOAD_COUNT
+    inc a
+    sta.l snes_background_storage+SNES_BG_UPLOAD_COUNT
+    lda.l snes_background_storage+SNES_BG_DMA_BYTES
+    clc
+    adc #32
+    sta.l snes_background_storage+SNES_BG_DMA_BYTES
+queue_upload_done:
+    rep #$20
+    rts
+
 ; early bail-outs of the load path branch here; load_slow is out of 8-bit reach.
 load_slow_near:
     jmp load_slow
@@ -280,8 +312,11 @@ load_outside_clips:
     dey
     dey
     lda [tcc__r1],y
+    bmi load_static
     bne load_pattern
     jmp load_tile
+load_static:
+    jmp load_static_cell
 load_pattern:
     cmp.l snes_background_cell_view+VIEW_PATTERNS
     bcs load_slow
@@ -388,27 +423,7 @@ load_free_test:
     lda.b tcc__r2
     and #$3fff
     sta.l snes_background_storage+SNES_BG_RESIDENT,x
-    ldx.b tcc__r5
-    sep #$20
-    lda.l snes_background_storage+SNES_BG_PENDING,x
-    bne load_pending
-    lda #1
-    sta.l snes_background_storage+SNES_BG_PENDING,x
-    rep #$20
-    lda.l snes_background_storage+SNES_BG_UPLOAD_COUNT
-    asl a
-    tax
-    lda.b tcc__r5
-    sta.l snes_background_storage+SNES_BG_UPLOADS,x
-    lda.l snes_background_storage+SNES_BG_UPLOAD_COUNT
-    inc a
-    sta.l snes_background_storage+SNES_BG_UPLOAD_COUNT
-    lda.l snes_background_storage+SNES_BG_DMA_BYTES
-    clc
-    adc #32
-    sta.l snes_background_storage+SNES_BG_DMA_BYTES
-load_pending:
-    rep #$20
+    jsr queue_upload
     lda.b tcc__r5
 load_insert:
     ; a = slot. claim the hash entry and count the reference.
@@ -451,7 +466,8 @@ load_tile:
     adc #256
     bra load_plane_one
 load_high_slot:
-    sbc #816
+    ; carry set: slot - 1024 + OVERFLOW_TILE.
+    sbc #1024-OVERFLOW_TILE
 load_plane_one:
     ora #$2000
     bra load_word
@@ -468,7 +484,9 @@ load_word:
     cmp #1
     beq load_dirty_column
     cmp #2
-    bne load_return
+    beq load_dirty_row
+    jmp load_return
+load_dirty_row:
     ; dirty row: dirty_rows[plane][(y & 31) >> 4] bit (y & 15).
     lda 15,s
     and #15
@@ -498,28 +516,55 @@ load_word:
     sta.l snes_background_storage+SNES_BG_DMA_BYTES
     bra load_return
 load_dirty_column:
-    lda 11,s
-    tax
+    ; markColumnDirty: dirty_columns[plane] holds a count, then the columns.
     lda 13,s
     and #63
     sta.b tcc__r1
-    sep #$20
-    lda.l snes_background_storage+SNES_BG_DIRTY_COLUMN,x
-    cmp #255
-    beq load_column_first
+    lda 11,s
+    asl a
+    asl a
+    tax
+    lda.l snes_background_storage+SNES_BG_DIRTY_COLUMNS,x
+    and #$00ff
+    sta.b tcc__r2
+    tay
+    beq load_column_append
+load_column_scan:
+    inx
+    lda.l snes_background_storage+SNES_BG_DIRTY_COLUMNS,x
+    and #$00ff
     cmp.b tcc__r1
     beq load_column_done
-    lda #1
-    sta.l snes_background_error
-    bra load_column_done
-load_column_first:
+    dey
+    bne load_column_scan
+load_column_append:
+    ; x = plane * 4 + count: the new column goes after the last one.
+    lda.b tcc__r2
+    cmp #SCROLL_CELLS
+    bcs load_column_overflow
+    inx
+    sep #$20
     lda.b tcc__r1
-    sta.l snes_background_storage+SNES_BG_DIRTY_COLUMN,x
+    sta.l snes_background_storage+SNES_BG_DIRTY_COLUMNS,x
+    rep #$20
+    lda 11,s
+    asl a
+    asl a
+    tax
+    sep #$20
+    lda.b tcc__r2
+    inc a
+    sta.l snes_background_storage+SNES_BG_DIRTY_COLUMNS,x
     rep #$20
     lda.l snes_background_storage+SNES_BG_DMA_BYTES
     clc
     adc #64
     sta.l snes_background_storage+SNES_BG_DMA_BYTES
+    bra load_column_done
+load_column_overflow:
+    sep #$20
+    lda #1
+    sta.l snes_background_storage+SNES_BG_STATUS_ERROR
 load_column_done:
     rep #$20
 load_return:
@@ -528,6 +573,57 @@ load_return:
     pld
     plp
     rtl
+
+; static cell: pattern in a with its flag, [tcc__r1],y at the pattern word,
+; whose attribute word holds the tile. the slot the tile names must lie outside
+; the cache pool and be one the plane addresses.
+load_static_cell:
+    and #$3fff
+    cmp.l snes_background_cell_view+VIEW_PATTERNS
+    bcs load_static_slow
+    sta.b tcc__r2
+    iny
+    iny
+    lda [tcc__r1],y
+    and #1023
+    tay
+    lda 11,s
+    beq load_static_plane_zero
+    tya
+    cmp #256
+    bcs load_static_shared
+    ; foreground overflow tiles name slots 1024 and up; lower tiles are none.
+    cmp #OVERFLOW_TILE
+    bcc load_static_slow
+    ; carry set.
+    adc #1024-OVERFLOW_TILE-1
+    bra load_static_slot
+load_static_shared:
+    ; carry set.
+    sbc #256
+    bra load_static_slot
+load_static_plane_zero:
+    tya
+load_static_slot:
+    cmp.l snes_background_cell_view+VIEW_POOL_FIRST
+    bcc load_static_owned
+    cmp.l snes_background_cell_view+VIEW_POOL_END
+    bcc load_static_slow
+load_static_owned:
+    sta.b tcc__r5
+    asl a
+    tax
+    lda.l snes_background_storage+SNES_BG_RESIDENT,x
+    cmp.b tcc__r2
+    beq load_static_resident
+    lda.b tcc__r2
+    sta.l snes_background_storage+SNES_BG_RESIDENT,x
+    jsr queue_upload
+load_static_resident:
+    lda.b tcc__r5
+    jmp load_tile
+load_static_slow:
+    jmp load_slow
 
 ; void snesBackgroundReleaseCellFast(DeceptusU16 plane, DeceptusI16 x, DeceptusI16 y)
 snesBackgroundReleaseCellFast:
@@ -553,7 +649,8 @@ snesBackgroundReleaseCellFast:
     sbc #256
     bra release_slot
 release_low_tile:
-    adc #816
+    ; carry clear: tile - OVERFLOW_TILE + 1024.
+    adc #1024-OVERFLOW_TILE
     bra release_slot
 release_plane_zero:
     tya
@@ -750,7 +847,8 @@ refresh_mark_low:
     sbc #256
     bra refresh_mark_slot
 refresh_mark_low_tile:
-    adc #816
+    ; carry clear: tile - OVERFLOW_TILE + 1024.
+    adc #1024-OVERFLOW_TILE
     bra refresh_mark_slot
 refresh_mark_slot_zero:
     tya
