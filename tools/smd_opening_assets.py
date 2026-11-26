@@ -14,7 +14,7 @@ from palettes import banked_background
 from pixel_font import NativePixelFont
 from smd_assets import array,fit_rgb333_palette,packed_tile,palette_word,rgb333,sprite_chunks,words
 from snes_tutorial_assets import export_opening_worlds,original_imports,source_clips
-from source_sprites import source_sprites
+from source_sprites import source_sprites, sprite_resource_count
 from rle import packbits
 
 
@@ -138,8 +138,8 @@ def compile_sprites(data,output,writer):
             if value:
                 mask[index//8]|=1<<(index%8)
         masks.append(mask)
-    lines+=['const SmdSpriteResource smd_sprite_resources[1065] = {',*['    '+value+',' for value in descriptors],'};',
-            'const DeceptusU8 smd_sprite_opaque[1065][8] = {',*['{'+','.join(map(str,mask))+'},' for mask in masks],'};',
+    lines+=[f'const SmdSpriteResource smd_sprite_resources[{len(descriptors)}] = {{',*['    '+value+',' for value in descriptors],'};',
+            f'const DeceptusU8 smd_sprite_opaque[{len(masks)}][8] = {{',*['{'+','.join(map(str,mask))+'},' for mask in masks],'};',
             array('smd_sprite_quad_offsets',offsets,'u16',16),array('smd_sprite_quads',quads,'u8',32)]
     return lines,dict(resources=len(images),unique_graphics=len(dedup),pieces=len(quads),actor_colors=13,actor_black_slot=33,common_colors=15,ui_white_slot=47)
 
@@ -193,7 +193,7 @@ def compile_opening(data,output,metadata_source,rooms=26):
         print(f'MD room{index}: {result["pattern_count"]}patterns,staticviewport{peak["patterns"]}',flush=True)
     sprite_lines,sprite_report=compile_sprites(data,output,writer);font_lines,font_tiles=compile_font(data,writer)
     header=['#ifndef SMD_ASSETS_H','#define SMD_ASSETS_H','#include "deceptus/adventure.h"',
-            '#define SMD_OPENING 1',f'#define SMD_STAGE_COUNT {rooms}','#define SMD_SPRITE_RESOURCE_COUNT 1065',
+            '#define SMD_OPENING 1',f'#define SMD_STAGE_COUNT {rooms}',f'#define SMD_SPRITE_RESOURCE_COUNT {sprite_resource_count()}',
             '#define SMD_ACTOR_FIRST 0','#define SMD_SPRITE_QUADS 1','#define SMD_SPRITE_OPAQUE_MASK 1',f'#define SMD_FONT_TILES {font_tiles}',
             '#define SMD_FONT_ROWS 2','#define SMD_FONT_SOURCE_TOP 3','#define SMD_ROM_BLOB_RLE 1',
             'typedef struct SmdRomBlob { const DeceptusU8 *data; const DeceptusU32 *offsets; DeceptusU16 block_bytes,blocks; DeceptusU8 unit_bytes; } SmdRomBlob;',
@@ -201,8 +201,8 @@ def compile_opening(data,output,metadata_source,rooms=26):
             'typedef struct SmdStage { SmdRomBlob patterns,background,foreground; const DeceptusU16 *palette; DeceptusU16 columns,rows,pattern_count; const SmdBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; } SmdStage;',
             'typedef struct SmdSpriteResource { SmdRomBlob graphics; DeceptusU16 bytes; DeceptusU8 columns,rows,trim_x,trim_y,palette_bank; } SmdSpriteResource;',
             'typedef struct SmdFontGlyph { DeceptusU16 tile; DeceptusU8 columns; } SmdFontGlyph;',
-            'extern const SmdStage smd_stages[SMD_STAGE_COUNT];','extern const SmdSpriteResource smd_sprite_resources[1065];',
-            'extern const DeceptusU8 smd_sprite_opaque[1065][8],smd_sprite_quads[];','extern const DeceptusU16 smd_sprite_quad_offsets[1065],smd_sprite_palette2[16],smd_sprite_palette3[16];',
+            'extern const SmdStage smd_stages[SMD_STAGE_COUNT];','extern const SmdSpriteResource smd_sprite_resources[SMD_SPRITE_RESOURCE_COUNT];',
+            'extern const DeceptusU8 smd_sprite_opaque[SMD_SPRITE_RESOURCE_COUNT][8],smd_sprite_quads[];','extern const DeceptusU16 smd_sprite_quad_offsets[SMD_SPRITE_RESOURCE_COUNT],smd_sprite_palette2[16],smd_sprite_palette3[16];',
             'extern const SmdRomBlob smd_font;','extern const SmdFontGlyph smd_font_glyphs[95];',
             'extern const DeceptusCampaignDef smd_campaign_definition;','extern const DeceptusAdventureDef smd_tutorial_definition;']
     for name,value in re.findall(r'#define (GBA_\w+_FIRST) (\d+)',(ROOT/'assets/generated/gba/gba_assets.h').read_text()):

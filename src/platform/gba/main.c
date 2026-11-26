@@ -479,6 +479,12 @@ static void mechanismObjects(DeceptusU16 *count)
       {
          resource = GBA_WOODEN_PLANKS_FIRST + state->frame + ((definition->flags & DECEPTUS_MECH_RIGHT_ALIGNED) ? 50 : 0);
 #endif
+#ifdef GBA_MOVEABLE_BOX_FIRST
+      }
+      else if (definition->kind == DECEPTUS_MECH_MOVEABLE_BOX)
+      {
+         resource = GBA_MOVEABLE_BOX_FIRST;
+#endif
       }
       else
       {
@@ -488,11 +494,16 @@ static void mechanismObjects(DeceptusU16 *count)
       {
          entry = &((const GbaMechanismResource *)
                       gba_mechanism_table)[resource + (definition->kind == DECEPTUS_MECH_COLLAPSING ? (segment % 4) * 38 : 0)];
-         origin_x = definition->bounds.x - frame.camera_x + segment * 24;
-         origin_y = definition->bounds.y - frame.camera_y;
+         origin_x = deceptusMechanismBounds(&engine.mechanisms, index)->x - frame.camera_x + segment * 24;
+         origin_y = deceptusMechanismBounds(&engine.mechanisms, index)->y - frame.camera_y;
          if (definition->kind == DECEPTUS_MECH_DOOR)
          {
             origin_x -= 24;
+            origin_y -= 24;
+         }
+         else if (definition->kind == DECEPTUS_MECH_MOVEABLE_BOX)
+         {
+            /* moveablebox.cpp draws the box's lip one tile above its body. */
             origin_y -= 24;
          }
          else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE && (definition->flags & DECEPTUS_MECH_RIGHT_ALIGNED))

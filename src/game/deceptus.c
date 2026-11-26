@@ -1,5 +1,6 @@
 #include "deceptus/enemies.h"
 #include "deceptus/game.h"
+#include "deceptus/moveablebox.h"
 #include "deceptus/physics.h"
 #include "deceptus/playerwater.h"
 #include <string.h>
@@ -80,7 +81,7 @@ void deceptusInit(DeceptusEngine *engine, const DeceptusRoom *room, const Decept
    engine->content_error = !deceptusMechanismsInit(&engine->mechanisms, room->mechanisms, room->mechanism_count, room->mechanism_targets,
                                                    room->mechanism_target_count);
    deceptusMechanismsConfigure(&engine->mechanisms, room->mechanism_timings);
-   if (!deceptusGrabRopesInit(engine))
+   if ((deceptusGrabRopesInit(engine) == 0) || (deceptusMoveableBoxesInit(engine) == 0))
    {
       engine->content_error = 9;
    }
@@ -255,6 +256,7 @@ static void updatePlayer(DeceptusEngine *engine, const DeceptusInput *input)
       player->velocity_y = MAX_FALL;
    }
    height = DECEPTUS_PLAYER_HEIGHT(player);
+   deceptusMoveableBoxesPush(engine, player, PLAYER_HALF_WIDTH, height);
    deceptusMoveHorizontalDynamic(engine->room, player, PLAYER_HALF_WIDTH, height, &engine->mechanisms);
    deceptusMoveVerticalDynamic(engine->room, player, PLAYER_HALF_WIDTH, height, &engine->mechanisms);
    if (player->grounded && !was_grounded)
@@ -424,6 +426,7 @@ void deceptusTick(DeceptusEngine *engine, DeceptusU16 buttons)
       --engine->hurt_ticks;
    }
    deceptusGrabRopesTick(engine);
+   deceptusMoveableBoxesFall(engine);
    updatePlayer(engine, &input);
    player = &engine->entities[0];
    player_rect.x = deceptusFloor(player->x) - PLAYER_HALF_WIDTH;

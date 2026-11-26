@@ -20,6 +20,10 @@
 #define DECEPTUS_MECH_DESTRUCTIBLE 11
 #define DECEPTUS_MECH_CANNON_BODY 12
 #define DECEPTUS_MECH_GRAB_ROPE 13
+#define DECEPTUS_MECH_MOVEABLE_BOX 14
+/* stops moveable boxes only; bodies pass through it. */
+#define DECEPTUS_MECH_BOX_COLLIDER 15
+#define DECEPTUS_MOVEABLE_BOX_CAPACITY 2
 #define DECEPTUS_TIMED_ANIMATION 1
 #define DECEPTUS_TIMED_INTERVAL 2
 #define DECEPTUS_COLLAPSE_ONCE_TOUCHED 4
@@ -87,6 +91,14 @@ typedef struct DeceptusMechanismState
    DeceptusU16 idle_ticks;
 } DeceptusMechanismState;
 
+/* a pushable box where it is now; its definition bounds hold where the room places it. */
+typedef struct DeceptusMoveableBox
+{
+   DeceptusRect bounds;
+   DeceptusFixed x, y, velocity_y;
+   DeceptusU8 mechanism_index;
+} DeceptusMoveableBox;
+
 typedef struct DeceptusMechanismEvent
 {
    DeceptusU16 source_id;
@@ -110,6 +122,8 @@ typedef struct DeceptusMechanismSet
    DeceptusU32 solid_mask, solid_outside;
    DeceptusU32 solid_columns[DECEPTUS_SOLID_BIN_COUNT];
    DeceptusU32 solid_rows[DECEPTUS_SOLID_BIN_COUNT];
+   DeceptusMoveableBox boxes[DECEPTUS_MOVEABLE_BOX_CAPACITY];
+   DeceptusU8 box_count;
 } DeceptusMechanismSet;
 
 /* definitions remain unchanged until reinitialization. invalid or oversized
@@ -118,6 +132,8 @@ DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMecha
                                   const DeceptusU16 *targets, DeceptusU16 target_count);
 void deceptusMechanismsConfigure(DeceptusMechanismSet *set, const DeceptusMechanismTiming *timings);
 DeceptusI16 deceptusMechanismFind(const DeceptusMechanismSet *set, DeceptusU16 source_id);
+/* where the mechanism at index is now: a moveable box leaves its definition bounds. */
+const DeceptusRect *deceptusMechanismBounds(const DeceptusMechanismSet *set, DeceptusU16 index);
 DeceptusU8 deceptusMechanismEnable(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU8 enabled);
 /* applies one weapon hit to the original destructible blocker durability. */
 DeceptusU8 deceptusMechanismHit(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU16 damage);
@@ -126,5 +142,10 @@ void deceptusMechanismsTick(DeceptusMechanismSet *set, const DeceptusRect *playe
 DeceptusU8 deceptusMechanismSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds);
 /* source cannon gun projectiles ignore cannon enemy fixtures. */
 DeceptusU8 deceptusMechanismProjectileSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds);
+/* a body moving sideways meets moveable boxes at their exact edge (deceptusMoveHorizontalDynamic),
+ * not at the edge of the collision cell they cover, so this leaves them out. */
+DeceptusU8 deceptusMechanismSidewaysSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds);
+/* what stops the box at mechanism index box: the bodies' solids, other boxes and box colliders. */
+DeceptusU8 deceptusMechanismBoxSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds, DeceptusU8 box);
 
 #endif

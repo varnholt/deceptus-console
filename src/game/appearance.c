@@ -152,6 +152,14 @@ static DeceptusU8 mechanismSprites(const DeceptusEngine *engine, DeceptusAppeara
          x -= 24;
          y -= 24;
       }
+      else if (definition->kind == DECEPTUS_MECH_MOVEABLE_BOX)
+      {
+         family = DECEPTUS_SPRITE_MOVEABLE_BOX;
+         image = 0;
+         x = deceptusMechanismBounds(&engine->mechanisms, index)->x - engine->camera_x;
+         /* moveablebox.cpp draws the box's lip one tile above its body. */
+         y = deceptusMechanismBounds(&engine->mechanisms, index)->y - engine->camera_y - 24;
+      }
       else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE)
       {
          family = DECEPTUS_SPRITE_WOODEN_PLANKS;

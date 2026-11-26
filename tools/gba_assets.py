@@ -264,7 +264,8 @@ def compile_mechanisms(data, output):
                       ('frog-blue',48,48,8,63,52,32,False),
                       ('frog-blue-orb',120,120,8,8,52,4,True),
                       ('rope-segments.png',16,16,9,9,52,4,True),
-                      ('player-rope',72,48,3,6,2,32,True)]
+                      ('player-rope',72,48,3,6,2,32,True),
+                      ('moveable_box.png',48,72,1,1,52,12,True)]
     for filename, width, height, columns, count, palette_first, palette_count, shared in specifications:
         actual_filename = ('player.png' if filename in ('player-swim','player-splash','player-sword','player-helmet','player-rope') else
                            'enemy_arrowtrap_2.png' if filename.startswith('trap-') else
@@ -316,6 +317,9 @@ def compile_mechanisms(data, output):
             elif filename == 'trap-muzzles':
                 direction, step = index // 10, index % 10
                 rect = [step * 24, (6 + direction) * 24, 24 if direction < 2 else 8, 8 if direction < 2 else 24]
+            elif filename == 'moveable_box.png':
+                # moveablebox.cpp draws a 48px box from this cell, its lip 24px above the body.
+                rect = [72, 24, 48, 72]
             elif filename == '../weapons/arrow.png':
                 rect = [(index % 4) * 24, 24, 24, 24]
                 rotation = [180, 0, 270, 90][index // 4]
@@ -483,7 +487,7 @@ def compile_assets(data, scene="lever", recipe_path=None):
                '#define GBA_IRON_DOOR_FIRST 728', '#define GBA_WOODEN_PLANKS_FIRST 842',
                '#define GBA_HEADTORCH_FIRST 942', '#define GBA_HEADTORCH_BEAM_FIRST 944',
                '#define GBA_ORB_FIRST 945', '#define GBA_FROG_BLUE_FIRST 953', '#define GBA_BLUE_FIREBALL_FIRST 1016',
-               '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033',
+               '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033', '#define GBA_MOVEABLE_BOX_FIRST 1039',
                f'#define GBA_MECHANISM_FRAME_COUNT {mechanism_frames}',
                '#define GBA_ACTOR_FRAME_BYTES 1536', f'#define GBA_ACTOR_FRAME_COUNT {ACTOR_FRAME_COUNT}', '#endif', '']
     (OUTPUT / 'data.s').write_text('\n'.join(assembly) + '\n')

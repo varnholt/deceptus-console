@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 
 import numpy as np
@@ -89,7 +90,7 @@ def room_families(source, recipe, sword):
     families = {'HEADTORCH', 'HEADTORCH_BEAM', 'SWORD' if sword else 'ACTOR'}
     mechanism_families = {
         3: 'LEVER', 4: 'BLOCK', 7: 'SPIKES', 8: 'COLLAPSE',
-        10: 'IRON_DOOR', 11: 'WOODEN_PLANKS', 13: 'GRAB_ROPE',
+        10: 'IRON_DOOR', 11: 'WOODEN_PLANKS', 13: 'GRAB_ROPE', 14: 'MOVEABLE_BOX',
     }
     for mechanism in mechanisms['definitions']:
         kind = mechanism['kind']
@@ -97,7 +98,7 @@ def room_families(source, recipe, sword):
             names = {'DECEPTUS_MECH_LEVER': 3, 'DECEPTUS_MECH_BLOCK': 4,
                      'DECEPTUS_MECH_SPIKES': 7, 'DECEPTUS_MECH_COLLAPSING': 8,
                      'DECEPTUS_MECH_DOOR': 10, 'DECEPTUS_MECH_DESTRUCTIBLE': 11,
-                     'DECEPTUS_MECH_GRAB_ROPE': 13}
+                     'DECEPTUS_MECH_GRAB_ROPE': 13, 'DECEPTUS_MECH_MOVEABLE_BOX': 14}
             kind = names.get(kind, 0)
         if kind in mechanism_families:
             families.add(mechanism_families[kind])
@@ -341,6 +342,10 @@ def compile_opening(data, output, room_indices=None):
     simulation = compile_rooms(amiga_recipes(recipes), output / 'rooms')
     images, records = source_sprites(data, output)
     families = sprite_families(len(images))
+    capacity = int(re.search(r'#define AMIGA_GRAPHICS_RESOURCES (\d+)',
+                             (ROOT / 'src/platform/amiga/graphics.h').read_text()).group(1))
+    if len(images) > capacity:
+        raise ValueError(f'{len(images)} sprite resources exceed AMIGA_GRAPHICS_RESOURCES ({capacity})')
     reports = []
     for index in (range(len(recipes)) if room_indices is None else room_indices):
         recipe, source = recipes[index]
