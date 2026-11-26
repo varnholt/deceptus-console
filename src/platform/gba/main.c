@@ -460,6 +460,10 @@ static DeceptusU16 mechanismFamilyFirst(DeceptusU8 family)
    case SPRITE_CRUSHER:
       return GBA_CRUSHER_FIRST;
 #endif
+#ifdef GBA_FLOOR_SPIKES_FIRST
+   case SPRITE_FLOOR_SPIKES:
+      return GBA_FLOOR_SPIKES_FIRST;
+#endif
    default:
       return 65535;
    }

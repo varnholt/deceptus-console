@@ -34,9 +34,11 @@ and lighting features also exist; these do not establish family-wide parity.
 | Interaction help / controller help / info overlays | 38 / 2 / 1 | Source action prompts, input mapping and reusable menu/UI state |
 
 Object counts omit tile mechanisms. Catacombs additionally has **8 interval-spike,
-8 trap-spike and 49 toggle-spike nonempty cells**. These are cells, not 65
-independent mechanism instances; preserve the source grouping and timing when
-importing them. No configured placements were found for conveyors, fans,
+8 trap-spike and 49 toggle-spike nonempty cells**. The source makes one Spikes
+instance per cell (spikes.cpp `load`), and so does the port: every cell inside a
+room crop becomes a floor-spike mechanism with the source's default timing (cells
+have no properties). The intro rooms hold 10 toggled, 8 interval and 4 trap cells;
+the rest lie outside them. No configured placements were found for conveyors, fans,
 lasers, rotating blades, ordinary ropes, water-damage rectangles, skill gates,
 zoom rectangles or death blocks. Their source classes still require deliberate
 future support rather than successful empty backends.
@@ -97,7 +99,7 @@ unsupported playback as successful.
 
 1. Short source SFX and menu navigation/volume services; verify real emulator
    audio output and bound voice/command overflow. Preserve source credits.
-2. The 65 spike cells, four moving platforms, buttons and collision categories;
+2. The spike cells outside the intro rooms, four moving platforms, buttons and collision categories;
    verify carrying, underside contact and damage against source placements.
 3. Moving boxes, crushers, spike balls and bubble cubes using shared fixed-point
    geometry, while retaining each original mechanism's own state machine.

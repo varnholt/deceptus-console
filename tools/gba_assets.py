@@ -17,9 +17,18 @@ OUTPUT = ROOT / "assets/generated/gba"
 
 # the graveyard map's crusher texture (crusher.cpp loads tilesets/crushers.png beside the map).
 CRUSHER_ATLAS = '../level-graveyard/tilesets/crushers.png'
+# catacombs spike layers: spikes.cpp loads tilesets/spikes.png beside the map.
+FLOOR_SPIKES_ATLAS = '../level-catacombs/tilesets/spikes.png'
+
+
+def header_define(header, name):
+    return int(re.search(rf'^#define {name} (\d+)$', (ROOT / 'include/deceptus' / header).read_text(), re.M).group(1))
+
+
+FLOOR_SPIKES_FRAMES = header_define('floorspikes.h', 'FLOOR_SPIKES_FRAMES')
+FLOOR_SPIKES_ROWS = header_define('floorspikes.h', 'FLOOR_SPIKES_ROWS')
 # the chain link variants follow the engine's crusher image layout.
-CRUSHER_LINK_HEIGHT = int(re.search(r'^#define CRUSHER_LINK_HEIGHT (\d+)$',
-                                    (ROOT / 'include/deceptus/crusher.h').read_text(), re.M).group(1))
+CRUSHER_LINK_HEIGHT = header_define('crusher.h', 'CRUSHER_LINK_HEIGHT')
 
 def linear4(tile):
     pixels = list(tile.getdata())
@@ -273,7 +282,9 @@ def compile_mechanisms(data, output):
                       ('player-rope',72,48,3,6,2,32,True),
                       ('moveable_box.png',48,72,1,1,52,12,True),
                       # blade, ceiling mount, and the chain link with 0..23 of its top rows cut off (CRUSHER_IMAGE_*).
-                      (CRUSHER_ATLAS,120,72,1,2+CRUSHER_LINK_HEIGHT,52,24,True)]
+                      (CRUSHER_ATLAS,120,72,1,2+CRUSHER_LINK_HEIGHT,52,24,True),
+                      # the up, down, right and left rows of the spike layers' 15-frame animation.
+                      (FLOOR_SPIKES_ATLAS,24,24,FLOOR_SPIKES_FRAMES,FLOOR_SPIKES_FRAMES*FLOOR_SPIKES_ROWS,52,24,True)]
     for filename, width, height, columns, count, palette_first, palette_count, shared in specifications:
         actual_filename = ('player.png' if filename in ('player-swim','player-splash','player-sword','player-helmet','player-rope') else
                            'enemy_arrowtrap_2.png' if filename.startswith('trap-') else
@@ -325,6 +336,9 @@ def compile_mechanisms(data, output):
             elif filename == 'trap-muzzles':
                 direction, step = index // 10, index % 10
                 rect = [step * 24, (6 + direction) * 24, 24 if direction < 2 else 8, 8 if direction < 2 else 24]
+            elif filename == FLOOR_SPIKES_ATLAS:
+                # spikes.cpp texture rect: frame column, orientation row; the under-water half is not used.
+                rect = [(index % FLOOR_SPIKES_FRAMES) * 24, (index // FLOOR_SPIKES_FRAMES) * 24, 24, 24]
             elif filename == CRUSHER_ATLAS:
                 # crusher.cpp texture rects for alignment down: spike, mount, and one chain link.
                 hidden = index - 2
@@ -368,7 +382,7 @@ def compile_mechanisms(data, output):
             trim_x, trim_y = 0, 0
             logical_rect = rects[index]
             source_rect = logical_rect
-            trim = filename in (CRUSHER_ATLAS, 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
+            trim = filename in (CRUSHER_ATLAS, FLOOR_SPIKES_ATLAS, 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
                                 'orb.png', 'frog-blue', 'frog-blue-orb', 'player-rope')
             if trim:
                 # omit transparent padding only, keeping the authored logical
@@ -501,7 +515,7 @@ def compile_assets(data, scene="lever", recipe_path=None):
                '#define GBA_HEADTORCH_FIRST 942', '#define GBA_HEADTORCH_BEAM_FIRST 944',
                '#define GBA_ORB_FIRST 945', '#define GBA_FROG_BLUE_FIRST 953', '#define GBA_BLUE_FIREBALL_FIRST 1016',
                '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033', '#define GBA_MOVEABLE_BOX_FIRST 1039',
-               '#define GBA_CRUSHER_FIRST 1040',
+               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066',
                f'#define GBA_MECHANISM_FRAME_COUNT {mechanism_frames}',
                '#define GBA_ACTOR_FRAME_BYTES 1536', f'#define GBA_ACTOR_FRAME_COUNT {ACTOR_FRAME_COUNT}', '#endif', '']
     (OUTPUT / 'data.s').write_text('\n'.join(assembly) + '\n')

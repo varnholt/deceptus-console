@@ -27,6 +27,8 @@
 /* a spiked blade on a chain that drops from the ceiling and lifts again; value holds its travel in
  * pixels, on_ticks and off_ticks how long it waits lowered and raised. */
 #define MECHANISM_CRUSHER 16
+/* one tile of a spike layer (floorspikes.h). */
+#define MECHANISM_FLOOR_SPIKES 17
 #define DECEPTUS_TIMED_ANIMATION 1
 #define DECEPTUS_TIMED_INTERVAL 2
 #define DECEPTUS_COLLAPSE_ONCE_TOUCHED 4

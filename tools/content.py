@@ -359,7 +359,67 @@ def crop_mechanisms(data, recipe):
         elif obj['group'] == 'grab_ropes':
             definitions[-1]['visual_status'] = 'native plain rope strips and source player midair pose'
             definitions[-1]['simulation_note'] = 'bounded fixed-point chain constraints replace Box2D joints; automatic airborne grab, swing-only hold, jump release'
+    definitions += floor_spike_tiles(data, recipe, root)
+    if len(definitions) > 32:
+        raise ContentError.at(f'crop holds {len(definitions)} mechanisms with its spike tiles; the runtime budget is 32', recipe,
+                              fix='remove spike tiles or mechanisms, or split the room')
     return definitions, targets, unsupported
+
+
+def _floor_spikes_define(name):
+    header = (Path(__file__).resolve().parents[1] / 'include/deceptus/floorspikes.h').read_text()
+    return int(re.search(rf'^#define {name} (\d+)$', header, re.M).group(1))
+
+
+# spikes.cpp modes by layer name; toggle_spikes use neither flag.
+FLOOR_SPIKE_LAYERS = {'toggle_spikes': 0, 'interval_spikes': _floor_spikes_define('FLOOR_SPIKES_INTERVAL'),
+                      'trap_spikes': _floor_spikes_define('FLOOR_SPIKES_TRAP')}
+FLOOR_SPIKE_FRAMES = _floor_spikes_define('FLOOR_SPIKES_FRAMES')
+FLOOR_SPIKE_ROWS = _floor_spikes_define('FLOOR_SPIKES_ROWS')
+# the atlas holds the under-water frames beside the normal ones (FLOOR_SPIKES_ATLAS_COLUMNS).
+FLOOR_SPIKE_ATLAS_COLUMNS = 2 * FLOOR_SPIKE_FRAMES
+# spikes placed as tiles have no properties: spikes.cpp's default up and down times, 2000 ms.
+FLOOR_SPIKE_UP_DOWN_TICKS = 120
+
+
+def floor_spike_tiles(data, recipe, root):
+    """One mechanism per tile of the spike layers inside the crop."""
+    from tiled import TiledMap, layer_values, GID_MASK
+    if root is None:
+        return []
+    tiled = TiledMap(Path(data) / recipe['map'])
+    left, top, width, height = recipe['crop_pixels']
+    source_id = int(root.get('nextobjectid', '1'))
+    definitions = []
+    for layer, offset, _ in tiled.layers():
+        flags = FLOOR_SPIKE_LAYERS.get(layer.get('name'))
+        if layer.tag != 'layer' or flags is None:
+            continue
+        columns = int(layer.get('width'))
+        for position, gid in enumerate(layer_values(layer)):
+            if not gid:
+                continue
+            x = (position % columns) * tiled.tile_width + offset[0] - left
+            y = (position // columns) * tiled.tile_height + offset[1] - top
+            if not (0 <= x < width and 0 <= y < height):
+                continue
+            first, tileset, _ = next(entry for entry in reversed(tiled.tilesets) if entry[0] <= (gid & GID_MASK))
+            tile = (gid & GID_MASK) - first
+            image = tileset.find('image').get('source', '')
+            if (gid != gid & GID_MASK or not image.endswith('spikes.png') or
+                    tile % FLOOR_SPIKE_ATLAS_COLUMNS >= FLOOR_SPIKE_FRAMES or tile // FLOOR_SPIKE_ATLAS_COLUMNS >= FLOOR_SPIKE_ROWS):
+                raise ContentError.at(f'spike tile {tile} of {layer.get("name")} is not an unflipped spikes.png frame above water', recipe,
+                                      fix='use the spikes tileset without flips or under-water frames')
+            if source_id > 65535:
+                raise ContentError.at('spike tile ids exceed the 16-bit identity range', recipe, fix='renumber the map objects')
+            definitions.append({'source_id': source_id, 'name': f'{layer.get("name")}@{position}', 'kind': 'MECHANISM_FLOOR_SPIKES',
+                                'bounds': [round(x), round(y), tiled.tile_width, tiled.tile_height],
+                                'timing': [FLOOR_SPIKE_UP_DOWN_TICKS, FLOOR_SPIKE_UP_DOWN_TICKS, 0, 0, 0, 0, 0],
+                                'enabled': 1, 'flags': flags, 'value': tile, 'target_first': 0, 'target_count': 0,
+                                'visual_status': 'source spikes.png frames of the orientation row of the tile',
+                                'simulation_note': 'spikes.cpp interval, trap and toggled modes with the source defaults'})
+            source_id += 1
+    return definitions
 
 
 if __name__ == "__main__":
