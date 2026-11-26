@@ -1,4 +1,5 @@
 #include "deceptus/appearance.h"
+#include "deceptus/ropelink.h"
 #include "deceptus/enemies.h"
 #include "deceptus/mechanismparts.h"
 
@@ -148,28 +149,39 @@ static DeceptusU8 backMechanismSprites(const DeceptusEngine *engine, DeceptusApp
    return 1;
 }
 
+/* each piece runs between two points along the rope: the knot piece from the anchor, then plain
+ * links, the last one ending at the rope's end. */
 static DeceptusU8 ropeSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
 {
-   DeceptusU16 distance, length, height;
-   DeceptusU8 rope, node;
-   DeceptusI16 x, y;
+   DeceptusU16 distance, length, covered, full;
+   DeceptusU8 rope, node, image;
+   DeceptusI16 x0, y0, x1, y1, x, y;
    for (rope = 0; rope < engine->grab_ropes.count; ++rope)
    {
       length = deceptusGrabRopeLength(engine, rope);
       node = 1;
-      for (distance = 0; distance < length; distance += height)
+      deceptusGrabRopePointFrom(engine, rope, 0, &node, &x0, &y0);
+      for (distance = 0; distance < length; distance += covered)
       {
-         height = distance ? 8 : 16;
-         if (height > length - distance)
+         full = distance ? ROPE_LINK_LENGTH : ROPE_KNOT_LENGTH;
+         covered = full;
+         if (covered > length - distance)
          {
-            height = length - distance;
+            covered = length - distance;
          }
-         deceptusGrabRopePointFrom(engine, rope, distance, &node, &x, &y);
-         if (!addSprite(output, DECEPTUS_SPRITE_GRAB_ROPE, distance ? height : 0, x - engine->camera_x - 7,
-                        y - engine->camera_y - (distance ? 4 : 0), 0))
+         deceptusGrabRopePointFrom(engine, rope, distance + covered, &node, &x1, &y1);
+         image = ropeLinkAngle((DeceptusI16)(x1 - x0), (DeceptusI16)(y1 - y0));
+         if (distance == 0)
+         {
+            image = (DeceptusU8)(image + ROPE_LINK_IMAGE_KNOT);
+         }
+         ropeLinkCell(x0, y0, x1, y1, covered, full, &x, &y);
+         if (!addSprite(output, SPRITE_ROPE_LINK, image, x - engine->camera_x, y - engine->camera_y, 0))
          {
             return 0;
          }
+         x0 = x1;
+         y0 = y1;
       }
    }
    return 1;

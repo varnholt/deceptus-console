@@ -183,8 +183,9 @@ link steps from piece to piece with a quotient and remainder instead of a 32-bit
 multiply and divide per piece.
 
 The interface preserves source bitmap glyphs and text in console-sized panels.
-Ropes follow the shared simulated curve using source strips; the backend does
-not rotate those strips. The headtorch uses a source light sprite approximation.
+Ropes follow the shared simulated curve as straight pieces between points along
+it, each one of 17 source-strand images turned in steps of 11.25 degrees
+(`ropelink.h`). The headtorch uses a source light sprite approximation.
 These are presentation adaptations, and neither a full original shader pipeline
 nor complete source-menu layout parity is established.
 

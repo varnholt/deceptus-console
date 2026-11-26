@@ -5,6 +5,41 @@ from pathlib import Path
 import re
 from PIL import Image
 
+ROOT = Path(__file__).resolve().parents[1]
+LINKS_SHEET = 'rope-links.png'
+
+
+def header_define(name):
+    header = (ROOT / 'include/deceptus/ropelink.h').read_text()
+    return int(re.search(rf'^#define {name} (\d+)$', header, re.M).group(1))
+
+
+LINK_ANGLES = header_define('ROPE_LINK_ANGLES')
+LINK_CELL = header_define('ROPE_LINK_CELL')
+LINK_LENGTH = header_define('ROPE_LINK_LENGTH')
+KNOT_LENGTH = header_define('ROPE_KNOT_LENGTH')
+LINK_IMAGES = 2 * LINK_ANGLES
+# rope.cpp's strand: the knot in its first 16 rows, then the plain strand; the 2px strand runs down
+# columns 2 and 3 of the 7px texture.
+STRAND_CENTRE_X = 3
+
+
+def compile_rope_links(texture, output):
+    """One row of LINK_CELL cells: a plain link, then the knot piece, each turned from pointing left
+    through hanging down to pointing right (ropelink.h). Pieces are a pixel longer than the rope
+    between their points, so neighbouring pieces meet."""
+    pieces = [texture.crop((0, KNOT_LENGTH, 7, KNOT_LENGTH + LINK_LENGTH + 2)), texture.crop((0, 0, 7, KNOT_LENGTH + 1))]
+    sheet = Image.new('RGBA', (LINK_CELL * LINK_IMAGES, LINK_CELL))
+    centre = LINK_CELL // 2
+    step = 180 / (LINK_ANGLES - 1)
+    for kind, piece in enumerate(pieces):
+        cell = Image.new('RGBA', (LINK_CELL, LINK_CELL))
+        cell.alpha_composite(piece, (centre - STRAND_CENTRE_X, centre - piece.height // 2))
+        for index in range(LINK_ANGLES):
+            turned = cell.rotate(-90 + index * step, resample=Image.Resampling.NEAREST, center=(centre, centre))
+            sheet.alpha_composite(turned, ((kind * LINK_ANGLES + index) * LINK_CELL, 0))
+    sheet.save(Path(output) / LINKS_SHEET)
+
 
 def player_rope_frames(data):
     data=Path(data)
@@ -46,6 +81,7 @@ def compile_rope(data, output):
         x,y,width,height=spec['source_rect']
         atlas.paste(texture.crop((x,y,x+width,y+height)),(index*16+spec['placement'][0],spec['placement'][1]))
     atlas.save(output/'rope-segments.png')
+    compile_rope_links(texture, output)
     player=player_rope_frames(data)
     lines=['/* original native-width rope slices; padding is for rotation, never scaled artwork. */',
            '#ifndef GBA_ROPE_RESOURCES_H','#define GBA_ROPE_RESOURCES_H',
@@ -63,6 +99,6 @@ def compile_rope(data, output):
                 source_hashes={path.relative_to(data.parent).as_posix():hashlib.sha256(path.read_bytes()).hexdigest() for path in paths},
                 resampling=False,dithering=False,
                 limitations=['native plain strand is tiled rather than stretching the original 141px texture over arbitrary rope lengths',
-                             'backend rotates bounded native strips without scaling; not a full GPU triangle-strip rope renderer'])
+                             'pieces are pre-turned in 11.25 degree steps (rope-links.png); not a full GPU triangle-strip rope renderer'])
     (output/'rope.json').write_text(json.dumps(report,indent=2)+'\n')
     return report

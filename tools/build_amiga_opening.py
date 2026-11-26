@@ -17,7 +17,7 @@ from amiga_message_box import compile_message_boxes
 
 
 OPENING_SOURCES = (
-    'src/engine/compression.c', 'src/game/adventure.c', 'src/game/mechanismparts.c', 'src/game/appearance.c',
+    'src/engine/compression.c', 'src/game/adventure.c', 'src/game/mechanismparts.c', 'src/game/appearance.c', 'src/game/ropelink.c',
     'src/game/roomcontent.c', 'src/game/weapons/playersword.c',
     'src/game/player/playeranimation.c', 'src/game/items/itemheadtorch.c',
     'src/platform/amiga/rooms.c', 'src/platform/amiga/graphics.c',

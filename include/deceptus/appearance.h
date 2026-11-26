@@ -32,7 +32,8 @@
 #define SPRITE_FLOOR_SPIKES 26
 #define SPRITE_SPIKE_BALL 27
 #define SPRITE_CHECKPOINT_CLOCK 28
-#define DECEPTUS_SPRITE_FAMILY_COUNT 29
+#define SPRITE_ROPE_LINK 29
+#define DECEPTUS_SPRITE_FAMILY_COUNT 30
 
 /* logical original-source frames; target palettes, tiles and DMA stay in backends. */
 typedef struct DeceptusSpriteAppearance
