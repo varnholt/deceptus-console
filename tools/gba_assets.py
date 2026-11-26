@@ -12,6 +12,7 @@ from PIL import Image
 from assets import ROOT, SOURCE, import_deceptus, ACTOR_FRAME_COUNT
 from palettes import banked_background, palette_rgb555
 from world_export import export_world
+import spike_ball_assets
 
 OUTPUT = ROOT / "assets/generated/gba"
 
@@ -248,6 +249,7 @@ def compile_mechanisms(data, output):
     compile_headtorch(data, output)
     from rope_assets import compile_rope
     rope = compile_rope(data, output)
+    spike_ball_assets.compile_spike_ball(data, output)
     doors = json.loads((data / 'sprites/door_animations.json').read_text())
     for name, offset in [('iron_door_open', [0, 0]), ('iron_door_close', [0, 144])]:
         animation = doors[name]
@@ -284,14 +286,16 @@ def compile_mechanisms(data, output):
                       # blade, ceiling mount, and the chain link with 0..23 of its top rows cut off (CRUSHER_IMAGE_*).
                       (CRUSHER_ATLAS,120,72,1,2+CRUSHER_LINK_HEIGHT,52,24,True),
                       # the up, down, right and left rows of the spike layers' 15-frame animation.
-                      (FLOOR_SPIKES_ATLAS,24,24,FLOOR_SPIKES_FRAMES,FLOOR_SPIKES_FRAMES*FLOOR_SPIKES_ROWS,52,24,True)]
+                      (FLOOR_SPIKES_ATLAS,24,24,FLOOR_SPIKES_FRAMES,FLOOR_SPIKES_FRAMES*FLOOR_SPIKES_ROWS,52,24,True),
+                      # the turned balls and the two chain links (SPIKE_BALL_IMAGE_*).
+                      (spike_ball_assets.SHEET,spike_ball_assets.FRAME_SIZE,spike_ball_assets.FRAME_SIZE,spike_ball_assets.IMAGE_COUNT,spike_ball_assets.IMAGE_COUNT,52,40,True)]
     for filename, width, height, columns, count, palette_first, palette_count, shared in specifications:
         actual_filename = ('player.png' if filename in ('player-swim','player-splash','player-sword','player-helmet','player-rope') else
                            'enemy_arrowtrap_2.png' if filename.startswith('trap-') else
                            'enemy_pirate_cannon.png' if filename == 'cannon-body' else
                            'enemy_frog.png' if filename in ('frog-blue', 'frog-blue-orb') else
                            'enemy_pirate_cannon_cannonball.png' if filename == 'cannonball' else filename)
-        generated = filename in ('headtorch-beam.png', 'rope-segments.png')
+        generated = filename in ('headtorch-beam.png', 'rope-segments.png', spike_ball_assets.SHEET)
         atlas = Image.open((output if generated else data / 'sprites') / actual_filename).convert('RGBA')
         if filename == 'wooden_planks.png' and atlas.size != (7500, 326):
             raise ValueError('wooden plank atlas differs from its authored 50-frame directional layout')
@@ -382,7 +386,7 @@ def compile_mechanisms(data, output):
             trim_x, trim_y = 0, 0
             logical_rect = rects[index]
             source_rect = logical_rect
-            trim = filename in (CRUSHER_ATLAS, FLOOR_SPIKES_ATLAS, 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
+            trim = filename in (CRUSHER_ATLAS, FLOOR_SPIKES_ATLAS, spike_ball_assets.SHEET, 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
                                 'orb.png', 'frog-blue', 'frog-blue-orb', 'player-rope')
             if trim:
                 # omit transparent padding only, keeping the authored logical
@@ -515,7 +519,7 @@ def compile_assets(data, scene="lever", recipe_path=None):
                '#define GBA_HEADTORCH_FIRST 942', '#define GBA_HEADTORCH_BEAM_FIRST 944',
                '#define GBA_ORB_FIRST 945', '#define GBA_FROG_BLUE_FIRST 953', '#define GBA_BLUE_FIREBALL_FIRST 1016',
                '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033', '#define GBA_MOVEABLE_BOX_FIRST 1039',
-               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066',
+               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066', '#define GBA_SPIKE_BALL_FIRST 1126',
                f'#define GBA_MECHANISM_FRAME_COUNT {mechanism_frames}',
                '#define GBA_ACTOR_FRAME_BYTES 1536', f'#define GBA_ACTOR_FRAME_COUNT {ACTOR_FRAME_COUNT}', '#endif', '']
     (OUTPUT / 'data.s').write_text('\n'.join(assembly) + '\n')

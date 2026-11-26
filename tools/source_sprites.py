@@ -25,10 +25,12 @@ def sprite_resource_count():
 def source_sprites(data, output):
     from headtorch_assets import compile_headtorch
     from rope_assets import compile_rope
+    from spike_ball_assets import compile_spike_ball
 
     data, output = Path(data), Path(output)
     compile_headtorch(data, output)
     compile_rope(data, output)
+    compile_spike_ball(data, output)
     records = json.loads(FRAMES.read_text())
     images, cache = [], {}
     rotations = {90: Image.Transpose.ROTATE_90,
@@ -71,7 +73,7 @@ FAMILY_NAMES = (
     'MUZZLE', 'ARROW', 'SWIM', 'BLOB', 'SPLASH', 'SWORD', 'CANNON',
     'CANNONBALL', 'IRON_DOOR', 'WOODEN_PLANKS', 'HEADTORCH',
     'HEADTORCH_BEAM', 'ORB', 'FROG_BLUE', 'BLUE_FIREBALL', 'GRAB_ROPE',
-    'PLAYER_ROPE', 'MOVEABLE_BOX', 'CRUSHER', 'FLOOR_SPIKES',
+    'PLAYER_ROPE', 'MOVEABLE_BOX', 'CRUSHER', 'FLOOR_SPIKES', 'SPIKE_BALL',
 )
 
 

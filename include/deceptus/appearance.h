@@ -30,7 +30,8 @@
 #define DECEPTUS_SPRITE_MOVEABLE_BOX 24
 #define SPRITE_CRUSHER 25
 #define SPRITE_FLOOR_SPIKES 26
-#define DECEPTUS_SPRITE_FAMILY_COUNT 27
+#define SPRITE_SPIKE_BALL 27
+#define DECEPTUS_SPRITE_FAMILY_COUNT 28
 
 /* logical original-source frames; target palettes, tiles and DMA stay in backends. */
 typedef struct DeceptusSpriteAppearance

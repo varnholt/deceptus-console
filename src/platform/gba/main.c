@@ -464,6 +464,10 @@ static DeceptusU16 mechanismFamilyFirst(DeceptusU8 family)
    case SPRITE_FLOOR_SPIKES:
       return GBA_FLOOR_SPIKES_FIRST;
 #endif
+#ifdef GBA_SPIKE_BALL_FIRST
+   case SPRITE_SPIKE_BALL:
+      return GBA_SPIKE_BALL_FIRST;
+#endif
    default:
       return 65535;
    }
