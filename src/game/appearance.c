@@ -1,4 +1,5 @@
 #include "deceptus/appearance.h"
+#include "deceptus/crusher.h"
 #include "deceptus/enemies.h"
 
 typedef struct DeceptusAppearanceOutput
@@ -95,6 +96,22 @@ static DeceptusU8 playerSprites(const DeceptusAdventure *game, const DeceptusDra
    return addSprite(output, family, image, x, y, flip);
 }
 
+static DeceptusU8 crusherSprites(const DeceptusEngine *engine, DeceptusU16 index, DeceptusAppearanceOutput *output)
+{
+   DeceptusU8 part, parts, image;
+   DeceptusI16 x, y;
+   parts = crusherPartCount(&engine->mechanisms, index);
+   for (part = 0; part < parts; ++part)
+   {
+      crusherPart(&engine->mechanisms, index, part, &image, &x, &y);
+      if (!addSprite(output, SPRITE_CRUSHER, image, x - engine->camera_x, y - engine->camera_y, 0))
+      {
+         return 0;
+      }
+   }
+   return 1;
+}
+
 static DeceptusU8 mechanismSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
 {
    const DeceptusMechanismDef *definition;
@@ -159,6 +176,14 @@ static DeceptusU8 mechanismSprites(const DeceptusEngine *engine, DeceptusAppeara
          x = deceptusMechanismBounds(&engine->mechanisms, index)->x - engine->camera_x;
          /* moveablebox.cpp draws the box's lip one tile above its body. */
          y = deceptusMechanismBounds(&engine->mechanisms, index)->y - engine->camera_y - 24;
+      }
+      else if (definition->kind == MECHANISM_CRUSHER)
+      {
+         if (!crusherSprites(engine, index, output))
+         {
+            return 0;
+         }
+         continue;
       }
       else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE)
       {

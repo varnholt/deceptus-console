@@ -24,6 +24,9 @@
 /* stops moveable boxes only; bodies pass through it. */
 #define DECEPTUS_MECH_BOX_COLLIDER 15
 #define DECEPTUS_MOVEABLE_BOX_CAPACITY 2
+/* a spiked blade on a chain that drops from the ceiling and lifts again; value holds its travel in
+ * pixels, its timing the idle ticks between moves (on_ticks) and the source's time offset (off_ticks). */
+#define MECHANISM_CRUSHER 16
 #define DECEPTUS_TIMED_ANIMATION 1
 #define DECEPTUS_TIMED_INTERVAL 2
 #define DECEPTUS_COLLAPSE_ONCE_TOUCHED 4

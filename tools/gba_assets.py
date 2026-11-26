@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import re
 import struct
 
 import numpy as np
@@ -14,6 +15,11 @@ from world_export import export_world
 
 OUTPUT = ROOT / "assets/generated/gba"
 
+# the graveyard map's crusher texture (crusher.cpp loads tilesets/crushers.png beside the map).
+CRUSHER_ATLAS = '../level-graveyard/tilesets/crushers.png'
+# the chain link variants follow the engine's crusher image layout.
+CRUSHER_LINK_HEIGHT = int(re.search(r'^#define CRUSHER_LINK_HEIGHT (\d+)$',
+                                    (ROOT / 'include/deceptus/crusher.h').read_text(), re.M).group(1))
 
 def linear4(tile):
     pixels = list(tile.getdata())
@@ -265,7 +271,9 @@ def compile_mechanisms(data, output):
                       ('frog-blue-orb',120,120,8,8,52,4,True),
                       ('rope-segments.png',16,16,9,9,52,4,True),
                       ('player-rope',72,48,3,6,2,32,True),
-                      ('moveable_box.png',48,72,1,1,52,12,True)]
+                      ('moveable_box.png',48,72,1,1,52,12,True),
+                      # blade, ceiling mount, and the chain link with 0..23 of its top rows cut off (CRUSHER_IMAGE_*).
+                      (CRUSHER_ATLAS,120,72,1,2+CRUSHER_LINK_HEIGHT,52,24,True)]
     for filename, width, height, columns, count, palette_first, palette_count, shared in specifications:
         actual_filename = ('player.png' if filename in ('player-swim','player-splash','player-sword','player-helmet','player-rope') else
                            'enemy_arrowtrap_2.png' if filename.startswith('trap-') else
@@ -317,6 +325,11 @@ def compile_mechanisms(data, output):
             elif filename == 'trap-muzzles':
                 direction, step = index // 10, index % 10
                 rect = [step * 24, (6 + direction) * 24, 24 if direction < 2 else 8, 8 if direction < 2 else 24]
+            elif filename == CRUSHER_ATLAS:
+                # crusher.cpp texture rects for alignment down: spike, mount, and one chain link.
+                hidden = index - 2
+                rect = ([168, 192, 120, 72] if index == 0 else [216, 144, 24, 24] if index == 1 else
+                        [216, 168 + hidden, 24, CRUSHER_LINK_HEIGHT - hidden])
             elif filename == 'moveable_box.png':
                 # moveablebox.cpp draws a 48px box from this cell, its lip 24px above the body.
                 rect = [72, 24, 48, 72]
@@ -355,7 +368,7 @@ def compile_mechanisms(data, output):
             trim_x, trim_y = 0, 0
             logical_rect = rects[index]
             source_rect = logical_rect
-            trim = filename in ('cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
+            trim = filename in (CRUSHER_ATLAS, 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
                                 'orb.png', 'frog-blue', 'frog-blue-orb', 'player-rope')
             if trim:
                 # omit transparent padding only, keeping the authored logical
@@ -488,6 +501,7 @@ def compile_assets(data, scene="lever", recipe_path=None):
                '#define GBA_HEADTORCH_FIRST 942', '#define GBA_HEADTORCH_BEAM_FIRST 944',
                '#define GBA_ORB_FIRST 945', '#define GBA_FROG_BLUE_FIRST 953', '#define GBA_BLUE_FIREBALL_FIRST 1016',
                '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033', '#define GBA_MOVEABLE_BOX_FIRST 1039',
+               '#define GBA_CRUSHER_FIRST 1040',
                f'#define GBA_MECHANISM_FRAME_COUNT {mechanism_frames}',
                '#define GBA_ACTOR_FRAME_BYTES 1536', f'#define GBA_ACTOR_FRAME_COUNT {ACTOR_FRAME_COUNT}', '#endif', '']
     (OUTPUT / 'data.s').write_text('\n'.join(assembly) + '\n')

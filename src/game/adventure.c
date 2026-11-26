@@ -566,6 +566,13 @@ DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons)
       game->pending_action = 0;
    }
    applyBindings(game);
+   if ((game->automatic_action != 0) && game->automatic_action->locks_controls)
+   {
+      /* the source locks the controls while a delayed action is pending (lockPlayerControls during the
+       * sinkhole's tremble in level-graveyard/level.lua), so the player stays where the ground gives way. */
+      buttons = 0;
+      pressed = 0;
+   }
    deceptusTick(engine, buttons & ~(DECEPTUS_PAUSE | DECEPTUS_RESTART));
    if (game->has_sword)
    {

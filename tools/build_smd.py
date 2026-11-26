@@ -52,7 +52,7 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     run([compiler, *flags, '-x', 'assembler-with-cpp', '-Wa,--register-prefix-optional,--bitwise-or',
          '-c', sdk / 'src/boot/sega.s', '-o', folder / 'sega.o'], output)
     sources = ['src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
-               'src/engine/mechanisms/grabrope.c', 'src/engine/mechanisms/moveablebox.c', 'src/engine/animation.c', 'src/engine/world.c',
+               'src/engine/mechanisms/grabrope.c', 'src/engine/mechanisms/moveablebox.c', 'src/engine/mechanisms/crusher.c', 'src/engine/animation.c', 'src/engine/world.c',
                'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c', 'src/engine/logic.c', 'src/engine/pacing.c', 'src/engine/arith.c',
                'src/game/enemies.c', 'src/game/deceptus.c', 'src/platform/smd/main.c']
     sources = [ROOT / source for source in sources]

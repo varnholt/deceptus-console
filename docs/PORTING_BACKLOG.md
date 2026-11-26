@@ -13,7 +13,9 @@ on/off blocks (30), spike blocks (12), sensors (12), blocking rectangles (6),
 checkpoints (6), levers (6), damage rectangles (3), destructible barriers (2),
 doors (1), grab ropes (1), and the 48px moveable box with its box colliders (Flooded
 Chamber; the box moves in pixel steps instead of a Box2D body and does not slide on
-after a push). Wind has 15 placements but only a subset of its
+after a push), and the crypt's crusher pointing down on a chain (the blade kills on contact;
+the solid block above it is left out, so it cannot be stood on, and there is no camera shake).
+Wind has 15 placements but only a subset of its
 force/presentation behavior is ported. Selected water, dialogue, pickup, shader
 and lighting features also exist; these do not establish family-wide parity.
 
@@ -22,7 +24,7 @@ and lighting features also exist; these do not establish family-wide parity.
 | Moving platforms | 4 | Source polylines, cosine timing, passenger carry and crush handling |
 | Moveable objects / enemy walls | 1 / 6 | Boxes of other sizes or textures, saved box positions; enemy-only walls |
 | Button rectangles | 3 | Contact state, linked actions and original script callbacks |
-| Crushers / spike balls / bubble cubes | 3 / 7 / 3 | Swept moving hazards, analytic or constrained motion and damage |
+| Crushers / spike balls / bubble cubes | 2 / 7 / 3 | Crushers pointing up or sideways or without a chain, a standable crusher block; swept moving hazards, analytic or constrained motion and damage |
 | Gateways / level transitions | 1 / 2 | Complete room/level graph, progression conditions and persistence |
 | Dialogues / extras / treasure chests | 41 / 8 / 3 | Complete source interactions, callbacks and inventory transactions |
 | Water surfaces / emitters | 9 / 14 | Source links, disturbance events and water gameplay beyond baked presentation |

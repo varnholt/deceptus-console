@@ -1,4 +1,5 @@
 #include "deceptus/adventure.h"
+#include "deceptus/crusher.h"
 #include "deceptus/enemies.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
@@ -433,7 +434,8 @@ static void __attribute__((section(".romtext"), noinline)) objectPalettesPrepare
 
 static void mechanismObjects(DeceptusU16 *count)
 {
-   DeceptusU16 index, segment, segments, resource, piece, tile, piece_x, piece_y;
+   DeceptusU16 index, segment, segments, resource, segment_resource, piece, tile, piece_x, piece_y;
+   DeceptusU8 image;
    DeceptusI16 x, y, origin_x, origin_y;
    const DeceptusMechanismDef *definition;
    const DeceptusMechanismState *state;
@@ -485,6 +487,13 @@ static void mechanismObjects(DeceptusU16 *count)
       {
          resource = GBA_MOVEABLE_BOX_FIRST;
 #endif
+#ifdef GBA_CRUSHER_FIRST
+      }
+      else if (definition->kind == MECHANISM_CRUSHER)
+      {
+         resource = GBA_CRUSHER_FIRST;
+         segments = crusherPartCount(&engine.mechanisms, index);
+#endif
       }
       else
       {
@@ -492,10 +501,17 @@ static void mechanismObjects(DeceptusU16 *count)
       }
       for (segment = 0; segment < segments; ++segment)
       {
-         entry = &((const GbaMechanismResource *)
-                      gba_mechanism_table)[resource + (definition->kind == DECEPTUS_MECH_COLLAPSING ? (segment % 4) * 38 : 0)];
+         segment_resource = resource + (definition->kind == DECEPTUS_MECH_COLLAPSING ? (segment % 4) * 38 : 0);
          origin_x = deceptusMechanismBounds(&engine.mechanisms, index)->x - frame.camera_x + segment * 24;
          origin_y = deceptusMechanismBounds(&engine.mechanisms, index)->y - frame.camera_y;
+         if (definition->kind == MECHANISM_CRUSHER)
+         {
+            crusherPart(&engine.mechanisms, index, (DeceptusU8)segment, &image, &origin_x, &origin_y);
+            segment_resource = resource + image;
+            origin_x -= frame.camera_x;
+            origin_y -= frame.camera_y;
+         }
+         entry = &((const GbaMechanismResource *)gba_mechanism_table)[segment_resource];
          if (definition->kind == DECEPTUS_MECH_DOOR)
          {
             origin_x -= 24;
@@ -542,7 +558,7 @@ static void mechanismObjects(DeceptusU16 *count)
             }
             if (tile == 65535)
             {
-               tile = mechanismResource(resource + (definition->kind == DECEPTUS_MECH_COLLAPSING ? (segment % 4) * 38 : 0));
+               tile = mechanismResource(segment_resource);
             }
             if (tile == 65535 || *count >= 128)
             {
