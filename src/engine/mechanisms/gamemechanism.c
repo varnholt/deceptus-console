@@ -59,6 +59,10 @@ DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMecha
    }
    for (index = 0; index < count; ++index)
    {
+      if (definitions[index].flags & MECHANISM_IN_FRONT)
+      {
+         set->front_indices[set->front_count++] = (DeceptusU8)index;
+      }
       if (definitions[index].target_first > target_count ||
           definitions[index].target_count > target_count - definitions[index].target_first)
       {

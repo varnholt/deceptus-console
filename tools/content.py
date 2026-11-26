@@ -362,6 +362,7 @@ def crop_mechanisms(data, recipe):
             value = round(float(props.get('travel_px', 48)))
             idle = max(1, ticks(props.get('idle_time_s', 3)))
             timing = [idle, idle, 0, 0, 0, 0, ticks(props.get('time_offset_s', 0))]
+        flags |= depth_flag(props.get('z', DEFAULT_Z.get(obj['group'], PLAYER_Z)))
         definitions.append({"source_id": obj["id"], "name": obj["name"], "kind": supported[obj["group"]],
                             "bounds": bounds, "timing": timing, "enabled": enabled, "flags": flags,
                             "value": value, "target_first": first, "target_count": len(targets) - first,
@@ -408,6 +409,18 @@ CHECKPOINT_RAISED = _header_define('checkpointclock.h', 'CHECKPOINT_RAISED')
 CHECKPOINT_RAISE = _header_define('checkpointclock.h', 'CHECKPOINT_RAISE')
 
 
+# level.cpp draws the player at z 20, after everything else at that z: mechanisms with a higher z
+# are drawn in front of her.
+PLAYER_Z = 20
+MECHANISM_IN_FRONT = _header_define('mechanisms.h', 'MECHANISM_IN_FRONT')
+# the source's default z where it is not 20 (collapsingplatform.cpp, spikeball.cpp).
+DEFAULT_Z = {'collapsing_platforms': 0, 'spike_balls': 16}
+
+
+def depth_flag(z):
+    return MECHANISM_IN_FRONT if int(z) > PLAYER_Z else 0
+
+
 # spikes.cpp modes by layer name; toggle_spikes use neither flag.
 FLOOR_SPIKE_LAYERS = {'toggle_spikes': 0, 'interval_spikes': _floor_spikes_define('FLOOR_SPIKES_INTERVAL'),
                       'trap_spikes': _floor_spikes_define('FLOOR_SPIKES_TRAP')}
@@ -432,6 +445,8 @@ def floor_spike_tiles(data, recipe, root):
         flags = FLOOR_SPIKE_LAYERS.get(layer.get('name'))
         if layer.tag != 'layer' or flags is None:
             continue
+        depth = next((field.get('value') for field in layer.findall('properties/property') if field.get('name') == 'z'), PLAYER_Z)
+        flags |= depth_flag(depth)
         columns = int(layer.get('width'))
         for position, gid in enumerate(layer_values(layer)):
             if not gid:

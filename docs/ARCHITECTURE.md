@@ -108,6 +108,13 @@ equipment, enemies, mechanisms and grab ropes. It owns pose/attachment choices
 and emits logical family/frame coordinates. Backends map those families to their
 converted graphics, cull offscreen requests and enforce their existing bounded
 hardware queues. The visitor adds no intermediate frame buffer or heap storage.
+Sprites emitted earlier are drawn in front of later ones. Mechanisms the source
+draws above the player's depth (z over 20, `MECHANISM_IN_FRONT`: levers, wooden
+planks, crushers, spike balls, spike layers) are emitted before the player and the
+rest after her; the GBA renderer keeps the same order. The Amiga player is one
+hardware sprite in front of the whole playfield, so its renderer clears her pixels
+under the static foreground tile masks and under the masks of the bobs emitted
+before her.
 SNES and Mega Drive consume this path; it is also available to the Amiga opening.
 GBA still has its existing renderer, with shared sword pose and equipment rules.
 

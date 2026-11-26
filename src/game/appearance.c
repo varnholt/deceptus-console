@@ -96,21 +96,53 @@ static DeceptusU8 playerSprites(const DeceptusAdventure *game, const DeceptusDra
    return addSprite(output, family, image, x, y, flip);
 }
 
-static DeceptusU8 mechanismSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
+static DeceptusU8 mechanismIndexSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output, DeceptusU16 index)
 {
    MechanismPart piece;
-   DeceptusU16 index;
    DeceptusU8 part, parts;
-   for (index = 0; index < engine->mechanisms.count; ++index)
+   parts = mechanismPartCount(engine, index);
+   for (part = 0; part < parts; ++part)
    {
-      parts = mechanismPartCount(engine, index);
-      for (part = 0; part < parts; ++part)
+      mechanismPart(engine, index, part, &piece);
+      if (!addSprite(output, piece.family, piece.image, piece.x - engine->camera_x, piece.y - engine->camera_y, 0))
       {
-         mechanismPart(engine, index, part, &piece);
-         if (!addSprite(output, piece.family, piece.image, piece.x - engine->camera_x, piece.y - engine->camera_y, 0))
-         {
-            return 0;
-         }
+         return 0;
+      }
+   }
+   return 1;
+}
+
+/* sprites emitted earlier are drawn in front of later ones: the mechanisms in front of the player
+ * come before her, from the list the room start keeps of them. */
+static DeceptusU8 frontMechanismSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
+{
+   DeceptusU8 front;
+   for (front = 0; front < engine->mechanisms.front_count; ++front)
+   {
+      if (!mechanismIndexSprites(engine, output, engine->mechanisms.front_indices[front]))
+      {
+         return 0;
+      }
+   }
+   return 1;
+}
+
+/* the mechanisms behind the player, after her. the definitions are walked by pointer: indexing them
+ * multiplies by their size on every step on the 65816. */
+static DeceptusU8 backMechanismSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
+{
+   const DeceptusMechanismDef *definition;
+   DeceptusU16 index;
+   definition = engine->mechanisms.definitions;
+   for (index = 0; index < engine->mechanisms.count; ++index, ++definition)
+   {
+      if (definition->flags & MECHANISM_IN_FRONT)
+      {
+         continue;
+      }
+      if (!mechanismIndexSprites(engine, output, index))
+      {
+         return 0;
       }
    }
    return 1;
@@ -160,6 +192,10 @@ DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const Deceptus
    if (game->campaign.mode == DECEPTUS_CAMPAIGN_TITLE)
    {
       return 1;
+   }
+   if (!frontMechanismSprites(&game->campaign.engine, output))
+   {
+      return 0;
    }
    for (index = 0; index < frame->count; ++index)
    {
@@ -215,7 +251,7 @@ DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const Deceptus
          return 0;
       }
    }
-   if (!mechanismSprites(&game->campaign.engine, output))
+   if (!backMechanismSprites(&game->campaign.engine, output))
    {
       return 0;
    }
