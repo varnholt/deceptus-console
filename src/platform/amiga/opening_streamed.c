@@ -132,6 +132,8 @@ static DeceptusU8 previous_enabled[2][AMIGA_OPENING_CLIPS];
 static AmigaNativeBob bobs[BOB_CAPACITY];
 static AmigaSavedBob saved_bobs[2][BOB_CAPACITY];
 static DeceptusU16 bob_count, saved_counts[2], saved_used[2], saved_capacity;
+/* the bobs requested before the player's hardware sprite: they are drawn in front of her. */
+static DeceptusU16 front_bob_count;
 typedef struct AmigaBankCache
 {
    DeceptusU16 *pixels;
@@ -1364,6 +1366,7 @@ static DeceptusU8 requestBob(void *context, const DeceptusSpriteAppearance *appe
          else
          {
             hardware_used = 1;
+            front_bob_count = bob_count;
          }
          return 1;
       }
@@ -1858,6 +1861,175 @@ static void spriteOverlay(const AmigaNativeBob *overlay, const DeceptusU16 *fram
    }
 }
 
+/* the static foreground mask of the 16x16 map cell at column, row, one word per scanline (set bits
+   cover what is behind them); returns 0 when the cell has no foreground. */
+static DeceptusU8 foregroundCellMask(DeceptusI16 column, DeceptusI16 row, DeceptusU16 *scanlines)
+{
+   DeceptusU16 color_ids[4], mask_ids[4];
+   const DeceptusU8 *masks[4];
+   DeceptusU8 half, scanline;
+   if ((column < 0) || (row < 0) || !amigaTileArchiveCell(tiles, (DeceptusU16)column, (DeceptusU16)row, color_ids, mask_ids) ||
+       !quarterMasks(mask_ids, masks))
+   {
+      return 0;
+   }
+   for (half = 0; half < 4; half += 2)
+   {
+      for (scanline = 0; scanline < 8; ++scanline)
+      {
+         *scanlines++ = (DeceptusU16)(((DeceptusU16)masks[half][scanline] << 8) | masks[half + 1][scanline]);
+      }
+   }
+   return 1;
+}
+
+/* clears the pixels under mask in one line of a pair of the player's sprite channels. */
+static void clearSpritePixels(DeceptusU16 line, DeceptusU16 pair, DeceptusU16 mask)
+{
+   DeceptusU16 *low, *high;
+   low = sprite_dma[draw_buffer][pair * 2] + 2 + line * 2;
+   high = sprite_dma[draw_buffer][pair * 2 + 1] + 2 + line * 2;
+   low[0] &= (DeceptusU16)~mask;
+   low[1] &= (DeceptusU16)~mask;
+   high[0] &= (DeceptusU16)~mask;
+   high[1] &= (DeceptusU16)~mask;
+}
+
+/* the player's hardware sprite is drawn in front of the whole playfield, so foreground tiles cannot
+   cover her by priority: clear her pixels wherever the static foreground is set instead. lines of
+   the sprite start at screen row y; its pairs of channels cover 16 columns each from screen column x. */
+static void hideSpriteBehindForeground(DeceptusI16 x, DeceptusI16 y, DeceptusU16 lines, DeceptusU16 pairs)
+{
+   DeceptusU16 cells[SPRITE_PAIRS + 1][16];
+   DeceptusU16 line, band, step, pair, mask, shift;
+   DeceptusI16 world_x, world_y, column, row;
+   DeceptusU8 scan, covered, waited;
+   waited = 0;
+   world_x = (DeceptusI16)(camera_x + x);
+   world_y = (DeceptusI16)(camera_y + y);
+   if ((world_x < 0) || (world_y < 0))
+   {
+      return;
+   }
+   column = (DeceptusI16)(world_x >> 4);
+   shift = (DeceptusU16)(world_x & 15);
+   for (line = 0; line < lines; line += band)
+   {
+      row = (DeceptusI16)((world_y + line) >> 4);
+      scan = (DeceptusU8)((world_y + line) & 15);
+      band = (DeceptusU16)(16 - scan);
+      if (band > lines - line)
+      {
+         band = lines - line;
+      }
+      covered = 0;
+      for (pair = 0; pair <= pairs; ++pair)
+      {
+         if (foregroundCellMask((DeceptusI16)(column + pair), row, cells[pair]))
+         {
+            covered = 1;
+         }
+         else
+         {
+            memset(cells[pair], 0, sizeof(cells[pair]));
+         }
+      }
+      if (!covered)
+      {
+         continue;
+      }
+      if (!waited)
+      {
+         /* the cpu changes lines the blitter may still be copying. */
+         waitBlitter();
+         waited = 1;
+      }
+      for (step = 0; step < band; ++step)
+      {
+         for (pair = 0; pair < pairs; ++pair)
+         {
+            mask = (DeceptusU16)(cells[pair][scan + step] << shift);
+            if (shift)
+            {
+               mask |= (DeceptusU16)(cells[pair + 1][scan + step] >> (16 - shift));
+            }
+            if (mask)
+            {
+               clearSpritePixels((DeceptusU16)(line + step), pair, mask);
+            }
+         }
+      }
+   }
+}
+
+/* 16 mask bits of a bob's row from column on; columns outside the row are clear. */
+static DeceptusU16 bobMaskBits(const DeceptusU16 *row, DeceptusI16 words, DeceptusI16 column)
+{
+   DeceptusI16 word;
+   DeceptusU16 shift, bits;
+   word = (DeceptusI16)(column >> 4);
+   shift = (DeceptusU16)(column & 15);
+   bits = 0;
+   if ((word >= 0) && (word < words))
+   {
+      bits = (DeceptusU16)(row[word] << shift);
+   }
+   if (shift && (word + 1 >= 0) && (word + 1 < words))
+   {
+      bits |= (DeceptusU16)(row[word + 1] >> (16 - shift));
+   }
+   return bits;
+}
+
+/* the bobs requested before the player are drawn in front of her (sprites emitted earlier are in
+   front), but her hardware sprite covers every bob: clear her pixels under their masks instead. */
+static void hideSpriteBehindBobs(DeceptusI16 x, DeceptusI16 y, DeceptusU16 lines, DeceptusU16 pairs)
+{
+   const AmigaNativeBob *bob;
+   const DeceptusU16 *pixels, *row;
+   DeceptusU32 plane_words;
+   DeceptusI16 world_x, world_y, first, last, line, words;
+   DeceptusU16 index, pair, mask;
+   world_x = (DeceptusI16)(camera_x + x);
+   world_y = (DeceptusI16)(camera_y + y);
+   for (index = 0; index < front_bob_count; ++index)
+   {
+      bob = &bobs[index];
+      first = (DeceptusI16)(bob->y > world_y ? bob->y - world_y : 0);
+      last = (DeceptusI16)(bob->y + (DeceptusI16)bob->graphic.height - world_y);
+      if (last > (DeceptusI16)lines)
+      {
+         last = (DeceptusI16)lines;
+      }
+      if ((first >= last) || (bob->x >= world_x + (DeceptusI16)pairs * 16) || (bob->x + (DeceptusI16)bob->graphic.width <= world_x))
+      {
+         continue;
+      }
+      pixels = bobPixels(&bob->graphic);
+      if (!pixels)
+      {
+         continue;
+      }
+      /* bobPixels may wait for the blitter, but the sprite lines need it finished in any case. */
+      waitBlitter();
+      words = (DeceptusI16)(bob->graphic.row_bytes / 2);
+      plane_words = (DeceptusU32)words * bob->graphic.height * PLANES;
+      for (line = first; line < last; ++line)
+      {
+         /* the mask follows the colour planes, one row per plane: its first plane row serves. */
+         row = pixels + plane_words + (DeceptusU32)(world_y + line - bob->y) * PLANES * words;
+         for (pair = 0; pair < pairs; ++pair)
+         {
+            mask = bobMaskBits(row, words, (DeceptusI16)(world_x + pair * 16 - bob->x));
+            if (mask)
+            {
+               clearSpritePixels((DeceptusU16)line, pair, mask);
+            }
+         }
+      }
+   }
+}
+
 static void prepareSprites(void)
 {
    const AmigaNativeBob *bob, *overlay;
@@ -1945,6 +2117,8 @@ static void prepareSprites(void)
       waitBlitter();
       spriteOverlay(overlay, overlay_frame, bob->x, top, first, lines, pairs);
    }
+   hideSpriteBehindForeground(bob->x, (DeceptusI16)(top + first), lines, pairs);
+   hideSpriteBehindBobs(bob->x, (DeceptusI16)(top + first), lines, pairs);
    hardware_shown[draw_buffer] = (DeceptusU8)(pairs * 2);
 }
 
@@ -2735,7 +2909,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    camera_column = tileFloor(camera_x);
    camera_row = tileFloor(camera_y);
    updateClips(game);
-   bob_count = 0;
+   bob_count = front_bob_count = 0;
    hardware_used = overlay_used = 0;
    if (!deceptusAppearanceVisit(game, frame, &amiga_appearance_definition, &animation, requestBob, 0))
    {

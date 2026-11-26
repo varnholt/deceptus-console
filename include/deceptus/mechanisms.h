@@ -39,6 +39,8 @@
 #define DECEPTUS_MECH_MISSING_HANDLE 2
 #define DECEPTUS_MECH_INVERT_TARGETS 4
 #define DECEPTUS_MECH_RIGHT_ALIGNED 8
+/* drawn in front of the player: the source draws mechanisms above the player's depth (20) after her. */
+#define MECHANISM_IN_FRONT 64
 #define DECEPTUS_MECH_ENTER 1
 #define DECEPTUS_MECH_LEAVE 2
 #define DECEPTUS_MECH_ENABLED 3
@@ -132,6 +134,9 @@ typedef struct DeceptusMechanismSet
    DeceptusMechanismEvent events[DECEPTUS_MECHANISM_EVENT_CAPACITY];
    DeceptusU16 target_count;
    DeceptusU8 count;
+   /* the mechanisms carrying MECHANISM_IN_FRONT, drawn before the player. */
+   DeceptusU8 front_count;
+   DeceptusU8 front_indices[DECEPTUS_MECHANISM_CAPACITY];
    DeceptusU8 event_count;
    DeceptusU8 overflow;
    DeceptusU8 solid_count;

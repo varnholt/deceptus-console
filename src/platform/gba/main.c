@@ -477,7 +477,8 @@ static DeceptusU16 mechanismFamilyFirst(DeceptusU8 family)
    }
 }
 
-static void mechanismObjects(DeceptusU16 *count)
+/* the mechanisms in front of the player (front nonzero) or behind her: earlier objects are in front. */
+static void mechanismObjects(DeceptusU16 *count, DeceptusU8 front)
 {
    MechanismPart sprite;
    DeceptusU16 index, first, resource, piece, tile, piece_x, piece_y;
@@ -487,6 +488,10 @@ static void mechanismObjects(DeceptusU16 *count)
    GbaObject *object;
    for (index = 0; index < engine.mechanisms.count; ++index)
    {
+      if (((engine.mechanisms.definitions[index].flags & MECHANISM_IN_FRONT) != 0) != front)
+      {
+         continue;
+      }
       parts = mechanismPartCount(&engine, index);
       for (part = 0; part < parts; ++part)
       {
@@ -721,6 +726,10 @@ static void videoPrepare(void)
       return;
    }
 #endif
+   if (engine.mechanisms.front_count)
+   {
+      mechanismObjects(&count, 1);
+   }
    for (index = 0; index < frame.count; ++index)
    {
       draw = &frame.draws[index];
@@ -755,7 +764,7 @@ static void videoPrepare(void)
       }
       ++actor_count;
    }
-   mechanismObjects(&count);
+   mechanismObjects(&count, 0);
    phase_timer = REG16(0x04000108);
    ropeObjects(&count);
    deceptus_debug[84] = (DeceptusU16)(REG16(0x04000108) - phase_timer);
