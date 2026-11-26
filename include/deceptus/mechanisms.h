@@ -29,6 +29,9 @@
 #define MECHANISM_CRUSHER 16
 /* one tile of a spike layer (floorspikes.h). */
 #define MECHANISM_FLOOR_SPIKES 17
+/* a spiked ball swinging on a chain from its anchor tile (spikeball.h). */
+#define MECHANISM_SPIKE_BALL 18
+#define SPIKE_BALL_CAPACITY 2
 #define DECEPTUS_TIMED_ANIMATION 1
 #define DECEPTUS_TIMED_INTERVAL 2
 #define DECEPTUS_COLLAPSE_ONCE_TOUCHED 4
@@ -106,6 +109,13 @@ typedef struct DeceptusMoveableBox
    DeceptusU8 mechanism_index;
 } DeceptusMoveableBox;
 
+/* a swinging spike ball: where its ball is now and was a tick ago, relative to its anchor in 1/256 px. */
+typedef struct SpikeBall
+{
+   DeceptusI32 x, y, previous_x, previous_y;
+   DeceptusU8 mechanism_index;
+} SpikeBall;
+
 typedef struct DeceptusMechanismEvent
 {
    DeceptusU16 source_id;
@@ -130,6 +140,8 @@ typedef struct DeceptusMechanismSet
    DeceptusU32 solid_columns[DECEPTUS_SOLID_BIN_COUNT];
    DeceptusU32 solid_rows[DECEPTUS_SOLID_BIN_COUNT];
    DeceptusMoveableBox boxes[DECEPTUS_MOVEABLE_BOX_CAPACITY];
+   SpikeBall spike_balls[SPIKE_BALL_CAPACITY];
+   DeceptusU8 spike_ball_count;
    DeceptusU8 box_count;
 } DeceptusMechanismSet;
 

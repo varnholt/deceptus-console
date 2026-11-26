@@ -1,4 +1,5 @@
 #include "deceptus/crusher.h"
+#include "deceptus/spikeball.h"
 #include "deceptus/enemies.h"
 #include "deceptus/floorspikes.h"
 #include "deceptus/game.h"
@@ -85,6 +86,7 @@ void deceptusInit(DeceptusEngine *engine, const DeceptusRoom *room, const Decept
    deceptusMechanismsConfigure(&engine->mechanisms, room->mechanism_timings);
    crushersInit(&engine->mechanisms);
    floorSpikesInit(&engine->mechanisms);
+   spikeBallsInit(&engine->mechanisms);
    if ((deceptusGrabRopesInit(engine) == 0) || (deceptusMoveableBoxesInit(engine) == 0))
    {
       engine->content_error = 9;
@@ -476,9 +478,10 @@ void deceptusTick(DeceptusEngine *engine, DeceptusU16 buttons)
          hurt(engine, mechanism_event->value);
       }
    }
-   if (crushersTick(&engine->mechanisms, &player_rect))
+   if (crushersTick(&engine->mechanisms, &player_rect) | spikeBallsTick(&engine->mechanisms, &player_rect))
    {
-      /* a crusher blade kills at once, as in the source, during the contact invulnerability too. */
+      /* crusher blades and spike balls are deadly in the source: they kill at once, during the contact
+       * invulnerability too. */
       engine->hurt_ticks = 0;
       hurt(engine, engine->room->max_health ? engine->health : 1);
    }

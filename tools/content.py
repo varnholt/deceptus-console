@@ -183,7 +183,7 @@ def crop_mechanisms(data, recipe):
                  "doors": "DECEPTUS_MECH_DOOR", "destructible_blocking_rects": "DECEPTUS_MECH_DESTRUCTIBLE",
                  "enemies": "DECEPTUS_MECH_CANNON_BODY", "grab_ropes": "DECEPTUS_MECH_GRAB_ROPE",
                  "moveable_objects": "DECEPTUS_MECH_MOVEABLE_BOX", "box_colliders": "DECEPTUS_MECH_BOX_COLLIDER",
-                 "crushers": "MECHANISM_CRUSHER"}
+                 "crushers": "MECHANISM_CRUSHER", "spike_balls": "MECHANISM_SPIKE_BALL"}
     selected, unsupported = [], []
     for obj in objects:
         object_left, object_top = obj['x'], obj['y']
@@ -225,6 +225,8 @@ def crop_mechanisms(data, recipe):
             if (props.get('alignment', 'down') != 'down' or str(props.get('chain', False)).lower() not in ('true', '1') or
                     obj['width'] != 120 or 'level-graveyard' not in str(recipe['map'])):
                 reason = 'only the 120px crusher of the graveyard map pointing down on a chain is implemented'
+        elif obj['group'] == 'spike_balls' and set(obj['properties']) - {'z'}:
+            reason = 'only spike balls with the source default chain, push and spline properties are implemented'
         elif obj['group'] == 'doors':
             props = obj['properties']
             if (props.get('texture') != 'data/sprites/iron-door.png' or
@@ -354,6 +356,9 @@ def crop_mechanisms(data, recipe):
         elif obj['group'] == 'crushers':
             definitions[-1]['visual_status'] = 'source crushers.png blade, mount and chain links cut off at the mount'
             definitions[-1]['simulation_note'] = 'the blade kills on contact; the solid block above it is left out, so it cannot be stood on; no camera shake'
+        elif obj['group'] == 'spike_balls':
+            definitions[-1]['visual_status'] = 'source enemy_spikeball.png ball in 17 turned images and its two chain links'
+            definitions[-1]['simulation_note'] = 'a fixed-point pendulum fitted to the Box2D chain replaces it; the ball kills on contact'
         elif obj['group'] == 'box_colliders':
             definitions[-1]['visual_status'] = 'invisible; stops moveable boxes only'
         elif obj['group'] == 'grab_ropes':

@@ -311,7 +311,8 @@ def sprite_quads(packed):
 def compile_sprites(data,output,writer):
     from headtorch_assets import compile_headtorch
     from rope_assets import compile_rope
-    compile_headtorch(data,output);compile_rope(data,output)
+    from spike_ball_assets import compile_spike_ball
+    compile_headtorch(data,output);compile_rope(data,output);compile_spike_ball(data,output)
     records=json.loads((ROOT/'assets/generated/gba/area0/mechanisms-frames.json').read_text())
     cache={};images=[]
     for record in records:
