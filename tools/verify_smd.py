@@ -13,7 +13,7 @@ FIELDS = ['ticks', 'x', 'y', 'camera_x', 'camera_y', 'paused', 'health', 'door_e
           'checkpoint_id', 'content_error', 'sprite_error', 'draws', 'sprites', 'buttons',
           'vblanks', 'cpu_load', 'grounded', 'checkpoint_x', 'checkpoint_y']
 SHARED = ['src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
-          'src/engine/mechanisms/grabrope.c', 'src/engine/mechanisms/moveablebox.c', 'src/engine/arith.c', 'src/engine/animation.c', 'src/engine/world.c',
+          'src/engine/mechanisms/grabrope.c', 'src/engine/mechanisms/moveablebox.c', 'src/engine/mechanisms/crusher.c', 'src/engine/arith.c', 'src/engine/animation.c', 'src/engine/world.c',
           'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c', 'src/engine/logic.c',
           'src/game/enemies.c', 'src/game/deceptus.c']
 REFERENCE_FIELDS = ['ticks', 'x', 'y', 'camera_x', 'camera_y', 'paused', 'health',

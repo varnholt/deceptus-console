@@ -7,7 +7,7 @@
 #include <genesis.h>
 
 #define SMD_OBJ_REQUESTS 96
-#define SMD_OBJ_PIECES 64
+#define SMD_OBJ_PIECES SMD_OBJECT_SLOTS
 
 typedef struct SmdObjRequest
 {
@@ -86,7 +86,7 @@ static void smdObjAdd(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y, Decept
 
 static DeceptusU16 smdObjTile(DeceptusU16 slot)
 {
-   return SMD_OBJECT_FIRST + slot * 4;
+   return SMD_OBJECT_FIRST + slot * SMD_OBJECT_TILES_PER_SLOT;
 }
 
 /* out of line: a miss is rare, and inlined it took registers from the per-piece loop. */
@@ -348,7 +348,8 @@ static DeceptusU8 smdObjAppearance(void *context, const DeceptusSpriteAppearance
       SMD_RAT_FIRST,       SMD_TRAP_FIRST,          SMD_MUZZLE_FIRST,    SMD_ARROW_FIRST,          SMD_SWIM_FIRST,
       SMD_BLOB_FIRST,      SMD_SPLASH_FIRST,        SMD_SWORD_FIRST,     SMD_CANNON_FIRST,         SMD_CANNONBALL_FIRST,
       SMD_IRON_DOOR_FIRST, SMD_WOODEN_PLANKS_FIRST, SMD_HEADTORCH_FIRST, SMD_HEADTORCH_BEAM_FIRST, SMD_ORB_FIRST,
-      SMD_FROG_BLUE_FIRST, SMD_BLUE_FIREBALL_FIRST, SMD_GRAB_ROPE_FIRST, SMD_PLAYER_ROPE_FIRST, SMD_MOVEABLE_BOX_FIRST};
+      SMD_FROG_BLUE_FIRST, SMD_BLUE_FIREBALL_FIRST, SMD_GRAB_ROPE_FIRST, SMD_PLAYER_ROPE_FIRST, SMD_MOVEABLE_BOX_FIRST,
+      SMD_CRUSHER_FIRST};
    (void)context;
    if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
    {

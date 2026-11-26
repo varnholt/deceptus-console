@@ -191,7 +191,7 @@ def compile_tutorial(data, reuse_assets=False):
                      'complete water/progression fidelity, unported enemy variants and later scripts remain unsupported',
                      'headtorch switches on when acquired; inventory equipment toggling not ported',
                      'graveyard image backgrounds are baked at an authored static phase; parallax, storm and sound remain unsupported',
-                     'sinkhole collision and return shaft are ported; quake, debris and hard landing cutscene remain unsupported',
+                     'sinkhole collision, the controls lock while it trembles and the return shaft are ported; camera shake, debris and hard landing cutscene remain unsupported',
                      'ruby pickup dialogue appears immediately; original thunder/message presentation delay not ported']),indent=2)+'\n')
 
 

@@ -182,7 +182,8 @@ def crop_mechanisms(data, recipe):
                  "collapsing_platforms": "DECEPTUS_MECH_COLLAPSING", "on_off_blocks": "DECEPTUS_MECH_BLOCK", "spike_blocks": "DECEPTUS_MECH_SPIKES", "damage_rects": "DECEPTUS_MECH_DAMAGE", "wind": "DECEPTUS_MECH_WIND",
                  "doors": "DECEPTUS_MECH_DOOR", "destructible_blocking_rects": "DECEPTUS_MECH_DESTRUCTIBLE",
                  "enemies": "DECEPTUS_MECH_CANNON_BODY", "grab_ropes": "DECEPTUS_MECH_GRAB_ROPE",
-                 "moveable_objects": "DECEPTUS_MECH_MOVEABLE_BOX", "box_colliders": "DECEPTUS_MECH_BOX_COLLIDER"}
+                 "moveable_objects": "DECEPTUS_MECH_MOVEABLE_BOX", "box_colliders": "DECEPTUS_MECH_BOX_COLLIDER",
+                 "crushers": "MECHANISM_CRUSHER"}
     selected, unsupported = [], []
     for obj in objects:
         object_left, object_top = obj['x'], obj['y']
@@ -219,6 +220,11 @@ def crop_mechanisms(data, recipe):
             reason = "custom collapse visual speeds are not implemented"
         elif obj['group'] == 'moveable_objects' and (obj['width'] != 48 or obj['height'] != 48 or obj['properties'].get('texture')):
             reason = 'only the source 48px box drawn from moveable_box.png is implemented'
+        elif obj['group'] == 'crushers':
+            props = obj['properties']
+            if (props.get('alignment', 'down') != 'down' or str(props.get('chain', False)).lower() not in ('true', '1') or
+                    obj['width'] != 120 or 'level-graveyard' not in str(recipe['map'])):
+                reason = 'only the 120px crusher of the graveyard map pointing down on a chain is implemented'
         elif obj['group'] == 'doors':
             props = obj['properties']
             if (props.get('texture') != 'data/sprites/iron-door.png' or
@@ -330,6 +336,10 @@ def crop_mechanisms(data, recipe):
                   ticks(props.get('time_to_collapse_s', 1)), ticks(props.get('time_to_respawn_s', 4)),
                   ticks(props.get('fade_in_duration_s', 1)),
                   int(animated) | (2 if interval else 0) | (4 if boolean(props.get('collapse_once_touched', False)) else 0)]
+        if obj['group'] == 'crushers':
+            # crusher.cpp: travel_px, and the idle time between moves, whose first wait the time offset shortens.
+            value = round(float(props.get('travel_px', 48)))
+            timing = [max(1, ticks(props.get('idle_time_s', 3))), ticks(props.get('time_offset_s', 0)), 0, 0, 0, 0]
         definitions.append({"source_id": obj["id"], "name": obj["name"], "kind": supported[obj["group"]],
                             "bounds": bounds, "timing": timing, "enabled": enabled, "flags": flags,
                             "value": value, "target_first": first, "target_count": len(targets) - first,
@@ -340,6 +350,9 @@ def crop_mechanisms(data, recipe):
         elif obj['group'] == 'moveable_objects':
             definitions[-1]['visual_status'] = 'source moveable_box.png 48x72 cell, lip one tile above the body'
             definitions[-1]['simulation_note'] = 'pixel steps through cells, solids and box colliders replace the Box2D body; pushed at half the body speed, no sliding after a push'
+        elif obj['group'] == 'crushers':
+            definitions[-1]['visual_status'] = 'source crushers.png blade, mount and chain links cut off at the mount'
+            definitions[-1]['simulation_note'] = 'the blade kills on contact; the solid block above it is left out, so it cannot be stood on; no camera shake'
         elif obj['group'] == 'box_colliders':
             definitions[-1]['visual_status'] = 'invisible; stops moveable boxes only'
         elif obj['group'] == 'grab_ropes':

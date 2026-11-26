@@ -15,7 +15,7 @@ def _constants():
     result = {}
     for filename in ('mechanisms.h', 'enemies.h'):
         source = (ROOT / 'include/deceptus' / filename).read_text()
-        for name, value in re.findall(r'^#define (DECEPTUS_\w+) (\d+)$', source, re.M):
+        for name, value in re.findall(r'^#define ([A-Z][A-Z0-9_]*) (\d+)$', source, re.M):
             result[name] = int(value)
     return result
 
