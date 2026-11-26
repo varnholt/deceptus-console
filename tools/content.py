@@ -335,11 +335,12 @@ def crop_mechanisms(data, recipe):
                   max(1, ticks(props.get('time_off_ms', 3000), .001)),
                   ticks(props.get('time_to_collapse_s', 1)), ticks(props.get('time_to_respawn_s', 4)),
                   ticks(props.get('fade_in_duration_s', 1)),
-                  int(animated) | (2 if interval else 0) | (4 if boolean(props.get('collapse_once_touched', False)) else 0)]
+                  int(animated) | (2 if interval else 0) | (4 if boolean(props.get('collapse_once_touched', False)) else 0), 0]
         if obj['group'] == 'crushers':
-            # crusher.cpp: travel_px, and the idle time between moves, whose first wait the time offset shortens.
+            # crusher.cpp: travel_px, one idle time for both waits, and the time offset its first wait starts at.
             value = round(float(props.get('travel_px', 48)))
-            timing = [max(1, ticks(props.get('idle_time_s', 3))), ticks(props.get('time_offset_s', 0)), 0, 0, 0, 0]
+            idle = max(1, ticks(props.get('idle_time_s', 3)))
+            timing = [idle, idle, 0, 0, 0, 0, ticks(props.get('time_offset_s', 0))]
         definitions.append({"source_id": obj["id"], "name": obj["name"], "kind": supported[obj["group"]],
                             "bounds": bounds, "timing": timing, "enabled": enabled, "flags": flags,
                             "value": value, "target_first": first, "target_count": len(targets) - first,

@@ -1,6 +1,9 @@
 #include "deceptus/roomcontent.h"
 #include <string.h>
 
+/* one mechanism: id, bounds, targets, value, kind, enabled, flags, then its timing: five words, flags and the phase offset. */
+#define ROOM_MECHANISM_BYTES 32
+
 static DeceptusU16 readWord(const DeceptusU8 **cursor)
 {
    DeceptusU16 value;
@@ -66,7 +69,7 @@ DeceptusU8 deceptusRoomContentLoad(DeceptusRoomContent *content, const DeceptusU
       return 0;
    }
    collision_size = (DeceptusU32)room.columns * room.rows;
-   expected = 35 + collision_size + (DeceptusU32)room.mechanism_count * 30 + (DeceptusU32)room.mechanism_target_count * 2 +
+   expected = 35 + collision_size + (DeceptusU32)room.mechanism_count * ROOM_MECHANISM_BYTES + (DeceptusU32)room.mechanism_target_count * 2 +
               (DeceptusU32)room.enemy_count * 35 + (DeceptusU32)room.enemy_path_count * 4 + (has_water ? 26 : 0);
    if (expected != size)
    {
@@ -100,6 +103,7 @@ DeceptusU8 deceptusRoomContentLoad(DeceptusRoomContent *content, const DeceptusU
       timing->respawn_ticks = readWord(&cursor);
       timing->fade_ticks = readWord(&cursor);
       timing->flags = *cursor++;
+      timing->phase_offset_ticks = readWord(&cursor);
    }
    for (index = 0; index < room.mechanism_target_count; ++index)
    {

@@ -25,7 +25,7 @@
 #define DECEPTUS_MECH_BOX_COLLIDER 15
 #define DECEPTUS_MOVEABLE_BOX_CAPACITY 2
 /* a spiked blade on a chain that drops from the ceiling and lifts again; value holds its travel in
- * pixels, its timing the idle ticks between moves (on_ticks) and the source's time offset (off_ticks). */
+ * pixels, on_ticks and off_ticks how long it waits lowered and raised. */
 #define MECHANISM_CRUSHER 16
 #define DECEPTUS_TIMED_ANIMATION 1
 #define DECEPTUS_TIMED_INTERVAL 2
@@ -72,6 +72,8 @@ typedef struct DeceptusMechanismTiming
    DeceptusU16 respawn_ticks;
    DeceptusU16 fade_ticks;
    DeceptusU8 flags;
+   /* how far into its cycle a periodic mechanism starts: the source's time_offset properties. */
+   DeceptusU16 phase_offset_ticks;
 } DeceptusMechanismTiming;
 
 typedef struct DeceptusMechanismState

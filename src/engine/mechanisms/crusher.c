@@ -73,7 +73,7 @@ void crushersInit(DeceptusMechanismSet *set)
       {
          /* the source's time offset shortens the first wait only. */
          set->states[index].phase = CRUSHER_RETRACTED;
-         set->states[index].timer = set->timings[index].off_ticks;
+         set->states[index].timer = set->timings[index].phase_offset_ticks;
       }
    }
 }
@@ -109,7 +109,8 @@ static void crusherTick(DeceptusMechanismSet *set, DeceptusU16 index)
    ++state->timer;
    duration = (state->phase == CRUSHER_EXTRACTING)   ? CRUSHER_EXTRACT_TICKS
               : (state->phase == CRUSHER_RETRACTING) ? CRUSHER_RETRACT_TICKS
-                                                     : set->timings[index].on_ticks;
+              : (state->phase == CRUSHER_EXTRACTED)  ? set->timings[index].on_ticks
+                                                     : set->timings[index].off_ticks;
    if (state->timer >= duration)
    {
       state->timer = 0;

@@ -98,7 +98,7 @@ class ContentTests(unittest.TestCase):
         with patch('content.map_objects', return_value=(None, [obj])):
             definitions, _, unsupported = crop_mechanisms(FIXTURES, {'map': 'unused', 'crop_pixels': [0, 0, 256, 224]})
         self.assertEqual(definitions[0]['kind'], 'DECEPTUS_MECH_COLLAPSING')
-        self.assertEqual(definitions[0]['timing'][2:], [15, 180, 60, 4])
+        self.assertEqual(definitions[0]['timing'][2:6], [15, 180, 60, 4])
         self.assertEqual(unsupported, [])
         obj['properties']['time_to_respawn_s'] = 2000
         with patch('content.map_objects', return_value=(None, [obj])):
@@ -112,7 +112,7 @@ class ContentTests(unittest.TestCase):
         with patch('content.map_objects', return_value=(None, [obj])):
             definitions, _, _ = crop_mechanisms(FIXTURES, {'map': 'unused', 'crop_pixels': [0, 0, 256, 224]})
         self.assertEqual(definitions[0]['timing'][:2], [30, 90])
-        self.assertEqual(definitions[0]['timing'][-1], 3)
+        self.assertEqual(definitions[0]['timing'][5], 3)
         self.assertEqual(definitions[0]['flags'], 1)
         obj['properties']['mode'] = 'unsupported'
         with patch('content.map_objects', return_value=(None, [obj])):

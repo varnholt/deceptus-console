@@ -11,6 +11,11 @@ from assets import ROOT
 from world_export import capped_rope, collision_data
 
 
+# one mechanism record: '>H4h3H3B' and its timing (ROOM_MECHANISM_BYTES in roomcontent.c).
+TIMING_FORMAT = '>5HBH'
+MECHANISM_BYTES = struct.calcsize('>H4h3H3B') + struct.calcsize(TIMING_FORMAT)
+
+
 def _constants():
     result = {}
     for filename in ('mechanisms.h', 'enemies.h'):
@@ -51,7 +56,7 @@ def encode_room(source, recipe):
             '>H4h3H3B', mechanism['source_id'], *bounds, *values,
             constants[kind] if isinstance(kind, str) else kind,
             mechanism['enabled'], mechanism['flags']))
-        payload.extend(struct.pack('>5HB', *mechanism.get('timing', [0] * 6)))
+        payload.extend(struct.pack(TIMING_FORMAT, *mechanism.get('timing', [0] * 7)))
     payload.extend(struct.pack(f'>{len(targets)}H', *targets))
     for actor in actors:
         payload.extend(struct.pack(
@@ -66,7 +71,7 @@ def encode_room(source, recipe):
     if water:
         payload.extend(struct.pack('>26B', *water,
                                    *recipe.get('water_splash_ticks', [0] * 20)))
-    expected = (35 + len(collision) + len(definitions) * 30 + len(targets) * 2
+    expected = (35 + len(collision) + len(definitions) * MECHANISM_BYTES + len(targets) * 2
                 + len(actors) * 35 + len(paths) * 4 + (26 if water else 0))
     if len(payload) != expected:
         raise ValueError('room encoder layout mismatch')
