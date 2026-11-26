@@ -468,6 +468,10 @@ static DeceptusU16 mechanismFamilyFirst(DeceptusU8 family)
    case SPRITE_SPIKE_BALL:
       return GBA_SPIKE_BALL_FIRST;
 #endif
+#ifdef GBA_CHECKPOINT_CLOCK_FIRST
+   case SPRITE_CHECKPOINT_CLOCK:
+      return GBA_CHECKPOINT_CLOCK_FIRST;
+#endif
    default:
       return 65535;
    }

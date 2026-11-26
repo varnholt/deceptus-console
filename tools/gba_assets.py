@@ -27,6 +27,12 @@ def header_define(header, name):
 
 
 FLOOR_SPIKES_FRAMES = header_define('floorspikes.h', 'FLOOR_SPIKES_FRAMES')
+CHECKPOINT_CLOCK_ACTIVATION_FRAMES = header_define('checkpointclock.h', 'CHECKPOINT_CLOCK_ACTIVATION_FRAMES')
+CHECKPOINT_CLOCK_ACTIVE_FRAMES = header_define('checkpointclock.h', 'CHECKPOINT_CLOCK_ACTIVE_FRAMES')
+CHECKPOINT_CLOCK_WIDTH = header_define('checkpointclock.h', 'CHECKPOINT_CLOCK_WIDTH')
+CHECKPOINT_CLOCK_HEIGHT = header_define('checkpointclock.h', 'CHECKPOINT_CLOCK_HEIGHT')
+# frames whose source colours exceed their OBJ range: the sword trails and the clock's activation glow.
+PALETTE_REDUCED = ('player-sword', 'checkpoint.png')
 FLOOR_SPIKES_ROWS = header_define('floorspikes.h', 'FLOOR_SPIKES_ROWS')
 # the chain link variants follow the engine's crusher image layout.
 CRUSHER_LINK_HEIGHT = header_define('crusher.h', 'CRUSHER_LINK_HEIGHT')
@@ -288,7 +294,10 @@ def compile_mechanisms(data, output):
                       # the up, down, right and left rows of the spike layers' 15-frame animation.
                       (FLOOR_SPIKES_ATLAS,24,24,FLOOR_SPIKES_FRAMES,FLOOR_SPIKES_FRAMES*FLOOR_SPIKES_ROWS,52,24,True),
                       # the turned balls and the two chain links (SPIKE_BALL_IMAGE_*).
-                      (spike_ball_assets.SHEET,spike_ball_assets.FRAME_SIZE,spike_ball_assets.FRAME_SIZE,spike_ball_assets.IMAGE_COUNT,spike_ball_assets.IMAGE_COUNT,52,40,True)]
+                      (spike_ball_assets.SHEET,spike_ball_assets.FRAME_SIZE,spike_ball_assets.FRAME_SIZE,spike_ball_assets.IMAGE_COUNT,spike_ball_assets.IMAGE_COUNT,52,40,True),
+                      # checkpoint.cpp: the activation row, then the ticking row (CHECKPOINT_CLOCK_*).
+                      ('checkpoint.png',CHECKPOINT_CLOCK_WIDTH,CHECKPOINT_CLOCK_HEIGHT,CHECKPOINT_CLOCK_ACTIVATION_FRAMES,
+                       CHECKPOINT_CLOCK_ACTIVATION_FRAMES+CHECKPOINT_CLOCK_ACTIVE_FRAMES,52,40,True)]
     for filename, width, height, columns, count, palette_first, palette_count, shared in specifications:
         actual_filename = ('player.png' if filename in ('player-swim','player-splash','player-sword','player-helmet','player-rope') else
                            'enemy_arrowtrap_2.png' if filename.startswith('trap-') else
@@ -373,20 +382,21 @@ def compile_mechanisms(data, output):
         if actual_filename == 'enemy_arrowtrap_2.png':
             pixels = np.asarray(atlas)
             common = set(map(tuple, (pixels[:, :, :3][pixels[:, :, 3] >= 128] >> 3).tolist()))
-        if filename == 'player-sword' and len(common) > palette_count:
-            # sword trails have more colours than the player's reserved OBJ range.
+        reduced = (filename in PALETTE_REDUCED) and (len(common) > palette_count)
+        if reduced:
+            # sword trails and the clock's glow have more colours than their OBJ range.
             # reduce colours only; preserve the source pixel grid without dithering.
             opaque_pixels = np.concatenate([np.asarray(image)[np.asarray(image)[:, :, 3] >= 128, :3]
                                             for image in images])
             sample = Image.fromarray(opaque_pixels.reshape(1, -1, 3))
-            reduced = sample.quantize(colors=palette_count, method=Image.Quantize.MEDIANCUT,
-                                      dither=Image.Dither.NONE).convert('RGB')
-            common = set(map(tuple, (np.asarray(reduced).reshape(-1, 3) >> 3).tolist()))
+            quantized = sample.quantize(colors=palette_count, method=Image.Quantize.MEDIANCUT,
+                                        dither=Image.Dither.NONE).convert('RGB')
+            common = set(map(tuple, (np.asarray(quantized).reshape(-1, 3) >> 3).tolist()))
         for index, image in enumerate(images):
             trim_x, trim_y = 0, 0
             logical_rect = rects[index]
             source_rect = logical_rect
-            trim = filename in (CRUSHER_ATLAS, FLOOR_SPIKES_ATLAS, spike_ball_assets.SHEET, 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
+            trim = filename in (CRUSHER_ATLAS, FLOOR_SPIKES_ATLAS, spike_ball_assets.SHEET, 'checkpoint.png', 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
                                 'orb.png', 'frog-blue', 'frog-blue-orb', 'player-rope')
             if trim:
                 # omit transparent padding only, keeping the authored logical
@@ -411,7 +421,7 @@ def compile_mechanisms(data, output):
                 raise ValueError(f'{filename} frame {index}: {len(colours)} colours exceed {palette_count}')
             lookup = {colour: palette_first + slot for slot, colour in enumerate(colours)}
             indices = np.zeros(opaque.shape, dtype=np.uint8)
-            if filename == 'player-sword':
+            if reduced:
                 candidates = np.asarray(colours, dtype=np.int16)
                 source = rgb5[opaque].astype(np.int16)
                 nearest = ((source[:, None, :] - candidates[None, :, :]) ** 2).sum(axis=2).argmin(axis=1)
@@ -434,8 +444,9 @@ def compile_mechanisms(data, output):
             if generated:
                 manifest[-1]['source_generated'] = True
             if filename == 'player-sword':
-                manifest[-1].update(animation=sword[index]['animation'], duration_ticks=sword[index]['duration'],
-                                    palette_reduced=True, dithering=False, resampling=False)
+                manifest[-1].update(animation=sword[index]['animation'], duration_ticks=sword[index]['duration'])
+            if reduced:
+                manifest[-1].update(palette_reduced=True, dithering=False, resampling=False)
             graphics.extend(packed)
             palettes.extend(struct.pack(f'<{palette_count}H', *palette))
     (output / 'mechanisms.bin').write_bytes(graphics)
@@ -519,7 +530,7 @@ def compile_assets(data, scene="lever", recipe_path=None):
                '#define GBA_HEADTORCH_FIRST 942', '#define GBA_HEADTORCH_BEAM_FIRST 944',
                '#define GBA_ORB_FIRST 945', '#define GBA_FROG_BLUE_FIRST 953', '#define GBA_BLUE_FIREBALL_FIRST 1016',
                '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033', '#define GBA_MOVEABLE_BOX_FIRST 1039',
-               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066', '#define GBA_SPIKE_BALL_FIRST 1126',
+               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066', '#define GBA_SPIKE_BALL_FIRST 1126', '#define GBA_CHECKPOINT_CLOCK_FIRST 1145',
                f'#define GBA_MECHANISM_FRAME_COUNT {mechanism_frames}',
                '#define GBA_ACTOR_FRAME_BYTES 1536', f'#define GBA_ACTOR_FRAME_COUNT {ACTOR_FRAME_COUNT}', '#endif', '']
     (OUTPUT / 'data.s').write_text('\n'.join(assembly) + '\n')

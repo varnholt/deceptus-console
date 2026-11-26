@@ -13,7 +13,7 @@ from assets import ROOT
 
 SOURCES = (
     'src/engine/player/playerwater.c', 'src/engine/player/playerrope.c',
-    'src/engine/mechanisms/grabrope.c', 'src/engine/mechanisms/moveablebox.c', 'src/engine/mechanisms/crusher.c', 'src/engine/mechanisms/floorspikes.c', 'src/engine/mechanisms/spikeball.c', 'src/engine/animation.c',
+    'src/engine/mechanisms/grabrope.c', 'src/engine/mechanisms/moveablebox.c', 'src/engine/mechanisms/crusher.c', 'src/engine/mechanisms/floorspikes.c', 'src/engine/mechanisms/spikeball.c', 'src/engine/mechanisms/checkpointclock.c', 'src/engine/animation.c',
     'src/engine/world.c', 'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c',
     'src/engine/logic.c', 'src/engine/pacing.c', 'src/engine/arith.c', 'src/game/enemies.c', 'src/game/deceptus.c',
     'src/platform/amiga/runtime.c', 'src/platform/amiga/main.c',
