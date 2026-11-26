@@ -17,7 +17,9 @@ after a push), and the crypt's crusher pointing down on a chain (the blade kills
 the solid block above it is left out, so it cannot be stood on, and there is no camera shake),
 and the spike balls of the opening rooms (a fixed-point pendulum fitted to the source's Box2D
 chain swings the ball, which kills on contact; the ball is drawn from 17 turned images and the
-chain as straight links instead of a spline; balls with non-default properties are not imported).
+chain as straight links instead of a spline; balls with non-default properties are not imported), and the checkpoint clocks (the source's
+activation and ticking animations; the activation glow is reduced to the opaque pixels and,
+on GBA, 40 colours; clocks may stand at their rectangle or one tile above it; no tick sounds yet).
 Wind has 15 placements but only a subset of its
 force/presentation behavior is ported. Selected water, dialogue, pickup, shader
 and lighting features also exist; these do not establish family-wide parity.

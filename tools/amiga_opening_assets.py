@@ -12,6 +12,7 @@ from PIL import Image
 
 from amiga_palette import color_error, fit_palette, map_image
 from assets import ROOT
+from content import CHECKPOINT_HIDDEN
 from rle import packbits
 from lz4_block import encode_block
 from room_content import compile_rooms
@@ -99,10 +100,13 @@ def room_families(source, recipe, sword):
                      'DECEPTUS_MECH_SPIKES': 7, 'DECEPTUS_MECH_COLLAPSING': 8,
                      'DECEPTUS_MECH_DOOR': 10, 'DECEPTUS_MECH_DESTRUCTIBLE': 11,
                      'DECEPTUS_MECH_GRAB_ROPE': 13, 'DECEPTUS_MECH_MOVEABLE_BOX': 14,
-                     'MECHANISM_CRUSHER': 16, 'MECHANISM_FLOOR_SPIKES': 17, 'MECHANISM_SPIKE_BALL': 18}
+                     'MECHANISM_CRUSHER': 16, 'MECHANISM_FLOOR_SPIKES': 17, 'MECHANISM_SPIKE_BALL': 18,
+                     'DECEPTUS_MECH_CHECKPOINT': 1}
             kind = names.get(kind, 0)
         if kind in mechanism_families:
             families.add(mechanism_families[kind])
+        elif (kind == 1) and not (mechanism['flags'] & CHECKPOINT_HIDDEN):
+            families.add('CHECKPOINT_CLOCK')
     if 'GRAB_ROPE' in families and not sword:
         families.add('PLAYER_ROPE')
     if Image.open(source / 'water.png').getbbox():

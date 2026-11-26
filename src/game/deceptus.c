@@ -1,5 +1,6 @@
 #include "deceptus/crusher.h"
 #include "deceptus/spikeball.h"
+#include "deceptus/checkpointclock.h"
 #include "deceptus/enemies.h"
 #include "deceptus/floorspikes.h"
 #include "deceptus/game.h"
@@ -87,6 +88,7 @@ void deceptusInit(DeceptusEngine *engine, const DeceptusRoom *room, const Decept
    crushersInit(&engine->mechanisms);
    floorSpikesInit(&engine->mechanisms);
    spikeBallsInit(&engine->mechanisms);
+   checkpointClocksInit(&engine->mechanisms);
    if ((deceptusGrabRopesInit(engine) == 0) || (deceptusMoveableBoxesInit(engine) == 0))
    {
       engine->content_error = 9;
@@ -440,6 +442,7 @@ void deceptusTick(DeceptusEngine *engine, DeceptusU16 buttons)
    player_rect.width = PLAYER_HALF_WIDTH * 2;
    player_rect.height = DECEPTUS_PLAYER_HEIGHT(player);
    deceptusMechanismsTick(&engine->mechanisms, &player_rect, (input.pressed & DECEPTUS_UP) != 0);
+   checkpointClocksTick(&engine->mechanisms);
    for (mechanism_index = 0; mechanism_index < engine->mechanisms.event_count; ++mechanism_index)
    {
       mechanism_event = &engine->mechanisms.events[mechanism_index];

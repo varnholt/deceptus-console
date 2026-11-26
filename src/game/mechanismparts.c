@@ -4,6 +4,7 @@
 #include "deceptus/crusher.h"
 #include "deceptus/floorspikes.h"
 #include "deceptus/spikeball.h"
+#include "deceptus/checkpointclock.h"
 
 /* the source's tile size: the offsets below are whole tiles in the original sprite layouts. */
 #define SOURCE_TILE 24
@@ -58,6 +59,8 @@ DeceptusU8 mechanismPartCount(const DeceptusEngine *engine, DeceptusU16 index)
       return (state->frame == FLOOR_SPIKES_RETRACTED) ? 0 : 1;
    case MECHANISM_SPIKE_BALL:
       return SPIKE_BALL_PART_COUNT;
+   case DECEPTUS_MECH_CHECKPOINT:
+      return checkpointClockVisible(&engine->mechanisms, index);
    default:
       return 0;
    }
@@ -133,6 +136,11 @@ void mechanismPart(const DeceptusEngine *engine, DeceptusU16 index, DeceptusU8 p
    case MECHANISM_SPIKE_BALL:
       result->family = SPRITE_SPIKE_BALL;
       spikeBallPart(&engine->mechanisms, index, part, &image, &result->x, &result->y);
+      result->image = image;
+      break;
+   case DECEPTUS_MECH_CHECKPOINT:
+      result->family = SPRITE_CHECKPOINT_CLOCK;
+      checkpointClockPart(&engine->mechanisms, index, &image, &result->x, &result->y);
       result->image = image;
       break;
    default:

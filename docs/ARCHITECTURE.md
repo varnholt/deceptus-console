@@ -125,6 +125,7 @@ counterparts live under `deceptus_engine/src/game/mechanisms/`.
 | `spikeblock.cpp` | `spikeblock.c` | Initial frame and damaging animation frames |
 | `collapsingplatform.cpp` | `collapsingplatform.c` | Foot contact, collapse, respawn and collision |
 | `checkpoint.cpp` | `checkpoint.c` | One-shot reached notification |
+| `checkpoint.cpp` (clock) | `checkpointclock.c` | Clock image: waiting, activation once reached, ticking loop; hidden and raised clocks |
 | `sensorrect.cpp` | `sensorrect.c` | Enter/leave notifications |
 | `damagerect.cpp` | `damagerect.c` | Contact damage notification |
 | `blockingrect.cpp` | `blockingrect.c` | Common dynamic-solid query for supported blocker families |

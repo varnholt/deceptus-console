@@ -173,6 +173,23 @@ def inventory(data, output):
     return levels, summary
 
 
+def checkpoint_flags(obj, recipe):
+    """checkpoint.cpp draws the clock at sprite_pos_x_px/sprite_pos_y_px when both are set, else at the
+    rectangle; the consoles place it at the rectangle or one tile above."""
+    props = obj['properties']
+    if str(props.get('visible', True)).lower() not in ('true', '1'):
+        return CHECKPOINT_HIDDEN
+    if 'sprite_pos_x_px' not in props or 'sprite_pos_y_px' not in props:
+        return 0
+    offset = (round(float(props['sprite_pos_x_px']) - obj['x']), round(float(props['sprite_pos_y_px']) - obj['y']))
+    if offset == (0, 0):
+        return 0
+    if offset == (0, -CHECKPOINT_RAISE):
+        return CHECKPOINT_RAISED
+    raise ContentError.at(f'checkpoint clock offset {offset} is not supported', recipe, obj,
+                          fix=f'place the clock at the rectangle or {CHECKPOINT_RAISE}px above it (sprite_pos_x_px/sprite_pos_y_px)')
+
+
 def crop_mechanisms(data, recipe):
     """Export the implemented rectangle semantics; report every remaining object."""
     root, objects = map_objects(Path(data) / recipe["map"])
@@ -289,6 +306,8 @@ def crop_mechanisms(data, recipe):
             bounds = [round(obj['x']-left)+(102 if right_aligned else 0),round(obj['y']-top),48,96]
             if right_aligned:
                 flags |= 8
+        elif obj['group'] == 'checkpoints':
+            flags = checkpoint_flags(obj, recipe)
         elif obj['group'] == 'enemies':
             # cannon_2.lua addShapeRectBevel(1,.75,.05,0,.25), with 48px/metre.
             bounds = [round(obj['x']-left),round(obj['y']-top)+12,48,36]
@@ -346,7 +365,7 @@ def crop_mechanisms(data, recipe):
         definitions.append({"source_id": obj["id"], "name": obj["name"], "kind": supported[obj["group"]],
                             "bounds": bounds, "timing": timing, "enabled": enabled, "flags": flags,
                             "value": value, "target_first": first, "target_count": len(targets) - first,
-                            "visual_status": "static background" if obj["group"] == "checkpoints" else "not implemented"})
+                            "visual_status": "not implemented"})
         if obj['group'] == 'enemies':
             definitions[-1]['visual_status'] = 'invisible collision body; enemy importer owns artwork'
             definitions[-1]['collision_note'] = 'source 48x36 body bounds; the 8px collision grid conservatively approximates its 2.4px corner bevel'
@@ -356,6 +375,9 @@ def crop_mechanisms(data, recipe):
         elif obj['group'] == 'crushers':
             definitions[-1]['visual_status'] = 'source crushers.png blade, mount and chain links cut off at the mount'
             definitions[-1]['simulation_note'] = 'the blade kills on contact; the solid block above it is left out, so it cannot be stood on; no camera shake'
+        elif obj['group'] == 'checkpoints':
+            definitions[-1]['visual_status'] = ('invisible' if flags & CHECKPOINT_HIDDEN else
+                                                'source checkpoint.png clock: activation once reached, then ticking')
         elif obj['group'] == 'spike_balls':
             definitions[-1]['visual_status'] = 'source enemy_spikeball.png ball in 17 turned images and its two chain links'
             definitions[-1]['simulation_note'] = 'a fixed-point pendulum fitted to the Box2D chain replaces it; the ball kills on contact'
@@ -371,9 +393,19 @@ def crop_mechanisms(data, recipe):
     return definitions, targets, unsupported
 
 
+def _header_define(header, name):
+    source = (Path(__file__).resolve().parents[1] / 'include/deceptus' / header).read_text()
+    return int(re.search(rf'^#define {name} (\d+)$', source, re.M).group(1))
+
+
 def _floor_spikes_define(name):
-    header = (Path(__file__).resolve().parents[1] / 'include/deceptus/floorspikes.h').read_text()
-    return int(re.search(rf'^#define {name} (\d+)$', header, re.M).group(1))
+    return _header_define('floorspikes.h', name)
+
+
+# checkpoint.cpp: an invisible checkpoint has no clock; a clock may stand one tile above its rectangle.
+CHECKPOINT_HIDDEN = _header_define('checkpointclock.h', 'CHECKPOINT_HIDDEN')
+CHECKPOINT_RAISED = _header_define('checkpointclock.h', 'CHECKPOINT_RAISED')
+CHECKPOINT_RAISE = _header_define('checkpointclock.h', 'CHECKPOINT_RAISE')
 
 
 # spikes.cpp modes by layer name; toggle_spikes use neither flag.
