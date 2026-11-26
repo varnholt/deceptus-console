@@ -8,6 +8,19 @@ from PIL import Image
 
 from assets import ROOT
 
+# the normal player frames every target lists ahead of the shared families.
+ACTOR_FRAMES = 26
+FRAMES = ROOT / 'assets/generated/gba/area0/mechanisms-frames.json'
+
+
+def shared_sprite_count():
+    """Frames of the shared mechanism, enemy and effect families, as the GBA conversion lists them."""
+    return len(json.loads(FRAMES.read_text()))
+
+
+def sprite_resource_count():
+    return ACTOR_FRAMES + shared_sprite_count()
+
 
 def source_sprites(data, output):
     from headtorch_assets import compile_headtorch
@@ -16,7 +29,7 @@ def source_sprites(data, output):
     data, output = Path(data), Path(output)
     compile_headtorch(data, output)
     compile_rope(data, output)
-    records = json.loads((ROOT / 'assets/generated/gba/area0/mechanisms-frames.json').read_text())
+    records = json.loads(FRAMES.read_text())
     images, cache = [], {}
     rotations = {90: Image.Transpose.ROTATE_90,
                  180: Image.Transpose.ROTATE_180,
@@ -58,7 +71,7 @@ FAMILY_NAMES = (
     'MUZZLE', 'ARROW', 'SWIM', 'BLOB', 'SPLASH', 'SWORD', 'CANNON',
     'CANNONBALL', 'IRON_DOOR', 'WOODEN_PLANKS', 'HEADTORCH',
     'HEADTORCH_BEAM', 'ORB', 'FROG_BLUE', 'BLUE_FIREBALL', 'GRAB_ROPE',
-    'PLAYER_ROPE',
+    'PLAYER_ROPE', 'MOVEABLE_BOX',
 )
 
 

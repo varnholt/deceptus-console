@@ -99,7 +99,11 @@ DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMecha
       case DECEPTUS_MECH_DOOR:
       case DECEPTUS_MECH_DESTRUCTIBLE:
       case DECEPTUS_MECH_CANNON_BODY:
-         bindSolidMechanism(set, index);
+      case DECEPTUS_MECH_BOX_COLLIDER:
+         bindSolidMechanism(set, index, 0);
+         break;
+      case DECEPTUS_MECH_MOVEABLE_BOX:
+         bindSolidMechanism(set, index, 1);
          break;
       default:
          break;

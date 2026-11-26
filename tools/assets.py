@@ -25,8 +25,9 @@ def collision_masks(tiled, crop, recipe):
     """Preserve the source collision roles instead of flattening box-only walls.
 
     BoxCollider uses CategoryMoveableBox|CategoryBoundary as its mask; the
-    CategoryFriendly player is excluded. Keep those vectors for future box
-    simulation without turning them into invisible player platforms.
+    CategoryFriendly player is excluded. The runtime stops boxes at them as
+    box-collider mechanisms (content.crop_mechanisms), so they must not become
+    invisible player platforms here.
     """
     player_layers = [name for name in recipe['collision_layers'] if name != 'box_colliders']
     return {

@@ -33,7 +33,7 @@ def compile_native(clang,assets_dir=None):
         raise RuntimeError('build --scene tutorial SMD content first; missing ' + ', '.join(missing))
     sources = (sorted((ROOT / 'src/engine').glob('*.c')) +
                sorted((ROOT / 'src/engine/player').glob('*.c')) +
-               [ROOT / 'src/engine/mechanisms/grabrope.c'] +
+               [ROOT / 'src/engine/mechanisms/grabrope.c', ROOT / 'src/engine/mechanisms/moveablebox.c'] +
                sorted(path for path in (ROOT / 'src/game').rglob('*.c')
                       if path.parent != ROOT / 'src/game/enemies'))
     folder = ROOT / 'build/tests/smd-opening'

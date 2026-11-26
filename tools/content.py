@@ -139,7 +139,8 @@ def inventory(data, output):
         api.update(re.findall(r'lua_register\([^,]+,\s*"([^"]+)"', (source / name).read_text()))
     referenced_api = sorted({call for module in modules.values() for call in module["calls"] if call in api})
     native_groups = ('collapsing_platforms', 'on_off_blocks', 'spike_blocks', 'sensor_rects',
-                     'blocking_rects', 'checkpoints', 'levers', 'damage_rects', 'doors', 'destructible_blocking_rects', 'grab_ropes')
+                     'blocking_rects', 'checkpoints', 'levers', 'damage_rects', 'doors', 'destructible_blocking_rects', 'grab_ropes',
+                     'moveable_objects', 'box_colliders')
     mechanism_counts = {group: sum(level['group_counts'].get(group, 0) for level in levels) for group in native_groups}
     summary = {"levels": len(levels), "rooms": sum(level["group_counts"].get("rooms", 0) for level in levels),
         "enemy_placements": sum(active_scripts.values()), "active_enemy_scripts": dict(sorted(active_scripts.items())),
@@ -180,7 +181,8 @@ def crop_mechanisms(data, recipe):
                  "levers": "DECEPTUS_MECH_LEVER", "blocking_rects": "DECEPTUS_MECH_BLOCK",
                  "collapsing_platforms": "DECEPTUS_MECH_COLLAPSING", "on_off_blocks": "DECEPTUS_MECH_BLOCK", "spike_blocks": "DECEPTUS_MECH_SPIKES", "damage_rects": "DECEPTUS_MECH_DAMAGE", "wind": "DECEPTUS_MECH_WIND",
                  "doors": "DECEPTUS_MECH_DOOR", "destructible_blocking_rects": "DECEPTUS_MECH_DESTRUCTIBLE",
-                 "enemies": "DECEPTUS_MECH_CANNON_BODY", "grab_ropes": "DECEPTUS_MECH_GRAB_ROPE"}
+                 "enemies": "DECEPTUS_MECH_CANNON_BODY", "grab_ropes": "DECEPTUS_MECH_GRAB_ROPE",
+                 "moveable_objects": "DECEPTUS_MECH_MOVEABLE_BOX", "box_colliders": "DECEPTUS_MECH_BOX_COLLIDER"}
     selected, unsupported = [], []
     for obj in objects:
         object_left, object_top = obj['x'], obj['y']
@@ -215,6 +217,8 @@ def crop_mechanisms(data, recipe):
         elif obj["group"] == "collapsing_platforms" and (float(obj["properties"].get("destruction_speed", 30)) != 30 or
                                                         float(obj["properties"].get("fall_speed", 6)) != 6):
             reason = "custom collapse visual speeds are not implemented"
+        elif obj['group'] == 'moveable_objects' and (obj['width'] != 48 or obj['height'] != 48 or obj['properties'].get('texture')):
+            reason = 'only the source 48px box drawn from moveable_box.png is implemented'
         elif obj['group'] == 'doors':
             props = obj['properties']
             if (props.get('texture') != 'data/sprites/iron-door.png' or
@@ -333,6 +337,11 @@ def crop_mechanisms(data, recipe):
         if obj['group'] == 'enemies':
             definitions[-1]['visual_status'] = 'invisible collision body; enemy importer owns artwork'
             definitions[-1]['collision_note'] = 'source 48x36 body bounds; the 8px collision grid conservatively approximates its 2.4px corner bevel'
+        elif obj['group'] == 'moveable_objects':
+            definitions[-1]['visual_status'] = 'source moveable_box.png 48x72 cell, lip one tile above the body'
+            definitions[-1]['simulation_note'] = 'pixel steps through cells, solids and box colliders replace the Box2D body; pushed at half the body speed, no sliding after a push'
+        elif obj['group'] == 'box_colliders':
+            definitions[-1]['visual_status'] = 'invisible; stops moveable boxes only'
         elif obj['group'] == 'grab_ropes':
             definitions[-1]['visual_status'] = 'native plain rope strips and source player midair pose'
             definitions[-1]['simulation_note'] = 'bounded fixed-point chain constraints replace Box2D joints; automatic airborne grab, swing-only hold, jump release'

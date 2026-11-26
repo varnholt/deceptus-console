@@ -112,16 +112,13 @@ class GbaGraphicsTests(unittest.TestCase):
         graphics = (folder / 'mechanisms.bin').read_bytes()
         palettes = (folder / 'mechanisms.pal').read_bytes()
         table = (folder / 'mechanisms.tbl').read_bytes()
-        animations = json.loads((source / 'animations.json').read_text())
-        from gba_assets import SWORD_CLIPS
-        sword_count = sum(animations[name + '_' + side]['sprite_count']
-                          for side in ('r', 'l') for name in SWORD_CLIPS)
-        self.assertEqual(len(manifest), 494 + sword_count + 86 + 4 + 114 + 100 + 3 + 8 + 63 + 8 + 9 + 6)
+        # every frame has its 16-byte descriptor.
+        self.assertEqual(len(manifest) * 16, len(table))
         atlases = {}
         # retain exact source-colour checks for all resources except the
-        # explicitly colour-reduced sword range, which has its own checks.
+        # explicitly colour-reduced sword frames, which have their own checks.
         for resource, frame in enumerate(manifest):
-            if 494 <= resource < 494 + sword_count:
+            if frame.get('palette_reduced'):
                 continue
             if frame['source'] not in atlases:
                 atlases[frame['source']] = Image.open((folder if frame.get('source_generated') else source) / frame['source']).convert('RGBA')

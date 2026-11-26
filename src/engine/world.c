@@ -35,7 +35,9 @@ DeceptusI16 deceptusPositionCell(DeceptusFixed position)
    return -1 - ((-1 - pixel) / DECEPTUS_CELL_SIZE);
 }
 
-static DeceptusU8 collisionCell(const DeceptusRoom *room, const DeceptusMechanismSet *mechanisms, DeceptusI16 column, DeceptusI16 row)
+/* sideways leaves moveable boxes out: a body moving sideways meets them at their exact edge. */
+static DeceptusU8 collisionCell(const DeceptusRoom *room, const DeceptusMechanismSet *mechanisms, DeceptusI16 column, DeceptusI16 row,
+                                DeceptusU8 sideways)
 {
    DeceptusRect bounds;
    DeceptusU8 value;
@@ -58,11 +60,47 @@ static DeceptusU8 collisionCell(const DeceptusRoom *room, const DeceptusMechanis
    bounds.y = row * DECEPTUS_CELL_SIZE;
    bounds.width = DECEPTUS_CELL_SIZE;
    bounds.height = DECEPTUS_CELL_SIZE;
-   if (deceptusMechanismSolid(mechanisms, &bounds))
+   if (sideways ? deceptusMechanismSidewaysSolid(mechanisms, &bounds) : deceptusMechanismSolid(mechanisms, &bounds))
    {
       value |= DECEPTUS_SOLID;
    }
    return value;
+}
+
+/* next_x stopped at the near edge of any moveable box the body would enter moving sideways. the body
+ * keeps its velocity against a box, so pushing one does not start again from rest every tick. */
+static DeceptusFixed stopAtBoxes(const DeceptusEntity *entity, const DeceptusMechanismSet *mechanisms, DeceptusFixed velocity_x,
+                                 DeceptusFixed next_x, DeceptusU8 half_width, DeceptusU8 height)
+{
+   const DeceptusMoveableBox *box;
+   DeceptusI16 top, bottom;
+   DeceptusU8 index;
+   if (mechanisms == 0)
+   {
+      return next_x;
+   }
+   top = deceptusFloor(entity->y) - height;
+   bottom = deceptusFloor(entity->y);
+   for (index = 0; index < mechanisms->box_count; ++index)
+   {
+      box = &mechanisms->boxes[index];
+      if ((top >= box->bounds.y + box->bounds.height) || (bottom <= box->bounds.y))
+      {
+         continue;
+      }
+      /* the side the body's centre is on decides, so rounding never lets it slip inside a box. */
+      if ((velocity_x > 0) && (entity->x < box->x + DECEPTUS_FIXED(box->bounds.width / 2)) &&
+          (next_x + DECEPTUS_FIXED(half_width) > box->x))
+      {
+         next_x = box->x - DECEPTUS_FIXED(half_width);
+      }
+      else if ((velocity_x < 0) && (entity->x >= box->x + DECEPTUS_FIXED(box->bounds.width / 2)) &&
+               (next_x - DECEPTUS_FIXED(half_width) < box->x + DECEPTUS_FIXED(box->bounds.width)))
+      {
+         next_x = box->x + DECEPTUS_FIXED(box->bounds.width + half_width);
+      }
+   }
+   return next_x;
 }
 
 DeceptusU8 deceptusBodyClear(const DeceptusRoom *room, const DeceptusMechanismSet *mechanisms, DeceptusFixed x, DeceptusFixed y,
@@ -77,7 +115,7 @@ DeceptusU8 deceptusBodyClear(const DeceptusRoom *room, const DeceptusMechanismSe
    {
       for (column = left; column <= right; ++column)
       {
-         if (collisionCell(room, mechanisms, column, row) & DECEPTUS_SOLID)
+         if (collisionCell(room, mechanisms, column, row, 0) & DECEPTUS_SOLID)
          {
             return 0;
          }
@@ -89,8 +127,9 @@ DeceptusU8 deceptusBodyClear(const DeceptusRoom *room, const DeceptusMechanismSe
 void deceptusMoveHorizontalDynamic(const DeceptusRoom *room, DeceptusEntity *entity, DeceptusU8 half_width, DeceptusU8 height,
                                    const DeceptusMechanismSet *mechanisms)
 {
-   DeceptusFixed next_x;
+   DeceptusFixed next_x, velocity_x;
    DeceptusI16 column, top, bottom, row;
+   velocity_x = entity->velocity_x;
    next_x = entity->x + entity->velocity_x;
    top = deceptusPositionCell(entity->y - DECEPTUS_FIXED(height));
    bottom = deceptusPositionCell(entity->y - 1);
@@ -101,7 +140,7 @@ void deceptusMoveHorizontalDynamic(const DeceptusRoom *room, DeceptusEntity *ent
    column = deceptusPositionCell(next_x + DECEPTUS_FIXED(entity->velocity_x > 0 ? half_width - 1 : -half_width));
    for (row = top; row <= bottom; ++row)
    {
-      if (collisionCell(room, mechanisms, column, row) & DECEPTUS_SOLID)
+      if (collisionCell(room, mechanisms, column, row, 1) & DECEPTUS_SOLID)
       {
          if (entity->velocity_x > 0)
          {
@@ -115,7 +154,7 @@ void deceptusMoveHorizontalDynamic(const DeceptusRoom *room, DeceptusEntity *ent
          break;
       }
    }
-   entity->x = next_x;
+   entity->x = stopAtBoxes(entity, mechanisms, velocity_x, next_x, half_width, height);
 }
 
 void deceptusMoveVerticalDynamic(const DeceptusRoom *room, DeceptusEntity *entity, DeceptusU8 half_width, DeceptusU8 height,
@@ -132,7 +171,7 @@ void deceptusMoveVerticalDynamic(const DeceptusRoom *room, DeceptusEntity *entit
    entity->grounded = 0;
    for (column = left; column <= right; ++column)
    {
-      cell = collisionCell(room, mechanisms, column, row);
+      cell = collisionCell(room, mechanisms, column, row, 0);
       blocked = (cell & DECEPTUS_SOLID) != 0;
       if ((cell & DECEPTUS_ONE_WAY) && !entity->drop_ticks && entity->velocity_y >= 0 && old_bottom <= row * DECEPTUS_CELL_SIZE)
       {
@@ -176,7 +215,7 @@ DeceptusI16 deceptusWallSide(const DeceptusRoom *room, const DeceptusEntity *ent
       column = deceptusPositionCell(entity->x + DECEPTUS_FIXED(side * 9));
       for (row = first; row <= last; ++row)
       {
-         if (collisionCell(room, mechanisms, column, row) & DECEPTUS_SOLID)
+         if (collisionCell(room, mechanisms, column, row, 0) & DECEPTUS_SOLID)
          {
             return side;
          }

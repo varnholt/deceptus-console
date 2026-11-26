@@ -36,7 +36,7 @@ add_custom_target(convert_assets
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "converting assets from the main engine checkout")
 
-add_library(deceptus_engine STATIC src/engine/compression.c src/engine/player/playerwater.c src/engine/player/playerrope.c src/engine/mechanisms/grabrope.c src/engine/world.c src/engine/entities.c src/engine/events.c src/engine/mechanisms.c src/engine/logic.c src/engine/pacing.c src/engine/arith.c src/engine/animation.c)
+add_library(deceptus_engine STATIC src/engine/compression.c src/engine/player/playerwater.c src/engine/player/playerrope.c src/engine/mechanisms/grabrope.c src/engine/mechanisms/moveablebox.c src/engine/world.c src/engine/entities.c src/engine/events.c src/engine/mechanisms.c src/engine/logic.c src/engine/pacing.c src/engine/arith.c src/engine/animation.c)
 # private modules remain visible to IDEs, but mechanisms.c compiles them together.
 set(DECEPTUS_MECHANISM_PARTS
     src/engine/mechanisms/blockingrect.c

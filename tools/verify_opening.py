@@ -67,7 +67,7 @@ def compile_native(clang):
     library = folder / ('opening.dll' if sys.platform == 'win32' else 'opening.so')
     sources = (sorted((ROOT / 'src/engine').glob('*.c')) +
                sorted((ROOT / 'src/engine/player').glob('*.c')) +
-               [ROOT / 'src/engine/mechanisms/grabrope.c'] +
+               [ROOT / 'src/engine/mechanisms/grabrope.c', ROOT / 'src/engine/mechanisms/moveablebox.c'] +
                sorted(path for path in (ROOT / 'src/game').rglob('*.c')
                       if path.parent != ROOT / 'src/game/enemies'))
     flags = ['-shared', '-O2', '-std=c90', '-Wall', '-Wextra', '-Werror', '-pedantic']
