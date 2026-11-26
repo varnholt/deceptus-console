@@ -2,6 +2,7 @@
 #include "deceptus/mechanismparts.h"
 #include "deceptus/appearance.h"
 #include "deceptus/crusher.h"
+#include "deceptus/floorspikes.h"
 
 /* the source's tile size: the offsets below are whole tiles in the original sprite layouts. */
 #define SOURCE_TILE 24
@@ -51,6 +52,9 @@ DeceptusU8 mechanismPartCount(const DeceptusEngine *engine, DeceptusU16 index)
       return isCollapsedOrFallen(state) ? 0 : (DeceptusU8)(definition->bounds.width / SOURCE_TILE);
    case MECHANISM_CRUSHER:
       return crusherPartCount(&engine->mechanisms, index);
+   case MECHANISM_FLOOR_SPIKES:
+      /* fully retracted spikes show nothing. */
+      return (state->frame == FLOOR_SPIKES_RETRACTED) ? 0 : 1;
    default:
       return 0;
    }
@@ -113,6 +117,10 @@ void mechanismPart(const DeceptusEngine *engine, DeceptusU16 index, DeceptusU8 p
       result->family = DECEPTUS_SPRITE_MOVEABLE_BOX;
       result->image = 0;
       result->y -= SOURCE_TILE;
+      break;
+   case MECHANISM_FLOOR_SPIKES:
+      result->family = SPRITE_FLOOR_SPIKES;
+      result->image = floorSpikesImage(&engine->mechanisms, index);
       break;
    case MECHANISM_CRUSHER:
       result->family = SPRITE_CRUSHER;
