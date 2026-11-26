@@ -1773,7 +1773,7 @@ static void spriteBlit(const DeceptusU16 *source, DeceptusU16 *destination, Dece
 static void spriteOverlay(const AmigaNativeBob *overlay, const DeceptusU16 *frame, DeceptusI16 left, DeceptusI16 top,
                           DeceptusU16 first, DeceptusU16 lines, DeceptusU16 pairs)
 {
-   DeceptusU16 overlay_pairs, height, pair, mask, bits, target, w0, w1, w2, w3;
+   DeceptusU16 overlay_pairs, height, pair, mask, bits, target, high_target, w0, w1, w2, w3;
    DeceptusI16 x, start, stop, line;
    DeceptusU8 shift, back, low, high;
    const DeceptusU16 *even, *odd;
@@ -1799,15 +1799,27 @@ static void spriteOverlay(const AmigaNativeBob *overlay, const DeceptusU16 *fram
    for (pair = 0; pair < overlay_pairs; ++pair, even += height * 4)
    {
       x = (DeceptusI16)(overlay->x - left + (DeceptusI16)pair * 16);
-      if (x < 0)
+      if (x <= -16)
       {
          continue;
       }
-      target = (DeceptusU16)(x >> 4);
+      /* a column up to 15 pixels left of the sprite still reaches its first column. */
       shift = (DeceptusU8)(x & 15);
       back = (DeceptusU8)(16 - shift);
-      low = target < pairs;
-      high = shift && target + 1 < pairs;
+      if (x < 0)
+      {
+         target = 0;
+         high_target = 0;
+         low = 0;
+         high = (DeceptusU8)((shift != 0) && (pairs > 0));
+      }
+      else
+      {
+         target = (DeceptusU16)(x >> 4);
+         high_target = (DeceptusU16)(target + 1);
+         low = target < pairs;
+         high = shift && high_target < pairs;
+      }
       if (!low && !high)
       {
          continue;
@@ -1823,8 +1835,8 @@ static void spriteOverlay(const AmigaNativeBob *overlay, const DeceptusU16 *fram
       }
       if (high)
       {
-         high0 = sprite_dma[draw_buffer][target * 2 + 2] + 2 + line * 2;
-         high1 = sprite_dma[draw_buffer][target * 2 + 3] + 2 + line * 2;
+         high0 = sprite_dma[draw_buffer][high_target * 2] + 2 + line * 2;
+         high1 = sprite_dma[draw_buffer][high_target * 2 + 1] + 2 + line * 2;
       }
       for (line = start; line < stop; ++line)
       {
@@ -2035,8 +2047,8 @@ static void prepareSprites(void)
    const AmigaNativeBob *bob, *overlay;
    const DeceptusU16 *frame, *overlay_frame;
    DeceptusU16 *data;
-   DeceptusU16 channel, pairs, first, last, vstart, vstop, hstart, lines, offset, count;
-   DeceptusI16 top, bottom;
+   DeceptusU16 channel, pairs, player_pairs, lead, wanted, first, last, vstart, vstop, hstart, lines, offset, count;
+   DeceptusI16 top, bottom, left, column;
    bob = &hardware_bob;
    overlay = overlay_used ? &hardware_overlay : 0;
    hardware_shown[draw_buffer] = 0;
@@ -2051,18 +2063,37 @@ static void prepareSprites(void)
       return;
    }
    frame = spriteFrame(&bob->graphic, pairs);
+   player_pairs = pairs;
+   left = bob->x;
+   lead = 0;
    overlay_frame = 0;
    top = bob->y;
    bottom = bob->y + (DeceptusI16)bob->graphic.height;
    if (overlay && overlay->graphic.row_bytes - 2 == (overlay->graphic.width + 15) / 16 * 2 &&
        (overlay->graphic.width + 15) / 16 <= SPRITE_PAIRS)
    {
-      /* the item may stand out above, below or to the right of the player's own lines. */
+      /* the item may stand out on any side of the player's own lines: facing left, the helmet starts
+         a few pixels left of her, and the composed sprite then starts a column further left when
+         one is free. */
       overlay_frame = spriteFrame(&overlay->graphic, (overlay->graphic.width + 15) / 16);
       top = overlay->y < top ? overlay->y : top;
       bottom = overlay->y + (DeceptusI16)overlay->graphic.height > bottom ? overlay->y + (DeceptusI16)overlay->graphic.height : bottom;
-      count = (DeceptusU16)((overlay->x + (DeceptusI16)overlay->graphic.width - bob->x + 15) / 16);
-      pairs = count > pairs ? (count > SPRITE_PAIRS ? SPRITE_PAIRS : count) : pairs;
+      if (overlay->x < bob->x)
+      {
+         count = (DeceptusU16)((overlay->x + (DeceptusI16)overlay->graphic.width - (bob->x - 16) + 15) / 16);
+         wanted = count > player_pairs + 1 ? count : player_pairs + 1;
+         if (wanted <= SPRITE_PAIRS)
+         {
+            lead = 1;
+            left = (DeceptusI16)(bob->x - 16);
+            pairs = wanted;
+         }
+      }
+      if (!lead)
+      {
+         count = (DeceptusU16)((overlay->x + (DeceptusI16)overlay->graphic.width - bob->x + 15) / 16);
+         pairs = count > pairs ? (count > SPRITE_PAIRS ? SPRITE_PAIRS : count) : pairs;
+      }
    }
    if (!frame)
    {
@@ -2081,18 +2112,20 @@ static void prepareSprites(void)
    vstop = (DeceptusU16)(0x3c + top + last);
    for (channel = 0; channel < pairs * 2; ++channel)
    {
-      hstart = (DeceptusU16)(0x80 + bob->x + (channel >> 1) * 16);
+      hstart = (DeceptusU16)(0x80 + left + (channel >> 1) * 16);
+      /* the player's own column in this channel; the lead column holds only the item. */
+      column = (DeceptusI16)((channel >> 1) - lead);
       data = sprite_dma[draw_buffer][channel];
       *data++ = (DeceptusU16)(((vstart & 255) << 8) | ((hstart >> 1) & 255));
       *data++ = (DeceptusU16)(((vstop & 255) << 8) | ((vstart & 256) ? 4 : 0) | ((vstop & 256) ? 2 : 0) | (hstart & 1) |
                               ((channel & 1) ? 0x80 : 0));
       data[lines * 2] = data[lines * 2 + 1] = 0;
-      if (overlay_frame || (channel >> 1) >= (bob->graphic.width + 15) / 16)
+      if (overlay_frame || (column >= (DeceptusI16)player_pairs))
       {
-         /* composed lines start empty: rows outside the player and columns right of her. */
+         /* composed lines start empty: rows outside the player and columns beside her. */
          spriteBlit(0, data, lines);
       }
-      if ((channel >> 1) >= (bob->graphic.width + 15) / 16)
+      if ((column < 0) || (column >= (DeceptusI16)player_pairs))
       {
          continue;
       }
@@ -2108,17 +2141,17 @@ static void prepareSprites(void)
                                 : last - (offset > first ? offset : first));
       if (count)
       {
-         spriteBlit(frame + (DeceptusU32)channel * 2 * bob->graphic.height + (first > offset ? first - offset : 0) * 2,
+         spriteBlit(frame + (DeceptusU32)(channel - lead * 2) * 2 * bob->graphic.height + (first > offset ? first - offset : 0) * 2,
                     data + (offset > first ? offset - first : 0) * 2, count);
       }
    }
    if (overlay_frame)
    {
       waitBlitter();
-      spriteOverlay(overlay, overlay_frame, bob->x, top, first, lines, pairs);
+      spriteOverlay(overlay, overlay_frame, left, top, first, lines, pairs);
    }
-   hideSpriteBehindForeground(bob->x, (DeceptusI16)(top + first), lines, pairs);
-   hideSpriteBehindBobs(bob->x, (DeceptusI16)(top + first), lines, pairs);
+   hideSpriteBehindForeground(left, (DeceptusI16)(top + first), lines, pairs);
+   hideSpriteBehindBobs(left, (DeceptusI16)(top + first), lines, pairs);
    hardware_shown[draw_buffer] = (DeceptusU8)(pairs * 2);
 }
 
