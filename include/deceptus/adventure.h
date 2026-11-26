@@ -48,6 +48,8 @@ typedef struct DeceptusInteraction
    const char *const *pages;
    DeceptusU16 required_flags, forbidden_flags, set_flags, mechanism_id;
    DeceptusU8 page_count, cost_item, grant_item, effect, automatic;
+   /* nonzero: the player's controls stay locked while this automatic action counts down. */
+   DeceptusU8 locks_controls;
 } DeceptusInteraction;
 
 typedef struct DeceptusAdventureRoom

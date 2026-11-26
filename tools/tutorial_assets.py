@@ -136,7 +136,7 @@ def compile_tutorial(data, reuse_assets=False):
             bounds = [round(bounds_obj['x']-origin[0]),round(bounds_obj['y']-origin[1]),round(bounds_obj['width']),round(bounds_obj['height'])]
             # generous interaction reach around the authored object, without changing artwork.
             bounds[0] -= 12; bounds[1] -= 8; bounds[2] += 24; bounds[3] += 16
-            serialized.append('    {'+str(obj['id'])+', {'+','.join(map(str,bounds))+'}, '+label+', '+','.join(str(action.get(key,0)) for key in ('required_flags','forbidden_flags','set_flags','mechanism_id'))+', '+str(len(pages))+', '+','.join(str(action.get(key,0)) for key in ('cost_item','grant_item','effect','automatic'))+'},')
+            serialized.append('    {'+str(obj['id'])+', {'+','.join(map(str,bounds))+'}, '+label+', '+','.join(str(action.get(key,0)) for key in ('required_flags','forbidden_flags','set_flags','mechanism_id'))+', '+str(len(pages))+', '+','.join(str(action.get(key,0)) for key in ('cost_item','grant_item','effect','automatic','locks_controls'))+'},')
             report.append(dict(room=room_index,source_map=room_maps[room_index],source_id=obj['id'],bounds_source=bounds_obj['id'],pages=len(pages),
                                **{key: action[key] for key in ('required_flags','forbidden_flags','set_flags','mechanism_id','cost_item','grant_item','effect','automatic') if key in action}))
         if serialized:
