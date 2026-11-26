@@ -13,7 +13,7 @@ SECTIONS
         *(.romtext*)
         *enemies.o(.text.deceptusEnemiesInit .text.deceptusEnemiesRender)
         *mechanisms.o(.text.deceptusMechanismsInit .text.deceptusMechanismsConfigure .text.bindSolidMechanism)
-        *mechanisms.o(.text.deceptusMechanismFind .text.deceptusMechanismHit)
+        *mechanisms.o(.text.deceptusMechanismFind .text.deceptusMechanismHit .text.deceptusMechanismEnable)
         *deceptus.o(.text.deceptusInit .text.deceptusPlacePlayer)
         *grabrope.o(.text.deceptusGrabRopesInit .text.deceptusGrabRopeLength .text.deceptusGrabRopePointAt)
         *playerrope.o(.text.deceptusPlayerRopeReset .text.playerRopeMove)
