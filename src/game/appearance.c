@@ -1,6 +1,6 @@
 #include "deceptus/appearance.h"
-#include "deceptus/crusher.h"
 #include "deceptus/enemies.h"
+#include "deceptus/mechanismparts.h"
 
 typedef struct DeceptusAppearanceOutput
 {
@@ -96,111 +96,18 @@ static DeceptusU8 playerSprites(const DeceptusAdventure *game, const DeceptusDra
    return addSprite(output, family, image, x, y, flip);
 }
 
-static DeceptusU8 crusherSprites(const DeceptusEngine *engine, DeceptusU16 index, DeceptusAppearanceOutput *output)
-{
-   DeceptusU8 part, parts, image;
-   DeceptusI16 x, y;
-   parts = crusherPartCount(&engine->mechanisms, index);
-   for (part = 0; part < parts; ++part)
-   {
-      crusherPart(&engine->mechanisms, index, part, &image, &x, &y);
-      if (!addSprite(output, SPRITE_CRUSHER, image, x - engine->camera_x, y - engine->camera_y, 0))
-      {
-         return 0;
-      }
-   }
-   return 1;
-}
-
 static DeceptusU8 mechanismSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
 {
-   const DeceptusMechanismDef *definition;
-   const DeceptusMechanismState *state;
-   DeceptusU16 index, image, segment, segments;
-   DeceptusI16 x, y;
-   DeceptusU8 family;
+   MechanismPart piece;
+   DeceptusU16 index;
+   DeceptusU8 part, parts;
    for (index = 0; index < engine->mechanisms.count; ++index)
    {
-      definition = &engine->mechanisms.definitions[index];
-      state = &engine->mechanisms.states[index];
-      if (!state->visible)
+      parts = mechanismPartCount(engine, index);
+      for (part = 0; part < parts; ++part)
       {
-         continue;
-      }
-      segments = 1;
-      image = state->frame;
-      x = definition->bounds.x - engine->camera_x;
-      y = definition->bounds.y - engine->camera_y;
-      if (definition->kind == DECEPTUS_MECH_LEVER)
-      {
-         family = DECEPTUS_SPRITE_LEVER;
-         image = state->handle_available ? state->frame : 32;
-      }
-      else if (definition->kind == DECEPTUS_MECH_BLOCK && engine->mechanisms.timings &&
-               (engine->mechanisms.timings[index].flags & DECEPTUS_TIMED_ANIMATION))
-      {
-         family = DECEPTUS_SPRITE_BLOCK;
-      }
-      else if (definition->kind == DECEPTUS_MECH_SPIKES)
-      {
-         family = DECEPTUS_SPRITE_SPIKES;
-      }
-      else if (definition->kind == DECEPTUS_MECH_COLLAPSING)
-      {
-         if (state->frame >= 38 || state->phase == 2)
-         {
-            continue;
-         }
-         family = DECEPTUS_SPRITE_COLLAPSING;
-         segments = definition->bounds.width / 24;
-         y -= 24;
-         if (state->phase == 1)
-         {
-            y += state->timer / 10;
-         }
-         else if (state->timer)
-         {
-            y += (DeceptusI16)((state->timer / 2) & 3) - 1;
-         }
-      }
-      else if (definition->kind == DECEPTUS_MECH_DOOR)
-      {
-         family = DECEPTUS_SPRITE_IRON_DOOR;
-         x -= 24;
-         y -= 24;
-      }
-      else if (definition->kind == DECEPTUS_MECH_MOVEABLE_BOX)
-      {
-         family = DECEPTUS_SPRITE_MOVEABLE_BOX;
-         image = 0;
-         x = deceptusMechanismBounds(&engine->mechanisms, index)->x - engine->camera_x;
-         /* moveablebox.cpp draws the box's lip one tile above its body. */
-         y = deceptusMechanismBounds(&engine->mechanisms, index)->y - engine->camera_y - 24;
-      }
-      else if (definition->kind == MECHANISM_CRUSHER)
-      {
-         if (!crusherSprites(engine, index, output))
-         {
-            return 0;
-         }
-         continue;
-      }
-      else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE)
-      {
-         family = DECEPTUS_SPRITE_WOODEN_PLANKS;
-         if (definition->flags & DECEPTUS_MECH_RIGHT_ALIGNED)
-         {
-            image += 50;
-            x -= 102;
-         }
-      }
-      else
-      {
-         continue;
-      }
-      for (segment = 0; segment < segments; ++segment)
-      {
-         if (!addSprite(output, family, image + (family == DECEPTUS_SPRITE_COLLAPSING ? (segment & 3) * 38 : 0), x + segment * 24, y, 0))
+         mechanismPart(engine, index, part, &piece);
+         if (!addSprite(output, piece.family, piece.image, piece.x - engine->camera_x, piece.y - engine->camera_y, 0))
          {
             return 0;
          }

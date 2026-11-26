@@ -59,7 +59,7 @@ def export_world(source, output, recipe):
         lines += ['};', '']
     if definitions:
         lines += ['static const DeceptusMechanismTiming room_timings[] = {']
-        lines += ['    {' + ', '.join(map(str, definition.get('timing', [0] * 6))) + '},' for definition in definitions]
+        lines += ['    {' + ', '.join(map(str, definition.get('timing', [0] * 7))) + '},' for definition in definitions]
         lines += ['};', '']
     if targets:
         lines += ['static const DeceptusU16 room_targets[] = {' + ', '.join(map(str, targets)) + '};', '']

@@ -1,7 +1,8 @@
 #include "deceptus/adventure.h"
-#include "deceptus/crusher.h"
+#include "deceptus/appearance.h"
 #include "deceptus/enemies.h"
 #include "deceptus/game.h"
+#include "deceptus/mechanismparts.h"
 #include "deceptus/pacing.h"
 #include "deceptus/playeranimation.h"
 #include "gba_assets.h"
@@ -432,114 +433,62 @@ static void __attribute__((section(".romtext"), noinline)) objectPalettesPrepare
    }
 }
 
+/* the first GBA mechanism resource of a shared sprite family; 65535 for one this scene does not convert. */
+static DeceptusU16 mechanismFamilyFirst(DeceptusU8 family)
+{
+   switch (family)
+   {
+   case DECEPTUS_SPRITE_LEVER:
+      return GBA_LEVER_FIRST;
+   case DECEPTUS_SPRITE_SPIKES:
+      return GBA_SPIKES_FIRST;
+   case DECEPTUS_SPRITE_BLOCK:
+      return GBA_BLOCK_FIRST;
+   case DECEPTUS_SPRITE_COLLAPSING:
+      return GBA_COLLAPSE_FIRST;
+#ifdef GBA_IRON_DOOR_FIRST
+   case DECEPTUS_SPRITE_IRON_DOOR:
+      return GBA_IRON_DOOR_FIRST;
+   case DECEPTUS_SPRITE_WOODEN_PLANKS:
+      return GBA_WOODEN_PLANKS_FIRST;
+#endif
+#ifdef GBA_MOVEABLE_BOX_FIRST
+   case DECEPTUS_SPRITE_MOVEABLE_BOX:
+      return GBA_MOVEABLE_BOX_FIRST;
+#endif
+#ifdef GBA_CRUSHER_FIRST
+   case SPRITE_CRUSHER:
+      return GBA_CRUSHER_FIRST;
+#endif
+   default:
+      return 65535;
+   }
+}
+
 static void mechanismObjects(DeceptusU16 *count)
 {
-   DeceptusU16 index, segment, segments, resource, segment_resource, piece, tile, piece_x, piece_y;
-   DeceptusU8 image;
+   MechanismPart sprite;
+   DeceptusU16 index, first, resource, piece, tile, piece_x, piece_y;
+   DeceptusU8 part, parts;
    DeceptusI16 x, y, origin_x, origin_y;
-   const DeceptusMechanismDef *definition;
-   const DeceptusMechanismState *state;
    const GbaMechanismResource *entry;
    GbaObject *object;
    for (index = 0; index < engine.mechanisms.count; ++index)
    {
-      definition = &engine.mechanisms.definitions[index];
-      state = &engine.mechanisms.states[index];
-      if (!state->visible)
+      parts = mechanismPartCount(&engine, index);
+      for (part = 0; part < parts; ++part)
       {
-         continue;
-      }
-      segments = 1;
-      if (definition->kind == DECEPTUS_MECH_LEVER)
-      {
-         resource = GBA_LEVER_FIRST + (!state->handle_available ? 32 : state->frame);
-      }
-      else if (definition->kind == DECEPTUS_MECH_BLOCK && engine.mechanisms.timings &&
-               (engine.mechanisms.timings[index].flags & DECEPTUS_TIMED_ANIMATION))
-      {
-         resource = GBA_BLOCK_FIRST + state->frame;
-      }
-      else if (definition->kind == DECEPTUS_MECH_SPIKES)
-      {
-         resource = GBA_SPIKES_FIRST + state->frame;
-      }
-      else if (definition->kind == DECEPTUS_MECH_COLLAPSING)
-      {
-         if (state->frame >= 38 || state->phase == 2)
+         mechanismPart(&engine, index, part, &sprite);
+         first = mechanismFamilyFirst(sprite.family);
+         if (first == 65535)
          {
             continue;
          }
-         resource = GBA_COLLAPSE_FIRST + state->frame;
-         segments = definition->bounds.width / 24;
-#ifdef GBA_IRON_DOOR_FIRST
-      }
-      else if (definition->kind == DECEPTUS_MECH_DOOR)
-      {
-         resource = GBA_IRON_DOOR_FIRST + state->frame;
-      }
-      else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE)
-      {
-         resource = GBA_WOODEN_PLANKS_FIRST + state->frame + ((definition->flags & DECEPTUS_MECH_RIGHT_ALIGNED) ? 50 : 0);
-#endif
-#ifdef GBA_MOVEABLE_BOX_FIRST
-      }
-      else if (definition->kind == DECEPTUS_MECH_MOVEABLE_BOX)
-      {
-         resource = GBA_MOVEABLE_BOX_FIRST;
-#endif
-#ifdef GBA_CRUSHER_FIRST
-      }
-      else if (definition->kind == MECHANISM_CRUSHER)
-      {
-         resource = GBA_CRUSHER_FIRST;
-         segments = crusherPartCount(&engine.mechanisms, index);
-#endif
-      }
-      else
-      {
-         continue;
-      }
-      for (segment = 0; segment < segments; ++segment)
-      {
-         segment_resource = resource + (definition->kind == DECEPTUS_MECH_COLLAPSING ? (segment % 4) * 38 : 0);
-         origin_x = deceptusMechanismBounds(&engine.mechanisms, index)->x - frame.camera_x + segment * 24;
-         origin_y = deceptusMechanismBounds(&engine.mechanisms, index)->y - frame.camera_y;
-         if (definition->kind == MECHANISM_CRUSHER)
-         {
-            crusherPart(&engine.mechanisms, index, (DeceptusU8)segment, &image, &origin_x, &origin_y);
-            segment_resource = resource + image;
-            origin_x -= frame.camera_x;
-            origin_y -= frame.camera_y;
-         }
-         entry = &((const GbaMechanismResource *)gba_mechanism_table)[segment_resource];
-         if (definition->kind == DECEPTUS_MECH_DOOR)
-         {
-            origin_x -= 24;
-            origin_y -= 24;
-         }
-         else if (definition->kind == DECEPTUS_MECH_MOVEABLE_BOX)
-         {
-            /* moveablebox.cpp draws the box's lip one tile above its body. */
-            origin_y -= 24;
-         }
-         else if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE && (definition->flags & DECEPTUS_MECH_RIGHT_ALIGNED))
-         {
-            origin_x -= 102;
-         }
-         origin_x += entry->reserved & 255;
-         origin_y += entry->reserved >> 8;
-         if (definition->kind == DECEPTUS_MECH_COLLAPSING)
-         {
-            origin_y -= 24;
-            if (state->phase == 1)
-            {
-               origin_y += state->timer / 10;
-            }
-            else if (state->timer)
-            {
-               origin_y += (DeceptusI16)((state->timer / 2 + segment) & 3) - 1;
-            }
-         }
+         resource = first + sprite.image;
+         entry = &((const GbaMechanismResource *)gba_mechanism_table)[resource];
+         /* the converter trims transparent borders; the descriptor keeps the trimmed offset. */
+         origin_x = sprite.x - frame.camera_x + (entry->reserved & 255);
+         origin_y = sprite.y - frame.camera_y + (entry->reserved >> 8);
          tile = 65535;
          piece_x = 0;
          piece_y = 0;
@@ -558,7 +507,7 @@ static void mechanismObjects(DeceptusU16 *count)
             }
             if (tile == 65535)
             {
-               tile = mechanismResource(segment_resource);
+               tile = mechanismResource(resource);
             }
             if (tile == 65535 || *count >= 128)
             {
