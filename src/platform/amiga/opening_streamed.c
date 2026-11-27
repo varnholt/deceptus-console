@@ -359,10 +359,13 @@ ROOM_CODE void amigaOpeningVideoSuspend(void)
       }
       waitBlitter();
       amigaSystemReleaseDisplay();
-      /* while a room loads the system copper has no view: without bitplane and sprite output the
-         screen stays black instead of showing whatever memory the stale pointers address. */
+      /* the music plays on while a room loads. */
+      amigaSystemAddVerticalBlankServer(audioVerticalBlank);
+      /* while a room loads the screen stays black: no bitplane or sprite output, and the blank copper
+         list instead of the system's, which would show its own colours. */
       hardware->dmacon = DMAF_RASTER | DMAF_SPRITE;
       hardware->color[0] = 0;
+      amigaSystemShowCopper(blank_copper);
       active = 0;
    }
 }
@@ -3023,6 +3026,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure* game, const DeceptusFr
    if (!active)
    {
       loading = 1;
+      amigaSystemRemoveVerticalBlankServer();
       amigaSystemTakeDisplay(verticalBlank, blank_copper);
       active = 1;
       blit_setup = 0;

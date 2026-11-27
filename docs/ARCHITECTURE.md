@@ -333,7 +333,9 @@ cue samples sit in chip RAM. A channel restarts over three blanks, as Paula need
 its DMA stops while the start registers are written, starts on the next blank, and
 the blank after that writes the loop, or a silent word, for Paula to repeat. Cues
 play at 8 kHz (period 443) on the fourth channel, which the song gets back when the
-cue ends. While a room loads the system owns the machine and the music pauses.
+cue ends. While a room loads the system owns the machine; the music plays on: an
+exec interrupt server steps the song then, and the hand-overs between the game and
+the system leave the audio channels' DMA running.
 
 The Mega Drive has no sample channels with a pitch of their own, and pre-rendering
 every note a song plays would not fit the cartridge (some 700 KB for the stand-in
