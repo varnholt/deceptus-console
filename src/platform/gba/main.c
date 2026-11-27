@@ -7,6 +7,10 @@
 #include "deceptus/playeranimation.h"
 #include "gba_assets.h"
 #if GBA_TUTORIAL
+#include "audio.h"
+#include "songs.h"
+#endif
+#if GBA_TUTORIAL
 #include "area0/gba_sword_resources.h"
 #ifdef GBA_HEADTORCH_FIRST
 #include "area0/gba_headtorch_resources.h"
@@ -1064,6 +1068,7 @@ int __attribute__((section(".iwram"))) main(void)
    videoInit();
 #if GBA_TUTORIAL
    hudReset();
+   audioStart(SONG_LEVEL_TEST_TRACK_MUFFLER_AWAKENING);
 #endif
    backgroundReset();
    deceptusPacingInit(&pacing, 60, GBA_PACING_MAX_TICKS);

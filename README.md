@@ -55,8 +55,9 @@ pass.
 
 The GBA and Amiga keep the game's 60 Hz simulation when a frame runs late; the Mega Drive and SNES
 run one simulation tick per frame until their renderers are faster
-([simulation timing](docs/ARCHITECTURE.md#simulation-timing)). Audio, save games and the game
-beyond the opening are not implemented yet; see [status](docs/STATUS.md) and
+([simulation timing](docs/ARCHITECTURE.md#simulation-timing)). The GBA plays tracked music
+([music](docs/ARCHITECTURE.md#music)); sound effects, music on the other consoles, save games and the
+game beyond the opening are not implemented yet; see [status](docs/STATUS.md) and
 [parity with the original](docs/PARITY.md).
 
 ## Quick start

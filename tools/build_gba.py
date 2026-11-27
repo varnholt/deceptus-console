@@ -10,6 +10,8 @@ import shutil
 import subprocess
 import sys
 
+import music_assets
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -77,20 +79,27 @@ def build(data, clang='clang', linker='ld.lld', objcopy='llvm-objcopy', full_gam
     flags = ['--target=arm-none-eabi', '-mcpu=arm7tdmi', '-mthumb', '-O2', '-ffreestanding', '-fno-builtin',
              '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-ffunction-sections', '-fdata-sections',
              '-std=c90', '-Wall', '-Wextra', '-Werror', '-I' + str(ROOT / 'include'),
-             '-I' + str(ROOT / 'assets/generated/gba'), '-I' + str(platform / 'freestanding')]
+             '-I' + str(ROOT / 'assets/generated/gba'), '-I' + str(platform / 'freestanding'),
+             '-I' + str(ROOT / 'assets/generated/music')]
     if os.environ.get('DECEPTUS_PACING_LOCKED') == '1':
         # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
         flags.append('-DDECEPTUS_PACING_LOCKED')
     sources = [ROOT / 'src/engine/player/playerwater.c', ROOT / 'src/engine/player/playerrope.c', ROOT / 'src/engine/mechanisms/grabrope.c', ROOT / 'src/engine/mechanisms/moveablebox.c', ROOT / 'src/engine/mechanisms/crusher.c', ROOT / 'src/engine/mechanisms/floorspikes.c', ROOT / 'src/engine/mechanisms/spikeball.c', ROOT / 'src/engine/mechanisms/checkpointclock.c', ROOT / 'src/game/adventure.c', ROOT / 'src/game/thunderstorm.c', ROOT / 'src/game/mechanismparts.c', ROOT / 'src/engine/animation.c', ROOT / 'src/engine/world.c', ROOT / 'src/engine/entities.c', ROOT / 'src/engine/events.c', ROOT / 'src/engine/mechanisms.c',
                ROOT / 'src/engine/logic.c', ROOT / 'src/engine/pacing.c', ROOT / 'src/engine/arith.c', ROOT / 'src/game/enemies.c', ROOT / 'src/game/deceptus.c', ROOT / 'src/game/campaign.c', ROOT / 'src/game/weapons/playersword.c', ROOT / 'src/game/player/playeranimation.c', ROOT / 'src/game/items/itemheadtorch.c', platform / 'main.c',
                platform / 'runtime.c', ROOT / 'assets/generated/gba/room.c']
+    if scene == 'tutorial':
+        music_assets.compile_music()
+        sources += [ROOT / 'src/audio/song.c', platform / 'audio.c', ROOT / 'assets/generated/music/songs.c']
     objects = []
     for source in sources:
         target = folder / (source.stem + '.o')
         extra = ['-marm'] if source == platform / 'main.c' else []
         run([clang, *flags, *extra, '-c', source, '-o', target], folder)
         objects.append(target)
-    for name, source in [('start', platform / 'start.s'), ('data', ROOT / 'assets/generated/gba/data.s')]:
+    assembly = [('start', platform / 'start.s'), ('data', ROOT / 'assets/generated/gba/data.s')]
+    if scene == 'tutorial':
+        assembly.append(('mixer', platform / 'mixer.s'))
+    for name, source in assembly:
         target = folder / (name + '.o')
         run([clang, '--target=arm-none-eabi', '-mcpu=arm7tdmi', '-c', source, '-o', target], folder)
         objects.append(target)

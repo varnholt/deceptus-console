@@ -1,2 +1,3 @@
 # keep source-content bytes and hashes identical across checkout platforms.
 assets/game/** -text -whitespace
+assets/music/*.xm -text -whitespace
