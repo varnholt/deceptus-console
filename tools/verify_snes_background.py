@@ -91,8 +91,8 @@ int main(void) {
  printf("{\"views\":%u,\"peak_slots\":%u,\"peak_scratch\":%u,\"compactions\":%u,\"extra_forced_blank_batches\":%u}\n",views,peak,peak_scratch,compactions,rebuilds-12);return 0;
 }
 '''
-            replacements = dict(BACKGROUND=(ROOT / 'src/platform/snes/background.c').as_posix(),
-                                COMMIT=(ROOT / 'src/platform/snes/background_commit.c').as_posix(), LEFT=left, TOP=top,
+            replacements = dict(BACKGROUND=(ROOT / 'src/platform/snes/video/background.c').as_posix(),
+                                COMMIT=(ROOT / 'src/platform/snes/video/background_commit.c').as_posix(), LEFT=left, TOP=top,
                                 COLS=columns, ROWS=rows, ANIMBYTES=animation_bytes, WIDTH=width, HEIGHT=height,
                                 COUNT=count, POOLFIRST=pool_first, POOLEND=pool_end, ANIM=animation)
             for key, value in replacements.items():

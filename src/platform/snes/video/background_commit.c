@@ -1,11 +1,11 @@
 /* the S-CPU half of the background: video registers at room load, and the VBlank commit of what
  * snesBackgroundPrepare staged in the work area. */
 #include <snes.h>
+#include "../system/ppu_timing.h"
 #include "background.h"
 #include "background_work.h"
-#include "ppu_timing.h"
 #ifdef SNES_SA1
-#include "sa1.h"
+#include "../system/sa1.h"
 #endif
 
 void snesBackgroundLoadVideo(DeceptusU8 room)

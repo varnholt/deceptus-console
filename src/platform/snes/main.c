@@ -188,8 +188,8 @@ volatile DeceptusU16 deceptus_debug[56];
 void snesClearGameRam(void);
 
 #ifdef SNES_SA1
-#include "sa1.h"
-#include "sa1_mailbox.h"
+#include "system/sa1.h"
+#include "system/sa1_mailbox.h"
 /* the SA-1 stack low-water mark, copied to work RAM for the emulator checks. */
 DeceptusU16 snes_sa1_stack_low_water;
 /* the SA-1 runs the game and keeps its state in BW-RAM; this cpu reads it through pointers only. */
@@ -204,12 +204,12 @@ static DeceptusFrame frame;
 #define SNES_FRAME (&frame)
 #endif
 
-#include "background.h"
-#include "ppu_timing.h"
+#include "mechanisms/storm.h"
 #include "snes_audio.h"
-#include "sprites.h"
-#include "storm.h"
-#include "ui.h"
+#include "system/ppu_timing.h"
+#include "video/background.h"
+#include "video/sprites.h"
+#include "video/ui.h"
 
 /* snesmod's soundbank (build_snes.py), read by the S-CPU through its long address. */
 extern char SOUNDBANK__;

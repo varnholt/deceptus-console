@@ -359,7 +359,7 @@ def compile_opening(data, output, room_indices=None):
     images, records = source_sprites(data, output)
     families = sprite_families(len(images))
     capacity = int(re.search(r'#define AMIGA_GRAPHICS_RESOURCES (\d+)',
-                             (ROOT / 'src/platform/amiga/graphics.h').read_text()).group(1))
+                             (ROOT / 'src/platform/amiga/video/graphics.h').read_text()).group(1))
     if len(images) > capacity:
         raise ValueError(f'{len(images)} sprite resources exceed AMIGA_GRAPHICS_RESOURCES ({capacity})')
     reports = []

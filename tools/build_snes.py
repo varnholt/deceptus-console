@@ -378,13 +378,13 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
                ROOT / "src/engine/logic.c", ROOT / "src/engine/pacing.c", ROOT / "src/engine/arith.c", ROOT / "src/game/enemies.c", ROOT / "src/game/deceptus.c",
                ROOT / "src/platform/snes/main.c"]
     if opening:
-        sources += [ROOT / "src/game/campaign.c", ROOT / "src/platform/snes/background.c",
-                    ROOT / "src/platform/snes/background_commit.c", ROOT / "src/platform/snes/sprites.c",
-                    ROOT / "src/platform/snes/sprites_commit.c", ROOT / "src/platform/snes/storm.c",
-                    ROOT / "src/platform/snes/storm_commit.c"]
+        sources += [ROOT / "src/game/campaign.c", ROOT / "src/platform/snes/video/background.c",
+                    ROOT / "src/platform/snes/video/background_commit.c", ROOT / "src/platform/snes/video/sprites.c",
+                    ROOT / "src/platform/snes/video/sprites_commit.c", ROOT / "src/platform/snes/mechanisms/storm.c",
+                    ROOT / "src/platform/snes/mechanisms/storm_commit.c"]
         sources += [generated / name for name in metadata["c_sources"]]
         if sa1:
-            sources.append(ROOT / "src/platform/snes/sa1_main.c")
+            sources.append(ROOT / "src/platform/snes/system/sa1_main.c")
     else:
         sources += [ROOT / "assets/generated/room.c"]
     # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
@@ -418,7 +418,7 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     if sa1:
         check_sa1_boundary(host_assemblies, sa1_assemblies)
         for name in ("sa1_boot", "sa1_runtime"):
-            run([assembler, "-d", "-s", "-x", "-o", name + ".obj", ROOT / f"src/platform/snes/{name}.asm"], folder)
+            run([assembler, "-d", "-s", "-x", "-o", name + ".obj", ROOT / f"src/platform/snes/system/{name}.asm"], folder)
             objects.append(name + ".obj")
     data_assembly = (generated / "data.asm").read_text()
     if sa1:
@@ -436,21 +436,21 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     objects.append("data.obj")
     if opening:
         run([assembler, *(["-DSNES_SA1"] if sa1 else []), "-d", "-s", "-x", "-o", "background_ram.obj",
-             ROOT / "src/platform/snes/background_ram.asm"], folder)
+             ROOT / "src/platform/snes/video/background_ram.asm"], folder)
         objects.append("background_ram.obj")
-        run([assembler, "-d", "-s", "-x", "-o", "vram_dma.obj", ROOT / "src/platform/snes/vram_dma.asm"], folder)
+        run([assembler, "-d", "-s", "-x", "-o", "vram_dma.obj", ROOT / "src/platform/snes/system/vram_dma.asm"], folder)
         objects.append("vram_dma.obj")
-        run([assembler, "-d", "-s", "-x", "-o", "game_ram.obj", ROOT / "src/platform/snes/game_ram.asm"], folder)
+        run([assembler, "-d", "-s", "-x", "-o", "game_ram.obj", ROOT / "src/platform/snes/system/game_ram.asm"], folder)
         objects.append("game_ram.obj")
-        run([assembler, "-d", "-s", "-x", "-o", "background_hash.obj", ROOT / "src/platform/snes/background_hash.asm"], folder)
+        run([assembler, "-d", "-s", "-x", "-o", "background_hash.obj", ROOT / "src/platform/snes/video/background_hash.asm"], folder)
         objects.append("background_hash.obj")
-        run([assembler, "-d", "-s", "-x", "-o", "background_cell.obj", ROOT / "src/platform/snes/background_cell.asm"], folder)
+        run([assembler, "-d", "-s", "-x", "-o", "background_cell.obj", ROOT / "src/platform/snes/video/background_cell.asm"], folder)
         objects.append("background_cell.obj")
-        run([assembler, "-d", "-s", "-x", "-o", "engine_math.obj", ROOT / "src/platform/snes/engine_math.asm"], folder)
+        run([assembler, "-d", "-s", "-x", "-o", "engine_math.obj", ROOT / "src/platform/snes/system/engine_math.asm"], folder)
         objects.append("engine_math.obj")
-        run([assembler, "-d", "-s", "-x", "-o", "sprites_begin.obj", ROOT / "src/platform/snes/sprites_begin.asm"], folder)
+        run([assembler, "-d", "-s", "-x", "-o", "sprites_begin.obj", ROOT / "src/platform/snes/video/sprites_begin.asm"], folder)
         objects.append("sprites_begin.obj")
-        run([assembler, "-d", "-s", "-x", "-o", "sprites_draw.obj", ROOT / "src/platform/snes/sprites_draw.asm"], folder)
+        run([assembler, "-d", "-s", "-x", "-o", "sprites_draw.obj", ROOT / "src/platform/snes/video/sprites_draw.asm"], folder)
         objects.append("sprites_draw.obj")
         if (rom_mib == 8) and not sa1:
             # these physical banks map reset vectors and cpu work ram; no assets

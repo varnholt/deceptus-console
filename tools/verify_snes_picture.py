@@ -37,7 +37,7 @@ def work_offsets(clang):
     folder = ROOT / 'build/tests/snes-picture'
     folder.mkdir(parents=True, exist_ok=True)
     members = ('maps', 'clip_frame', 'flags', 'left', 'top', 'loaded')
-    source = ['#include <stddef.h>', '#include <stdio.h>', '#include "background_work.h"', 'int main(void)', '{']
+    source = ['#include <stddef.h>', '#include <stdio.h>', '#include "video/background_work.h"', 'int main(void)', '{']
     source += [f'   printf("%u\\n", (unsigned)offsetof(SnesBackgroundWork, {name}));' for name in members]
     source += ['   return 0;', '}']
     (folder / 'offsets.c').write_text('\n'.join(source) + '\n')

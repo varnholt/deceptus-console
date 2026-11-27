@@ -16,10 +16,10 @@ SOURCES = (
     'src/engine/mechanisms/grabrope.c', 'src/engine/mechanisms/moveablebox.c', 'src/engine/mechanisms/crusher.c', 'src/engine/mechanisms/floorspikes.c', 'src/engine/mechanisms/spikeball.c', 'src/engine/mechanisms/checkpointclock.c', 'src/engine/animation.c',
     'src/engine/world.c', 'src/engine/entities.c', 'src/engine/events.c', 'src/engine/mechanisms.c',
     'src/engine/logic.c', 'src/engine/pacing.c', 'src/engine/arith.c', 'src/game/enemies.c', 'src/game/deceptus.c',
-    'src/platform/amiga/runtime.c', 'src/platform/amiga/main.c',
-    'src/platform/amiga/input.c', 'src/platform/amiga/keyboard.c',
-    'src/platform/amiga/video.c',
-    'src/platform/amiga/system.c',
+    'src/platform/amiga/system/runtime.c', 'src/platform/amiga/main.c',
+    'src/platform/amiga/system/input.c', 'src/platform/amiga/system/keyboard.c',
+    'src/platform/amiga/video/video.c',
+    'src/platform/amiga/system/system.c',
 )
 
 
@@ -40,7 +40,7 @@ def build_program(sdk, output, sources, report, generated):
              # 68000 arithmetic primitives (include/arith.h), shared with the Mega Drive.
              '-DPLATFORM_ARITH', '-I' + str(ROOT / 'src/platform/m68k')]
     if os.environ.get('AMIGA_PERFCOUNT') == '1':
-        # per-frame renderer counters for a debugger (src/platform/amiga/perfcount.h).
+        # per-frame renderer counters for a debugger (src/platform/amiga/system/perfcount.h).
         flags.append('-DAMIGA_PERFCOUNT')
     if os.environ.get('DECEPTUS_PACING_LOCKED') == '1':
         # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
@@ -54,7 +54,7 @@ def build_program(sdk, output, sources, report, generated):
         if source.name in ('amiga_assets.c', 'opening_content.c', 'amiga_native_assets.c'):
             source_flags = [flag for flag in flags if flag != '-flto']
         if (source.name in ('rooms.c', 'graphics.c', 'opening_ui.c', 'system.c')
-                and source.parent.name == 'amiga'):
+                and 'amiga' in source.parts):
             # bound resource/UI code size so AmigaDOS can load the 1 MiB build.
             source_flags = [flag for flag in flags if flag != '-O3'] + ['-Os']
         command = [compiler, *source_flags, *platform_flags, '-std=c90',

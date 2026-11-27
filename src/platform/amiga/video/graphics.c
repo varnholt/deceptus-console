@@ -1,8 +1,8 @@
 #include "graphics.h"
 #include <string.h>
+#include "../system/lz4.h"
 #include "amiga_native_assets.h"
 #include "deceptus/compression.h"
-#include "lz4.h"
 
 static DeceptusU16 readWord(const DeceptusU8* bytes)
 {

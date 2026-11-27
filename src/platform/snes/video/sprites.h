@@ -4,8 +4,8 @@
 /* sprites in two halves: preparation (sprites.c) builds the OAM shadow and stages tile and palette
  * transfers without video access, so on the SA-1 cartridge it runs on the SA-1; the S-CPU half
  * (sprites_commit.c) sets up OBJ video and performs the transfers. */
+#include "../system/vram_dma.h"
 #include "deceptus/adventure.h"
-#include "vram_dma.h"
 
 #define SNES_OBJ_PIECES 128
 #define SNES_OBJ_OAM_BYTES 544

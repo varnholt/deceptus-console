@@ -130,7 +130,7 @@ add_dependencies(deceptus_preview convert_assets)
 
 include(CTest)
 if(BUILD_TESTING)
-    add_executable(gba_runtime_tests src/platform/gba/runtime.c tests/gba_runtime_tests.c)
+    add_executable(gba_runtime_tests src/platform/gba/system/runtime.c tests/gba_runtime_tests.c)
     target_include_directories(gba_runtime_tests PRIVATE include)
     target_compile_definitions(gba_runtime_tests PRIVATE memset=deceptusTestMemset
                                                          memcpy=deceptusTestMemcpy)

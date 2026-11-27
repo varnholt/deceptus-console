@@ -36,7 +36,9 @@ it" is never an argument).
 
 - Shared code is the reference behaviour on every platform and never names a CPU or console.
   No `#if CPU` blocks in shared files.
-- Platform specializations live in the platform's own folder or tooling:
+- Platform specializations live in the platform's own folder or tooling, sorted by concern
+  (deceptus-console: `system/`, `video/`, `audio/`, and `mechanisms/` for a mechanism's platform
+  presentation, named like the shared file):
   - optimized primitives behind a declared interface with an exact contract and a portable
     reference implementation (`include/arith.h`, `PLATFORM_ARITH`,
     `src/platform/<platform>/platform_arith.h`);

@@ -1,12 +1,12 @@
 /* the game loop on the SA-1: it owns the adventure state in BW-RAM and runs what the S-CPU's
  * mailbox requests. the S-CPU keeps pacing, input, video and the presentation of each frame. */
-#include "background.h"
+#include "../mechanisms/storm.h"
+#include "../video/background.h"
+#include "../video/sprites.h"
 #include "deceptus/adventure.h"
 #include "deceptus/game.h"
 #include "sa1_mailbox.h"
 #include "snes_assets.h"
-#include "sprites.h"
-#include "storm.h"
 
 extern const DeceptusAdventureDef snes_tutorial_definition;
 

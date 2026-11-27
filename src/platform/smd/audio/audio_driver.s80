@@ -1,4 +1,4 @@
-; the song mixer on the Mega Drive's Z80 (src/platform/smd/audio.c feeds it).
+; the song mixer on the Mega Drive's Z80 (src/platform/smd/audio/audio.c feeds it).
 ;
 ; the YM2612's DAC plays one 8-bit stream; this driver mixes four channels of signed 8-bit samples into
 ; it at any pitch. each channel is mixed in passes of BLOCK samples into a ring buffer: one bank switch

@@ -8,8 +8,8 @@
 #include <proto/exec.h>
 #include <proto/graphics.h>
 #include <stddef.h>
+#include "../system/system.h"
 #include "amiga_assets.h"
-#include "system.h"
 
 #define ROW_WORDS ((AMIGA_ROOM_WIDTH + 32) / 16)
 #define PLANE_WORDS (ROW_WORDS * AMIGA_ROOM_HEIGHT)
