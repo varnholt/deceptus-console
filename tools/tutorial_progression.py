@@ -8,6 +8,11 @@ SWORD_TAKEN = 512
 DRAWER_OPENED = 1024
 HEADTORCH_ACQUIRED = 2048
 SINKHOLE_OPEN = 4096
+# room 16's diamond chest (treasurechest.cpp diamond_box_02) and the diamond it spawns.
+DIAMOND_CHEST_OPENED = 16384
+DIAMOND_TAKEN = 32768
+DIAMOND_CHEST = 18255
+DIAMOND = 18254
 CATACOMBS = 'level-catacombs/catacombs.tmx'
 GRAVEYARD = 'level-graveyard/graveyard.tmx'
 
@@ -48,6 +53,16 @@ def configure_room(index, recipe, data):
         recipe['scenery_variants'] = [
             dict(name='locked_box_closed', chests=[dict(name='locked_box', animation='animation_idle_closed')], forbidden_flags=HEADTORCH_ACQUIRED),
             dict(name='locked_box_open', chests=[dict(name='locked_box', animation='animation_idle_open')], required_flags=HEADTORCH_ACQUIRED),
+        ]
+    if index == 16:
+        recipe['scenery_variants'] = [
+            dict(name='diamond_box_closed', chests=[dict(name='diamond_box_02', animation='animation_idle_closed')],
+                 forbidden_flags=DIAMOND_CHEST_OPENED),
+            dict(name='diamond_box_open', chests=[dict(name='diamond_box_02', animation='animation_idle_open')],
+                 required_flags=DIAMOND_CHEST_OPENED),
+            # the chest spawns the diamond at its spawn offset; taking it removes it.
+            dict(name='diamond', extras=[dict(name='diamond_02', spawned_by='diamond_box_02')],
+                 required_flags=DIAMOND_CHEST_OPENED, forbidden_flags=DIAMOND_TAKEN),
         ]
     if index == 18:
         recipe['scenery_variants'] = [dict(name='drawer_open', image_layers=['drawer_open'], required_flags=DRAWER_OPENED)]
@@ -94,6 +109,9 @@ def extend_actions(actions):
                     [dict(id=69,bounds_id=70,grant_item=3,set_flags=GEMS_TAKEN,forbidden_flags=GEMS_TAKEN),
                      dict(id=67,bounds_id=70,required_flags=GEMS_TAKEN)],
                     []])
+    actions[16] = [dict(id=DIAMOND_CHEST,cue='Open',set_flags=DIAMOND_CHEST_OPENED,forbidden_flags=DIAMOND_CHEST_OPENED),
+                   dict(id=DIAMOND,spawned_by=DIAMOND_CHEST,required_flags=DIAMOND_CHEST_OPENED,
+                        forbidden_flags=DIAMOND_TAKEN,set_flags=DIAMOND_TAKEN,automatic=1)]
     actions[12] = [dict(id=425,bounds_id=735,cost_item=7,effect=5,mechanism_id=425),
                    dict(id=735,effect=6,mechanism_id=425)]
     actions[18].append(dict(id=1446,effect=6,mechanism_id=1439))

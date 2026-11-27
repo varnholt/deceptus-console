@@ -7,6 +7,17 @@ from PIL import Image
 from content import map_objects
 
 
+def spawned_extra(objects, entry):
+    """An extra by name, or {name, spawned_by}: an extra a treasure chest spawns, moved by the chest's
+    spawn offset as treasurechest.cpp moves it (Extra::spawn)."""
+    if isinstance(entry, str):
+        return next(item for item in objects if item['group'] == 'extras' and item['name'] == entry)
+    obj = next(item for item in objects if item['group'] == 'extras' and item['name'] == entry['name'])
+    chest = next(item for item in objects if item['group'] == 'treasure_chests' and item['name'] == entry['spawned_by'])
+    props = chest['properties']
+    return dict(obj, x=obj['x'] + float(props.get('spawn_offset_x', 0)), y=obj['y'] + float(props.get('spawn_offset_y', 0)))
+
+
 def variants(data, recipe, background):
     data = Path(data)
     map_path = data / recipe['map']
@@ -35,8 +46,8 @@ def variants(data, recipe, background):
             image = Image.open(data.parent / animation['texture']).convert('RGBA').crop((x,y,x+width,y+height))
             overlays.append((round(obj['x']+obj['width']/2-animation['origin'][0]),
                              round(obj['y']+obj['height']/2-animation['origin'][1]),image))
-        for name in variant.get('extras', []):
-            obj = next(item for item in objects if item['group'] == 'extras' and item['name'] == name)
+        for entry in variant.get('extras', []):
+            obj = spawned_extra(objects, entry)
             animation = animations[obj['properties']['animation_main_0']]
             x, y = animation['frame_offset']
             width, height = animation['frame_size']

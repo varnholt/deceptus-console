@@ -109,6 +109,11 @@ def compile_tutorial(data, reuse_assets=False):
         for index, action in enumerate(actions):
             obj = by_id[action['id']]
             bounds_obj = by_id[action.get('bounds_id',action['id'])]
+            if 'spawned_by' in action:
+                # a chest's spawned extra lies at the chest's spawn offset (treasurechest.cpp).
+                chest = by_id[action['spawned_by']]['properties']
+                bounds_obj = dict(bounds_obj, x=bounds_obj['x']+float(chest.get('spawn_offset_x',0)),
+                                  y=bounds_obj['y']+float(chest.get('spawn_offset_y',0)))
             if 'bounds' in action:
                 bounds_obj = dict(bounds_obj, **dict(zip(('x','y','width','height'),action['bounds'])))
             texts = action.get('text') or [value for key,value in sorted(obj['properties'].items()) if re.fullmatch(r'\d\d',key)]
@@ -128,7 +133,7 @@ def compile_tutorial(data, reuse_assets=False):
                     item['y'] < bounds_obj['y']+max(1,bounds_obj['height']) and item['y']+max(1,item['height'])>bounds_obj['y']]
             help_obj=nearby[0] if nearby else None
             help_props=help_obj['properties'] if help_obj else {}
-            cue_label='Take' if action.get('grant_item') else 'Use' if action.get('cost_item') else 'Operate' if obj['group']=='levers' else help_props.get('text_0',help_props.get('text','Talk' if obj['id'] in (643,644) else 'Examine'))
+            cue_label=action['cue'] if 'cue' in action else 'Take' if action.get('grant_item') else 'Use' if action.get('cost_item') else 'Operate' if obj['group']=='levers' else help_props.get('text_0',help_props.get('text','Talk' if obj['id'] in (643,644) else 'Examine'))
             cue_animation='use' if action.get('cost_item') or obj['group']=='levers' else help_props.get('animation','examine')
             cue=ui.cue(cue_label,cue_animation)
             anchor=[round(help_obj['x']+help_props.get('offset_x_px',0)-origin[0]),round(help_obj['y']+help_props.get('offset_y_px',0)-origin[1])] if help_obj else [round(bounds_obj['x']+bounds_obj['width']/2-origin[0]),round(bounds_obj['y']-16-origin[1])]
