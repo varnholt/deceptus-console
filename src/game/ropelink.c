@@ -1,6 +1,7 @@
 /* original counterpart: the textured strip src/game/mechanisms/rope.cpp draws along its chain. the
  * consoles draw it as pre-turned straight pieces, picked without trigonometry. */
 #include "deceptus/ropelink.h"
+#include "arith.h"
 
 /* ceil(log2(ROPE_LINK_ANGLES)): the search narrows the ROPE_LINK_ANGLES answers to one. */
 #define SEARCH_STEPS 5
@@ -23,7 +24,8 @@ DeceptusU8 ropeLinkAngle(DeceptusI16 dx, DeceptusI16 dy)
    }
    across <<= 8;
    /* the image is the number of bounds the direction lies at or beyond: a binary search over them,
-    * since every comparison is a multiply. both factors are 16-bit, so the 68000 takes one muls. */
+    * since every comparison is a multiply. both factors are 16-bit; the primitive keeps gcc from
+    * widening a constant-folded bound into a 32-bit library multiply. */
    low = 0;
    high = ROPE_LINK_ANGLES - 1;
    for (step = 0; step < SEARCH_STEPS; ++step)
@@ -33,7 +35,7 @@ DeceptusU8 ropeLinkAngle(DeceptusI16 dx, DeceptusI16 dy)
          break;
       }
       middle = (DeceptusU8)((low + high) / 2);
-      if (across < (DeceptusI32)down * (DeceptusI32)angle_bounds[middle])
+      if (across < arithMulS16(down, angle_bounds[middle]))
       {
          high = middle;
       }
