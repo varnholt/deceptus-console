@@ -190,8 +190,12 @@ def native_layers(world, mapping=None, plans=None):
 def compact_world(world):
     header = list(struct.unpack_from('>4s6H8I', world))
     result = bytearray(48)
+    # the palette and the thunderstorm's lit entries after it (amigaGraphicsStormEntries), padded so
+    # that the clip table stays long-aligned for the 68000.
     palette = len(result)
-    result.extend(world[header[7]:header[7] + 64])
+    storm_count = struct.unpack_from('>H', world, header[7] + 64)[0]
+    result.extend(world[header[7]:header[7] + 66 + storm_count])
+    result.extend(bytes(-len(result) % 4))
     clips = []
     for index in range(header[5]):
         clip = list(struct.unpack_from('>4h4H2B2I', world, header[12] + index * 26))
