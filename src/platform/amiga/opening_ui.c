@@ -74,8 +74,14 @@ static DeceptusU8* canvasNext(const AmigaUiCanvas* canvas, DeceptusU8* address)
    return canvas->pixels + (byte >= end ? byte - end : byte);
 }
 
-static void
-blackBox(const AmigaUiCanvas* canvas, DeceptusI16 x, DeceptusI16 y, DeceptusI16 width, DeceptusI16 height, DeceptusRect* rectangle)
+static void blackBox(
+   const AmigaUiCanvas* canvas,
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusI16 width,
+   DeceptusI16 height,
+   DeceptusRect* rectangle
+)
 {
    DeceptusU8 plane, first_mask, last_mask;
    DeceptusI16 row, column, first, last;

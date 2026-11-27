@@ -91,16 +91,29 @@ DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics* graphics, DeceptusU16 gro
 DeceptusU8 amigaGraphicsClip(const AmigaGraphics* graphics, DeceptusU16 index, AmigaGraphicsClip* clip);
 /* selects an offline orientation when available; trim offsets retain both facings. */
 DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics* graphics, DeceptusU16 resource, DeceptusU8 flip, AmigaGraphicsSprite* sprite);
-DeceptusU8
-amigaGraphicsSpriteDecode(const AmigaGraphics* graphics, const AmigaGraphicsSprite* sprite, DeceptusU8* destination, DeceptusU32 capacity);
+DeceptusU8 amigaGraphicsSpriteDecode(
+   const AmigaGraphics* graphics,
+   const AmigaGraphicsSprite* sprite,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+);
 void amigaGraphicsSpriteFlip(DeceptusU8* pixels, const AmigaGraphicsSprite* sprite);
 /* a compact native frame as stored: `planes` colour rows per line for every line, then one mask
    row per line, each (row_bytes - 2) bytes, unmirrored. returns its byte size, 0 on failure. */
-DeceptusU32
-amigaGraphicsSpriteCompact(const AmigaGraphics* graphics, const AmigaGraphicsSprite* sprite, DeceptusU8* destination, DeceptusU32 capacity);
+DeceptusU32 amigaGraphicsSpriteCompact(
+   const AmigaGraphics* graphics,
+   const AmigaGraphicsSprite* sprite,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+);
 DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics* graphics, const DeceptusU8* pixels, DeceptusU32 size);
 DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics* graphics, const DeceptusU8* pixels, DeceptusU32 size);
 const DeceptusU16* amigaGraphicsNativeClip(const AmigaGraphics* graphics, DeceptusU16 index, DeceptusU16 frame);
-DeceptusU8
-amigaGraphicsRasterBlock(const AmigaGraphics* graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8* pixels, DeceptusU32 capacity);
+DeceptusU8 amigaGraphicsRasterBlock(
+   const AmigaGraphics* graphics,
+   DeceptusU16 column,
+   DeceptusU16 band,
+   DeceptusU8* pixels,
+   DeceptusU32 capacity
+);
 #endif

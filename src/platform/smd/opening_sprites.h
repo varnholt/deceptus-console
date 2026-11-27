@@ -188,8 +188,15 @@ static void smdObjHardware(DeceptusU16 index, DeceptusI16 x, DeceptusI16 y, Dece
    sprite->x = x + 0x80;
 }
 
-static void
-smdObjPiece(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, DeceptusU8 palette, DeceptusU8 flip, DeceptusU8 width, DeceptusU8 height)
+static void smdObjPiece(
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU16 tile,
+   DeceptusU8 palette,
+   DeceptusU8 flip,
+   DeceptusU8 width,
+   DeceptusU8 height
+)
 {
    DeceptusI16 top, bottom, line;
    DeceptusU8 slivers;
@@ -242,8 +249,14 @@ smdObjPiece(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, DeceptusU8 palette, 
 
 /* out of line: only the exact-budget pass uses it per piece, and inlined into the request
    emitter it took registers from the fast pass. */
-static void __attribute__((noinline))
-smdObjQuads(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, DeceptusU8 palette, DeceptusU8 flip, DeceptusU8 quads)
+static void __attribute__((noinline)) smdObjQuads(
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU16 tile,
+   DeceptusU8 palette,
+   DeceptusU8 flip,
+   DeceptusU8 quads
+)
 {
    DeceptusU8 column, bits, fits;
    DeceptusI16 px, line, top, bottom;

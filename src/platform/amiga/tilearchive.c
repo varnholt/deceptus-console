@@ -108,8 +108,13 @@ __attribute__((optimize("Os"))) DeceptusU8 amigaTileArchiveInit(AmigaTileArchive
    return 1;
 }
 
-DeceptusU8
-amigaTileArchiveCell(const AmigaTileArchive* archive, DeceptusU16 column, DeceptusU16 row, DeceptusU16* colors, DeceptusU16* masks)
+DeceptusU8 amigaTileArchiveCell(
+   const AmigaTileArchive* archive,
+   DeceptusU16 column,
+   DeceptusU16 row,
+   DeceptusU16* colors,
+   DeceptusU16* masks
+)
 {
    DeceptusU32 cell;
    const DeceptusU16* words;

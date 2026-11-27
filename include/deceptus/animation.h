@@ -10,8 +10,13 @@ typedef struct DeceptusAnimation
 
 void deceptusAnimationReset(DeceptusAnimation* animation);
 /* invalid clips stay at frame zero; returns one if the displayed frame changes. */
-DeceptusU8
-deceptusAnimationAdvance(DeceptusAnimation* animation, DeceptusU16 frames, DeceptusU16 frame_ticks, DeceptusU16 ticks, DeceptusU8 loop);
+DeceptusU8 deceptusAnimationAdvance(
+   DeceptusAnimation* animation,
+   DeceptusU16 frames,
+   DeceptusU16 frame_ticks,
+   DeceptusU16 ticks,
+   DeceptusU8 loop
+);
 DeceptusU8 deceptusAnimationAdvanceTimed(
    DeceptusAnimation* animation,
    DeceptusU16 frames,

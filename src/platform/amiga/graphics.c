@@ -49,8 +49,13 @@ DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics* graphics, const DeceptusU8* pix
    return 1;
 }
 
-DeceptusU8
-amigaGraphicsRasterBlock(const AmigaGraphics* graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8* pixels, DeceptusU32 capacity)
+DeceptusU8 amigaGraphicsRasterBlock(
+   const AmigaGraphics* graphics,
+   DeceptusU16 column,
+   DeceptusU16 band,
+   DeceptusU8* pixels,
+   DeceptusU32 capacity
+)
 {
    DeceptusU16 columns, bands;
    DeceptusU32 start, first, last, block;
@@ -76,8 +81,14 @@ static DeceptusU8 worldRange(const AmigaGraphics* graphics, DeceptusU32 offset, 
    return offset <= graphics->world_size && size <= graphics->world_size - offset;
 }
 
-static DeceptusU8
-blockRange(const AmigaGraphics* graphics, DeceptusU32 table, DeceptusU16 index, DeceptusU32 base, DeceptusU32* offset, DeceptusU32* size)
+static DeceptusU8 blockRange(
+   const AmigaGraphics* graphics,
+   DeceptusU32 table,
+   DeceptusU16 index,
+   DeceptusU32 base,
+   DeceptusU32* offset,
+   DeceptusU32* size
+)
 {
    DeceptusU32 first, last;
    if (!worldRange(graphics, table, ((DeceptusU32)index + 2) * 4))
@@ -214,8 +225,14 @@ DeceptusU8 amigaGraphicsPalette(const AmigaGraphics* graphics, DeceptusU16* pale
    return 1;
 }
 
-DeceptusU8
-amigaGraphicsRow(const AmigaGraphics* graphics, DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 row, DeceptusU16* cells)
+DeceptusU8 amigaGraphicsRow(
+   const AmigaGraphics* graphics,
+   DeceptusU32 map,
+   DeceptusU16 columns,
+   DeceptusU16 rows,
+   DeceptusU16 row,
+   DeceptusU16* cells
+)
 {
    DeceptusU16 index;
    DeceptusU32 offset, size, table_size;
@@ -324,8 +341,12 @@ DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics* graphics, DeceptusU16 re
           sprite->offset <= graphics->sprite_size && sprite->bytes <= graphics->sprite_size - sprite->offset;
 }
 
-DeceptusU8
-amigaGraphicsSpriteDecode(const AmigaGraphics* graphics, const AmigaGraphicsSprite* sprite, DeceptusU8* destination, DeceptusU32 capacity)
+DeceptusU8 amigaGraphicsSpriteDecode(
+   const AmigaGraphics* graphics,
+   const AmigaGraphicsSprite* sprite,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+)
 {
    DeceptusU32 size, offset, compact;
    DeceptusU16 row, plane, stored, words, index, line[20], *output;
@@ -403,8 +424,12 @@ amigaGraphicsSpriteDecode(const AmigaGraphics* graphics, const AmigaGraphicsSpri
    return 1;
 }
 
-DeceptusU32
-amigaGraphicsSpriteCompact(const AmigaGraphics* graphics, const AmigaGraphicsSprite* sprite, DeceptusU8* destination, DeceptusU32 capacity)
+DeceptusU32 amigaGraphicsSpriteCompact(
+   const AmigaGraphics* graphics,
+   const AmigaGraphicsSprite* sprite,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+)
 {
    DeceptusU32 compact, offset;
    const DeceptusU8* source;

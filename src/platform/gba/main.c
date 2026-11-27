@@ -259,8 +259,11 @@ static const DeceptusU16* objectPalette(const GbaMechanismResource* entry)
    return (const DeceptusU16*)(gba_mechanism_palettes + entry->palette_offset);
 }
 
-static DeceptusU8 __attribute__((section(".romtext"), noinline))
-objectPaletteFits(const DeceptusU16* palette, DeceptusU16 first, DeceptusU16 count)
+static DeceptusU8 __attribute__((section(".romtext"), noinline)) objectPaletteFits(
+   const DeceptusU16* palette,
+   DeceptusU16 first,
+   DeceptusU16 count
+)
 {
    DeceptusU16 colour;
    for (colour = 0; colour < count; ++colour)

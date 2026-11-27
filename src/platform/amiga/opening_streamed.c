@@ -2236,8 +2236,13 @@ static void copperWaitRow(DeceptusU16** cursor, DeceptusU16 row, DeceptusU8* cro
    the sprites keep their colours in the transparent corners, then the box palette while the
    region shows only colour 0. stage 1, on the two empty rows below the frame: the room palette.
    stage 2: the room's pointers, modulos, scroll and sprite priority for the rest of the screen. */
-static BOX_CODE void
-boxSplit(DeceptusU16** cursor, DeceptusU8 stage, const DeceptusU16* start, const DeceptusU16* room_wraps, DeceptusU16 delay)
+static BOX_CODE void boxSplit(
+   DeceptusU16** cursor,
+   DeceptusU8 stage,
+   const DeceptusU16* start,
+   const DeceptusU16* room_wraps,
+   DeceptusU16 delay
+)
 {
    DeceptusU16 plane, row;
    DeceptusU32 address;

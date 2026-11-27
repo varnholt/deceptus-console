@@ -158,8 +158,13 @@ DeceptusU32 amigaSystemReadFile(const char* path, DeceptusU8* destination, Decep
    return amigaSystemReadFilePair(path, destination, capacity, 0, 0);
 }
 
-DeceptusU32
-amigaSystemReadFilePair(const char* path, DeceptusU8* first, DeceptusU32 first_capacity, DeceptusU8* second, DeceptusU32 second_capacity)
+DeceptusU32 amigaSystemReadFilePair(
+   const char* path,
+   DeceptusU8* first,
+   DeceptusU32 first_capacity,
+   DeceptusU8* second,
+   DeceptusU32 second_capacity
+)
 {
    BPTR file;
    char located[192];

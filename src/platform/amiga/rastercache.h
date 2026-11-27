@@ -15,6 +15,11 @@ typedef struct AmigaRasterCache
 /* both caller-owned leases and the archive remain unchanged until reset. */
 void amigaRasterCacheInit(AmigaRasterCache* cache, DeceptusU8* first, DeceptusU32 first_size, DeceptusU8* second, DeceptusU32 second_size);
 /* returned pixels remain valid until the next lookup; fallback holds one block. */
-const DeceptusU8*
-amigaRasterCachePixels(AmigaRasterCache* cache, const AmigaGraphics* graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8* fallback);
+const DeceptusU8* amigaRasterCachePixels(
+   AmigaRasterCache* cache,
+   const AmigaGraphics* graphics,
+   DeceptusU16 column,
+   DeceptusU16 band,
+   DeceptusU8* fallback
+);
 #endif

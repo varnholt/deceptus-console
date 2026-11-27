@@ -78,8 +78,13 @@ DeceptusU8 deceptusAnimationAdvanceTimed(
    return previous != animation->frame;
 }
 
-DeceptusU8
-deceptusAnimationAdvance(DeceptusAnimation* animation, DeceptusU16 frames, DeceptusU16 frame_ticks, DeceptusU16 ticks, DeceptusU8 loop)
+DeceptusU8 deceptusAnimationAdvance(
+   DeceptusAnimation* animation,
+   DeceptusU16 frames,
+   DeceptusU16 frame_ticks,
+   DeceptusU16 ticks,
+   DeceptusU8 loop
+)
 {
    DeceptusU32 elapsed, frame;
    DeceptusU16 previous, remainder;

@@ -37,8 +37,13 @@ DeceptusI16 deceptusPositionCell(DeceptusFixed position)
 }
 
 /* sideways leaves moveable boxes out: a body moving sideways meets them at their exact edge. */
-static DeceptusU8
-collisionCell(const DeceptusRoom* room, const DeceptusMechanismSet* mechanisms, DeceptusI16 column, DeceptusI16 row, DeceptusU8 sideways)
+static DeceptusU8 collisionCell(
+   const DeceptusRoom* room,
+   const DeceptusMechanismSet* mechanisms,
+   DeceptusI16 column,
+   DeceptusI16 row,
+   DeceptusU8 sideways
+)
 {
    DeceptusRect bounds;
    DeceptusU8 value;

@@ -16,6 +16,11 @@ DeceptusU32 amigaSystemLargest(DeceptusU8 chip);
 void amigaSystemReportMemory(const char* what, DeceptusU32 needed, DeceptusU8 chip);
 /* DOS access is available only while the display is released. */
 DeceptusU32 amigaSystemReadFile(const char* path, DeceptusU8* destination, DeceptusU32 capacity);
-DeceptusU32
-amigaSystemReadFilePair(const char* path, DeceptusU8* first, DeceptusU32 first_capacity, DeceptusU8* second, DeceptusU32 second_capacity);
+DeceptusU32 amigaSystemReadFilePair(
+   const char* path,
+   DeceptusU8* first,
+   DeceptusU32 first_capacity,
+   DeceptusU8* second,
+   DeceptusU32 second_capacity
+);
 #endif

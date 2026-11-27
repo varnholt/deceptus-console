@@ -42,8 +42,13 @@ DeceptusU8 deceptusMoveableBoxesInit(DeceptusEngine* engine)
 
 /* whether the box fits with its top left corner at x, y. a box moving down lands on a one-way cell
  * whose top its bottom edge had reached, as the player does. */
-static DeceptusU8
-boxFits(const DeceptusEngine* engine, const DeceptusMoveableBox* box, DeceptusI16 x, DeceptusI16 y, DeceptusU8 moving_down)
+static DeceptusU8 boxFits(
+   const DeceptusEngine* engine,
+   const DeceptusMoveableBox* box,
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU8 moving_down
+)
 {
    DeceptusRect bounds;
    DeceptusI16 column, row, left, right, top, bottom;

@@ -14,6 +14,7 @@ ContinuationIndentWidth: 3
 IndentWidth: 3
 InsertBraces: true
 KeepEmptyLinesAtTheStartOfBlocks: false
+PenaltyReturnTypeOnItsOwnLine: 1000
 Standard: Latest
 SortIncludes: true
 SortUsingDeclarations: true

@@ -22,8 +22,13 @@ void amigaRasterCacheInit(AmigaRasterCache* cache, DeceptusU8* first, DeceptusU3
    memset(cache->keys, 255, sizeof(cache->keys));
 }
 
-const DeceptusU8*
-amigaRasterCachePixels(AmigaRasterCache* cache, const AmigaGraphics* graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8* fallback)
+const DeceptusU8* amigaRasterCachePixels(
+   AmigaRasterCache* cache,
+   const AmigaGraphics* graphics,
+   DeceptusU16 column,
+   DeceptusU16 band,
+   DeceptusU8* fallback
+)
 {
    DeceptusU16 bands, set, slot;
    DeceptusU32 key;

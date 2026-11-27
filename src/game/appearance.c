@@ -10,8 +10,14 @@ typedef struct DeceptusAppearanceOutput
    void* context;
 } DeceptusAppearanceOutput;
 
-static DeceptusU8
-addSprite(DeceptusAppearanceOutput* output, DeceptusU8 family, DeceptusU16 frame, DeceptusI16 x, DeceptusI16 y, DeceptusU8 flip)
+static DeceptusU8 addSprite(
+   DeceptusAppearanceOutput* output,
+   DeceptusU8 family,
+   DeceptusU16 frame,
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU8 flip
+)
 {
    DeceptusSpriteAppearance sprite;
    sprite.family = family;

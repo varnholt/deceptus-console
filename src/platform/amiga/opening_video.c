@@ -449,8 +449,13 @@ static const DeceptusU8* tilePixels(DeceptusU16 pattern)
    return tile_cache + (DeceptusU32)slot * AMIGA_TILE_GROUP_BYTES + (pattern % AMIGA_TILE_GROUP) * AMIGA_TILE_BYTES;
 }
 
-static DeceptusU16 __attribute__((noinline, noclone))
-mapCell(DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 column, DeceptusU16 row)
+static DeceptusU16 __attribute__((noinline, noclone)) mapCell(
+   DeceptusU32 map,
+   DeceptusU16 columns,
+   DeceptusU16 rows,
+   DeceptusU16 column,
+   DeceptusU16 row
+)
 {
    AmigaRowCache* entry;
    DeceptusU8 slot, set, first;
@@ -484,8 +489,13 @@ mapCell(DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 colu
 }
 
 /* one copy of the planar writer bounds code size across destination buffers. */
-static void __attribute__((noinline, noclone))
-paintPattern(DeceptusU16* buffer, DeceptusI16 x, DeceptusI16 y, DeceptusU16 pattern, DeceptusU8 masked)
+static void __attribute__((noinline, noclone)) paintPattern(
+   DeceptusU16* buffer,
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU16 pattern,
+   DeceptusU8 masked
+)
 {
    const DeceptusU8 *pixels, *mask;
    DeceptusU8 *destination, *plane_start;
@@ -588,8 +598,12 @@ static void paintTile(DeceptusI16 x, DeceptusI16 y, DeceptusU8 foreground_only, 
    }
 }
 
-static DeceptusU8 __attribute__((noinline, noclone, optimize("Os")))
-clipNativeBounds(DeceptusI16* left, DeceptusI16* top, DeceptusI16* right, DeceptusI16* bottom)
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) clipNativeBounds(
+   DeceptusI16* left,
+   DeceptusI16* top,
+   DeceptusI16* right,
+   DeceptusI16* bottom
+)
 {
    DeceptusI16 edge;
    if (*left < -origin_x)
@@ -613,8 +627,12 @@ clipNativeBounds(DeceptusI16* left, DeceptusI16* top, DeceptusI16* right, Decept
    return *left < *right && *top < *bottom;
 }
 
-static void __attribute__((noinline, noclone, optimize("Os")))
-clearNativeRectangle(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, DeceptusI16 bottom)
+static void __attribute__((noinline, noclone, optimize("Os"))) clearNativeRectangle(
+   DeceptusI16 left,
+   DeceptusI16 top,
+   DeceptusI16 right,
+   DeceptusI16 bottom
+)
 {
    DeceptusU16 plane, words;
    DeceptusU16* destination;
@@ -634,8 +652,12 @@ clearNativeRectangle(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, Decep
    waitBlitter();
 }
 
-static DeceptusU8 __attribute__((noinline, noclone, optimize("Os")))
-drawNativeBackground(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, DeceptusI16 bottom)
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) drawNativeBackground(
+   DeceptusI16 left,
+   DeceptusI16 top,
+   DeceptusI16 right,
+   DeceptusI16 bottom
+)
 {
    DeceptusU16 plane, width, height, source_words, source_height;
    DeceptusI16 source_x, source_y;
@@ -701,8 +723,12 @@ drawNativeBackground(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, Decep
    return 1;
 }
 
-static DeceptusU8 __attribute__((noinline, noclone, optimize("Os")))
-drawNativeForeground(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, DeceptusI16 bottom)
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) drawNativeForeground(
+   DeceptusI16 left,
+   DeceptusI16 top,
+   DeceptusI16 right,
+   DeceptusI16 bottom
+)
 {
    DeceptusI16 source_x, source_y;
    DeceptusU16 plane, width, height, source_words, source_height;
@@ -752,8 +778,13 @@ drawNativeForeground(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, Decep
    return 1;
 }
 
-static DeceptusU8 __attribute__((noinline, noclone, optimize("Os")))
-drawNativeClips(DeceptusI16 left, DeceptusI16 top, DeceptusI16 right, DeceptusI16 bottom, DeceptusU8 foreground)
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) drawNativeClips(
+   DeceptusI16 left,
+   DeceptusI16 top,
+   DeceptusI16 right,
+   DeceptusI16 bottom,
+   DeceptusU8 foreground
+)
 {
    DeceptusU16 index, plane, words, height, source_words;
    DeceptusI16 x, y, first, last, upper, lower;
@@ -955,8 +986,12 @@ static void updateClips(const DeceptusAdventure* game)
    }
 }
 
-static void __attribute__((noinline, noclone, optimize("Os")))
-scrollBuffer(DeceptusU16* pixels, DeceptusU8 planes, DeceptusI16 dx, DeceptusI16 dy)
+static void __attribute__((noinline, noclone, optimize("Os"))) scrollBuffer(
+   DeceptusU16* pixels,
+   DeceptusU8 planes,
+   DeceptusI16 dx,
+   DeceptusI16 dy
+)
 {
    DeceptusI16 source_x, source_y, target_x, target_y, width, height;
    DeceptusU16 plane;
@@ -1049,8 +1084,12 @@ static void __attribute__((noinline, noclone)) paintRasterStrip(DeceptusI16 left
    }
 }
 
-static void __attribute__((noinline, noclone, optimize("Os")))
-cacheForegroundTile(DeceptusI16 x, DeceptusI16 y, DeceptusU16 pattern, DeceptusU8 append)
+static void __attribute__((noinline, noclone, optimize("Os"))) cacheForegroundTile(
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU16 pattern,
+   DeceptusU8 append
+)
 {
    const DeceptusU8* mask;
    DeceptusU8 *destination, row;
@@ -1073,8 +1112,12 @@ cacheForegroundTile(DeceptusI16 x, DeceptusI16 y, DeceptusU16 pattern, DeceptusU
    }
 }
 
-static void __attribute__((noinline, noclone, optimize("Os")))
-paintBackgroundStrip(DeceptusI16 left, DeceptusI16 top, DeceptusI16 width, DeceptusI16 height)
+static void __attribute__((noinline, noclone, optimize("Os"))) paintBackgroundStrip(
+   DeceptusI16 left,
+   DeceptusI16 top,
+   DeceptusI16 width,
+   DeceptusI16 height
+)
 {
    DeceptusI16 x, y, world_x, world_y;
    DeceptusU16 pattern;
@@ -1221,8 +1264,10 @@ static void updateBackgroundCache(void)
    background_valid = 1;
 }
 
-static DeceptusU8 __attribute__((noinline, noclone, optimize("Os")))
-requestSprite(void* context, const DeceptusSpriteAppearance* appearance)
+static DeceptusU8 __attribute__((noinline, noclone, optimize("Os"))) requestSprite(
+   void* context,
+   const DeceptusSpriteAppearance* appearance
+)
 {
    AmigaSpriteRequest overflow, *request;
    const DeceptusEngine* engine;
