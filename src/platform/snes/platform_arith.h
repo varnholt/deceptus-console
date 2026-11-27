@@ -14,6 +14,8 @@ DeceptusU16 snesRootU32(DeceptusU32 value);
 
 #define arithSquareU16(magnitude) snesSquareU16(magnitude)
 #define arithMulS16(left, right) snesMulS16((left), (right))
+/* the cell lookup's product: the c product the compiler already emits. */
+#define arithMulU16(left, right) ((DeceptusU32)(DeceptusU16)(left) * (DeceptusU16)(right))
 #define arithDivS32U16(numerator, denominator) snesDivS32U16((numerator), (denominator))
 #define arithRootU32(value) snesRootU32(value)
 

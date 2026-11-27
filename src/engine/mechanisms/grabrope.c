@@ -199,6 +199,8 @@ static DeceptusU8 ropeDynamicSolids(const DeceptusEngine *engine, const Deceptus
       case DECEPTUS_MECH_WIND:
       case DECEPTUS_MECH_CANNON_BODY:
       case DECEPTUS_MECH_GRAB_ROPE:
+      /* box colliders stop moveable boxes only; the rope's projectile query never sees them. */
+      case DECEPTUS_MECH_BOX_COLLIDER:
          break;
       default:
          /* future moving or unknown solid families must retain the full query. */

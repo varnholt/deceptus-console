@@ -41,7 +41,10 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     compiler, objcopy = sdk / 'bin/gcc.exe', sdk / 'bin/objcopy.exe'
     flags = ['-m68000', '-DSGDK_GCC', '-O3', '-flto', '-fomit-frame-pointer', '-fno-builtin',
              '-ffunction-sections', '-fdata-sections', '-B' + str(sdk / 'bin'),
-             '-I' + str(ROOT / 'src/platform/smd/include'), '-I' + str(ROOT / 'include'), '-I' + str(generated), '-I' + str(sdk / 'inc'), '-I' + str(sdk / 'res')]
+             '-I' + str(ROOT / 'src/platform/smd/include'), '-I' + str(ROOT / 'include'), '-I' + str(generated), '-I' + str(sdk / 'inc'), '-I' + str(sdk / 'res'),
+             # 68000 arithmetic primitives (include/arith.h), shared with the Amiga: gcc otherwise calls its
+             # 32-bit library routines even for 16x16 products and divisions the cpu does in one instruction.
+             '-DPLATFORM_ARITH', '-I' + str(ROOT / 'src/platform/m68k')]
     if os.environ.get('DECEPTUS_PACING_LOCKED') == '1':
         # one tick per presentation, for the tick-exact route verifiers (include/deceptus/pacing.h).
         flags.append('-DDECEPTUS_PACING_LOCKED')

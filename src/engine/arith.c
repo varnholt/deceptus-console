@@ -11,6 +11,11 @@ DeceptusI32 arithMulS16Reference(DeceptusI16 left, DeceptusI16 right)
    return (DeceptusI32)left * right;
 }
 
+DeceptusU32 arithMulU16Reference(DeceptusU16 left, DeceptusU16 right)
+{
+   return (DeceptusU32)left * right;
+}
+
 DeceptusI32 arithDivS32U16Reference(DeceptusI32 numerator, DeceptusU16 denominator)
 {
    return numerator / (DeceptusI32)denominator;
