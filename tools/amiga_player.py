@@ -38,7 +38,7 @@ def write_config(executable, output, kickstart=None, slowmem=512, scene="prototy
         ntsc='false', boot_rom_uae='automatic',
         gfx_width_windowed=752, gfx_height_windowed=574,
         gfx_resolution='hires', gfx_linemode='double',
-        sound_output='interrupts', joyport0='mouse', joyport1='kbd2',
+        sound_output='exact', joyport0='mouse', joyport1='kbd2',
         filesystem=f'rw,dh0:{drive}',
         filesystem2=f'rw,DH1:Build:{executable.parent},-128',
     )
