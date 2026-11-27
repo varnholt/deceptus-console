@@ -63,7 +63,6 @@ static DeceptusU16 object_count;
 static DeceptusU16 uploaded_frame[3];
 static const DeceptusDraw *actor_draws[3];
 static DeceptusU16 actor_count;
-static DeceptusU16 swim_palette[32] __attribute__((aligned(4)));
 typedef struct GbaUpload
 {
    DeceptusU16 resource;
@@ -174,19 +173,6 @@ static DeceptusU16 __attribute__((section(".romtext"), noinline)) inputRead(void
 static void __attribute__((section(".romtext"))) videoInit(void)
 {
    DeceptusU16 index;
-   {
-      const GbaMechanismResource *resource;
-      const DeceptusU16 *palette;
-      DeceptusU16 colour;
-      resource = &((const GbaMechanismResource *)gba_mechanism_table)[GBA_SWIM_FIRST];
-      palette = (const DeceptusU16 *)(gba_mechanism_palettes + resource->palette_offset);
-      for (index = 0; index < 32; ++index)
-      {
-         colour = palette[index];
-         swim_palette[index] =
-            ((colour & 31) * 3 / 4) | (((((colour >> 5) & 31) * 3 + 14) / 4) << 5) | (((((colour >> 10) & 31) * 3 + 18) / 4) << 10);
-      }
-   }
    REG_DISPLAY = 1 << 6;
    REG16(0x0400010a) = 0;
    REG16(0x04000108) = 0;
@@ -261,12 +247,8 @@ static DeceptusU16 mechanismResource(DeceptusU16 resource)
    return index;
 }
 
-static const DeceptusU16 *objectPalette(DeceptusU16 resource, const GbaMechanismResource *entry)
+static const DeceptusU16 *objectPalette(const GbaMechanismResource *entry)
 {
-   if (resource >= GBA_SWIM_FIRST && resource < GBA_SWIM_FIRST + 26)
-   {
-      return swim_palette;
-   }
    return (const DeceptusU16 *)(gba_mechanism_palettes + entry->palette_offset);
 }
 
@@ -333,7 +315,7 @@ static void __attribute__((section(".romtext"), noinline)) objectPalettesPrepare
    {
       selected = order[index];
       entry = &table[uploads[selected].resource];
-      palette = objectPalette(uploads[selected].resource, entry);
+      palette = objectPalette(entry);
       first = entry->palette_first;
       if ((first & 1) || (entry->palette_count & 1) || !entry->palette_count || first + entry->palette_count > 256 ||
           (entry->palette_offset & 3))
@@ -834,7 +816,7 @@ static void __attribute__((section(".romtext"), noinline)) videoCommit(void)
       dmaCopy(uploads[index].palette_first == entry->palette_first ? gba_mechanism_frames + entry->offset
                                                                    : remapped_objects + uploads[index].offset,
               (void *)(0x06010000 + uploads[index].offset), entry->bytes);
-      dmaCopy(objectPalette(uploads[index].resource, entry), (void *)(0x05000200 + uploads[index].palette_first * 2),
+      dmaCopy(objectPalette(entry), (void *)(0x05000200 + uploads[index].palette_first * 2),
               entry->palette_count * 2);
    }
    mapsCommit();

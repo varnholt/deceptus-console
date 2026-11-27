@@ -10,6 +10,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from gba_assets import ACTOR_FRAME_COUNT
 from palettes import palette_rgb555
+import water_tint
 
 ROOT = Path(__file__).resolve().parents[1]
 GENERATED = ROOT / 'assets/generated/gba'
@@ -127,6 +128,9 @@ class GbaGraphicsTests(unittest.TestCase):
             image = atlases[frame['source']].crop((x, y, x + width, y + height))
             if frame.get('rotation'):
                 image = image.transpose({90: Image.Transpose.ROTATE_90, 180: Image.Transpose.ROTATE_180, 270: Image.Transpose.ROTATE_270}[frame['rotation']])
+            if frame.get('tint') == water_tint.NAME:
+                # the swimming frames carry the documented underwater tint.
+                image = water_tint.tint(image)
             padded.alpha_composite(image)
             count, first = frame['palette_count'], frame['palette_first']
             self.assertEqual(first % 2, 0, 'palette DMA destination must be 32-bit aligned')
