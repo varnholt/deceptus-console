@@ -288,6 +288,12 @@ cache. A new window row is now read in one pass over its run-length row
 in the same order, so the cache state is unchanged. Route: 53,068 to 50,325
 display frames.
 
+Room 22's grab rope is capped at six segments, as on the Amiga
+(`SMD_ROPE_SEGMENTS` in `tools/smd_opening_assets.py`, the same mechanism as the
+SNES's three): every segment costs the rope solve two square roots, a division
+and collision checks per tick. The route replays unchanged with the shorter
+chain; route 50,325 to 48,669 display frames.
+
 ## Retained small prototype
 
 ```powershell
