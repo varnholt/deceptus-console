@@ -3,6 +3,7 @@
 #include "sprites.h"
 #include "snes_assets.h"
 #include "deceptus/appearance.h"
+#include "deceptus/ropelink.h"
 #include "deceptus/enemies.h"
 #include "deceptus/physics.h"
 #include "arith.h"
@@ -411,7 +412,7 @@ static DeceptusU8 snesRopeSteppable(const DeceptusGrabRope *chain)
    return 1;
 }
 
-/* the grab ropes' pieces exactly as the shared appearance emits them. the shared drawing finds each
+/* the grab ropes' pieces exactly as the shared appearance emits them (ropelink.h). the shared drawing finds each
  * piece's point with a 32-bit multiply and divide; here a link costs one division per step size and
  * each piece some additions. */
 static DeceptusU8 snesRopeSprites(const DeceptusEngine *engine, DeceptusSpriteEmitter emit, void *context)
@@ -419,10 +420,10 @@ static DeceptusU8 snesRopeSprites(const DeceptusEngine *engine, DeceptusSpriteEm
    const DeceptusGrabRope *chain;
    DeceptusSpriteAppearance sprite;
    SnesRopeAxis axis_x, axis_y;
-   DeceptusU16 distance, length, height, total, previous_total, remaining, link, step;
+   DeceptusU16 distance, previous_distance, length, height, total, previous_total, remaining, link, step;
    DeceptusU8 rope, node, started, steppable;
-   DeceptusI16 x, y;
-   sprite.family = DECEPTUS_SPRITE_GRAB_ROPE;
+   DeceptusI16 x, y, previous_x, previous_y, cell_x, cell_y;
+   sprite.family = SPRITE_ROPE_LINK;
    sprite.flip_x = 0;
    remaining = 0;
    for (rope = 0; rope < engine->grab_ropes.count; ++rope)
@@ -435,13 +436,12 @@ static DeceptusU8 snesRopeSprites(const DeceptusEngine *engine, DeceptusSpriteEm
       step = 0;
       previous_total = 0;
       link = 0;
-      for (distance = 0; distance < length; distance += height)
+      previous_distance = 0;
+      previous_x = previous_y = 0;
+      /* the points at 0, ROPE_KNOT_LENGTH, then every ROPE_LINK_LENGTH and at the rope's end. */
+      height = 0;
+      for (distance = 0; distance <= length; distance += height)
       {
-         height = distance ? 8 : 16;
-         if (height > length - distance)
-         {
-            height = length - distance;
-         }
          total = (distance > 2047) ? 32752 : distance * 16;
          if (steppable == 0)
          {
@@ -492,13 +492,38 @@ static DeceptusU8 snesRopeSprites(const DeceptusEngine *engine, DeceptusSpriteEm
             }
             previous_total = total;
          }
-         sprite.frame = distance ? height : 0;
-         sprite.x = x - engine->camera_x - 7;
-         sprite.y = y - engine->camera_y - (distance ? 4 : 0);
-         if (!emit(context, &sprite))
+         if (distance != 0)
          {
-            return 0;
+            sprite.frame = ropeLinkAngle((DeceptusI16)(x - previous_x), (DeceptusI16)(y - previous_y));
+            if (previous_distance == 0)
+            {
+               sprite.frame = (DeceptusU16)(sprite.frame + ROPE_LINK_IMAGE_KNOT);
+               ropeLinkCell(previous_x, previous_y, x, y, distance, ROPE_KNOT_LENGTH, &cell_x, &cell_y);
+            }
+            else
+            {
+               ropeLinkCell(previous_x, previous_y, x, y, (DeceptusU16)(distance - previous_distance), ROPE_LINK_LENGTH, &cell_x,
+                            &cell_y);
+            }
+            sprite.x = cell_x - engine->camera_x;
+            sprite.y = cell_y - engine->camera_y;
+            if (!emit(context, &sprite))
+            {
+               return 0;
+            }
          }
+         if (distance >= length)
+         {
+            break;
+         }
+         height = distance ? ROPE_LINK_LENGTH : ROPE_KNOT_LENGTH;
+         if (height > length - distance)
+         {
+            height = length - distance;
+         }
+         previous_distance = distance;
+         previous_x = x;
+         previous_y = y;
       }
    }
    return 1;
@@ -512,14 +537,14 @@ static DeceptusU8 snesObjAppearance(void *context, const DeceptusSpriteAppearanc
       SNES_BLOB_FIRST,      SNES_SPLASH_FIRST,        SNES_SWORD_FIRST,     SNES_CANNON_FIRST,         SNES_CANNONBALL_FIRST,
       SNES_IRON_DOOR_FIRST, SNES_WOODEN_PLANKS_FIRST, SNES_HEADTORCH_FIRST, SNES_HEADTORCH_BEAM_FIRST, SNES_ORB_FIRST,
       SNES_FROG_BLUE_FIRST, SNES_BLUE_FIREBALL_FIRST, SNES_GRAB_ROPE_FIRST, SNES_PLAYER_ROPE_FIRST, SNES_MOVEABLE_BOX_FIRST,
-      SNES_CRUSHER_FIRST, SNES_FLOOR_SPIKES_FIRST, SNES_SPIKE_BALL_FIRST, SNES_CHECKPOINT_CLOCK_FIRST};
+      SNES_CRUSHER_FIRST, SNES_FLOOR_SPIKES_FIRST, SNES_SPIKE_BALL_FIRST, SNES_CHECKPOINT_CLOCK_FIRST, SNES_ROPE_LINK_FIRST};
    (void)context;
    if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
    {
       return 0;
    }
    snesObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x,
-              sprite->family == DECEPTUS_SPRITE_GRAB_ROPE ? 3 : 2);
+              sprite->family == SPRITE_ROPE_LINK ? 3 : 2);
    return 1;
 }
 

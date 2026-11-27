@@ -114,7 +114,9 @@ planks, crushers, spike balls, spike layers) are emitted before the player and t
 rest after her; the GBA renderer keeps the same order. The Amiga player is one
 hardware sprite in front of the whole playfield, so its renderer clears her pixels
 under the static foreground tile masks and under the masks of the bobs emitted
-before her.
+before her. Grab ropes are emitted as pieces between points along the rope, the
+knot piece from the anchor and then 8px links, each picked from 17 pre-turned
+images by its direction (`src/game/ropelink.c`, no trigonometry).
 SNES and Mega Drive consume this path; it is also available to the Amiga opening.
 GBA still has its existing renderer, with shared sword pose and equipment rules.
 

@@ -13,6 +13,7 @@ from assets import ROOT, SOURCE, import_deceptus, ACTOR_FRAME_COUNT
 from palettes import banked_background, palette_rgb555
 from world_export import export_world
 import spike_ball_assets
+import rope_assets
 
 OUTPUT = ROOT / "assets/generated/gba"
 
@@ -297,14 +298,16 @@ def compile_mechanisms(data, output):
                       (spike_ball_assets.SHEET,spike_ball_assets.FRAME_SIZE,spike_ball_assets.FRAME_SIZE,spike_ball_assets.IMAGE_COUNT,spike_ball_assets.IMAGE_COUNT,52,40,True),
                       # checkpoint.cpp: the activation row, then the ticking row (CHECKPOINT_CLOCK_*).
                       ('checkpoint.png',CHECKPOINT_CLOCK_WIDTH,CHECKPOINT_CLOCK_HEIGHT,CHECKPOINT_CLOCK_ACTIVATION_FRAMES,
-                       CHECKPOINT_CLOCK_ACTIVATION_FRAMES+CHECKPOINT_CLOCK_ACTIVE_FRAMES,52,40,True)]
+                       CHECKPOINT_CLOCK_ACTIVATION_FRAMES+CHECKPOINT_CLOCK_ACTIVE_FRAMES,52,40,True),
+                      # the turned rope links and knot pieces (ropelink.h).
+                      (rope_assets.LINKS_SHEET,rope_assets.LINK_CELL,rope_assets.LINK_CELL,rope_assets.LINK_IMAGES,rope_assets.LINK_IMAGES,52,4,True)]
     for filename, width, height, columns, count, palette_first, palette_count, shared in specifications:
         actual_filename = ('player.png' if filename in ('player-swim','player-splash','player-sword','player-helmet','player-rope') else
                            'enemy_arrowtrap_2.png' if filename.startswith('trap-') else
                            'enemy_pirate_cannon.png' if filename == 'cannon-body' else
                            'enemy_frog.png' if filename in ('frog-blue', 'frog-blue-orb') else
                            'enemy_pirate_cannon_cannonball.png' if filename == 'cannonball' else filename)
-        generated = filename in ('headtorch-beam.png', 'rope-segments.png', spike_ball_assets.SHEET)
+        generated = filename in ('headtorch-beam.png', 'rope-segments.png', spike_ball_assets.SHEET, rope_assets.LINKS_SHEET)
         atlas = Image.open((output if generated else data / 'sprites') / actual_filename).convert('RGBA')
         if filename == 'wooden_planks.png' and atlas.size != (7500, 326):
             raise ValueError('wooden plank atlas differs from its authored 50-frame directional layout')
@@ -396,7 +399,7 @@ def compile_mechanisms(data, output):
             trim_x, trim_y = 0, 0
             logical_rect = rects[index]
             source_rect = logical_rect
-            trim = filename in (CRUSHER_ATLAS, FLOOR_SPIKES_ATLAS, spike_ball_assets.SHEET, 'checkpoint.png', 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
+            trim = filename in (CRUSHER_ATLAS, FLOOR_SPIKES_ATLAS, spike_ball_assets.SHEET, 'checkpoint.png', rope_assets.LINKS_SHEET, 'cannon-body', 'cannonball', 'iron-door.png', 'wooden_planks.png', 'player-helmet',
                                 'orb.png', 'frog-blue', 'frog-blue-orb', 'player-rope')
             if trim:
                 # omit transparent padding only, keeping the authored logical
@@ -530,7 +533,7 @@ def compile_assets(data, scene="lever", recipe_path=None):
                '#define GBA_HEADTORCH_FIRST 942', '#define GBA_HEADTORCH_BEAM_FIRST 944',
                '#define GBA_ORB_FIRST 945', '#define GBA_FROG_BLUE_FIRST 953', '#define GBA_BLUE_FIREBALL_FIRST 1016',
                '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033', '#define GBA_MOVEABLE_BOX_FIRST 1039',
-               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066', '#define GBA_SPIKE_BALL_FIRST 1126', '#define GBA_CHECKPOINT_CLOCK_FIRST 1145',
+               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066', '#define GBA_SPIKE_BALL_FIRST 1126', '#define GBA_CHECKPOINT_CLOCK_FIRST 1145', '#define GBA_ROPE_LINK_FIRST 1179',
                f'#define GBA_MECHANISM_FRAME_COUNT {mechanism_frames}',
                '#define GBA_ACTOR_FRAME_BYTES 1536', f'#define GBA_ACTOR_FRAME_COUNT {ACTOR_FRAME_COUNT}', '#endif', '']
     (OUTPUT / 'data.s').write_text('\n'.join(assembly) + '\n')

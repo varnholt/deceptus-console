@@ -107,6 +107,8 @@ def room_families(source, recipe, sword):
             families.add(mechanism_families[kind])
         elif (kind == 1) and not (mechanism['flags'] & CHECKPOINT_HIDDEN):
             families.add('CHECKPOINT_CLOCK')
+    if 'GRAB_ROPE' in families:
+        families.add('ROPE_LINK')
     if 'GRAB_ROPE' in families and not sword:
         families.add('PLAYER_ROPE')
     if Image.open(source / 'water.png').getbbox():
