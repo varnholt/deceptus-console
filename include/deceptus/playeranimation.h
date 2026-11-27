@@ -18,12 +18,16 @@ typedef struct DeceptusPlayerAnimation
 typedef struct DeceptusSwordAnimationDef
 {
    const DeceptusU8 (*clips)[4];
-   const DeceptusU8 *durations;
+   const DeceptusU8* durations;
    DeceptusU16 frame_count;
    DeceptusU8 clip_count;
 } DeceptusSwordAnimationDef;
 
-DeceptusU8 deceptusPlayerSwordAppearance(const DeceptusAdventure *game, DeceptusPlayerAnimation *animation,
-                                         const DeceptusSwordAnimationDef *definition, DeceptusDraw *draw);
+DeceptusU8 deceptusPlayerSwordAppearance(
+   const DeceptusAdventure* game,
+   DeceptusPlayerAnimation* animation,
+   const DeceptusSwordAnimationDef* definition,
+   DeceptusDraw* draw
+);
 
 #endif

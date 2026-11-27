@@ -1,10 +1,10 @@
 /* original counterpart: data/scripts/enemies/cannon_2.lua.
  * private implementation compiled through ../enemies.c. */
 
-static void cannon2Fire(DeceptusEngine *engine, const DeceptusEntity *cannon, const DeceptusEnemyDef *definition)
+static void cannon2Fire(DeceptusEngine* engine, const DeceptusEntity* cannon, const DeceptusEnemyDef* definition)
 {
    DeceptusU16 index;
-   DeceptusProjectile *ball;
+   DeceptusProjectile* ball;
    for (index = 0; index < DECEPTUS_PROJECTILE_CAPACITY; ++index)
    {
       ball = &engine->projectiles[index];
@@ -30,7 +30,7 @@ static void cannon2Fire(DeceptusEngine *engine, const DeceptusEntity *cannon, co
    engine->content_error = 6;
 }
 
-static void cannon2Tick(DeceptusEngine *engine, DeceptusEntity *cannon, const DeceptusEnemyDef *definition)
+static void cannon2Tick(DeceptusEngine* engine, DeceptusEntity* cannon, const DeceptusEnemyDef* definition)
 {
    DeceptusU8 previous, row, column;
    previous = cannon->arrived;

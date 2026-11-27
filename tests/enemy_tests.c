@@ -1,16 +1,16 @@
-#include "deceptus/game.h"
-#include "deceptus/enemies.h"
-#include "deceptus/physics.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "deceptus/enemies.h"
+#include "deceptus/game.h"
+#include "deceptus/physics.h"
 #ifdef DECEPTUS_HAVE_LUA_REFERENCE
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
 static unsigned reference_tick, reference_count;
 static unsigned reference_shots[64];
-static int noop(lua_State *state)
+static int noop(lua_State* state)
 {
    (void)state;
    return 0;
@@ -20,18 +20,18 @@ static unsigned reference_cannon_frame, reference_cannon_last_shot;
 static double reference_orb_x, reference_orb_y, reference_frog_offset_x, reference_frog_offset_y;
 static unsigned reference_orb_frame, reference_frog_frame, reference_frog_orb_frame, reference_frog_visible;
 static DeceptusU16 reference_frog_seed;
-static int recordOrbTransform(lua_State *state)
+static int recordOrbTransform(lua_State* state)
 {
    reference_orb_x = lua_tonumber(state, 1);
    reference_orb_y = lua_tonumber(state, 2);
    return 0;
 }
-static int recordOrbSprite(lua_State *state)
+static int recordOrbSprite(lua_State* state)
 {
    reference_orb_frame = (unsigned)lua_tointeger(state, 2) / 120;
    return 0;
 }
-static int recordFrogSprite(lua_State *state)
+static int recordFrogSprite(lua_State* state)
 {
    unsigned x, y, row, column;
    x = (unsigned)lua_tointeger(state, 2);
@@ -52,7 +52,7 @@ static int recordFrogSprite(lua_State *state)
    }
    return 0;
 }
-static int recordFrogVisible(lua_State *state)
+static int recordFrogVisible(lua_State* state)
 {
    if (lua_tointeger(state, 1) == 1)
    {
@@ -60,7 +60,7 @@ static int recordFrogVisible(lua_State *state)
    }
    return 0;
 }
-static int recordFrogOffset(lua_State *state)
+static int recordFrogOffset(lua_State* state)
 {
    if (lua_tointeger(state, 1) == 1)
    {
@@ -69,13 +69,13 @@ static int recordFrogOffset(lua_State *state)
    }
    return 0;
 }
-static int frogReferenceRandom(lua_State *state)
+static int frogReferenceRandom(lua_State* state)
 {
    reference_frog_seed = (DeceptusU16)(reference_frog_seed * 17U + 31U);
    lua_pushinteger(state, (reference_frog_seed >> 8) % 20 + 1);
    return 1;
 }
-static int recordCannonSprite(lua_State *state)
+static int recordCannonSprite(lua_State* state)
 {
    unsigned row, column;
    column = (unsigned)lua_tointeger(state, 2) / 144;
@@ -85,7 +85,7 @@ static int recordCannonSprite(lua_State *state)
    reference_cannon_frame += row ? 3 + (row - 1) * 12 + column : column;
    return 0;
 }
-static int recordCannonShot(lua_State *state)
+static int recordCannonShot(lua_State* state)
 {
    (void)state;
    /* LuaNode::useWeapon delegates to Gun::useInIntervals (>1000ms). */
@@ -96,7 +96,7 @@ static int recordCannonShot(lua_State *state)
    }
    return 0;
 }
-static int recordBlobSprite(lua_State *state)
+static int recordBlobSprite(lua_State* state)
 {
    static const unsigned first[6] = {0, 15, 31, 0, 0, 47};
    unsigned row, column;
@@ -108,7 +108,7 @@ static int recordBlobSprite(lua_State *state)
    }
    return 0;
 }
-static int recordShot(lua_State *state)
+static int recordShot(lua_State* state)
 {
    (void)state;
    if (reference_count < 64)
@@ -118,14 +118,14 @@ static int recordShot(lua_State *state)
    return 0;
 }
 #endif
-#define CHECK(value)                                                                                                                       \
-   do                                                                                                                                      \
-   {                                                                                                                                       \
-      if (!(value))                                                                                                                        \
-      {                                                                                                                                    \
-         fprintf(stderr, "line %d: %s\n", __LINE__, #value);                                                                               \
-         exit(1);                                                                                                                          \
-      }                                                                                                                                    \
+#define CHECK(value)                                         \
+   do                                                        \
+   {                                                         \
+      if (!(value))                                          \
+      {                                                      \
+         fprintf(stderr, "line %d: %s\n", __LINE__, #value); \
+         exit(1);                                            \
+      }                                                      \
    } while (0)
 static DeceptusU8 cells[32 * 28];
 static DeceptusEngine engine;
@@ -138,9 +138,9 @@ static const DeceptusEnemyDef cannon = {493, 96, 80, 0, 0, 0, 102, 0, 60, 180, {
 static const DeceptusPathPoint path[] = {{200, 178}, {240, 178}};
 static const DeceptusPathPoint orb_path[] = {{200, 180}, {200, 100}, {120, 100}, {120, 180}};
 static const DeceptusEnemyDef orb = {1396, 188, 168, 0, 4, 0, 20, 123, 2, 0, {0, 0, 0}, DECEPTUS_ORB, 0, {0, 0, 0, 0, 0}, 20, 0};
-static const DeceptusEnemyDef frog = {1721, 800, 178, 0, 0, 0, 48, 0, 1, 300, {240, 1252, 320}, DECEPTUS_FROG_BLUE, 0, {10, 1, 0, 0, 0},
-                                      10,   0};
-static void reset(const DeceptusEnemyDef *enemy)
+static const DeceptusEnemyDef frog =
+   {1721, 800, 178, 0, 0, 0, 48, 0, 1, 300, {240, 1252, 320}, DECEPTUS_FROG_BLUE, 0, {10, 1, 0, 0, 0}, 10, 0};
+static void reset(const DeceptusEnemyDef* enemy)
 {
    DeceptusU16 column;
    memset(&room, 0, sizeof(room));
@@ -258,13 +258,20 @@ static void cannonTests(void)
    DeceptusU16 tick, previous, count;
    unsigned shots[16];
 #ifdef DECEPTUS_HAVE_LUA_REFERENCE
-   lua_State *reference;
+   lua_State* reference;
    unsigned index;
-   const char *stubs[] = {"addShapeRectBevel",  "addHitbox",
-                          "addAudioRange",      "addSample",
-                          "addWeapon",          "registerHitAnimation",
-                          "registerHitSamples", "updateProjectileAnimation",
-                          "setSpriteOffset",    "playSample"};
+   const char* stubs[] = {
+      "addShapeRectBevel",
+      "addHitbox",
+      "addAudioRange",
+      "addSample",
+      "addWeapon",
+      "registerHitAnimation",
+      "registerHitSamples",
+      "updateProjectileAnimation",
+      "setSpriteOffset",
+      "playSample"
+   };
    reference = luaL_newstate();
    CHECK(reference);
    luaL_openlibs(reference);
@@ -373,23 +380,25 @@ static void sealedEnemyTests(void)
    DeceptusU16 tick, column, seen, fired;
    DeceptusFrame frame;
 #ifdef DECEPTUS_HAVE_LUA_REFERENCE
-   lua_State *reference;
+   lua_State* reference;
    unsigned index;
    double difference;
-   const char *orb_stubs[] = {"addShapeCircle"};
-   const char *frog_stubs[] = {"addShapeRect",
-                               "addHitbox",
-                               "addSprite",
-                               "setSpriteScale",
-                               "setSpriteZ",
-                               "addSample",
-                               "setReferenceVolume",
-                               "setAudioUpdateBehavior",
-                               "updateKeysPressed",
-                               "intersectsWithPlayer",
-                               "playSample",
-                               "setDamage",
-                               "die"};
+   const char* orb_stubs[] = {"addShapeCircle"};
+   const char* frog_stubs[] = {
+      "addShapeRect",
+      "addHitbox",
+      "addSprite",
+      "setSpriteScale",
+      "setSpriteZ",
+      "addSample",
+      "setReferenceVolume",
+      "setAudioUpdateBehavior",
+      "updateKeysPressed",
+      "intersectsWithPlayer",
+      "playSample",
+      "setDamage",
+      "die"
+   };
    reference = luaL_newstate();
    CHECK(reference);
    luaL_openlibs(reference);
@@ -404,8 +413,13 @@ static void sealedEnemyTests(void)
    lua_register(reference, "setTransform", recordOrbTransform);
    lua_register(reference, "updateSpriteRect", recordOrbSprite);
    CHECK(luaL_dofile(reference, DECEPTUS_SOURCE_ROOT "/data/scripts/enemies/orb.lua") == LUA_OK);
-   CHECK(luaL_dostring(reference, "initialize(); movedTo(188,168); setPath('path',{188,168,188,112,132,112,132,168}); "
-                                  "writeProperty('speed',2); writeProperty('animation_speed',20)") == LUA_OK);
+   CHECK(
+      luaL_dostring(
+         reference,
+         "initialize(); movedTo(188,168); setPath('path',{188,168,188,112,132,112,132,168}); "
+         "writeProperty('speed',2); writeProperty('animation_speed',20)"
+      ) == LUA_OK
+   );
 #endif
    reset(&orb);
    seen = 0;
@@ -451,11 +465,16 @@ static void sealedEnemyTests(void)
    lua_register(reference, "setSpriteVisible", recordFrogVisible);
    lua_register(reference, "updateSpriteRect", recordFrogSprite);
    CHECK(luaL_dofile(reference, DECEPTUS_SOURCE_ROOT "/data/scripts/enemies/frog_blue.lua") == LUA_OK);
-   CHECK(luaL_dostring(reference, "initialize(); movedTo(800,178); writeProperty('alignment','left'); "
-                                  "writeProperty('attack_interval',5); writeProperty('orb_lifetime',4000); "
-                                  "writeProperty('orb_speed',180); writeProperty('orb_path','sine'); "
-                                  "writeProperty('orb_collision_size',10); writeProperty('wave_speed',0.8); "
-                                  "writeProperty('wave_strength',20)") == LUA_OK);
+   CHECK(
+      luaL_dostring(
+         reference,
+         "initialize(); movedTo(800,178); writeProperty('alignment','left'); "
+         "writeProperty('attack_interval',5); writeProperty('orb_lifetime',4000); "
+         "writeProperty('orb_speed',180); writeProperty('orb_path','sine'); "
+         "writeProperty('orb_collision_size',10); writeProperty('wave_speed',0.8); "
+         "writeProperty('wave_strength',20)"
+      ) == LUA_OK
+   );
 #endif
    reset(&frog);
    memset(frog_cells, 0, sizeof(frog_cells));
@@ -537,9 +556,19 @@ int main(void)
    unsigned shots[64];
    DeceptusFrame frame;
 #ifdef DECEPTUS_HAVE_LUA_REFERENCE
-   lua_State *reference;
-   const char *stubs[] = {"addSprite", "addShapeRect",    "addHitbox",        "addAudioRange",    "addSample",
-                          "addWeapon", "setSpriteOffset", "updateSpriteRect", "updateProperties", "playSample"};
+   lua_State* reference;
+   const char* stubs[] = {
+      "addSprite",
+      "addShapeRect",
+      "addHitbox",
+      "addAudioRange",
+      "addSample",
+      "addWeapon",
+      "setSpriteOffset",
+      "updateSpriteRect",
+      "updateProperties",
+      "playSample"
+   };
    reference = luaL_newstate();
    CHECK(reference);
    luaL_openlibs(reference);

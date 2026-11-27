@@ -12,6 +12,6 @@ typedef struct DeceptusPlayerRope
 
 struct DeceptusEngine;
 struct DeceptusInput;
-void deceptusPlayerRopeReset(struct DeceptusEngine *engine);
-DeceptusU8 deceptusPlayerRopeTick(struct DeceptusEngine *engine, const struct DeceptusInput *input);
+void deceptusPlayerRopeReset(struct DeceptusEngine* engine);
+DeceptusU8 deceptusPlayerRopeTick(struct DeceptusEngine* engine, const struct DeceptusInput* input);
 #endif

@@ -1,29 +1,33 @@
-#include "deceptus/game.h"
-#include "deceptus/logic.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "deceptus/game.h"
+#include "deceptus/logic.h"
 
-#define CHECK(condition)                                                                                                                   \
-   do                                                                                                                                      \
-   {                                                                                                                                       \
-      if (!(condition))                                                                                                                    \
-      {                                                                                                                                    \
-         fprintf(stderr, "line %d: %s\n", __LINE__, #condition);                                                                           \
-         exit(1);                                                                                                                          \
-      }                                                                                                                                    \
+#define CHECK(condition)                                         \
+   do                                                            \
+   {                                                             \
+      if (!(condition))                                          \
+      {                                                          \
+         fprintf(stderr, "line %d: %s\n", __LINE__, #condition); \
+         exit(1);                                                \
+      }                                                          \
    } while (0)
 
 static DeceptusMechanismSet mechanisms;
-static const DeceptusMechanismDef switches[] = {{1, {0, 0, 72, 48}, 0, 1, 0, DECEPTUS_MECH_LEVER, 1, 0},
-                                                {2, {80, 0, 24, 24}, 0, 0, 100, DECEPTUS_MECH_SPIKES, 1, 0}};
+static const DeceptusMechanismDef switches[] = {
+   {1, {0, 0, 72, 48}, 0, 1, 0, DECEPTUS_MECH_LEVER, 1, 0},
+   {2, {80, 0, 24, 24}, 0, 0, 100, DECEPTUS_MECH_SPIKES, 1, 0}
+};
 static const DeceptusU16 targets[] = {2};
-static const DeceptusMechanismTiming switch_times[] = {{240, 180, 60, 240, 60, DECEPTUS_TIMED_ANIMATION},
-                                                       {240, 180, 60, 240, 60, DECEPTUS_TIMED_ANIMATION}};
+static const DeceptusMechanismTiming switch_times[] = {
+   {240, 180, 60, 240, 60, DECEPTUS_TIMED_ANIMATION},
+   {240, 180, 60, 240, 60, DECEPTUS_TIMED_ANIMATION}
+};
 static const DeceptusMechanismDef platforms[] = {{3, {80, 160, 24, 24}, 0, 0, 0, DECEPTUS_MECH_COLLAPSING, 1, 0}};
 static const DeceptusMechanismTiming platform_times[] = {{0, 0, 60, 240, 60, 0}};
 
-static void tickMany(DeceptusU16 count, const DeceptusRect *body)
+static void tickMany(DeceptusU16 count, const DeceptusRect* body)
 {
    while (count--)
    {

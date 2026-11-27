@@ -1,7 +1,7 @@
 #include "rastercache.h"
 #include <string.h>
 
-void amigaRasterCacheInit(AmigaRasterCache *cache, DeceptusU8 *first, DeceptusU32 first_size, DeceptusU8 *second, DeceptusU32 second_size)
+void amigaRasterCacheInit(AmigaRasterCache* cache, DeceptusU8* first, DeceptusU32 first_size, DeceptusU8* second, DeceptusU32 second_size)
 {
    DeceptusU32 available, first_slots;
    memset(cache, 0, sizeof(*cache));
@@ -22,12 +22,17 @@ void amigaRasterCacheInit(AmigaRasterCache *cache, DeceptusU8 *first, DeceptusU3
    memset(cache->keys, 255, sizeof(cache->keys));
 }
 
-const DeceptusU8 *amigaRasterCachePixels(AmigaRasterCache *cache, const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU16 band,
-                                         DeceptusU8 *fallback)
+const DeceptusU8* amigaRasterCachePixels(
+   AmigaRasterCache* cache,
+   const AmigaGraphics* graphics,
+   DeceptusU16 column,
+   DeceptusU16 band,
+   DeceptusU8* fallback
+)
 {
    DeceptusU16 bands, set, slot;
    DeceptusU32 key;
-   DeceptusU8 *pixels;
+   DeceptusU8* pixels;
    bands = (graphics->height + AMIGA_RASTER_ROWS - 1) / AMIGA_RASTER_ROWS;
    if (column >= (graphics->width + 15) / 16 || band >= bands)
    {

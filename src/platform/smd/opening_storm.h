@@ -21,9 +21,9 @@ static DeceptusU16 smdStormColour(DeceptusU16 colour, DeceptusU8 level)
                         (thunderstormChannel((DeceptusU8)((colour >> 9) & 7), 7, level) << 9));
 }
 
-static void smdStormPrepare(const DeceptusAdventure *game)
+static void smdStormPrepare(const DeceptusAdventure* game)
 {
-   const SmdStage *stage;
+   const SmdStage* stage;
    DeceptusU8 level, index, entry;
    level = thunderstormLevel(&game->thunderstorm);
    if (level == smd_storm_level)

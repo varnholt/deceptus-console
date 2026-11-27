@@ -1,11 +1,11 @@
 /* original counterpart: src/game/mechanisms/collapsingplatform.cpp. */
 /* private mechanism implementation; compiled through ../mechanisms.c. */
 
-static void collapseTick(DeceptusMechanismSet *set, DeceptusU16 index, const DeceptusRect *player)
+static void collapseTick(DeceptusMechanismSet* set, DeceptusU16 index, const DeceptusRect* player)
 {
-   DeceptusMechanismState *state;
-   const DeceptusMechanismDef *definition;
-   const DeceptusMechanismTiming *timing;
+   DeceptusMechanismState* state;
+   const DeceptusMechanismDef* definition;
+   const DeceptusMechanismTiming* timing;
    DeceptusU8 standing;
    state = &set->states[index];
    definition = &set->definitions[index];
@@ -57,7 +57,7 @@ static void collapseTick(DeceptusMechanismSet *set, DeceptusU16 index, const Dec
    }
 }
 
-static DeceptusU8 collapsingPlatformSolid(const DeceptusMechanismSet *set, DeceptusU16 index, const DeceptusRect *bounds)
+static DeceptusU8 collapsingPlatformSolid(const DeceptusMechanismSet* set, DeceptusU16 index, const DeceptusRect* bounds)
 {
    return set->states[index].active && set->states[index].enabled && overlaps(bounds, &set->definitions[index].bounds);
 }

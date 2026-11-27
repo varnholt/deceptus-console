@@ -27,12 +27,12 @@
 typedef struct AmigaGraphics
 {
    const DeceptusU8 *world, *sprites, *sprite_tail;
-   const DeceptusU8 *raster;
-   DeceptusU16 *raster_scratch;
+   const DeceptusU8* raster;
+   DeceptusU16* raster_scratch;
    DeceptusU32 raster_size;
-   const DeceptusU16 *background_pixels;
-   const DeceptusU16 *native_foreground;
-   const DeceptusU8 *native_clips;
+   const DeceptusU16* background_pixels;
+   const DeceptusU16* native_foreground;
+   const DeceptusU8* native_clips;
    /* split pages borrow the compact display region and one resource-bank tail. */
    /* compact_masks: interleaved sprites store one mask plane, repeated per plane when decoded. */
    DeceptusU8 native_only, viewport_split, interleaved_sprites, compact_masks;
@@ -65,29 +65,55 @@ typedef struct AmigaGraphicsSprite
    DeceptusU8 hardware;
 } AmigaGraphicsSprite;
 
-DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, DeceptusU32 world_size, const DeceptusU8 *sprites,
-                             DeceptusU32 sprite_size, DeceptusU32 first_size, const DeceptusU8 *tail);
+DeceptusU8 amigaGraphicsInit(
+   AmigaGraphics* graphics,
+   const DeceptusU8* world,
+   DeceptusU32 world_size,
+   const DeceptusU8* sprites,
+   DeceptusU32 sprite_size,
+   DeceptusU32 first_size,
+   const DeceptusU8* tail
+);
 /* select a compressed-block boundary for two fixed physical RAM banks. */
-DeceptusU32 amigaGraphicsSpriteSplit(const DeceptusU8 *world, DeceptusU32 size, DeceptusU32 available);
-DeceptusU8 amigaGraphicsPalette(const AmigaGraphics *graphics, DeceptusU16 *palette);
+DeceptusU32 amigaGraphicsSpriteSplit(const DeceptusU8* world, DeceptusU32 size, DeceptusU32 available);
+DeceptusU8 amigaGraphicsPalette(const AmigaGraphics* graphics, DeceptusU16* palette);
 /* the palette entries the thunderstorm lights (tools/storm_sky.py), stored after the palette: at most 32. */
-DeceptusU8 amigaGraphicsStormEntries(const AmigaGraphics *graphics, DeceptusU8 *entries, DeceptusU8 *count);
-DeceptusU8 amigaGraphicsRow(const AmigaGraphics *graphics, DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 row,
-                            DeceptusU16 *cells);
-DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics *graphics, DeceptusU16 group, DeceptusU8 *destination);
-DeceptusU8 amigaGraphicsClip(const AmigaGraphics *graphics, DeceptusU16 index, AmigaGraphicsClip *clip);
+DeceptusU8 amigaGraphicsStormEntries(const AmigaGraphics* graphics, DeceptusU8* entries, DeceptusU8* count);
+DeceptusU8 amigaGraphicsRow(
+   const AmigaGraphics* graphics,
+   DeceptusU32 map,
+   DeceptusU16 columns,
+   DeceptusU16 rows,
+   DeceptusU16 row,
+   DeceptusU16* cells
+);
+DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics* graphics, DeceptusU16 group, DeceptusU8* destination);
+DeceptusU8 amigaGraphicsClip(const AmigaGraphics* graphics, DeceptusU16 index, AmigaGraphicsClip* clip);
 /* selects an offline orientation when available; trim offsets retain both facings. */
-DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 resource, DeceptusU8 flip, AmigaGraphicsSprite *sprite);
-DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
-                                     DeceptusU32 capacity);
-void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *sprite);
+DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics* graphics, DeceptusU16 resource, DeceptusU8 flip, AmigaGraphicsSprite* sprite);
+DeceptusU8 amigaGraphicsSpriteDecode(
+   const AmigaGraphics* graphics,
+   const AmigaGraphicsSprite* sprite,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+);
+void amigaGraphicsSpriteFlip(DeceptusU8* pixels, const AmigaGraphicsSprite* sprite);
 /* a compact native frame as stored: `planes` colour rows per line for every line, then one mask
    row per line, each (row_bytes - 2) bytes, unmirrored. returns its byte size, 0 on failure. */
-DeceptusU32 amigaGraphicsSpriteCompact(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
-                                       DeceptusU32 capacity);
-DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size);
-DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size);
-const DeceptusU16 *amigaGraphicsNativeClip(const AmigaGraphics *graphics, DeceptusU16 index, DeceptusU16 frame);
-DeceptusU8 amigaGraphicsRasterBlock(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8 *pixels,
-                                    DeceptusU32 capacity);
+DeceptusU32 amigaGraphicsSpriteCompact(
+   const AmigaGraphics* graphics,
+   const AmigaGraphicsSprite* sprite,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+);
+DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics* graphics, const DeceptusU8* pixels, DeceptusU32 size);
+DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics* graphics, const DeceptusU8* pixels, DeceptusU32 size);
+const DeceptusU16* amigaGraphicsNativeClip(const AmigaGraphics* graphics, DeceptusU16 index, DeceptusU16 frame);
+DeceptusU8 amigaGraphicsRasterBlock(
+   const AmigaGraphics* graphics,
+   DeceptusU16 column,
+   DeceptusU16 band,
+   DeceptusU8* pixels,
+   DeceptusU32 capacity
+);
 #endif

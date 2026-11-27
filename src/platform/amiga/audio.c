@@ -2,9 +2,9 @@
  * DMA stops while the start registers are written, starts on the next blank (Paula latches the
  * start), and the blank after that writes the loop, or a silent word, for Paula to repeat. */
 #include "audio.h"
-#include "amiga_sounds.h"
 #include <hardware/custom.h>
 #include <hardware/dmabits.h>
+#include "amiga_sounds.h"
 
 #define CHIP __attribute__((section(".MEMF_CHIP")))
 #define CHANNELS 4
@@ -22,11 +22,11 @@
 #define STATE_START 1
 #define STATE_LOOP 2
 
-static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
+static volatile struct Custom* const hardware = (struct Custom*)0xdff000;
 
 typedef struct Channel
 {
-   const DeceptusI8 *loop;
+   const DeceptusI8* loop;
    DeceptusU16 loop_words;
    DeceptusU8 state;
 } Channel;
@@ -36,7 +36,7 @@ static SongPlayer player;
 static Channel channels[CHANNELS];
 static volatile DeceptusU8 playing;
 /* the cue that next starts on CUE_CHANNEL, and the frames the cue sounding there has left. */
-static const SoundEffect *volatile cue_pending;
+static const SoundEffect* volatile cue_pending;
 static DeceptusU16 cue_frames;
 
 static void stopChannel(DeceptusU8 index)
@@ -47,19 +47,19 @@ static void stopChannel(DeceptusU8 index)
 }
 
 /* writes the start registers with the channel's DMA off; the next blank starts it. */
-static void loadChannel(DeceptusU8 index, const DeceptusI8 *data, DeceptusU32 length, const DeceptusI8 *loop, DeceptusU32 loop_length)
+static void loadChannel(DeceptusU8 index, const DeceptusI8* data, DeceptusU32 length, const DeceptusI8* loop, DeceptusU32 loop_length)
 {
    hardware->dmacon = (DeceptusU16)(DMAF_AUD0 << index);
-   hardware->aud[index].ac_ptr = (UWORD *)data;
+   hardware->aud[index].ac_ptr = (UWORD*)data;
    hardware->aud[index].ac_len = (DeceptusU16)((length >> 1) ? (length >> 1) : 1);
    channels[index].loop = loop_length >= 2 ? loop : silence;
    channels[index].loop_words = (DeceptusU16)(loop_length >= 2 ? (loop_length >> 1) : 1);
    channels[index].state = STATE_START;
 }
 
-static void startMusic(DeceptusU8 index, const SongOutput *output)
+static void startMusic(DeceptusU8 index, const SongOutput* output)
 {
-   const SongSample *sample;
+   const SongSample* sample;
    DeceptusU32 offset;
    sample = output->sample;
    if (sample == 0)
@@ -69,8 +69,7 @@ static void startMusic(DeceptusU8 index, const SongOutput *output)
    }
    /* Paula reads words: the start and lengths round down to even samples. */
    offset = output->offset & ~1UL;
-   loadChannel(index, sample->data + offset, sample->length - offset, sample->data + (sample->loop_start & ~1UL),
-               sample->loop_length);
+   loadChannel(index, sample->data + offset, sample->length - offset, sample->data + (sample->loop_start & ~1UL), sample->loop_length);
 }
 
 static void advanceChannels(void)
@@ -82,7 +81,7 @@ static void advanceChannels(void)
    {
       if (channels[index].state == STATE_LOOP)
       {
-         hardware->aud[index].ac_ptr = (UWORD *)channels[index].loop;
+         hardware->aud[index].ac_ptr = (UWORD*)channels[index].loop;
          hardware->aud[index].ac_len = channels[index].loop_words;
          channels[index].state = STATE_IDLE;
       }
@@ -115,7 +114,7 @@ static DeceptusU16 period(DeceptusU32 frequency)
 
 static void applySong(void)
 {
-   SongOutput *output;
+   SongOutput* output;
    DeceptusU8 index;
    for (index = 0; index < player.song->channels && index < CHANNELS; ++index)
    {
@@ -136,7 +135,7 @@ static void applySong(void)
 
 static void applyCue(void)
 {
-   const SoundEffect *effect;
+   const SoundEffect* effect;
    effect = cue_pending;
    if (effect)
    {
@@ -166,7 +165,7 @@ void audioVerticalBlank(void)
    applySong();
 }
 
-void audioPlayCues(SoundQueue *queue)
+void audioPlayCues(SoundQueue* queue)
 {
    DeceptusU8 index;
    for (index = 0; index < queue->count; ++index)
@@ -179,7 +178,7 @@ void audioPlayCues(SoundQueue *queue)
    soundQueueClear(queue);
 }
 
-void audioStart(const Song *song)
+void audioStart(const Song* song)
 {
    DeceptusU8 index;
    playing = 0;

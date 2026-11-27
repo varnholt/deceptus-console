@@ -5,8 +5,8 @@
  * has one) and the VBlank commit (background_commit.c, always on the S-CPU). both reach it through
  * its 24-bit address, never through a data bank. */
 
-#include "vram_dma.h"
 #include "snes_assets.h"
+#include "vram_dma.h"
 
 /* slots 0-1023 are VRAM 2000-5fff; the foreground also addresses 120 overflow patterns at 1880-1fff,
  * tile 136 of its character base 1000, below the interface font. */
@@ -77,7 +77,7 @@ typedef struct SnesBackgroundWork
     * library routine, which cost a noticeable share of every streamed cell. */
    DeceptusU16 row_offsets[SNES_BG_ROW_TABLE];
    /* the loaded room and the scroll position the next commit publishes. */
-   const SnesStage *stage;
+   const SnesStage* stage;
    DeceptusI16 scroll_x, scroll_y;
    SnesBackgroundStatus status;
    /* the count of map rows (0-31) and columns (0-63) whose cells left the window this
@@ -90,8 +90,8 @@ typedef struct SnesBackgroundWork
 
 typedef char SnesBackgroundStorageFits[(sizeof(SnesBackgroundWork) <= 32768) ? 1 : -1];
 extern DeceptusU8 snes_background_storage[];
-#define work ((SnesBackgroundWork *)snes_background_storage)
-#define DECEPTUS_BG_OFFSET(member) ((unsigned long)&((SnesBackgroundWork *)0)->member)
+#define work ((SnesBackgroundWork*)snes_background_storage)
+#define DECEPTUS_BG_OFFSET(member) ((unsigned long)&((SnesBackgroundWork*)0)->member)
 
 /* map words a packet carries: the rows and columns of a window that moves three cells on both
  * axes, entering and leaving ones, on both planes. */
@@ -105,7 +105,7 @@ extern DeceptusU8 snes_background_storage[];
 typedef struct SnesBackgroundPacket
 {
    SnesVramDmaCommand dma[SNES_BG_DMA_COMMANDS];
-   const SnesVramDmaCommand *commands;
+   const SnesVramDmaCommand* commands;
    DeceptusU16 dma_count;
    DeceptusU16 dma_batch_ends[SNES_BG_DMA_BATCHES];
    DeceptusU8 dma_batch_count;

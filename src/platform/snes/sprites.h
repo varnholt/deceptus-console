@@ -40,7 +40,7 @@ typedef struct SnesSpriteStaging
    DeceptusU8 blank, forced_blank, deferred;
    /* the frame's oam. with a second cpu it is the copy below, since the next preparation rebuilds
     * the shadow while this staging is committed; without one it is the shadow itself. */
-   const DeceptusU8 *oam;
+   const DeceptusU8* oam;
    DeceptusU8 oam_copy[SNES_OBJ_OAM_BYTES];
 } SnesSpriteStaging;
 
@@ -54,7 +54,7 @@ extern DeceptusU8 snes_sprite_overflow;
 /* preparation: once per room, once per presentation, then staging of its transfers into one of
  * the stagings. */
 void snesSpritesReset(void);
-void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *frame);
+void snesSpritesPrepare(const DeceptusAdventure* game, const DeceptusFrame* frame);
 void snesSpritesStage(DeceptusU8 staging);
 
 /* S-CPU, on a staging the preparation is done with: OBJ video setup at room load; the tiles that

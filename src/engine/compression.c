@@ -1,7 +1,12 @@
 #include "deceptus/compression.h"
 
-DeceptusU8 deceptusRleDecode(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU8 *destination, DeceptusU32 destination_size,
-                             DeceptusU8 unit_bytes)
+DeceptusU8 deceptusRleDecode(
+   const DeceptusU8* source,
+   DeceptusU32 source_size,
+   DeceptusU8* destination,
+   DeceptusU32 destination_size,
+   DeceptusU8 unit_bytes
+)
 {
    DeceptusU32 input, output, bytes;
    DeceptusU16 count;
@@ -51,9 +56,9 @@ DeceptusU8 deceptusRleDecode(const DeceptusU8 *source, DeceptusU32 source_size, 
    return output == destination_size;
 }
 
-DeceptusU8 deceptusRleDecodeWords(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU16 *destination, DeceptusU16 word_count)
+DeceptusU8 deceptusRleDecodeWords(const DeceptusU8* source, DeceptusU32 source_size, DeceptusU16* destination, DeceptusU16 word_count)
 {
-   const DeceptusU8 *end;
+   const DeceptusU8* end;
    DeceptusU16 count, value;
    DeceptusU8 control;
    if (!source_size)
@@ -104,7 +109,7 @@ DeceptusU8 deceptusRleDecodeWords(const DeceptusU8 *source, DeceptusU32 source_s
 }
 
 /* independent blocks: https://github.com/lz4/lz4/blob/dev/doc/lz4_Block_format.md */
-static DeceptusU8 lz4Length(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU32 *input, DeceptusU32 *length, DeceptusU32 limit)
+static DeceptusU8 lz4Length(const DeceptusU8* source, DeceptusU32 source_size, DeceptusU32* input, DeceptusU32* length, DeceptusU32 limit)
 {
    DeceptusU8 extension;
    if (*length > limit)
@@ -127,10 +132,10 @@ static DeceptusU8 lz4Length(const DeceptusU8 *source, DeceptusU32 source_size, D
    return 1;
 }
 
-DeceptusU8 deceptusLz4Decode(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU8 *destination, DeceptusU32 destination_size)
+DeceptusU8 deceptusLz4Decode(const DeceptusU8* source, DeceptusU32 source_size, DeceptusU8* destination, DeceptusU32 destination_size)
 {
    DeceptusU32 input, output, length, offset;
-   const DeceptusU8 *literal;
+   const DeceptusU8* literal;
    DeceptusU8 *cursor, *match;
    DeceptusU8 token;
    if ((source == 0) || (source_size == 0) || ((destination_size != 0) && (destination == 0)))

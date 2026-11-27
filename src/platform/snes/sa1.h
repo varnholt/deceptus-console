@@ -4,10 +4,10 @@
 #include "deceptus/types.h"
 
 /* SA-1 cartridge registers written by the S-CPU: the 1 MiB ROM block shown in each window. */
-#define SNES_SA1_CXB (*(volatile DeceptusU8 *)0x2220)
-#define SNES_SA1_DXB (*(volatile DeceptusU8 *)0x2221)
-#define SNES_SA1_EXB (*(volatile DeceptusU8 *)0x2222)
-#define SNES_SA1_FXB (*(volatile DeceptusU8 *)0x2223)
+#define SNES_SA1_CXB (*(volatile DeceptusU8*)0x2220)
+#define SNES_SA1_DXB (*(volatile DeceptusU8*)0x2221)
+#define SNES_SA1_EXB (*(volatile DeceptusU8*)0x2222)
+#define SNES_SA1_FXB (*(volatile DeceptusU8*)0x2223)
 
 /* releases the SA-1 into its start-up code (sa1_boot.asm). */
 void snesSa1Start(void);

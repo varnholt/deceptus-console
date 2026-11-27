@@ -114,6 +114,18 @@ another native core. Standalone mGBA can open the same ROM. Use an integer windo
 scale and disable smoothing to preserve the artwork's pixel grid. No external
 BIOS is distributed. Audio is currently silent in both ROM and project player.
 
+## Formatting
+
+C sources and headers follow `.clang-format`, the style `deceptus_engine` uses (Allman braces,
+three-space indent, 140 columns); `CMakeLists.txt` follows `.cmake-format.yaml`. Format before a
+commit; the original game sources under `assets/game` and generated files are left alone.
+
+```powershell
+git ls-files '*.c' '*.h' | Select-String -NotMatch '^assets/' | ForEach-Object { clang-format -i $_ }
+python -m pip install cmakelang
+python -m cmakelang.format -c .cmake-format.yaml -i CMakeLists.txt
+```
+
 ## Native and conversion checks
 
 ```powershell

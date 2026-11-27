@@ -14,6 +14,6 @@ typedef struct SnesVramDmaCommand
 
 typedef char SnesVramDmaCommandSize[(sizeof(SnesVramDmaCommand) == 8) ? 1 : -1];
 
-void snesVramRunDma(const SnesVramDmaCommand *commands, DeceptusU16 count);
+void snesVramRunDma(const SnesVramDmaCommand* commands, DeceptusU16 count);
 
 #endif

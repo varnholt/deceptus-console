@@ -2,7 +2,7 @@
 static DeceptusU16 hud_map[1024] __attribute__((aligned(4)));
 static DeceptusU8 hud_map_nonempty, hud_map_dirty;
 
-static void hudText(DeceptusU16 row, DeceptusU16 column, const char *text)
+static void hudText(DeceptusU16 row, DeceptusU16 column, const char* text)
 {
    DeceptusU8 character;
    hud_map_nonempty = 1;
@@ -42,14 +42,14 @@ static void hudNumber(DeceptusU16 row, DeceptusU16 column, DeceptusU16 value, De
 #if GBA_TUTORIAL
 static DeceptusU16 hud_ui_selected = 65535, hud_ui_loaded = 65535;
 static DeceptusU16 hud_scroll_x, hud_scroll_y, hud_prompt_start;
-static const DeceptusInteraction *hud_prompt_action;
+static const DeceptusInteraction* hud_prompt_action;
 static DeceptusU8 hud_cue_pixels[64 * 32] __attribute__((aligned(4)));
 static DeceptusU16 hud_cue_resource = 65535, hud_cue_x, hud_cue_y, hud_cue_bytes;
 static DeceptusU8 hud_cue_dirty;
 static DeceptusU8 hud_title_pixels[32 * 32] __attribute__((aligned(4)));
 static DeceptusU16 hud_title_bytes;
 static DeceptusU16 hud_title_cached_bytes;
-static const char *hud_title_cached;
+static const char* hud_title_cached;
 static DeceptusU8 hudTitleActive(void)
 {
    return adventure.room_label_ticks && campaign.mode == DECEPTUS_CAMPAIGN_PLAYING;
@@ -64,8 +64,8 @@ static void hudReset(void)
 }
 static void hudImage(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y)
 {
-   const GbaUiResource *image;
-   const DeceptusU16 *cells;
+   const GbaUiResource* image;
+   const DeceptusU16* cells;
    DeceptusU16 row, column;
    hud_map_nonempty = 1;
    hud_map_dirty = 1;
@@ -89,7 +89,7 @@ static void hudImage(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y)
    hud_scroll_x = (256 - x) & 255;
    hud_scroll_y = (256 - y) & 255;
    hud_ui_selected = resource;
-   cells = (const DeceptusU16 *)(gba_ui_blob + image->map);
+   cells = (const DeceptusU16*)(gba_ui_blob + image->map);
    for (row = 0; row < image->rows; ++row)
    {
       for (column = 0; column < image->columns; ++column)
@@ -100,15 +100,15 @@ static void hudImage(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y)
 }
 static void hudCue(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y)
 {
-   const GbaUiResource *image;
-   const DeceptusU16 *cells;
+   const GbaUiResource* image;
+   const DeceptusU16* cells;
    DeceptusU16 row, column, px, py, shift_x, shift_y, columns, rows, source_tile, destination;
    DeceptusI16 label_x, label_y;
    DeceptusU8 packed, value;
    hud_map_nonempty = 1;
    hud_map_dirty = 1;
    image = &gba_ui_resources[resource];
-   cells = (const DeceptusU16 *)(gba_ui_blob + image->map);
+   cells = (const DeceptusU16*)(gba_ui_blob + image->map);
    if (x < 0)
    {
       x = 0;
@@ -182,8 +182,8 @@ static void hudCue(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y)
 }
 static void __attribute__((section(".romtext"), noinline)) hudRoomTitle(void)
 {
-   const char *text;
-   GbaObject *object;
+   const char* text;
+   GbaObject* object;
    DeceptusU16 index, pixel, glyphs;
    DeceptusU8 character, packed, low, high;
    if (!hudTitleActive())
@@ -243,7 +243,7 @@ static void __attribute__((section(".romtext"), noinline)) hudRoomTitle(void)
       object->attribute2 = (3 * GBA_ACTOR_FRAME_BYTES / 32 + index) | (15 << 12);
    }
 }
-static void hudLines(DeceptusU16 row, const char *text)
+static void hudLines(DeceptusU16 row, const char* text)
 {
    char line[29];
    DeceptusU8 length;
@@ -267,9 +267,9 @@ static void __attribute__((section(".romtext"), noinline)) hudPrepare(void)
    DeceptusU16 index;
    DeceptusI16 x, y, column;
    DeceptusU16 resource, elapsed;
-   const DeceptusInteraction *action;
-   const DeceptusAdventureRoom *room;
-   const GbaUiPresentation *presentation;
+   const DeceptusInteraction* action;
+   const DeceptusAdventureRoom* room;
+   const GbaUiPresentation* presentation;
    hud_map_dirty = 0;
    if (hud_map_nonempty)
    {
@@ -469,13 +469,13 @@ static void hudPrepare(void)
 static void hudCommit(void)
 {
 #if GBA_TUTORIAL
-   const GbaUiResource *image;
+   const GbaUiResource* image;
    DeceptusU16 count;
    if (hud_ui_selected != hud_ui_loaded)
    {
       if (hud_ui_selected == 65535)
       {
-         dmaCopy(gba_font, (void *)0x0600c000, GBA_FONT_BYTES);
+         dmaCopy(gba_font, (void*)0x0600c000, GBA_FONT_BYTES);
          REG16(0x050001e2) = 0x7fff;
          REG16(0x050001e6) = 0x0821;
       }
@@ -483,12 +483,12 @@ static void hudCommit(void)
       {
          image = &gba_ui_resources[hud_ui_selected];
          count = image->patterns < 128 ? image->patterns : 128;
-         dmaCopy(gba_ui_blob + image->graphics, (void *)0x0600c000, count * 32);
+         dmaCopy(gba_ui_blob + image->graphics, (void*)0x0600c000, count * 32);
          if (image->patterns > 128)
          {
-            dmaCopy(gba_ui_blob + image->graphics + 4096, (void *)0x0600d800, (image->patterns - 128) * 32);
+            dmaCopy(gba_ui_blob + image->graphics + 4096, (void*)0x0600d800, (image->patterns - 128) * 32);
          }
-         dmaCopy(gba_ui_blob + image->palette, (void *)0x050001e0, 32);
+         dmaCopy(gba_ui_blob + image->palette, (void*)0x050001e0, 32);
       }
       hud_ui_loaded = hud_ui_selected;
    }
@@ -496,21 +496,21 @@ static void hudCommit(void)
    REG16(0x0400001a) = hud_scroll_y;
    if (hud_cue_dirty)
    {
-      dmaCopy(hud_cue_pixels, (void *)0x0600d800, hud_cue_bytes);
+      dmaCopy(hud_cue_pixels, (void*)0x0600d800, hud_cue_bytes);
    }
    if (hud_title_bytes)
    {
-      dmaCopy(hud_title_pixels, (void *)(0x06010000 + 3 * GBA_ACTOR_FRAME_BYTES), hud_title_bytes);
+      dmaCopy(hud_title_pixels, (void*)(0x06010000 + 3 * GBA_ACTOR_FRAME_BYTES), hud_title_bytes);
       REG16(0x050003fe) = 0x7fff;
    }
 #endif
 #if GBA_TUTORIAL
    if (hud_map_dirty)
    {
-      dmaCopy(hud_map, (void *)0x0600d000, sizeof(hud_map));
+      dmaCopy(hud_map, (void*)0x0600d000, sizeof(hud_map));
    }
 #else
-   dmaCopy(hud_map, (void *)0x0600d000, sizeof(hud_map));
+   dmaCopy(hud_map, (void*)0x0600d000, sizeof(hud_map));
 #endif
 }
 #else

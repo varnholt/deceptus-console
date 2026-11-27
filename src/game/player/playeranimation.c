@@ -1,9 +1,9 @@
 #include "deceptus/playeranimation.h"
 
-static DeceptusU8 selectSwordPose(const DeceptusAdventure *game)
+static DeceptusU8 selectSwordPose(const DeceptusAdventure* game)
 {
-   const DeceptusEngine *engine;
-   const DeceptusEntity *player;
+   const DeceptusEngine* engine;
+   const DeceptusEntity* player;
    DeceptusU8 pose, left;
    engine = &game->campaign.engine;
    player = &engine->entities[0];
@@ -36,11 +36,15 @@ static DeceptusU8 selectSwordPose(const DeceptusAdventure *game)
    return pose + (left ? 11 : 0);
 }
 
-DeceptusU8 deceptusPlayerSwordAppearance(const DeceptusAdventure *game, DeceptusPlayerAnimation *animation,
-                                         const DeceptusSwordAnimationDef *definition, DeceptusDraw *draw)
+DeceptusU8 deceptusPlayerSwordAppearance(
+   const DeceptusAdventure* game,
+   DeceptusPlayerAnimation* animation,
+   const DeceptusSwordAnimationDef* definition,
+   DeceptusDraw* draw
+)
 {
-   const DeceptusU8 *clip;
-   const DeceptusEntity *player;
+   const DeceptusU8* clip;
+   const DeceptusEntity* player;
    DeceptusU16 step, duration, elapsed, delta;
    DeceptusU8 pose;
    if (!game->has_sword)

@@ -2,15 +2,15 @@
 /* private mechanism implementation; compiled through ../mechanisms.c. */
 #include "mechanisminternal.h"
 
-static DeceptusU8 overlaps(const DeceptusRect *first, const DeceptusRect *second)
+static DeceptusU8 overlaps(const DeceptusRect* first, const DeceptusRect* second)
 {
    return first->x < second->x + second->width && first->x + first->width > second->x && first->y < second->y + second->height &&
           first->y + first->height > second->y;
 }
 
-static void emit(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU8 kind, DeceptusU16 value)
+static void emit(DeceptusMechanismSet* set, DeceptusU16 source_id, DeceptusU8 kind, DeceptusU16 value)
 {
-   DeceptusMechanismEvent *event;
+   DeceptusMechanismEvent* event;
    if (set->event_count == DECEPTUS_MECHANISM_EVENT_CAPACITY)
    {
       set->overflow = 1;
@@ -35,7 +35,7 @@ static void emit(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU8 ki
 #include "switchanimation.c"
 #include "wind.c"
 
-DeceptusI16 deceptusMechanismFind(const DeceptusMechanismSet *set, DeceptusU16 source_id)
+DeceptusI16 deceptusMechanismFind(const DeceptusMechanismSet* set, DeceptusU16 source_id)
 {
    DeceptusU16 index;
    for (index = 0; index < set->count; ++index)
@@ -48,8 +48,13 @@ DeceptusI16 deceptusMechanismFind(const DeceptusMechanismSet *set, DeceptusU16 s
    return -1;
 }
 
-DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMechanismDef *definitions, DeceptusU16 count,
-                                  const DeceptusU16 *targets, DeceptusU16 target_count)
+DeceptusU8 deceptusMechanismsInit(
+   DeceptusMechanismSet* set,
+   const DeceptusMechanismDef* definitions,
+   DeceptusU16 count,
+   const DeceptusU16* targets,
+   DeceptusU16 target_count
+)
 {
    DeceptusU16 index, previous, target;
    memset(set, 0, sizeof(*set));
@@ -98,19 +103,19 @@ DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMecha
    {
       switch (definitions[index].kind)
       {
-      case DECEPTUS_MECH_BLOCK:
-      case DECEPTUS_MECH_COLLAPSING:
-      case DECEPTUS_MECH_DOOR:
-      case DECEPTUS_MECH_DESTRUCTIBLE:
-      case DECEPTUS_MECH_CANNON_BODY:
-      case DECEPTUS_MECH_BOX_COLLIDER:
-         bindSolidMechanism(set, index, 0);
-         break;
-      case DECEPTUS_MECH_MOVEABLE_BOX:
-         bindSolidMechanism(set, index, 1);
-         break;
-      default:
-         break;
+         case DECEPTUS_MECH_BLOCK:
+         case DECEPTUS_MECH_COLLAPSING:
+         case DECEPTUS_MECH_DOOR:
+         case DECEPTUS_MECH_DESTRUCTIBLE:
+         case DECEPTUS_MECH_CANNON_BODY:
+         case DECEPTUS_MECH_BOX_COLLIDER:
+            bindSolidMechanism(set, index, 0);
+            break;
+         case DECEPTUS_MECH_MOVEABLE_BOX:
+            bindSolidMechanism(set, index, 1);
+            break;
+         default:
+            break;
       }
       set->states[index].enabled = definitions[index].enabled != 0;
       set->states[index].visible = 1;
@@ -132,10 +137,10 @@ DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMecha
    return 1;
 }
 
-void deceptusMechanismsConfigure(DeceptusMechanismSet *set, const DeceptusMechanismTiming *timings)
+void deceptusMechanismsConfigure(DeceptusMechanismSet* set, const DeceptusMechanismTiming* timings)
 {
    DeceptusU16 index;
-   DeceptusMechanismState *state;
+   DeceptusMechanismState* state;
    set->timings = timings;
    for (index = 0; index < set->count; ++index)
    {
@@ -156,7 +161,7 @@ void deceptusMechanismsConfigure(DeceptusMechanismSet *set, const DeceptusMechan
    }
 }
 
-DeceptusU8 deceptusMechanismEnable(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU8 enabled)
+DeceptusU8 deceptusMechanismEnable(DeceptusMechanismSet* set, DeceptusU16 source_id, DeceptusU8 enabled)
 {
    DeceptusI16 index;
    index = deceptusMechanismFind(set, source_id);
@@ -193,12 +198,12 @@ DeceptusU8 deceptusMechanismEnable(DeceptusMechanismSet *set, DeceptusU16 source
    return 1;
 }
 
-void deceptusMechanismsTick(DeceptusMechanismSet *set, const DeceptusRect *player, DeceptusU8 interact_pressed)
+void deceptusMechanismsTick(DeceptusMechanismSet* set, const DeceptusRect* player, DeceptusU8 interact_pressed)
 {
    DeceptusU16 index;
    DeceptusU8 inside, entering;
-   DeceptusMechanismState *state;
-   const DeceptusMechanismDef *definition;
+   DeceptusMechanismState* state;
+   const DeceptusMechanismDef* definition;
    set->event_count = 0;
    set->overflow = 0;
    for (index = 0; index < set->count; ++index)

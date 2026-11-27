@@ -22,7 +22,7 @@ static void snesUiItemGap(void)
 }
 static DeceptusU8 snes_ui_mode, snes_ui_selection, snes_ui_room, snes_ui_page, snes_ui_prompt, snes_ui_label;
 static DeceptusU16 snes_ui_flags;
-static const DeceptusInteraction *snes_ui_dialogue;
+static const DeceptusInteraction* snes_ui_dialogue;
 
 static DeceptusU8 snesUiColumns(DeceptusU8 character)
 {
@@ -35,7 +35,7 @@ static DeceptusU8 snesUiColumns(DeceptusU8 character)
 
 static void snesUiGlyph(DeceptusU16 row, DeceptusU16 column, DeceptusU8 character)
 {
-   const SnesFontGlyph *glyph;
+   const SnesFontGlyph* glyph;
    DeceptusU16 y, x;
    if (character < 32 || character > 126)
    {
@@ -51,9 +51,9 @@ static void snesUiGlyph(DeceptusU16 row, DeceptusU16 column, DeceptusU8 characte
    }
 }
 
-static void snesUiText(DeceptusU16 row, DeceptusU16 column, const char *text, DeceptusU16 width, DeceptusU8 lines)
+static void snesUiText(DeceptusU16 row, DeceptusU16 column, const char* text, DeceptusU16 width, DeceptusU8 lines)
 {
-   const char *word;
+   const char* word;
    DeceptusU16 origin, word_width;
    DeceptusU8 character;
    origin = column;
@@ -127,7 +127,7 @@ static void snesUiBox(DeceptusU16 row, DeceptusU16 rows)
    }
 }
 
-static void snesUiOption(DeceptusU16 row, const char *text, DeceptusU8 selected)
+static void snesUiOption(DeceptusU16 row, const char* text, DeceptusU8 selected)
 {
    snesUiText(row, 5, selected ? ">" : " ", 1, 1);
    snesUiText(row, 7, text, 22, 1);
@@ -140,8 +140,8 @@ static void snesUiInit(void)
    {
       snes_ui_map[index] = SNES_FONT_TILE_BASE | 0x2000;
    }
-   dmaCopyVram((u8 *)snes_font, 0x1400, SNES_FONT_BYTES);
-   dmaCopyCGram((u8 *)snes_ui_palette, 0, sizeof(snes_ui_palette));
+   dmaCopyVram((u8*)snes_font, 0x1400, SNES_FONT_BYTES);
+   dmaCopyCGram((u8*)snes_ui_palette, 0, sizeof(snes_ui_palette));
    bgSetGfxPtr(2, 0x1000);
    bgSetMapPtr(2, 0x1000, SC_32x32);
    bgSetScroll(2, 0, 0);
@@ -151,11 +151,11 @@ static void snesUiInit(void)
    snes_ui_valid = 0;
 }
 
-static void snesUiPrepare(const DeceptusAdventure *game)
+static void snesUiPrepare(const DeceptusAdventure* game)
 {
    DeceptusU16 index;
    DeceptusU8 mode, label;
-   const DeceptusAdventureRoom *room;
+   const DeceptusAdventureRoom* room;
    mode = game->campaign.mode;
    label = game->room_label_ticks && mode == DECEPTUS_CAMPAIGN_PLAYING;
    if (snes_ui_valid && snes_ui_mode == mode && snes_ui_selection == game->selection && snes_ui_room == game->campaign.room_index &&
@@ -265,7 +265,7 @@ static void snesUiCommit(void)
    if (snes_ui_dirty)
    {
       snesWaitForVblank();
-      dmaCopyVram((u8 *)snes_ui_map, 0x1000, sizeof(snes_ui_map));
+      dmaCopyVram((u8*)snes_ui_map, 0x1000, sizeof(snes_ui_map));
       if (snes_ui_room_hidden != snes_ui_room_hidden_shown)
       {
          if (snes_ui_room_hidden)

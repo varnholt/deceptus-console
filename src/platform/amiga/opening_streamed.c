@@ -1,21 +1,21 @@
-#include "amiga_native_assets.h"
-#include "amiga_opening_assets.h"
-#include "amiga_message_box.h"
-#include "lz4.h"
-#include "deceptus/appearance.h"
-#include "opening_ui.h"
-#include "opening_video.h"
-#include "audio.h"
-#include "rooms.h"
-#include "scrollsurface.h"
-#include "perfcount.h"
-#include "system.h"
 #include <hardware/blit.h>
 #include <hardware/custom.h>
 #include <hardware/dmabits.h>
 #include <hardware/intbits.h>
 #include <stddef.h>
 #include <string.h>
+#include "amiga_message_box.h"
+#include "amiga_native_assets.h"
+#include "amiga_opening_assets.h"
+#include "audio.h"
+#include "deceptus/appearance.h"
+#include "lz4.h"
+#include "opening_ui.h"
+#include "opening_video.h"
+#include "perfcount.h"
+#include "rooms.h"
+#include "scrollsurface.h"
+#include "system.h"
 
 #define SURFACE_COLUMNS 23
 /* the 224-line view plus one tile row of scroll margin; every line here costs both pages chip RAM. */
@@ -44,7 +44,7 @@
 typedef struct AmigaTileClip
 {
    AmigaGraphicsClip clip;
-   const DeceptusU8 *cells;
+   const DeceptusU8* cells;
    DeceptusI16 column, row;
    DeceptusU16 columns, rows, frame;
    DeceptusU8 enabled;
@@ -62,10 +62,10 @@ typedef struct AmigaSavedBob
    DeceptusRect bounds;
 } AmigaSavedBob;
 
-static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
+static volatile struct Custom* const hardware = (struct Custom*)0xdff000;
 /* two separate Chip RAM blocks, allocated at startup; one static array would need ~110 KiB contiguous at load. */
 #define PAGE_BYTES ((DeceptusU32)(SURFACE_WORDS + FETCH_WORDS) * 2)
-static DeceptusU16 *pages[2];
+static DeceptusU16* pages[2];
 /* words, at most: 130 for the moves every list has (window, scroll, priority, sprites, modulos,
    planes, palette), 24 for four plane-wrap events (a wait and a pointer pair each), 2 for the line
    255 wait and 2 for the end: 158. a list with the box adds three waits (6) and its splits (54, 30
@@ -77,17 +77,17 @@ static DeceptusU16 copper[2][272] CHIP;
 /* the dialogue box: a separate bitplane region the copper shows on its rows, so the scroll
    surface, the dirty cells and the bobs never touch it; written once per page, not per frame. */
 #define BOX_REGION_BYTES ((DeceptusU32)AMIGA_BOX_ROWS * AMIGA_BOX_PLANES * AMIGA_BOX_ROW_BYTES)
-static DeceptusU16 *box_region;
+static DeceptusU16* box_region;
 #define BOX_TEXT_MASK_BYTES ((DeceptusU32)AMIGA_BOX_TEXT_ROWS * AMIGA_BOX_TEXT_WORDS * 2)
-static DeceptusU16 *box_text;
+static DeceptusU16* box_text;
 /* the decoded frame template without text: a page turn copies back only its text
    rows, a template change copies all of it, both fast enough to finish before the beam reaches the
    box, so no shown frame has a half-written box. */
 #define BOX_TEXT_OFFSET ((DeceptusU32)AMIGA_BOX_TEXT_TOP * AMIGA_BOX_PLANES * (AMIGA_BOX_ROW_BYTES / 2))
 #define BOX_TEXT_BYTES ((DeceptusU32)AMIGA_BOX_TEXT_ROWS * AMIGA_BOX_PLANES * AMIGA_BOX_ROW_BYTES)
-static DeceptusU16 *box_staging;
+static DeceptusU16* box_staging;
 /* the next page's text rows, composed before the vertical blank. */
-static DeceptusU16 *box_compose;
+static DeceptusU16* box_compose;
 /* the region, the template copy, the composed rows and the text mask exist only while a box shows:
    they are lent by the end of the decoded sprite arena (Chip RAM, 58-72K in every room), so the
    boxes cost no memory at startup and none while the game plays. the world stands still during a
@@ -95,13 +95,13 @@ static DeceptusU16 *box_compose;
 #define BOX_BLOCK_BYTES (BOX_REGION_BYTES * 2 + BOX_TEXT_BYTES + BOX_TEXT_MASK_BYTES)
 static DeceptusU32 box_lent_from;
 /* the open room's message box file (rooms.c reads it with the room), 0 when it has none. */
-static const DeceptusU8 *box_file;
+static const DeceptusU8* box_file;
 static DeceptusU32 box_file_bytes;
 /* per list: the value word of its COLOR01 move in the box palette, 0 when the list shows no box;
    a template change patches the shown list so the new frame never shows in the old colours. */
-static DeceptusU16 *box_palette_moves[2];
+static DeceptusU16* box_palette_moves[2];
 static DeceptusU8 box_template = 255;
-static const DeceptusU16 *box_palette;
+static const DeceptusU16* box_palette;
 /* the room's page in box_region (BOX_NO_PAGE: none) and whether the list being built shows it. */
 #define BOX_NO_PAGE 0xffff
 /* code that runs once per room load: small rather than fast, every byte of code comes out of the
@@ -140,7 +140,7 @@ static AmigaNativeBob item_bob;
 static DeceptusU8 item_bob_used;
 typedef struct AmigaBankCache
 {
-   DeceptusU16 *pixels;
+   DeceptusU16* pixels;
    DeceptusU16 count;
    DeceptusU16 banks[BANK_SLOTS_MAX], ages[BANK_SLOTS_MAX];
    /* slot + 1 for each resident bank, 0 when absent: o(1) hits for a large cache. */
@@ -186,7 +186,7 @@ extern volatile DeceptusU32 amiga_debug[32];
 typedef struct AmigaSpriteEntry
 {
    DeceptusU32 offset, start, size;
-   DeceptusU16 *pixels;
+   DeceptusU16* pixels;
    DeceptusU8 flip;
 } AmigaSpriteEntry;
 
@@ -195,7 +195,7 @@ typedef struct AmigaUiBand
    DeceptusRect screen;
 } AmigaUiBand;
 
-static DeceptusU16 *ui_mask;
+static DeceptusU16* ui_mask;
 static AmigaUiBand ui_bands[UI_BANDS];
 static DeceptusU8 ui_band_count, ui_mask_valid;
 static DeceptusU16 ui_mask_signature, ui_mask_room;
@@ -235,8 +235,8 @@ static DeceptusRect previous_ui[2][2];
 static DeceptusU16 ui_signature[2];
 static DeceptusI16 ui_camera_x[2], ui_camera_y[2];
 static DeceptusU8 ui_counts[2], active, loading, error, draw_buffer;
-static const AmigaGraphics *graphics;
-static const AmigaTileArchive *tiles;
+static const AmigaGraphics* graphics;
+static const AmigaTileArchive* tiles;
 static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
 static volatile DeceptusI16 pending_buffer = -1;
 static volatile DeceptusU32 video_frames;
@@ -246,17 +246,17 @@ static DeceptusU16 palette[32], last_ticks, last_flags;
 static DeceptusU16 lit_palette[32];
 static DeceptusU8 storm_entries[32], storm_count, lit_level, copper_level[2];
 static DeceptusU8 last_mode, last_selection, last_page, last_prompt, last_label;
-static const DeceptusInteraction *last_dialogue;
+static const DeceptusInteraction* last_dialogue;
 static DeceptusI16 camera_x, camera_y;
 /* the camera's tile column and row, set once per draw. */
 static DeceptusI16 camera_column, camera_row;
 
-static DeceptusU16 readWord(const DeceptusU8 *bytes)
+static DeceptusU16 readWord(const DeceptusU8* bytes)
 {
    return ((DeceptusU16)bytes[0] << 8) | bytes[1];
 }
 
-static DeceptusU32 readLong(const DeceptusU8 *bytes)
+static DeceptusU32 readLong(const DeceptusU8* bytes)
 {
    return ((DeceptusU32)readWord(bytes) << 16) | readWord(bytes + 2);
 }
@@ -293,8 +293,8 @@ static void __attribute__((interrupt)) verticalBlank(void)
 
 ROOM_CODE DeceptusU8 amigaOpeningVideoAllocate(void)
 {
-   pages[0] = (DeceptusU16 *)amigaSystemAllocate(PAGE_BYTES, 1);
-   pages[1] = (DeceptusU16 *)amigaSystemAllocate(PAGE_BYTES, 1);
+   pages[0] = (DeceptusU16*)amigaSystemAllocate(PAGE_BYTES, 1);
+   pages[1] = (DeceptusU16*)amigaSystemAllocate(PAGE_BYTES, 1);
    if (!pages[0] || !pages[1])
    {
       amigaSystemReportMemory("Deceptus display", PAGE_BYTES, 1);
@@ -325,7 +325,6 @@ DeceptusU32 amigaOpeningVideoFrames(void)
 {
    return video_frames;
 }
-
 
 #ifdef AMIGA_PERFCOUNT
 /* PAL beam position as a running scanline count; re-read if a vertical blank lands in between. */
@@ -414,7 +413,7 @@ static DeceptusU16 ringAdvance(DeceptusU16 offset, DeceptusU16 rows)
    return (DeceptusU16)next;
 }
 
-static void copyRows(DeceptusU16 offset, DeceptusU16 *linear, DeceptusU16 width, DeceptusU16 rows, DeceptusU8 restore)
+static void copyRows(DeceptusU16 offset, DeceptusU16* linear, DeceptusU16 width, DeceptusU16 rows, DeceptusU8 restore)
 {
    DeceptusU16 count, last;
    while (rows)
@@ -446,8 +445,15 @@ static void copyRows(DeceptusU16 offset, DeceptusU16 *linear, DeceptusU16 width,
    waitBlitter();
 }
 
-static void blitPixels(DeceptusU16 offset, const DeceptusU16 *pixels, const DeceptusU16 *mask, DeceptusU16 words, DeceptusU16 rows,
-                       DeceptusU16 shift, DeceptusU8 guard_word)
+static void blitPixels(
+   DeceptusU16 offset,
+   const DeceptusU16* pixels,
+   const DeceptusU16* mask,
+   DeceptusU16 words,
+   DeceptusU16 rows,
+   DeceptusU16 shift,
+   DeceptusU8 guard_word
+)
 {
    DeceptusU16 count, last;
    while (rows)
@@ -484,7 +490,7 @@ static void blitPixels(DeceptusU16 offset, const DeceptusU16 *pixels, const Dece
 
 /* returns the decoded bank's slot, decoding into the least recently used slot on a miss. neighbouring
    view tiles come from many banks, so a single decoded bank re-ran lz4 for nearly every tile. */
-static DeceptusU16 *bankSlot(AmigaBankCache *cache, DeceptusU8 mask_bank, DeceptusU16 bank, DeceptusU16 bank_words)
+static DeceptusU16* bankSlot(AmigaBankCache* cache, DeceptusU8 mask_bank, DeceptusU16 bank, DeceptusU16 bank_words)
 {
    DeceptusU16 slot, oldest;
    ++bank_clock;
@@ -514,8 +520,9 @@ static DeceptusU16 *bankSlot(AmigaBankCache *cache, DeceptusU8 mask_bank, Decept
       cache->slot_of[cache->banks[oldest]] = 0;
    }
    cache->banks[oldest] = 65535U;
-   if (!amigaTileArchiveDecode(tiles, mask_bank, bank, (DeceptusU8 *)(cache->pixels + (DeceptusU32)oldest * bank_words),
-                               (DeceptusU32)bank_words * 2))
+   if (!amigaTileArchiveDecode(
+          tiles, mask_bank, bank, (DeceptusU8*)(cache->pixels + (DeceptusU32)oldest * bank_words), (DeceptusU32)bank_words * 2
+       ))
    {
       error = 1;
       amiga_debug[30] = 2; /* failure site */
@@ -529,7 +536,7 @@ static DeceptusU16 *bankSlot(AmigaBankCache *cache, DeceptusU8 mask_bank, Decept
 
 /* clears a world rectangle to colour 0 in every plane with one masked blit per ring segment,
    keeping the cpu out of large ui boxes. */
-static void clearRectangle(const DeceptusRect *rectangle)
+static void clearRectangle(const DeceptusRect* rectangle)
 {
    DeceptusU16 offset, rows, count, words, last;
    DeceptusI16 first, right;
@@ -571,10 +578,10 @@ static void clearRectangle(const DeceptusRect *rectangle)
 }
 
 /* byte pointers to a cell's four colour quarters; a failed decode paints colour 0. */
-static void quarterColors(const DeceptusU16 *ids, const DeceptusU8 **quarters)
+static void quarterColors(const DeceptusU16* ids, const DeceptusU8** quarters)
 {
    DeceptusU8 quarter;
-   const DeceptusU8 *raw;
+   const DeceptusU8* raw;
    for (quarter = 0; quarter < 4; ++quarter)
    {
       if (ids[quarter] >= tiles->colors)
@@ -585,17 +592,17 @@ static void quarterColors(const DeceptusU16 *ids, const DeceptusU8 **quarters)
       raw = raw_colors[ids[quarter] / AMIGA_NATIVE_TILES_PER_BANK];
       if (!raw)
       {
-         raw = (const DeceptusU8 *)bankSlot(&color_cache, 0, ids[quarter] / AMIGA_NATIVE_TILES_PER_BANK, AMIGA_NATIVE_BANK_BYTES / 2);
+         raw = (const DeceptusU8*)bankSlot(&color_cache, 0, ids[quarter] / AMIGA_NATIVE_TILES_PER_BANK, AMIGA_NATIVE_BANK_BYTES / 2);
       }
       quarters[quarter] = raw ? raw + (ids[quarter] % AMIGA_NATIVE_TILES_PER_BANK) * AMIGA_NATIVE_TILE_BYTES : blank_quarter;
    }
 }
 
 /* returns 0 when all four quarters use the empty mask (id 0), so the cell needs no work. */
-static DeceptusU8 quarterMasks(const DeceptusU16 *ids, const DeceptusU8 **quarters)
+static DeceptusU8 quarterMasks(const DeceptusU16* ids, const DeceptusU8** quarters)
 {
    DeceptusU8 quarter, visible;
-   const DeceptusU8 *raw;
+   const DeceptusU8* raw;
    visible = 0;
    for (quarter = 0; quarter < 4; ++quarter)
    {
@@ -607,8 +614,9 @@ static DeceptusU8 quarterMasks(const DeceptusU16 *ids, const DeceptusU8 **quarte
       raw = raw_masks[ids[quarter] / AMIGA_NATIVE_TILES_PER_BANK];
       if (!raw)
       {
-         raw = (const DeceptusU8 *)bankSlot(&mask_cache, 1, ids[quarter] / AMIGA_NATIVE_TILES_PER_BANK,
-                                            AMIGA_NATIVE_TILES_PER_BANK * AMIGA_NATIVE_MASK_BYTES / 2);
+         raw = (const DeceptusU8*)bankSlot(
+            &mask_cache, 1, ids[quarter] / AMIGA_NATIVE_TILES_PER_BANK, AMIGA_NATIVE_TILES_PER_BANK * AMIGA_NATIVE_MASK_BYTES / 2
+         );
       }
       if (raw)
       {
@@ -632,18 +640,18 @@ static DeceptusU8 quarterMasks(const DeceptusU16 *ids, const DeceptusU8 **quarte
 
 typedef struct AmigaCellCache
 {
-   DeceptusU16 *pixels;
-   DeceptusU16 *keys;
-   DeceptusU8 *recent;
+   DeceptusU16* pixels;
+   DeceptusU16* keys;
+   DeceptusU8* recent;
    /* per slot, bumped whenever the slot takes a new cell (0 when not tracked). */
-   DeceptusU16 *generation;
+   DeceptusU16* generation;
    DeceptusU16 sets, slot_words;
    DeceptusU8 key_words;
 } AmigaCellCache;
 
 /* per map cell, the plain cache slot + 1 it was last painted from and that slot's generation:
    a repaint of an unchanged cell skips the archive read and the hash lookup. */
-static DeceptusU16 *map_slots;
+static DeceptusU16* map_slots;
 static DeceptusU16 map_columns, map_rows;
 
 /* pixels, keys and recent ways are carved from the room's Chip scratch at reset: slow RAM holds
@@ -651,7 +659,7 @@ static DeceptusU16 map_columns, map_rows;
 static AmigaCellCache plain_cells = {0, 0, 0, 0, 0, CELL_WORDS, 4};
 static AmigaCellCache masked_cells = {0, 0, 0, 0, 0, CELL_WORDS * 2, 8};
 
-static ROOM_CODE void resetCells(AmigaCellCache *cache)
+static ROOM_CODE void resetCells(AmigaCellCache* cache)
 {
    DeceptusU16 slot;
    for (slot = 0; slot < cache->sets * 2; ++slot)
@@ -662,7 +670,7 @@ static ROOM_CODE void resetCells(AmigaCellCache *cache)
 }
 
 /* returns the cell's slot and whether it already holds the cell; a miss claims the older way. */
-static DeceptusU16 *cellSlot(AmigaCellCache *cache, const DeceptusU16 *ids, DeceptusU8 *hit, DeceptusU16 *found)
+static DeceptusU16* cellSlot(AmigaCellCache* cache, const DeceptusU16* ids, DeceptusU8* hit, DeceptusU16* found)
 {
    DeceptusU16 hash, set, slot, *key;
    DeceptusU8 index, way;
@@ -679,9 +687,9 @@ static DeceptusU16 *cellSlot(AmigaCellCache *cache, const DeceptusU16 *ids, Dece
    {
       slot = set * 2 + way;
       key = cache->keys + (DeceptusU32)slot * cache->key_words;
-      if (((const DeceptusU32 *)key)[0] == ((const DeceptusU32 *)ids)[0] && ((const DeceptusU32 *)key)[1] == ((const DeceptusU32 *)ids)[1] &&
+      if (((const DeceptusU32*)key)[0] == ((const DeceptusU32*)ids)[0] && ((const DeceptusU32*)key)[1] == ((const DeceptusU32*)ids)[1] &&
           (cache->key_words == 4 ||
-           (((const DeceptusU32 *)key)[2] == ((const DeceptusU32 *)ids)[2] && ((const DeceptusU32 *)key)[3] == ((const DeceptusU32 *)ids)[3])))
+           (((const DeceptusU32*)key)[2] == ((const DeceptusU32*)ids)[2] && ((const DeceptusU32*)key)[3] == ((const DeceptusU32*)ids)[3])))
       {
          cache->recent[set] = way;
          *hit = 1;
@@ -710,7 +718,7 @@ static DeceptusU16 *cellSlot(AmigaCellCache *cache, const DeceptusU16 *ids, Dece
 }
 
 /* dictionary rows are already scanline-major with five plane bytes each, the slot's own word order. */
-static void composeColors(DeceptusU16 *slot, const DeceptusU8 **colors)
+static void composeColors(DeceptusU16* slot, const DeceptusU8** colors)
 {
    const DeceptusU8 *left, *right;
    DeceptusU8 half, count;
@@ -726,16 +734,18 @@ static void composeColors(DeceptusU16 *slot, const DeceptusU8 **colors)
          left = colors[half];
          right = colors[half + 1];
          steps = 8 * PLANES / 4 - 1;
-         __asm__ volatile("1:\n\t"
-                          "move.l (%1)+,%%d0\n\t"
-                          "movep.l %%d0,0(%0)\n\t"
-                          "move.l (%2)+,%%d0\n\t"
-                          "movep.l %%d0,1(%0)\n\t"
-                          "addq.l #8,%0\n\t"
-                          "dbra %3,1b"
-                          : "+a"(slot), "+a"(left), "+a"(right), "+d"(steps)
-                          :
-                          : "d0", "memory", "cc");
+         __asm__ volatile(
+            "1:\n\t"
+            "move.l (%1)+,%%d0\n\t"
+            "movep.l %%d0,0(%0)\n\t"
+            "move.l (%2)+,%%d0\n\t"
+            "movep.l %%d0,1(%0)\n\t"
+            "addq.l #8,%0\n\t"
+            "dbra %3,1b"
+            : "+a"(slot), "+a"(left), "+a"(right), "+d"(steps)
+            :
+            : "d0", "memory", "cc"
+         );
       }
       return;
    }
@@ -751,7 +761,7 @@ static void composeColors(DeceptusU16 *slot, const DeceptusU8 **colors)
    }
 }
 
-static void composeMask(DeceptusU16 *slot, const DeceptusU8 **masks)
+static void composeMask(DeceptusU16* slot, const DeceptusU8** masks)
 {
    DeceptusU16 bits;
    DeceptusU8 half, scanline, plane;
@@ -770,10 +780,10 @@ static void composeMask(DeceptusU16 *slot, const DeceptusU8 **masks)
 
 /* runs of cell blits share every register but the pointers and size: they set the constant ones
    once, and any other blit marks them stale. */
-static void blitCell(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *slot, DeceptusU8 masked)
+static void blitCell(DeceptusI16 column, DeceptusI16 row, const DeceptusU16* slot, DeceptusU8 masked)
 {
    DeceptusU16 offset;
-   DeceptusU16 *destination;
+   DeceptusU16* destination;
    offset = amigaScrollSurfaceOffset(&surface, column, row * 16, 0);
    if ((DeceptusU32)offset + (CELL_WORDS - 1) * SURFACE_COLUMNS >= SURFACE_WORDS)
    {
@@ -809,10 +819,10 @@ static void blitCell(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *slo
    }
 }
 
-static DeceptusU16 plainTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *color_ids)
+static DeceptusU16 plainTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16* color_ids)
 {
-   const DeceptusU8 *colors[4];
-   DeceptusU16 *slot;
+   const DeceptusU8* colors[4];
+   DeceptusU16* slot;
    DeceptusU16 found;
    DeceptusU8 hit;
    slot = cellSlot(&plain_cells, color_ids, &hit, &found);
@@ -825,7 +835,7 @@ static DeceptusU16 plainTile(DeceptusI16 column, DeceptusI16 row, const Deceptus
    return found;
 }
 
-static void maskedTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *color_ids, const DeceptusU16 *mask_ids)
+static void maskedTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16* color_ids, const DeceptusU16* mask_ids)
 {
    const DeceptusU8 *colors[4], *masks[4];
    DeceptusU16 ids[8], *slot, found;
@@ -853,7 +863,7 @@ static void maskedTile(DeceptusI16 column, DeceptusI16 row, const DeceptusU16 *c
 /* animation records hold four colour ids, then four mask ids, per cell and frame. */
 #define CLIP_CELL_BYTES 16
 
-static const DeceptusU8 *clipCell(const AmigaTileClip *clip, DeceptusI16 x, DeceptusI16 y, DeceptusU16 frame)
+static const DeceptusU8* clipCell(const AmigaTileClip* clip, DeceptusI16 x, DeceptusI16 y, DeceptusU16 frame)
 {
    DeceptusU32 index;
    x -= clip->column;
@@ -868,7 +878,7 @@ static const DeceptusU8 *clipCell(const AmigaTileClip *clip, DeceptusI16 x, Dece
    return clip->cells + index * CLIP_CELL_BYTES;
 }
 
-static void clipTile(DeceptusI16 x, DeceptusI16 y, const DeceptusU8 *cell)
+static void clipTile(DeceptusI16 x, DeceptusI16 y, const DeceptusU8* cell)
 {
    DeceptusU16 colors[4], masks[4];
    DeceptusU8 quarter;
@@ -880,11 +890,11 @@ static void clipTile(DeceptusI16 x, DeceptusI16 y, const DeceptusU8 *cell)
    maskedTile(x, y, colors, masks);
 }
 
-static DeceptusU8 sameClipCell(const DeceptusU8 *before, const DeceptusU8 *after)
+static DeceptusU8 sameClipCell(const DeceptusU8* before, const DeceptusU8* after)
 {
    const DeceptusU32 *first, *second;
-   first = (const DeceptusU32 *)before;
-   second = (const DeceptusU32 *)after;
+   first = (const DeceptusU32*)before;
+   second = (const DeceptusU32*)after;
    return first[0] == second[0] && first[1] == second[1] && first[2] == second[2] && first[3] == second[3];
 }
 
@@ -900,7 +910,7 @@ static DeceptusU8 clipCovered(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
 
 static DeceptusU8 paintClips(DeceptusI16 x, DeceptusI16 y);
 
-static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
+static DeceptusU8 paintTile(void* context, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 color_ids[4], mask_ids[4], index, *entry;
    (void)context;
@@ -934,7 +944,7 @@ static DeceptusU8 paintTile(void *context, DeceptusI16 x, DeceptusI16 y)
 static DeceptusU8 paintClips(DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 index;
-   const DeceptusU8 *cell;
+   const DeceptusU8* cell;
    for (index = 0; clipCovered(0, x, y) && index < graphics->clip_count; ++index)
    {
       if (clips[index].enabled && !clips[index].clip.plane)
@@ -963,11 +973,11 @@ static DeceptusU8 paintClips(DeceptusI16 x, DeceptusI16 y)
 /* cells left up to right (exclusive) of map row y. a cell the map memo still holds is one blit
    whose constant registers stay set for the whole run, with the ring offset stepped instead of
    recomputed, and clip work only inside a clip area; anything else goes through paintTile. */
-static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, DeceptusI16 y)
+static DeceptusU8 paintRun(void* context, DeceptusI16 left, DeceptusI16 right, DeceptusI16 y)
 {
    DeceptusU16 offset, slot, *entry, *page;
-   const DeceptusU16 *generation;
-   const DeceptusU16 *pixels;
+   const DeceptusU16* generation;
+   const DeceptusU16* pixels;
    DeceptusI16 x;
    DeceptusU8 covered;
    if (!map_slots || left < 0 || y < 0 || right > (DeceptusI16)map_columns || y >= (DeceptusI16)map_rows)
@@ -992,8 +1002,7 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
    for (x = left; x < right; ++x, entry += 2)
    {
       slot = entry[0];
-      if (!slot || generation[slot - 1] != entry[1] || offset < FETCH_WORDS ||
-          offset >= SURFACE_WORDS - (CELL_WORDS - 1) * SURFACE_COLUMNS)
+      if (!slot || generation[slot - 1] != entry[1] || offset < FETCH_WORDS || offset >= SURFACE_WORDS - (CELL_WORDS - 1) * SURFACE_COLUMNS)
       {
          AMIGA_PERF(--amiga_debug[23];) /* paintTile counts itself */
          if (!paintTile(context, x, y))
@@ -1031,10 +1040,10 @@ static DeceptusU8 paintRun(void *context, DeceptusI16 left, DeceptusI16 right, D
 
 /* while the previous page still waits for its vertical blank, composes the cells the coming
    scroll paint will need, so that paint finds them in the map memo; stops at the swap. */
-static DeceptusU8 warmTile(void *context, DeceptusI16 x, DeceptusI16 y)
+static DeceptusU8 warmTile(void* context, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 color_ids[4], mask_ids[4], *entry, *slot, found;
-   const DeceptusU8 *colors[4];
+   const DeceptusU8* colors[4];
    DeceptusU8 hit;
    (void)context;
    if (pending_buffer < 0)
@@ -1064,12 +1073,12 @@ static DeceptusU8 warmTile(void *context, DeceptusI16 x, DeceptusI16 y)
 
 /* foreground marks: 1 redraws foreground animations only (painted tiles already hold the static
    composite), 2 also restores the static foreground over a bob. */
-static void markRectangle(const DeceptusRect *rectangle, DeceptusU8 foreground, DeceptusU8 value)
+static void markRectangle(const DeceptusRect* rectangle, DeceptusU8 foreground, DeceptusU8 value)
 {
    DeceptusI16 x, y, left, top, right, bottom;
    DeceptusU16 index;
    AmigaScrollWindow resident;
-   AmigaScrollWindow *window;
+   AmigaScrollWindow* window;
    resident.column = tileFloor(camera_x) - 1;
    resident.row = tileFloor(camera_y);
    window = &resident;
@@ -1125,7 +1134,7 @@ static void markStrip(DeceptusI16 x, DeceptusI16 y, DeceptusI16 right, DeceptusI
 
 /* repaint only the pixels an opaque box covered before and no longer covers (before minus after);
    a box that stayed put needs no tiles, even over partly covered cells. */
-static void markUncovered(const DeceptusRect *before, const DeceptusRect *after)
+static void markUncovered(const DeceptusRect* before, const DeceptusRect* after)
 {
    DeceptusI16 right, bottom, after_right, after_bottom, top, low;
    right = before->x + before->width;
@@ -1141,7 +1150,7 @@ static void markUncovered(const DeceptusRect *before, const DeceptusRect *after)
 }
 
 /* value / divisor with the remainder, from two 32/16 divu steps instead of the library's bit loop. */
-static DeceptusU32 divideLong(DeceptusU32 value, DeceptusU16 divisor, DeceptusU16 *remainder)
+static DeceptusU32 divideLong(DeceptusU32 value, DeceptusU16 divisor, DeceptusU16* remainder)
 {
 #if defined(__mc68000__)
    DeceptusU32 high, low;
@@ -1157,12 +1166,12 @@ static DeceptusU32 divideLong(DeceptusU32 value, DeceptusU16 divisor, DeceptusU1
 #endif
 }
 
-static void updateClips(const DeceptusAdventure *game)
+static void updateClips(const DeceptusAdventure* game)
 {
    DeceptusU16 index, frame, duration, flags;
    DeceptusU32 total, phase;
-   const DeceptusU8 *bytes;
-   AmigaTileClip *state;
+   const DeceptusU8* bytes;
+   AmigaTileClip* state;
    flags = deceptusAdventurePresentationFlags(game);
    cover_left[0] = cover_left[1] = cover_right[0] = cover_right[1] = 0;
    for (index = 0; index < graphics->clip_count; ++index)
@@ -1182,9 +1191,11 @@ static void updateClips(const DeceptusAdventure *game)
          cover_left[plane] = state->column < cover_left[plane] ? state->column : cover_left[plane];
          cover_top[plane] = state->row < cover_top[plane] ? state->row : cover_top[plane];
          cover_right[plane] = (DeceptusI16)(state->column + (DeceptusI16)state->columns) > cover_right[plane]
-                                 ? (DeceptusI16)(state->column + (DeceptusI16)state->columns) : cover_right[plane];
+                                 ? (DeceptusI16)(state->column + (DeceptusI16)state->columns)
+                                 : cover_right[plane];
          cover_bottom[plane] = (DeceptusI16)(state->row + (DeceptusI16)state->rows) > cover_bottom[plane]
-                                  ? (DeceptusI16)(state->row + (DeceptusI16)state->rows) : cover_bottom[plane];
+                                  ? (DeceptusI16)(state->row + (DeceptusI16)state->rows)
+                                  : cover_bottom[plane];
       }
       state->enabled = (flags & state->clip.required_flags) == state->clip.required_flags && !(flags & state->clip.forbidden_flags);
       if (!state->clip.durations)
@@ -1240,8 +1251,8 @@ static void markAnimatedCells(void)
    DeceptusU16 index, turn, count, used, cell;
    DeceptusI16 x, y, left, top, right, bottom;
    const DeceptusU8 *before, *after;
-   AmigaTileClip *clip;
-   AmigaScrollWindow *window;
+   AmigaTileClip* clip;
+   AmigaScrollWindow* window;
    window = &windows[draw_buffer];
    used = 0;
    if (graphics->clip_count)
@@ -1260,8 +1271,9 @@ static void markAnimatedCells(void)
       left = clip->column > window->column ? clip->column : window->column;
       top = clip->row > window->row ? clip->row : window->row;
       right = clip->column + (DeceptusI16)clip->columns < window->column + SURFACE_COLUMNS ? clip->column + (DeceptusI16)clip->columns
-                                                                                         : window->column + SURFACE_COLUMNS;
-      bottom = clip->row + (DeceptusI16)clip->rows < window->row + TILE_ROWS ? clip->row + (DeceptusI16)clip->rows : window->row + TILE_ROWS;
+                                                                                           : window->column + SURFACE_COLUMNS;
+      bottom =
+         clip->row + (DeceptusI16)clip->rows < window->row + TILE_ROWS ? clip->row + (DeceptusI16)clip->rows : window->row + TILE_ROWS;
       count = 0;
       for (y = top; y < bottom; ++y)
       {
@@ -1324,14 +1336,15 @@ static ROOM_CODE void measureReach(void)
       reach_left = left < reach_left ? left : reach_left;
       reach_right = right > reach_right ? right : reach_right;
       reach_top = sprite.trim_y < reach_top ? sprite.trim_y : reach_top;
-      reach_bottom = (DeceptusI16)(sprite.trim_y + (DeceptusI16)sprite.height) > reach_bottom ? (DeceptusI16)(sprite.trim_y + (DeceptusI16)sprite.height)
-                                                                                               : reach_bottom;
+      reach_bottom = (DeceptusI16)(sprite.trim_y + (DeceptusI16)sprite.height) > reach_bottom
+                        ? (DeceptusI16)(sprite.trim_y + (DeceptusI16)sprite.height)
+                        : reach_bottom;
    }
 }
 
-static DeceptusU8 requestBob(void *context, const DeceptusSpriteAppearance *appearance)
+static DeceptusU8 requestBob(void* context, const DeceptusSpriteAppearance* appearance)
 {
-   AmigaNativeBob *bob;
+   AmigaNativeBob* bob;
    DeceptusU16 resource;
    (void)context;
    if (appearance->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
@@ -1345,9 +1358,8 @@ static DeceptusU8 requestBob(void *context, const DeceptusSpriteAppearance *appe
    }
    /* every frame of an anchor this far out is culled below (or by prepareSprites for the player);
       the worn item keeps the full path, it can widen the player's composed sprite. */
-   if (appearance->family != DECEPTUS_SPRITE_HEADTORCH &&
-       (appearance->x + reach_left >= 320 || appearance->x + reach_right <= 0 || appearance->y + reach_top >= 224 ||
-        appearance->y + reach_bottom <= 0))
+   if (appearance->family != DECEPTUS_SPRITE_HEADTORCH && (appearance->x + reach_left >= 320 || appearance->x + reach_right <= 0 ||
+                                                           appearance->y + reach_top >= 224 || appearance->y + reach_bottom <= 0))
    {
       return 1;
    }
@@ -1360,9 +1372,9 @@ static DeceptusU8 requestBob(void *context, const DeceptusSpriteAppearance *appe
    {
       /* the player is one hardware sprite object in screen coordinates (no save, blit or re-mask);
          a worn item (the headtorch) is an overlay drawn into the player's sprite, in front of her. */
-      AmigaNativeBob *target;
-      target = appearance->family == DECEPTUS_SPRITE_HEADTORCH ? (overlay_used ? 0 : &hardware_overlay)
-                                                                : (hardware_used ? 0 : &hardware_bob);
+      AmigaNativeBob* target;
+      target =
+         appearance->family == DECEPTUS_SPRITE_HEADTORCH ? (overlay_used ? 0 : &hardware_overlay) : (hardware_used ? 0 : &hardware_bob);
       if (target)
       {
          target->graphic = bob->graphic;
@@ -1399,7 +1411,7 @@ static DeceptusU8 requestBob(void *context, const DeceptusSpriteAppearance *appe
    return 1;
 }
 
-static DeceptusU8 shiftedByte(const DeceptusU8 *row, DeceptusI16 column, DeceptusU8 shift)
+static DeceptusU8 shiftedByte(const DeceptusU8* row, DeceptusI16 column, DeceptusU8 shift)
 {
    DeceptusU16 value;
    value = column < 0 ? 0 : (DeceptusU16)row[column] << 8;
@@ -1407,14 +1419,14 @@ static DeceptusU8 shiftedByte(const DeceptusU8 *row, DeceptusI16 column, Deceptu
    return (DeceptusU8)((DeceptusU16)(value << shift) >> 8);
 }
 
-static void clippedBob(const AmigaNativeBob *bob, const DeceptusU16 *sprite, const DeceptusRect *bounds)
+static void clippedBob(const AmigaNativeBob* bob, const DeceptusU16* sprite, const DeceptusRect* bounds)
 {
    const DeceptusU8 *pixels, *mask, *source;
-   DeceptusU8 *destination;
+   DeceptusU8* destination;
    DeceptusI16 x, y, plane, first, last, source_first, source_x, bit_x;
    DeceptusU32 row, plane_bytes;
    DeceptusU8 alpha, shift;
-   pixels = (const DeceptusU8 *)sprite;
+   pixels = (const DeceptusU8*)sprite;
    plane_bytes = (DeceptusU32)bob->graphic.row_bytes * bob->graphic.height * PLANES;
    mask = pixels + plane_bytes;
    first = bounds->x / 8;
@@ -1444,7 +1456,7 @@ static void clippedBob(const AmigaNativeBob *bob, const DeceptusU16 *sprite, con
             {
                continue;
             }
-            destination = (DeceptusU8 *)pages[draw_buffer] + amigaScrollSurfaceOffset(&surface, x / 2, y, (DeceptusU8)plane) * 2 + (x & 1);
+            destination = (DeceptusU8*)pages[draw_buffer] + amigaScrollSurfaceOffset(&surface, x / 2, y, (DeceptusU8)plane) * 2 + (x & 1);
             *destination = (*destination & (DeceptusU8)~alpha) | (shiftedByte(source, source_x, shift) & alpha);
          }
       }
@@ -1452,11 +1464,11 @@ static void clippedBob(const AmigaNativeBob *bob, const DeceptusU16 *sprite, con
    repairGuard(0, 0);
 }
 
-static const DeceptusU16 *bobPixels(const AmigaGraphicsSprite *graphic)
+static const DeceptusU16* bobPixels(const AmigaGraphicsSprite* graphic)
 {
    DeceptusU16 index;
    DeceptusU32 size;
-   DeceptusU16 *pixels;
+   DeceptusU16* pixels;
    for (index = 0; index < sprite_entry_count; ++index)
    {
       if (sprite_entries[index].offset == graphic->offset && sprite_entries[index].flip == graphic->flip)
@@ -1480,7 +1492,8 @@ static const DeceptusU16 *bobPixels(const AmigaGraphicsSprite *graphic)
    waitBlitter();
    for (index = 0; index < sprite_entry_count;)
    {
-      if (sprite_entries[index].start < sprite_arena_used + size && sprite_arena_used < sprite_entries[index].start + sprite_entries[index].size)
+      if (sprite_entries[index].start < sprite_arena_used + size &&
+          sprite_arena_used < sprite_entries[index].start + sprite_entries[index].size)
       {
          sprite_entries[index] = sprite_entries[--sprite_entry_count];
       }
@@ -1494,15 +1507,15 @@ static const DeceptusU16 *bobPixels(const AmigaGraphicsSprite *graphic)
       /* every entry is small; drop one so the table never overflows. */
       sprite_entries[0] = sprite_entries[--sprite_entry_count];
    }
-   pixels = (DeceptusU16 *)((DeceptusU8 *)sprite_pixels + sprite_arena_used);
+   pixels = (DeceptusU16*)((DeceptusU8*)sprite_pixels + sprite_arena_used);
    AMIGA_PERF(++amiga_debug[27];)
-   if (!amigaGraphicsSpriteDecode(graphics, graphic, (DeceptusU8 *)pixels, size))
+   if (!amigaGraphicsSpriteDecode(graphics, graphic, (DeceptusU8*)pixels, size))
    {
       return 0;
    }
    if (graphic->flip)
    {
-      amigaGraphicsSpriteFlip((DeceptusU8 *)pixels, graphic);
+      amigaGraphicsSpriteFlip((DeceptusU8*)pixels, graphic);
    }
    AMIGA_PERF(amiga_debug[24] += size;)
    sprite_entries[sprite_entry_count].offset = graphic->offset;
@@ -1515,14 +1528,14 @@ static const DeceptusU16 *bobPixels(const AmigaGraphicsSprite *graphic)
    return pixels;
 }
 
-static void drawBob(const AmigaNativeBob *bob)
+static void drawBob(const AmigaNativeBob* bob)
 {
    DeceptusRect bounds;
-   AmigaSavedBob *saved;
+   AmigaSavedBob* saved;
    DeceptusI16 right, bottom, first;
    DeceptusU16 rows, words;
    DeceptusU32 needed, plane_words, skip;
-   const DeceptusU16 *sprite;
+   const DeceptusU16* sprite;
    bounds.x = bob->x;
    bounds.y = bob->y;
    right = bob->x + bob->graphic.width;
@@ -1584,8 +1597,15 @@ static void drawBob(const AmigaNativeBob *bob)
       /* vertical clips skip whole interleaved lines of pixels and mask: still one blit. */
       plane_words = (DeceptusU32)bob->graphic.row_bytes * bob->graphic.height * PLANES / 2;
       skip = (DeceptusU32)(bounds.y - bob->y) * PLANES * (bob->graphic.row_bytes / 2);
-      blitPixels(amigaScrollSurfaceOffset(&surface, tileFloor(bob->x), bounds.y, 0), sprite + skip, sprite + plane_words + skip,
-                 bob->graphic.row_bytes / 2, bounds.height * PLANES, (bob->x & 15) << 12, 1);
+      blitPixels(
+         amigaScrollSurfaceOffset(&surface, tileFloor(bob->x), bounds.y, 0),
+         sprite + skip,
+         sprite + plane_words + skip,
+         bob->graphic.row_bytes / 2,
+         bounds.height * PLANES,
+         (bob->x & 15) << 12,
+         1
+      );
    }
    markRectangle(&bounds, 1, 2);
 }
@@ -1601,7 +1621,7 @@ typedef struct AmigaSpriteFrame
    DeceptusU16 start, words;
    DeceptusU8 flip;
 } AmigaSpriteFrame;
-static DeceptusU16 *sprite_cache;
+static DeceptusU16* sprite_cache;
 static AmigaSpriteFrame sprite_frames[SPRITE_CACHE_ENTRIES];
 static DeceptusU16 sprite_frame_count, sprite_cache_used;
 static DeceptusU8 sprite_compact[SPRITE_COMPACT_BYTES];
@@ -1625,7 +1645,7 @@ static ROOM_CODE void spriteMirrorTable(void)
 
 /* one line's plane row as pixels, mirrored when the frame faces left. only frames whose rows the
    word copies in spriteFrame cannot take come here, once per frame into the cache: kept small. */
-static BOX_CODE void spriteRow(const DeceptusU8 *source, DeceptusU8 *row, DeceptusU8 bytes, DeceptusU8 flip, DeceptusU8 shift)
+static BOX_CODE void spriteRow(const DeceptusU8* source, DeceptusU8* row, DeceptusU8 bytes, DeceptusU8 flip, DeceptusU8 shift)
 {
    DeceptusU8 index, skip, current, next;
    if (!flip)
@@ -1654,10 +1674,10 @@ static BOX_CODE void spriteRow(const DeceptusU8 *source, DeceptusU8 *row, Decept
 }
 
 /* the cached channel words of a frame, decoding it into the ring on a miss. */
-static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, DeceptusU16 pairs)
+static const DeceptusU16* spriteFrame(const AmigaGraphicsSprite* graphic, DeceptusU16 pairs)
 {
-   const DeceptusU8 *line_bytes;
-   DeceptusU16 *output;
+   const DeceptusU8* line_bytes;
+   DeceptusU16* output;
    DeceptusU8 row[PLANES][SPRITE_PAIRS * 2];
    DeceptusU16 index, words, line, channel, stored, start;
    DeceptusU8 plane, shift;
@@ -1713,7 +1733,7 @@ static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, Decept
          output = sprite_cache + start + line * 2;
          if (!graphic->flip)
          {
-            const DeceptusU16 *words = (const DeceptusU16 *)line_bytes;
+            const DeceptusU16* words = (const DeceptusU16*)line_bytes;
             for (channel = 0; channel < pairs; ++channel, ++words)
             {
                channel_output = output + (DeceptusU32)channel * 2 * stride;
@@ -1735,25 +1755,29 @@ static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, Decept
             {
                end = ends[plane + index] - (channel >> 1) * 2;
                next = (channel >> 1) * 2 + 2 < stored ? sprite_mirror[end[-3]] : 0;
-               output[index] = shift ? (DeceptusU16)((((DeceptusU16)sprite_mirror[end[-1]] << 8 | sprite_mirror[end[-2]]) << shift) | (next >> (8 - shift)))
-                                     : (DeceptusU16)((DeceptusU16)sprite_mirror[end[-1]] << 8 | sprite_mirror[end[-2]]);
+               output[index] =
+                  shift
+                     ? (DeceptusU16)((((DeceptusU16)sprite_mirror[end[-1]] << 8 | sprite_mirror[end[-2]]) << shift) | (next >> (8 - shift)))
+                     : (DeceptusU16)((DeceptusU16)sprite_mirror[end[-1]] << 8 | sprite_mirror[end[-2]]);
             }
          }
       }
    }
    else
-   for (line = 0; line < graphic->height; ++line, line_bytes += stored * PLANES)
    {
-      for (plane = 0; plane < PLANES; ++plane)
+      for (line = 0; line < graphic->height; ++line, line_bytes += stored * PLANES)
       {
-         spriteRow(line_bytes + plane * stored, row[plane], (DeceptusU8)stored, graphic->flip, shift);
-      }
-      for (channel = 0; channel < pairs * 2; ++channel)
-      {
-         output = sprite_cache + start + (DeceptusU32)channel * 2 * graphic->height + line * 2;
-         plane = (DeceptusU8)((channel & 1) * 2);
-         output[0] = ((DeceptusU16)row[plane][(channel >> 1) * 2] << 8) | row[plane][(channel >> 1) * 2 + 1];
-         output[1] = ((DeceptusU16)row[plane + 1][(channel >> 1) * 2] << 8) | row[plane + 1][(channel >> 1) * 2 + 1];
+         for (plane = 0; plane < PLANES; ++plane)
+         {
+            spriteRow(line_bytes + plane * stored, row[plane], (DeceptusU8)stored, graphic->flip, shift);
+         }
+         for (channel = 0; channel < pairs * 2; ++channel)
+         {
+            output = sprite_cache + start + (DeceptusU32)channel * 2 * graphic->height + line * 2;
+            plane = (DeceptusU8)((channel & 1) * 2);
+            output[0] = ((DeceptusU16)row[plane][(channel >> 1) * 2] << 8) | row[plane][(channel >> 1) * 2 + 1];
+            output[1] = ((DeceptusU16)row[plane + 1][(channel >> 1) * 2] << 8) | row[plane + 1][(channel >> 1) * 2 + 1];
+         }
       }
    }
    sprite_frames[sprite_frame_count].offset = graphic->offset;
@@ -1765,7 +1789,7 @@ static const DeceptusU16 *spriteFrame(const AmigaGraphicsSprite *graphic, Decept
    return sprite_cache + start;
 }
 
-static void spriteBlit(const DeceptusU16 *source, DeceptusU16 *destination, DeceptusU16 lines)
+static void spriteBlit(const DeceptusU16* source, DeceptusU16* destination, DeceptusU16 lines)
 {
    waitBlitter();
    blit_setup = 0;
@@ -1785,8 +1809,15 @@ static void spriteBlit(const DeceptusU16 *source, DeceptusU16 *destination, Dece
 /* draws the overlay's opaque pixels over the composed player lines of this page. each overlay pair
    is two cached channels (planes 0-1, then 2-3) of height lines, two words per line; its 16 pixels
    straddle at most two sprite columns. pointers step by addition: no multiply per word. */
-static void spriteOverlay(const AmigaNativeBob *overlay, const DeceptusU16 *frame, DeceptusI16 left, DeceptusI16 top,
-                          DeceptusU16 first, DeceptusU16 lines, DeceptusU16 pairs)
+static void spriteOverlay(
+   const AmigaNativeBob* overlay,
+   const DeceptusU16* frame,
+   DeceptusI16 left,
+   DeceptusI16 top,
+   DeceptusU16 first,
+   DeceptusU16 lines,
+   DeceptusU16 pairs
+)
 {
    DeceptusU16 overlay_pairs, height, pair, mask, bits, target, high_target, w0, w1, w2, w3;
    DeceptusI16 x, start, stop, line;
@@ -1865,7 +1896,7 @@ static void spriteOverlay(const AmigaNativeBob *overlay, const DeceptusU16 *fram
             /* every plane word is inside the mask, so the shifted word needs no masking. */
             if (low)
             {
-               bits = (DeceptusU16)~(mask >> shift);
+               bits = (DeceptusU16) ~(mask >> shift);
                low0[0] = (DeceptusU16)((low0[0] & bits) | (w0 >> shift));
                low0[1] = (DeceptusU16)((low0[1] & bits) | (w1 >> shift));
                low1[0] = (DeceptusU16)((low1[0] & bits) | (w2 >> shift));
@@ -1873,7 +1904,7 @@ static void spriteOverlay(const AmigaNativeBob *overlay, const DeceptusU16 *fram
             }
             if (high)
             {
-               bits = (DeceptusU16)~(mask << back);
+               bits = (DeceptusU16) ~(mask << back);
                high0[0] = (DeceptusU16)((high0[0] & bits) | (DeceptusU16)(w0 << back));
                high0[1] = (DeceptusU16)((high0[1] & bits) | (DeceptusU16)(w1 << back));
                high1[0] = (DeceptusU16)((high1[0] & bits) | (DeceptusU16)(w2 << back));
@@ -1890,10 +1921,10 @@ static void spriteOverlay(const AmigaNativeBob *overlay, const DeceptusU16 *fram
 
 /* the static foreground mask of the 16x16 map cell at column, row, one word per scanline (set bits
    cover what is behind them); returns 0 when the cell has no foreground. */
-static DeceptusU8 foregroundCellMask(DeceptusI16 column, DeceptusI16 row, DeceptusU16 *scanlines)
+static DeceptusU8 foregroundCellMask(DeceptusI16 column, DeceptusI16 row, DeceptusU16* scanlines)
 {
    DeceptusU16 color_ids[4], mask_ids[4];
-   const DeceptusU8 *masks[4];
+   const DeceptusU8* masks[4];
    DeceptusU8 half, scanline;
    if ((column < 0) || (row < 0) || !amigaTileArchiveCell(tiles, (DeceptusU16)column, (DeceptusU16)row, color_ids, mask_ids) ||
        !quarterMasks(mask_ids, masks))
@@ -1990,7 +2021,7 @@ static void hideSpriteBehindForeground(DeceptusI16 x, DeceptusI16 y, DeceptusU16
 }
 
 /* 16 mask bits of a bob's row from column on; columns outside the row are clear. */
-static DeceptusU16 bobMaskBits(const DeceptusU16 *row, DeceptusI16 words, DeceptusI16 column)
+static DeceptusU16 bobMaskBits(const DeceptusU16* row, DeceptusI16 words, DeceptusI16 column)
 {
    DeceptusI16 word;
    DeceptusU16 shift, bits;
@@ -2012,7 +2043,7 @@ static DeceptusU16 bobMaskBits(const DeceptusU16 *row, DeceptusI16 words, Decept
    front), but her hardware sprite covers every bob: clear her pixels under their masks instead. */
 static void hideSpriteBehindBobs(DeceptusI16 x, DeceptusI16 y, DeceptusU16 lines, DeceptusU16 pairs)
 {
-   const AmigaNativeBob *bob;
+   const AmigaNativeBob* bob;
    const DeceptusU16 *pixels, *row;
    DeceptusU32 plane_words;
    DeceptusI16 world_x, world_y, first, last, line, words;
@@ -2061,7 +2092,7 @@ static void prepareSprites(void)
 {
    const AmigaNativeBob *bob, *overlay;
    const DeceptusU16 *frame, *overlay_frame;
-   DeceptusU16 *data;
+   DeceptusU16* data;
    DeceptusU16 channel, pairs, player_pairs, lead, wanted, first, last, vstart, vstop, hstart, lines, offset, count;
    DeceptusI16 top, bottom, left, column;
    bob = &hardware_bob;
@@ -2152,12 +2183,15 @@ static void prepareSprites(void)
          continue;
       }
       count = (DeceptusU16)(bob->graphic.height - count < (DeceptusU16)(last - (offset > first ? offset : first))
-                                ? bob->graphic.height - count
-                                : last - (offset > first ? offset : first));
+                               ? bob->graphic.height - count
+                               : last - (offset > first ? offset : first));
       if (count)
       {
-         spriteBlit(frame + (DeceptusU32)(channel - lead * 2) * 2 * bob->graphic.height + (first > offset ? first - offset : 0) * 2,
-                    data + (offset > first ? offset - first : 0) * 2, count);
+         spriteBlit(
+            frame + (DeceptusU32)(channel - lead * 2) * 2 * bob->graphic.height + (first > offset ? first - offset : 0) * 2,
+            data + (offset > first ? offset - first : 0) * 2,
+            count
+         );
       }
    }
    if (overlay_frame)
@@ -2170,13 +2204,13 @@ static void prepareSprites(void)
    hardware_shown[draw_buffer] = (DeceptusU8)(pairs * 2);
 }
 
-static void copperWrite(DeceptusU16 **cursor, DeceptusU16 reg, DeceptusU16 value)
+static void copperWrite(DeceptusU16** cursor, DeceptusU16 reg, DeceptusU16 value)
 {
    *(*cursor)++ = reg;
    *(*cursor)++ = value;
 }
 
-static void planePointer(DeceptusU16 **cursor, DeceptusU16 plane, DeceptusU16 offset)
+static void planePointer(DeceptusU16** cursor, DeceptusU16 plane, DeceptusU16 offset)
 {
    DeceptusU32 address;
    address = (DeceptusU32)(pages[draw_buffer] + offset);
@@ -2185,7 +2219,7 @@ static void planePointer(DeceptusU16 **cursor, DeceptusU16 plane, DeceptusU16 of
 }
 
 /* waits for the start of a screen row; the first row past line 255 needs the wrap wait. */
-static void copperWaitRow(DeceptusU16 **cursor, DeceptusU16 row, DeceptusU8 *crossed)
+static void copperWaitRow(DeceptusU16** cursor, DeceptusU16 row, DeceptusU8* crossed)
 {
    DeceptusU16 line;
    line = row + 0x3c;
@@ -2202,7 +2236,13 @@ static void copperWaitRow(DeceptusU16 **cursor, DeceptusU16 row, DeceptusU8 *cro
    the sprites keep their colours in the transparent corners, then the box palette while the
    region shows only colour 0. stage 1, on the two empty rows below the frame: the room palette.
    stage 2: the room's pointers, modulos, scroll and sprite priority for the rest of the screen. */
-static BOX_CODE void boxSplit(DeceptusU16 **cursor, DeceptusU8 stage, const DeceptusU16 *start, const DeceptusU16 *room_wraps, DeceptusU16 delay)
+static BOX_CODE void boxSplit(
+   DeceptusU16** cursor,
+   DeceptusU8 stage,
+   const DeceptusU16* start,
+   const DeceptusU16* room_wraps,
+   DeceptusU16 delay
+)
 {
    DeceptusU16 plane, row;
    DeceptusU32 address;
@@ -2250,10 +2290,11 @@ static BOX_CODE void boxSplit(DeceptusU16 **cursor, DeceptusU8 stage, const Dece
 
 /* the plane pointer events of a list that shows the box: the room's wraps plus the box splits;
    inside the box the region's pointers run, the restore below the box accounts for the wrap. */
-static BOX_CODE void boxCopper(DeceptusU16 **cursor, const DeceptusU16 *start, DeceptusU16 *wraps, DeceptusU16 delay)
+static BOX_CODE void boxCopper(DeceptusU16** cursor, const DeceptusU16* start, DeceptusU16* wraps, DeceptusU16 delay)
 {
-   static const DeceptusU16 box_rows[3] = {AMIGA_BOX_TOP, AMIGA_BOX_TOP + AMIGA_BOX_BUBBLE_ROW + AMIGA_BOX_BUBBLE_ROWS,
-                                           AMIGA_BOX_TOP + AMIGA_BOX_ROWS};
+   static const DeceptusU16 box_rows[3] = {
+      AMIGA_BOX_TOP, AMIGA_BOX_TOP + AMIGA_BOX_BUBBLE_ROW + AMIGA_BOX_BUBBLE_ROWS, AMIGA_BOX_TOP + AMIGA_BOX_ROWS
+   };
    DeceptusU16 plane, room_wraps[PLANES], minimum, box_row;
    DeceptusU8 box_stage, inside, crossed;
    for (plane = 0; plane < PLANES; ++plane)
@@ -2295,7 +2336,9 @@ static BOX_CODE void boxCopper(DeceptusU16 **cursor, const DeceptusU16 *start, D
          {
             if (!inside)
             {
-               planePointer(cursor, plane, (DeceptusU16)((DeceptusU32)start[plane] + (DeceptusU32)minimum * surface.stride - SURFACE_WORDS));
+               planePointer(
+                  cursor, plane, (DeceptusU16)((DeceptusU32)start[plane] + (DeceptusU32)minimum * surface.stride - SURFACE_WORDS)
+               );
             }
             wraps[plane] = 224;
          }
@@ -2312,7 +2355,7 @@ static DeceptusU16 stormColour(DeceptusU16 colour, DeceptusU8 level)
 }
 
 /* thunderstormoverlay.cpp lights only the sky and far forest: their colours follow the flash. */
-static void prepareStorm(const DeceptusAdventure *game)
+static void prepareStorm(const DeceptusAdventure* game)
 {
    DeceptusU8 level, index, entry;
    level = thunderstormLevel(&game->thunderstorm);
@@ -2330,7 +2373,7 @@ static void prepareStorm(const DeceptusAdventure *game)
 
 static void prepareCopper(void)
 {
-   DeceptusU16 *cursor;
+   DeceptusU16* cursor;
    DeceptusU16 plane, delay, start[PLANES], wraps[PLANES], event, line, minimum;
    DeceptusI16 column;
    DeceptusU32 address;
@@ -2429,7 +2472,9 @@ static void prepareCopper(void)
          {
             if (wraps[plane] == minimum)
             {
-               planePointer(&cursor, plane, (DeceptusU16)((DeceptusU32)start[plane] + (DeceptusU32)minimum * surface.stride - SURFACE_WORDS));
+               planePointer(
+                  &cursor, plane, (DeceptusU16)((DeceptusU32)start[plane] + (DeceptusU32)minimum * surface.stride - SURFACE_WORDS)
+               );
                wraps[plane] = 224;
             }
          }
@@ -2440,10 +2485,10 @@ static void prepareCopper(void)
 
 ROOM_CODE void amigaOpeningVideoReset(void)
 {
-   DeceptusU8 *memory;
+   DeceptusU8* memory;
    const DeceptusU8 *data, *record;
    DeceptusU32 size, start, end, index, cells, fixed, saved, mask_bytes, spare, extra, cache_size, minimum;
-   DeceptusU8 *cache_memory;
+   DeceptusU8* cache_memory;
    DeceptusU16 clip;
    amigaOpeningVideoSuspend();
    graphics = amigaRoomGraphics();
@@ -2496,16 +2541,16 @@ ROOM_CODE void amigaOpeningVideoReset(void)
    box_palette_moves[0] = box_palette_moves[1] = 0;
    box_file = amigaRoomMessageBoxes(&box_file_bytes);
    /* blitter sources: ui text mask, decoded sprite frames and saved backgrounds stay in Chip RAM. */
-   ui_mask = (DeceptusU16 *)memory;
+   ui_mask = (DeceptusU16*)memory;
    memory += UI_MASK_BYTES;
    /* decoded hardware sprite frames: cpu-read, but slow RAM is already the room data's. */
-   sprite_cache = (DeceptusU16 *)memory;
+   sprite_cache = (DeceptusU16*)memory;
    memory += SPRITE_CACHE_WORDS * 2;
    ui_mask_valid = 0;
-   sprite_pixels = (DeceptusU16 *)memory;
+   sprite_pixels = (DeceptusU16*)memory;
    memory += sprite_arena_bytes;
    saved_capacity = (DeceptusU16)(saved / 4);
-   saved_pixels[0] = (DeceptusU16 *)memory;
+   saved_pixels[0] = (DeceptusU16*)memory;
    saved_pixels[1] = saved_pixels[0] + saved_capacity;
    memory += (DeceptusU32)saved_capacity * 4;
    /* composed cells turn repaints into blits and take most of the remaining Chip RAM; the dictionary
@@ -2515,18 +2560,19 @@ ROOM_CODE void amigaOpeningVideoReset(void)
    plain_cells.sets = (DeceptusU16)(CELL_SETS_MIN + (index < PLAIN_SETS_MAX - CELL_SETS_MIN ? index : PLAIN_SETS_MAX - CELL_SETS_MIN));
    index = spare / 5 * 3 / 3 / MASKED_SET_BYTES;
    masked_cells.sets = (DeceptusU16)(CELL_SETS_MIN + (index < MASKED_SETS_MAX - CELL_SETS_MIN ? index : MASKED_SETS_MAX - CELL_SETS_MIN));
-   spare -= ((DeceptusU32)plain_cells.sets - CELL_SETS_MIN) * PLAIN_SET_BYTES + ((DeceptusU32)masked_cells.sets - CELL_SETS_MIN) * MASKED_SET_BYTES;
-   plain_cells.pixels = (DeceptusU16 *)memory;
+   spare -= ((DeceptusU32)plain_cells.sets - CELL_SETS_MIN) * PLAIN_SET_BYTES +
+            ((DeceptusU32)masked_cells.sets - CELL_SETS_MIN) * MASKED_SET_BYTES;
+   plain_cells.pixels = (DeceptusU16*)memory;
    memory += (DeceptusU32)plain_cells.sets * CELL_WORDS * 4;
-   masked_cells.pixels = (DeceptusU16 *)memory;
+   masked_cells.pixels = (DeceptusU16*)memory;
    memory += (DeceptusU32)masked_cells.sets * CELL_WORDS * 8;
-   plain_cells.keys = (DeceptusU16 *)memory;
+   plain_cells.keys = (DeceptusU16*)memory;
    memory += (DeceptusU32)plain_cells.sets * 2 * 4 * 2;
-   masked_cells.keys = (DeceptusU16 *)memory;
+   masked_cells.keys = (DeceptusU16*)memory;
    memory += (DeceptusU32)masked_cells.sets * 2 * 8 * 2;
    plain_cells.recent = memory;
    memory += (DeceptusU32)plain_cells.sets * 2;
-   plain_cells.generation = (DeceptusU16 *)memory;
+   plain_cells.generation = (DeceptusU16*)memory;
    memory += (DeceptusU32)plain_cells.sets * 4;
    memset(plain_cells.generation, 0, (DeceptusU32)plain_cells.sets * 4);
    /* the map memo takes spare Chip RAM only when the room leaves enough for it. */
@@ -2535,7 +2581,7 @@ ROOM_CODE void amigaOpeningVideoReset(void)
    map_slots = 0;
    if (spare > (DeceptusU32)map_columns * map_rows * 4 + 16384UL)
    {
-      map_slots = (DeceptusU16 *)memory;
+      map_slots = (DeceptusU16*)memory;
       memory += (DeceptusU32)map_columns * map_rows * 4;
       spare -= (DeceptusU32)map_columns * map_rows * 4;
       memset(map_slots, 0, (DeceptusU32)map_columns * map_rows * 4);
@@ -2565,10 +2611,11 @@ ROOM_CODE void amigaOpeningVideoReset(void)
    mask_cache.count = 4 + (DeceptusU16)(index < MASK_SLOTS_MAX - 4 ? index : MASK_SLOTS_MAX - 4);
    cache_size -= (DeceptusU32)mask_cache.count * mask_bytes;
    index = cache_size / AMIGA_NATIVE_BANK_BYTES;
-   color_cache.count += (DeceptusU16)(index < (DeceptusU32)(BANK_SLOTS_MAX - color_cache.count) ? index : BANK_SLOTS_MAX - color_cache.count);
-   mask_cache.pixels = (DeceptusU16 *)cache_memory;
+   color_cache.count +=
+      (DeceptusU16)(index < (DeceptusU32)(BANK_SLOTS_MAX - color_cache.count) ? index : BANK_SLOTS_MAX - color_cache.count);
+   mask_cache.pixels = (DeceptusU16*)cache_memory;
    cache_memory += (DeceptusU32)mask_cache.count * mask_bytes;
-   color_cache.pixels = (DeceptusU16 *)cache_memory;
+   color_cache.pixels = (DeceptusU16*)cache_memory;
    for (index = 0; index < BANK_SLOTS_MAX; ++index)
    {
       color_cache.banks[index] = mask_cache.banks[index] = 65535U;
@@ -2616,7 +2663,8 @@ ROOM_CODE void amigaOpeningVideoReset(void)
       clips[clip].rows = readWord(record + 6);
       clips[clip].cells = record + 10;
       cells = (DeceptusU32)clips[clip].columns * clips[clip].rows;
-      if (!cells || cells * clips[clip].clip.frames > 65535UL || readWord(record + 8) != clips[clip].clip.frames || cells > (end - index - 10) / CLIP_CELL_BYTES / clips[clip].clip.frames ||
+      if (!cells || cells * clips[clip].clip.frames > 65535UL || readWord(record + 8) != clips[clip].clip.frames ||
+          cells > (end - index - 10) / CLIP_CELL_BYTES / clips[clip].clip.frames ||
           cells * clips[clip].clip.frames * CLIP_CELL_BYTES != end - index - 10)
       {
          error = 1;
@@ -2649,7 +2697,7 @@ ROOM_CODE void amigaOpeningVideoReset(void)
 }
 
 /* renders gameplay ui text into one-plane bands when its content changes; 0 if it does not fit them. */
-static DeceptusU8 prepareUiMask(const DeceptusAdventure *game, DeceptusU16 signature)
+static DeceptusU8 prepareUiMask(const DeceptusAdventure* game, DeceptusU16 signature)
 {
    DeceptusRect rectangles[2];
    DeceptusU8 count, index;
@@ -2679,8 +2727,14 @@ static DeceptusU8 prepareUiMask(const DeceptusAdventure *game, DeceptusU16 signa
    for (index = 0; index < count; ++index)
    {
       ui_bands[index].screen = rectangles[index];
-      amigaOpeningUiDrawMask(game, (DeceptusU8 *)(ui_mask + (DeceptusU32)index * UI_BAND_ROWS * UI_BAND_WORDS), UI_BAND_WORDS * 2,
-                             rectangles[index].y, rectangles[index].y + rectangles[index].height, rectangles);
+      amigaOpeningUiDrawMask(
+         game,
+         (DeceptusU8*)(ui_mask + (DeceptusU32)index * UI_BAND_ROWS * UI_BAND_WORDS),
+         UI_BAND_WORDS * 2,
+         rectangles[index].y,
+         rectangles[index].y + rectangles[index].height,
+         rectangles
+      );
    }
    ui_band_count = count;
    ui_mask_signature = signature;
@@ -2690,11 +2744,11 @@ static DeceptusU8 prepareUiMask(const DeceptusAdventure *game, DeceptusU16 signa
 }
 
 /* ors a cached text band into all five planes; the barrel shifter absorbs the camera's sub-word scroll. */
-static void blitUiBand(const AmigaUiBand *band, const DeceptusU16 *mask)
+static void blitUiBand(const AmigaUiBand* band, const DeceptusU16* mask)
 {
    DeceptusU16 plane, offset, rows, count, available, last;
    DeceptusI16 world_y;
-   const DeceptusU16 *source;
+   const DeceptusU16* source;
    world_y = camera_y + band->screen.y;
    /* a source-only blit of one masked-out word leaves zero in the shifter, so the first shifted
       line takes no bits from the box clear blit; each band line then ends on a masked word. */
@@ -2740,11 +2794,11 @@ static void blitUiBand(const AmigaUiBand *band, const DeceptusU16 *mask)
 /* the open dialogue's page in the room's box file, or BOX_NO_PAGE when no box shows. the file's
    actions follow the room's interactions; a count that disagrees with the shared content means a
    stale file, and the plain surface box shows instead. */
-static BOX_CODE DeceptusU16 messageBoxPage(const DeceptusAdventure *game)
+static BOX_CODE DeceptusU16 messageBoxPage(const DeceptusAdventure* game)
 {
-   const DeceptusAdventureRoom *room;
-   const AmigaBoxHeader *header;
-   const DeceptusU16 *actions;
+   const DeceptusAdventureRoom* room;
+   const AmigaBoxHeader* header;
+   const DeceptusU16* actions;
    DeceptusU16 action, first;
    if ((game->campaign.mode != DECEPTUS_DIALOGUE && game->campaign.mode != DECEPTUS_NOTIFICATION) || !game->dialogue ||
        game->page >= game->dialogue->page_count || !box_file)
@@ -2756,13 +2810,13 @@ static BOX_CODE DeceptusU16 messageBoxPage(const DeceptusAdventure *game)
    {
       return BOX_NO_PAGE;
    }
-   header = (const AmigaBoxHeader *)box_file;
+   header = (const AmigaBoxHeader*)box_file;
    action = (DeceptusU16)(game->dialogue - room->interactions);
    if (action >= header->actions)
    {
       return BOX_NO_PAGE;
    }
-   actions = (const DeceptusU16 *)(box_file + sizeof(AmigaBoxHeader) + (DeceptusU32)header->templates * sizeof(AmigaBoxTemplate));
+   actions = (const DeceptusU16*)(box_file + sizeof(AmigaBoxHeader) + (DeceptusU32)header->templates * sizeof(AmigaBoxTemplate));
    first = actions[action];
    if (actions[action + 1] - first != game->dialogue->page_count || actions[action + 1] > header->pages)
    {
@@ -2805,7 +2859,7 @@ static BOX_CODE DeceptusU8 lendBoxMemory(void)
    }
    box_lent_from = sprite_arena_bytes;
    sprite_arena_bytes = keep;
-   box_region = (DeceptusU16 *)((DeceptusU8 *)sprite_pixels + keep);
+   box_region = (DeceptusU16*)((DeceptusU8*)sprite_pixels + keep);
    box_staging = box_region + BOX_REGION_BYTES / 2;
    box_compose = box_staging + BOX_REGION_BYTES / 2;
    box_text = box_compose + BOX_TEXT_BYTES / 2;
@@ -2829,13 +2883,13 @@ static BOX_CODE void returnBoxMemory(void)
 
 /* composes the page into the box region when it changes: the frame template, then the text in
    the template's white. one LZ4 decode per page turn, nothing while the page shows. */
-static BOX_CODE DeceptusU8 prepareMessageBox(const DeceptusAdventure *game)
+static BOX_CODE DeceptusU8 prepareMessageBox(const DeceptusAdventure* game)
 {
-   const AmigaBoxHeader *header;
-   const AmigaBoxPage *page;
-   const AmigaBoxTemplate *frame;
+   const AmigaBoxHeader* header;
+   const AmigaBoxPage* page;
+   const AmigaBoxTemplate* frame;
    DeceptusU16 page_id, row, plane, word, *line;
-   const DeceptusU16 *mask;
+   const DeceptusU16* mask;
    page_id = messageBoxPage(game);
    if (page_id == BOX_NO_PAGE)
    {
@@ -2850,20 +2904,20 @@ static BOX_CODE DeceptusU8 prepareMessageBox(const DeceptusAdventure *game)
    {
       return 1;
    }
-   header = (const AmigaBoxHeader *)box_file;
-   page = (const AmigaBoxPage *)(box_file + sizeof(AmigaBoxHeader) + (DeceptusU32)header->templates * sizeof(AmigaBoxTemplate) +
-                                 (((DeceptusU32)header->actions * 2 + 2 + 3) & ~3UL)) +
+   header = (const AmigaBoxHeader*)box_file;
+   page = (const AmigaBoxPage*)(box_file + sizeof(AmigaBoxHeader) + (DeceptusU32)header->templates * sizeof(AmigaBoxTemplate) +
+                                (((DeceptusU32)header->actions * 2 + 2 + 3) & ~3UL)) +
           page_id;
    if (page->template_id >= header->templates || page->offset + page->size > box_file_bytes)
    {
       return 0;
    }
-   frame = (const AmigaBoxTemplate *)(box_file + sizeof(AmigaBoxHeader)) + page->template_id;
+   frame = (const AmigaBoxTemplate*)(box_file + sizeof(AmigaBoxHeader)) + page->template_id;
    if (frame->offset + frame->size > box_file_bytes)
    {
       return 0;
    }
-   if (!amigaLz4Decode(box_file + page->offset, page->size, (DeceptusU8 *)box_text, BOX_TEXT_MASK_BYTES))
+   if (!amigaLz4Decode(box_file + page->offset, page->size, (DeceptusU8*)box_text, BOX_TEXT_MASK_BYTES))
    {
       box_page = BOX_NO_PAGE;
       return 0;
@@ -2871,7 +2925,7 @@ static BOX_CODE DeceptusU8 prepareMessageBox(const DeceptusAdventure *game)
    if (page->template_id != box_template)
    {
       box_template = 255;
-      if (!amigaLz4Decode(box_file + frame->offset, frame->size, (DeceptusU8 *)box_staging, BOX_REGION_BYTES))
+      if (!amigaLz4Decode(box_file + frame->offset, frame->size, (DeceptusU8*)box_staging, BOX_REGION_BYTES))
       {
          box_page = BOX_NO_PAGE;
          return 0;
@@ -2918,8 +2972,11 @@ static BOX_CODE DeceptusU8 prepareMessageBox(const DeceptusAdventure *game)
       }
       memcpy(box_region, box_staging, BOX_TEXT_OFFSET * 2);
       memcpy(box_region + BOX_TEXT_OFFSET, box_compose, BOX_TEXT_BYTES);
-      memcpy(box_region + BOX_TEXT_OFFSET + BOX_TEXT_BYTES / 2, box_staging + BOX_TEXT_OFFSET + BOX_TEXT_BYTES / 2,
-             BOX_REGION_BYTES - BOX_TEXT_OFFSET * 2 - BOX_TEXT_BYTES);
+      memcpy(
+         box_region + BOX_TEXT_OFFSET + BOX_TEXT_BYTES / 2,
+         box_staging + BOX_TEXT_OFFSET + BOX_TEXT_BYTES / 2,
+         BOX_REGION_BYTES - BOX_TEXT_OFFSET * 2 - BOX_TEXT_BYTES
+      );
       box_template = page->template_id;
    }
    else
@@ -2932,7 +2989,7 @@ static BOX_CODE DeceptusU8 prepareMessageBox(const DeceptusAdventure *game)
 }
 
 /* mirrors which boxes amigaOpeningUiDrawSurface places; equal signatures mean equal box layout. */
-static DeceptusU16 uiSignature(const DeceptusAdventure *game)
+static DeceptusU16 uiSignature(const DeceptusAdventure* game)
 {
    DeceptusU16 signature;
    signature = game->campaign.mode;
@@ -2947,18 +3004,18 @@ static DeceptusU16 uiSignature(const DeceptusAdventure *game)
    return signature;
 }
 
-DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFrame *frame)
+DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure* game, const DeceptusFrame* frame)
 {
    DeceptusU16 index, count, clip, signature, run_end, run_cell, color_ids[4], mask_ids[4];
-   DeceptusU8 *mark;
+   DeceptusU8* mark;
 #ifdef AMIGA_PERFCOUNT
    DeceptusU32 draw_started;
 #endif
    DeceptusU8 cached;
    DeceptusRect kept;
    DeceptusI16 x, y;
-   const DeceptusU8 *cell;
-   AmigaSavedBob *saved;
+   const DeceptusU8* cell;
+   AmigaSavedBob* saved;
    if (error)
    {
       return 0;
@@ -3049,11 +3106,14 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       index = dirty_list[count];
       y = (DeceptusI16)(index / SURFACE_COLUMNS);
       x = (DeceptusI16)(index - y * SURFACE_COLUMNS);
-      for (run_end = count + 1; run_end < dirty_count && dirty_list[run_end] == index + (run_end - count) && x + (DeceptusI16)(run_end - count) < SURFACE_COLUMNS;
+      for (run_end = count + 1; run_end < dirty_count && dirty_list[run_end] == index + (run_end - count) &&
+                                x + (DeceptusI16)(run_end - count) < SURFACE_COLUMNS;
            ++run_end)
       {
       }
-      paintRun(0, windows[draw_buffer].column + x, windows[draw_buffer].column + x + (DeceptusI16)(run_end - count), windows[draw_buffer].row + y);
+      paintRun(
+         0, windows[draw_buffer].column + x, windows[draw_buffer].column + x + (DeceptusI16)(run_end - count), windows[draw_buffer].row + y
+      );
       for (run_cell = count; run_cell < run_end; ++run_cell)
       {
          if (clipCovered(1, windows[draw_buffer].column + x + (DeceptusI16)(run_cell - count), windows[draw_buffer].row + y))
@@ -3082,8 +3142,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
       x = (DeceptusI16)(index - y * SURFACE_COLUMNS);
       x += windows[draw_buffer].column;
       y += windows[draw_buffer].row;
-      if (*mark == 2 && x >= 0 && y >= 0 &&
-          amigaTileArchiveCell(tiles, (DeceptusU16)x, (DeceptusU16)y, color_ids, mask_ids))
+      if (*mark == 2 && x >= 0 && y >= 0 && amigaTileArchiveCell(tiles, (DeceptusU16)x, (DeceptusU16)y, color_ids, mask_ids))
       {
          maskedTile(x, y, color_ids, mask_ids);
       }
@@ -3108,9 +3167,9 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    box_visible = prepareMessageBox(game);
    amigaOpeningUiSetDialogueOverlay(box_visible);
    cached = prepareUiMask(game, signature);
-   ui_counts[draw_buffer] =
-      amigaOpeningUiDrawSurface(game, (DeceptusU8 *)pages[draw_buffer], &surface, camera_x, camera_y, clearRectangle, !cached,
-                                previous_ui[draw_buffer]);
+   ui_counts[draw_buffer] = amigaOpeningUiDrawSurface(
+      game, (DeceptusU8*)pages[draw_buffer], &surface, camera_x, camera_y, clearRectangle, !cached, previous_ui[draw_buffer]
+   );
    for (index = 0; cached && index < ui_band_count; ++index)
    {
       blitUiBand(&ui_bands[index], ui_mask + (DeceptusU32)index * UI_BAND_ROWS * UI_BAND_WORDS);

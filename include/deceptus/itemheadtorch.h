@@ -9,6 +9,6 @@ typedef struct DeceptusHeadtorchPose
    DeceptusU8 side, valid;
 } DeceptusHeadtorchPose;
 
-DeceptusU8 deceptusItemHeadtorchEquipped(const DeceptusAdventure *game);
+DeceptusU8 deceptusItemHeadtorchEquipped(const DeceptusAdventure* game);
 
 #endif

@@ -67,7 +67,7 @@ typedef struct DeceptusWaterConfiguration
 
 typedef struct DeceptusRoom
 {
-   const DeceptusU8 *collision;
+   const DeceptusU8* collision;
    DeceptusU16 columns;
    DeceptusU16 rows;
    DeceptusI16 spawn_x;
@@ -77,14 +77,14 @@ typedef struct DeceptusRoom
    DeceptusI16 patrol_y;
    DeceptusI16 door_x;
    DeceptusI16 door_y;
-   const DeceptusMechanismDef *mechanisms;
+   const DeceptusMechanismDef* mechanisms;
    DeceptusU16 mechanism_count;
-   const DeceptusU16 *mechanism_targets;
+   const DeceptusU16* mechanism_targets;
    DeceptusU16 mechanism_target_count;
-   const DeceptusMechanismTiming *mechanism_timings;
-   const struct DeceptusEnemyDef *enemy_definitions;
+   const DeceptusMechanismTiming* mechanism_timings;
+   const struct DeceptusEnemyDef* enemy_definitions;
    DeceptusU16 enemy_count;
-   const struct DeceptusPathPoint *enemy_paths;
+   const struct DeceptusPathPoint* enemy_paths;
    DeceptusU16 enemy_path_count;
    DeceptusU8 max_health;
    DeceptusU8 skills;
@@ -92,7 +92,7 @@ typedef struct DeceptusRoom
    DeceptusU8 player_gravity_fraction;
    DeceptusU8 player_speed;
    DeceptusU8 player_fall_gravity;
-   const DeceptusWaterConfiguration *water;
+   const DeceptusWaterConfiguration* water;
 } DeceptusRoom;
 
 typedef struct DeceptusEntity
@@ -162,7 +162,7 @@ typedef struct DeceptusProjectile
 
 typedef struct DeceptusEngine
 {
-   const DeceptusRoom *room;
+   const DeceptusRoom* room;
    DeceptusEntity entities[DECEPTUS_ENTITY_CAPACITY];
    DeceptusEvent events[DECEPTUS_EVENT_CAPACITY];
    DeceptusVideoCaps video;
@@ -189,10 +189,10 @@ typedef struct DeceptusEngine
    DeceptusPlayerRope player_rope;
 } DeceptusEngine;
 
-void deceptusEventPush(DeceptusEngine *engine, DeceptusU8 kind);
+void deceptusEventPush(DeceptusEngine* engine, DeceptusU8 kind);
 /* returns solid outside horizontal/top boundaries, empty below the room. */
-DeceptusU8 deceptusCell(const DeceptusRoom *room, DeceptusI16 column, DeceptusI16 row);
+DeceptusU8 deceptusCell(const DeceptusRoom* room, DeceptusI16 column, DeceptusI16 row);
 /* claims a zeroed entity slot; returns null when the pool is full. */
-DeceptusEntity *deceptusSpawn(DeceptusEngine *engine, DeceptusU8 kind, DeceptusI16 x, DeceptusI16 y);
+DeceptusEntity* deceptusSpawn(DeceptusEngine* engine, DeceptusU8 kind, DeceptusI16 x, DeceptusI16 y);
 
 #endif

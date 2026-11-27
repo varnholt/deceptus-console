@@ -10,7 +10,7 @@ typedef struct DeceptusPlayerSword
    DeceptusU8 damage[DECEPTUS_ENTITY_CAPACITY];
 } DeceptusPlayerSword;
 
-void deceptusPlayerSwordInit(DeceptusPlayerSword *sword);
-void deceptusPlayerSwordTick(DeceptusPlayerSword *sword, DeceptusEngine *engine, DeceptusU16 pressed);
+void deceptusPlayerSwordInit(DeceptusPlayerSword* sword);
+void deceptusPlayerSwordTick(DeceptusPlayerSword* sword, DeceptusEngine* engine, DeceptusU16 pressed);
 
 #endif

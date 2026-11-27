@@ -25,10 +25,10 @@
 
 /* tan of the angles from straight down halfway between two ball images, in 1/256: image k shows the
  * ball turned 90 - 11.25 k degrees from straight down towards the right. */
-static const DeceptusI16 rotation_bounds[SPIKE_BALL_ROTATIONS - 1] = {
-   2599, 844, 479, 312, 210, 137, 78, 25, -25, -78, -137, -210, -312, -479, -844, -2599};
+static const DeceptusI16 rotation_bounds[SPIKE_BALL_ROTATIONS - 1] =
+   {2599, 844, 479, 312, 210, 137, 78, 25, -25, -78, -137, -210, -312, -479, -844, -2599};
 
-static const SpikeBall *findBall(const DeceptusMechanismSet *set, DeceptusU16 index)
+static const SpikeBall* findBall(const DeceptusMechanismSet* set, DeceptusU16 index)
 {
    DeceptusU8 ball;
    for (ball = 0; ball < set->spike_ball_count; ++ball)
@@ -46,7 +46,7 @@ static DeceptusI32 scaleToChain(DeceptusI32 value, DeceptusI32 length)
    return (value < 0) ? -((-value) * CHAIN_LENGTH / length) : (value * CHAIN_LENGTH / length);
 }
 
-static void swing(SpikeBall *ball)
+static void swing(SpikeBall* ball)
 {
    DeceptusI32 velocity_x, velocity_y, length;
    velocity_x = ball->x - ball->previous_x;
@@ -69,18 +69,18 @@ static void swing(SpikeBall *ball)
    }
 }
 
-static DeceptusI16 anchorX(const DeceptusMechanismSet *set, DeceptusU16 index)
+static DeceptusI16 anchorX(const DeceptusMechanismSet* set, DeceptusU16 index)
 {
    return (DeceptusI16)(set->definitions[index].bounds.x + ANCHOR_OFFSET);
 }
 
-static DeceptusI16 anchorY(const DeceptusMechanismSet *set, DeceptusU16 index)
+static DeceptusI16 anchorY(const DeceptusMechanismSet* set, DeceptusU16 index)
 {
    return (DeceptusI16)(set->definitions[index].bounds.y + ANCHOR_OFFSET);
 }
 
 /* nonzero when the circle at centre_x, centre_y with BALL_RADIUS reaches into bounds. */
-static DeceptusU8 touches(DeceptusI16 centre_x, DeceptusI16 centre_y, const DeceptusRect *bounds)
+static DeceptusU8 touches(DeceptusI16 centre_x, DeceptusI16 centre_y, const DeceptusRect* bounds)
 {
    DeceptusI32 near_x, near_y;
    near_x = centre_x;
@@ -106,7 +106,7 @@ static DeceptusU8 touches(DeceptusI16 centre_x, DeceptusI16 centre_y, const Dece
    return (near_x * near_x + near_y * near_y) < (DeceptusI32)BALL_RADIUS * BALL_RADIUS;
 }
 
-static DeceptusU8 ballImage(const SpikeBall *ball)
+static DeceptusU8 ballImage(const SpikeBall* ball)
 {
    DeceptusI32 across;
    DeceptusU8 image;
@@ -131,9 +131,9 @@ static DeceptusU8 ballImage(const SpikeBall *ball)
    return image;
 }
 
-void spikeBallsInit(DeceptusMechanismSet *set)
+void spikeBallsInit(DeceptusMechanismSet* set)
 {
-   SpikeBall *ball;
+   SpikeBall* ball;
    DeceptusU16 index;
    set->spike_ball_count = 0;
    for (index = 0; index < set->count; ++index)
@@ -151,17 +151,20 @@ void spikeBallsInit(DeceptusMechanismSet *set)
    }
 }
 
-DeceptusU8 spikeBallsTick(DeceptusMechanismSet *set, const DeceptusRect *bounds)
+DeceptusU8 spikeBallsTick(DeceptusMechanismSet* set, const DeceptusRect* bounds)
 {
-   SpikeBall *ball;
+   SpikeBall* ball;
    DeceptusU8 index, touched;
    touched = 0;
    for (index = 0; index < set->spike_ball_count; ++index)
    {
       ball = &set->spike_balls[index];
       swing(ball);
-      if (touches((DeceptusI16)(anchorX(set, ball->mechanism_index) + (ball->x >> POSITION_SHIFT)),
-                  (DeceptusI16)(anchorY(set, ball->mechanism_index) + (ball->y >> POSITION_SHIFT)), bounds))
+      if (touches(
+             (DeceptusI16)(anchorX(set, ball->mechanism_index) + (ball->x >> POSITION_SHIFT)),
+             (DeceptusI16)(anchorY(set, ball->mechanism_index) + (ball->y >> POSITION_SHIFT)),
+             bounds
+          ))
       {
          touched = 1;
       }
@@ -169,9 +172,9 @@ DeceptusU8 spikeBallsTick(DeceptusMechanismSet *set, const DeceptusRect *bounds)
    return touched;
 }
 
-void spikeBallPart(const DeceptusMechanismSet *set, DeceptusU16 index, DeceptusU8 part, DeceptusU8 *image, DeceptusI16 *x, DeceptusI16 *y)
+void spikeBallPart(const DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8 part, DeceptusU8* image, DeceptusI16* x, DeceptusI16* y)
 {
-   const SpikeBall *ball;
+   const SpikeBall* ball;
    ball = findBall(set, index);
    if (ball == 0)
    {

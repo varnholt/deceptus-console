@@ -21,12 +21,12 @@ static DeceptusFixed approach(DeceptusFixed current, DeceptusFixed target, Decep
 #include "enemies/frog_blue.c"
 #include "enemies/orb.c"
 
-void deceptusEnemiesInit(DeceptusEngine *engine)
+void deceptusEnemiesInit(DeceptusEngine* engine)
 {
    DeceptusU16 index, point;
    DeceptusI16 row;
-   const DeceptusEnemyDef *definition;
-   DeceptusEntity *entity;
+   const DeceptusEnemyDef* definition;
+   DeceptusEntity* entity;
    if (engine->room->enemy_count > 8 || (engine->room->enemy_count && !engine->room->enemy_definitions))
    {
       engine->content_error = 6;
@@ -159,11 +159,11 @@ void deceptusEnemiesInit(DeceptusEngine *engine)
    }
 }
 
-static void ratTick(DeceptusEngine *engine, DeceptusEntity *rat, const DeceptusEnemyDef *definition)
+static void ratTick(DeceptusEngine* engine, DeceptusEntity* rat, const DeceptusEnemyDef* definition)
 {
    DeceptusI16 distance;
    DeceptusU8 column, choice;
-   const DeceptusPathPoint *point;
+   const DeceptusPathPoint* point;
    if (rat->pause_ticks)
    {
       --rat->pause_ticks;
@@ -243,10 +243,10 @@ static void ratTick(DeceptusEngine *engine, DeceptusEntity *rat, const DeceptusE
    rat->frame = rat->state * 14 + (rat->facing_left ? 0 : 7) + column;
 }
 
-static void fireArrow(DeceptusEngine *engine, const DeceptusEntity *trap, const DeceptusEnemyDef *definition, DeceptusU8 muzzle)
+static void fireArrow(DeceptusEngine* engine, const DeceptusEntity* trap, const DeceptusEnemyDef* definition, DeceptusU8 muzzle)
 {
    DeceptusU16 index;
-   DeceptusProjectile *arrow;
+   DeceptusProjectile* arrow;
    for (index = 0; index < DECEPTUS_PROJECTILE_CAPACITY; ++index)
    {
       arrow = &engine->projectiles[index];
@@ -283,7 +283,7 @@ static void fireArrow(DeceptusEngine *engine, const DeceptusEntity *trap, const 
    }
 }
 
-static DeceptusU8 projectileMove(DeceptusEngine *engine, DeceptusProjectile *arrow)
+static DeceptusU8 projectileMove(DeceptusEngine* engine, DeceptusProjectile* arrow)
 {
    DeceptusFixed start_x, start_y, next_x, next_y;
    DeceptusI16 step, row, column;
@@ -327,13 +327,13 @@ static DeceptusU8 projectileMove(DeceptusEngine *engine, DeceptusProjectile *arr
    return 1;
 }
 
-DeceptusU16 deceptusEnemiesTick(DeceptusEngine *engine)
+DeceptusU16 deceptusEnemiesTick(DeceptusEngine* engine)
 {
    DeceptusU16 index, muzzle, damage;
    DeceptusI16 x, y, dx, dy;
-   DeceptusEntity *enemy;
-   DeceptusProjectile *arrow;
-   const DeceptusEnemyDef *definition;
+   DeceptusEntity* enemy;
+   DeceptusProjectile* arrow;
+   const DeceptusEnemyDef* definition;
    damage = 0;
    for (index = 1; index < DECEPTUS_ENTITY_CAPACITY; ++index)
    {
@@ -467,10 +467,18 @@ DeceptusU16 deceptusEnemiesTick(DeceptusEngine *engine)
    return damage;
 }
 
-static void drawEnemy(const DeceptusEngine *engine, DeceptusFrame *frame, DeceptusU8 kind, DeceptusU8 image, DeceptusI16 x, DeceptusI16 y,
-                      DeceptusI16 width, DeceptusI16 height)
+static void drawEnemy(
+   const DeceptusEngine* engine,
+   DeceptusFrame* frame,
+   DeceptusU8 kind,
+   DeceptusU8 image,
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusI16 width,
+   DeceptusI16 height
+)
 {
-   DeceptusDraw *draw;
+   DeceptusDraw* draw;
    x -= engine->camera_x;
    y -= engine->camera_y;
    if (x <= -width || y <= -height || x >= engine->video.width || y >= engine->video.height || frame->count >= DECEPTUS_DRAW_CAPACITY ||
@@ -487,13 +495,13 @@ static void drawEnemy(const DeceptusEngine *engine, DeceptusFrame *frame, Decept
    draw->flip_x = 0;
 }
 
-void deceptusEnemiesRender(const DeceptusEngine *engine, DeceptusFrame *frame)
+void deceptusEnemiesRender(const DeceptusEngine* engine, DeceptusFrame* frame)
 {
    DeceptusU16 index, muzzle, image, elapsed;
    DeceptusI16 x, y;
-   const DeceptusEntity *enemy;
-   const DeceptusEnemyDef *definition;
-   const DeceptusProjectile *arrow;
+   const DeceptusEntity* enemy;
+   const DeceptusEnemyDef* definition;
+   const DeceptusProjectile* arrow;
    for (index = 0; index < DECEPTUS_PROJECTILE_CAPACITY; ++index)
    {
       arrow = &engine->projectiles[index];
@@ -503,19 +511,43 @@ void deceptusEnemiesRender(const DeceptusEngine *engine, DeceptusFrame *frame)
          {
             if (arrow->owner && arrow->owner < DECEPTUS_ENTITY_CAPACITY)
             {
-               drawEnemy(engine, frame, DECEPTUS_BLUE_FIREBALL, (DeceptusU8)(((engine->entities[arrow->owner].drop_ticks * 3) / 10) & 7),
-                         deceptusFloor(arrow->x) - 36, deceptusFloor(arrow->y) - 60, 120, 120);
+               drawEnemy(
+                  engine,
+                  frame,
+                  DECEPTUS_BLUE_FIREBALL,
+                  (DeceptusU8)(((engine->entities[arrow->owner].drop_ticks * 3) / 10) & 7),
+                  deceptusFloor(arrow->x) - 36,
+                  deceptusFloor(arrow->y) - 60,
+                  120,
+                  120
+               );
             }
          }
          else if (arrow->kind == DECEPTUS_CANNONBALL)
          {
-            drawEnemy(engine, frame, DECEPTUS_CANNONBALL, (DeceptusU8)((arrow->age / 3) % 4), deceptusFloor(arrow->x) - 36,
-                      deceptusFloor(arrow->y) - 36, 72, 72);
+            drawEnemy(
+               engine,
+               frame,
+               DECEPTUS_CANNONBALL,
+               (DeceptusU8)((arrow->age / 3) % 4),
+               deceptusFloor(arrow->x) - 36,
+               deceptusFloor(arrow->y) - 36,
+               72,
+               72
+            );
          }
          else
          {
-            drawEnemy(engine, frame, DECEPTUS_ARROW, (DeceptusU8)(arrow->alignment * 4 + (arrow->age / 5) % 4),
-                      deceptusFloor(arrow->x) - 12, deceptusFloor(arrow->y) - 12, 32, 32);
+            drawEnemy(
+               engine,
+               frame,
+               DECEPTUS_ARROW,
+               (DeceptusU8)(arrow->alignment * 4 + (arrow->age / 5) % 4),
+               deceptusFloor(arrow->x) - 12,
+               deceptusFloor(arrow->y) - 12,
+               32,
+               32
+            );
          }
       }
    }
@@ -579,9 +611,16 @@ void deceptusEnemiesRender(const DeceptusEngine *engine, DeceptusFrame *frame)
                   image = 9;
                }
             }
-            drawEnemy(engine, frame, DECEPTUS_ARROW_MUZZLE, (DeceptusU8)(definition->alignment * 10 + image),
-                      x + (definition->alignment < 2 ? (definition->alignment ? 24 : -24) : muzzle * 8),
-                      y + (definition->alignment < 2 ? muzzle * 8 : (definition->alignment == 2 ? 24 : -24)), 32, 32);
+            drawEnemy(
+               engine,
+               frame,
+               DECEPTUS_ARROW_MUZZLE,
+               (DeceptusU8)(definition->alignment * 10 + image),
+               x + (definition->alignment < 2 ? (definition->alignment ? 24 : -24) : muzzle * 8),
+               y + (definition->alignment < 2 ? muzzle * 8 : (definition->alignment == 2 ? 24 : -24)),
+               32,
+               32
+            );
          }
       }
    }

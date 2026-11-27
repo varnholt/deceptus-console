@@ -25,7 +25,7 @@ extern SnesStormStaging snes_storm_stagings[SNES_STORM_STAGINGS];
 /* the room's colours were just uploaded unlit. */
 void snesStormReset(void);
 /* stages the room's colours into the buffer when the flash level changed. */
-void snesStormStage(const DeceptusAdventure *game, DeceptusU8 buffer);
+void snesStormStage(const DeceptusAdventure* game, DeceptusU8 buffer);
 /* vblank lines the buffer's upload takes. */
 DeceptusU16 snesStormCommitLines(DeceptusU8 buffer);
 /* uploads the buffer's staged colours, if any. */

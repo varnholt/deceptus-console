@@ -6,11 +6,11 @@
 
 typedef struct AmigaUiCanvas
 {
-   DeceptusU8 *pixels;
+   DeceptusU8* pixels;
    DeceptusU16 stride;
    DeceptusU32 plane_stride;
    DeceptusI16 origin_x, origin_y;
-   const AmigaScrollSurface *surface;
+   const AmigaScrollSurface* surface;
    AmigaUiClear clear;
    DeceptusU32 plane_bytes;
    /* boxes and text are optional so a backend can cache text separately; a mask canvas holds one
@@ -27,7 +27,7 @@ void amigaOpeningUiSetDialogueOverlay(DeceptusU8 enabled)
    dialogue_overlay = enabled;
 }
 
-static DeceptusU8 *canvasAddress(const AmigaUiCanvas *canvas, DeceptusI16 column, DeceptusI16 y, DeceptusU8 plane)
+static DeceptusU8* canvasAddress(const AmigaUiCanvas* canvas, DeceptusI16 column, DeceptusI16 y, DeceptusU8 plane)
 {
    if (canvas->surface)
    {
@@ -37,17 +37,18 @@ static DeceptusU8 *canvasAddress(const AmigaUiCanvas *canvas, DeceptusI16 column
 }
 
 /* whether three bytes in each plane row from here stay clear of the ring end. */
-static DeceptusU8 canvasLinear(const AmigaUiCanvas *canvas, const DeceptusU8 *address)
+static DeceptusU8 canvasLinear(const AmigaUiCanvas* canvas, const DeceptusU8* address)
 {
    if (!canvas->surface)
    {
       return 1;
    }
-   return (DeceptusU32)(address - canvas->pixels) + (DeceptusU32)(canvas->planes - 1) * canvas->plane_bytes + 3 <= (DeceptusU32)canvas->surface->words * 2;
+   return (DeceptusU32)(address - canvas->pixels) + (DeceptusU32)(canvas->planes - 1) * canvas->plane_bytes + 3 <=
+          (DeceptusU32)canvas->surface->words * 2;
 }
 
 /* the same byte in the next bitplane; interleaved surface rows keep planes one plane-row apart. */
-static DeceptusU8 *canvasPlane(const AmigaUiCanvas *canvas, DeceptusU8 *address)
+static DeceptusU8* canvasPlane(const AmigaUiCanvas* canvas, DeceptusU8* address)
 {
    DeceptusU32 byte, end;
    if (!canvas->surface)
@@ -61,7 +62,7 @@ static DeceptusU8 *canvasPlane(const AmigaUiCanvas *canvas, DeceptusU8 *address)
 
 /* the next byte along the same row; on a scroll surface this wraps at the ring end instead of
    recomputing a full surface offset for every byte. */
-static DeceptusU8 *canvasNext(const AmigaUiCanvas *canvas, DeceptusU8 *address)
+static DeceptusU8* canvasNext(const AmigaUiCanvas* canvas, DeceptusU8* address)
 {
    DeceptusU32 byte, end;
    if (!canvas->surface)
@@ -73,12 +74,18 @@ static DeceptusU8 *canvasNext(const AmigaUiCanvas *canvas, DeceptusU8 *address)
    return canvas->pixels + (byte >= end ? byte - end : byte);
 }
 
-static void blackBox(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, DeceptusI16 width, DeceptusI16 height,
-                     DeceptusRect *rectangle)
+static void blackBox(
+   const AmigaUiCanvas* canvas,
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusI16 width,
+   DeceptusI16 height,
+   DeceptusRect* rectangle
+)
 {
    DeceptusU8 plane, first_mask, last_mask;
    DeceptusI16 row, column, first, last;
-   DeceptusU8 *address;
+   DeceptusU8* address;
    rectangle->x = x + canvas->origin_x;
    rectangle->y = y + canvas->origin_y;
    rectangle->width = width;
@@ -122,13 +129,13 @@ static void blackBox(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, 
    }
 }
 
-static void text(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, const char *value, DeceptusI16 width, DeceptusU8 lines)
+static void text(const AmigaUiCanvas* canvas, DeceptusI16 x, DeceptusI16 y, const char* value, DeceptusI16 width, DeceptusU8 lines)
 {
    DeceptusI16 cursor, row, pixel_x, visible;
    DeceptusU8 character, plane, advance, first, middle, last;
    DeceptusU32 bits;
    DeceptusU16 word;
-   const DeceptusU16 *glyph;
+   const DeceptusU16* glyph;
    DeceptusU8 *destination, *line;
    if (!canvas->glyphs)
    {
@@ -217,15 +224,24 @@ static void text(const AmigaUiCanvas *canvas, DeceptusI16 x, DeceptusI16 y, cons
    AMIGA_PERF(amigaPerfPhase(10);)
 }
 
-static void option(const AmigaUiCanvas *canvas, DeceptusI16 y, const char *label, DeceptusU8 selected)
+static void option(const AmigaUiCanvas* canvas, DeceptusI16 y, const char* label, DeceptusU8 selected)
 {
    text(canvas, 72, y, selected ? ">" : " ", 16, 1);
    text(canvas, 92, y, label, 180, 1);
 }
 
-static DeceptusU8 drawUi(AmigaUiCanvas *canvas_template, const DeceptusAdventure *game, DeceptusU8 *pixels, DeceptusU16 row_bytes,
-                         DeceptusU32 plane_bytes, DeceptusI16 view_x, DeceptusI16 view_y, const AmigaScrollSurface *surface,
-                         AmigaUiClear clear, DeceptusRect *rectangles)
+static DeceptusU8 drawUi(
+   AmigaUiCanvas* canvas_template,
+   const DeceptusAdventure* game,
+   DeceptusU8* pixels,
+   DeceptusU16 row_bytes,
+   DeceptusU32 plane_bytes,
+   DeceptusI16 view_x,
+   DeceptusI16 view_y,
+   const AmigaScrollSurface* surface,
+   AmigaUiClear clear,
+   DeceptusRect* rectangles
+)
 {
    DeceptusU8 mode, count;
    AmigaUiCanvas canvas;
@@ -276,9 +292,14 @@ static DeceptusU8 drawUi(AmigaUiCanvas *canvas_template, const DeceptusAdventure
       else if (mode == DECEPTUS_MENU_INVENTORY)
       {
          text(&canvas, 88, 48, "INVENTORY", 200, 1);
-         text(&canvas, 48, 90,
-              game->selection && game->selection <= game->definition->item_count ? game->definition->item_names[game->selection] : "EMPTY",
-              224, 3);
+         text(
+            &canvas,
+            48,
+            90,
+            game->selection && game->selection <= game->definition->item_count ? game->definition->item_names[game->selection] : "EMPTY",
+            224,
+            3
+         );
          text(&canvas, 48, 174, "UP/DOWN  RETURN: BACK", 224, 1);
       }
       else if (mode == DECEPTUS_MENU_OPTIONS)
@@ -325,8 +346,15 @@ static DeceptusU8 drawUi(AmigaUiCanvas *canvas_template, const DeceptusAdventure
    return count;
 }
 
-DeceptusU8 amigaOpeningUiDraw(const DeceptusAdventure *game, DeceptusU8 *pixels, DeceptusU16 row_bytes, DeceptusU32 plane_bytes,
-                              DeceptusI16 view_x, DeceptusI16 view_y, DeceptusRect *rectangles)
+DeceptusU8 amigaOpeningUiDraw(
+   const DeceptusAdventure* game,
+   DeceptusU8* pixels,
+   DeceptusU16 row_bytes,
+   DeceptusU32 plane_bytes,
+   DeceptusI16 view_x,
+   DeceptusI16 view_y,
+   DeceptusRect* rectangles
+)
 {
    AmigaUiCanvas canvas;
    canvas.boxes = canvas.glyphs = 1;
@@ -336,9 +364,16 @@ DeceptusU8 amigaOpeningUiDraw(const DeceptusAdventure *game, DeceptusU8 *pixels,
    return drawUi(&canvas, game, pixels, row_bytes, plane_bytes, view_x, view_y, 0, 0, rectangles);
 }
 
-DeceptusU8 amigaOpeningUiDrawSurface(const DeceptusAdventure *game, DeceptusU8 *pixels, const AmigaScrollSurface *surface,
-                                     DeceptusI16 camera_x, DeceptusI16 camera_y, AmigaUiClear clear, DeceptusU8 glyphs,
-                                     DeceptusRect *rectangles)
+DeceptusU8 amigaOpeningUiDrawSurface(
+   const DeceptusAdventure* game,
+   DeceptusU8* pixels,
+   const AmigaScrollSurface* surface,
+   DeceptusI16 camera_x,
+   DeceptusI16 camera_y,
+   AmigaUiClear clear,
+   DeceptusU8 glyphs,
+   DeceptusRect* rectangles
+)
 {
    AmigaUiCanvas canvas;
    canvas.boxes = 1;
@@ -349,8 +384,14 @@ DeceptusU8 amigaOpeningUiDrawSurface(const DeceptusAdventure *game, DeceptusU8 *
    return drawUi(&canvas, game, pixels, 0, 0, camera_x, camera_y, surface, clear, rectangles);
 }
 
-DeceptusU8 amigaOpeningUiDrawMask(const DeceptusAdventure *game, DeceptusU8 *rows, DeceptusU16 row_bytes, DeceptusI16 top,
-                                  DeceptusI16 bottom, DeceptusRect *rectangles)
+DeceptusU8 amigaOpeningUiDrawMask(
+   const DeceptusAdventure* game,
+   DeceptusU8* rows,
+   DeceptusU16 row_bytes,
+   DeceptusI16 top,
+   DeceptusI16 bottom,
+   DeceptusRect* rectangles
+)
 {
    AmigaUiCanvas canvas;
    canvas.boxes = 0;

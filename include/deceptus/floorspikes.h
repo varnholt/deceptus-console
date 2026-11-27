@@ -16,10 +16,10 @@
 #define FLOOR_SPIKES_RETRACTED 14
 
 /* every spike tile of the room starts at its tile's frame. */
-void floorSpikesInit(DeceptusMechanismSet *set);
+void floorSpikesInit(DeceptusMechanismSet* set);
 /* one tick of every spike tile; the damage the body at bounds takes from them, zero for none. */
-DeceptusU16 floorSpikesTick(DeceptusMechanismSet *set, const DeceptusRect *bounds);
+DeceptusU16 floorSpikesTick(DeceptusMechanismSet* set, const DeceptusRect* bounds);
 /* the shared sprite family image of the spike tile at mechanism index. */
-DeceptusU8 floorSpikesImage(const DeceptusMechanismSet *set, DeceptusU16 index);
+DeceptusU8 floorSpikesImage(const DeceptusMechanismSet* set, DeceptusU16 index);
 
 #endif

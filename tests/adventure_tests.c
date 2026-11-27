@@ -1,18 +1,18 @@
-#include "deceptus/game.h"
-#include "deceptus/adventure.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "deceptus/adventure.h"
+#include "deceptus/game.h"
 
 static void testIronDoorKey(void)
 {
    static DeceptusU8 cells[32 * 28];
    static const DeceptusMechanismDef door = {425, {128, 120, 24, 72}, 0, 0, 7, DECEPTUS_MECH_DOOR, 0, 0};
    static const DeceptusInteraction action = {425, {96, 120, 80, 72}, 0, 0, 0, 0, 425, 0, 7, 0, DECEPTUS_ACTION_DOOR, 0};
-   static const char *const names[] = {"", "", "", "", "", "", "", "Red Key"};
+   static const char* const names[] = {"", "", "", "", "", "", "", "Red Key"};
    static const DeceptusCampaignGoal goal = {{0, 0, 1, 1}, 0};
    DeceptusRoom room;
-   const DeceptusRoom *rooms[1];
+   const DeceptusRoom* rooms[1];
    DeceptusAdventureRoom settings;
    DeceptusCampaignDef campaign;
    DeceptusAdventureDef definition;
@@ -78,16 +78,20 @@ static void testOwlEyesProgression(void)
 {
    static DeceptusU8 cells[32 * 28];
    static DeceptusRoom rooms[2];
-   static const DeceptusRoom *room_pointers[2];
+   static const DeceptusRoom* room_pointers[2];
    static const DeceptusCampaignGoal goals[2] = {{{0, 0, 1, 1}, 0}, {{0, 0, 1, 1}, 0}};
-   static const char *const names[] = {"", "Rubies", "Sword"};
+   static const char* const names[] = {"", "Rubies", "Sword"};
    static const DeceptusU16 targets[] = {1387, 1388, 1389};
-   static const DeceptusMechanismDef cages[] = {{1386, {150, 100, 8, 40}, 0, 3, 0, DECEPTUS_MECH_BLOCK, 1, 0},
-                                                {1387, {158, 100, 8, 40}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0},
-                                                {1388, {166, 100, 8, 40}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0},
-                                                {1389, {174, 100, 8, 40}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0}};
-   static const DeceptusInteraction shrine[] = {{1400, {80, 144, 40, 48}, 0, 0, 256, 256, 1386, 0, 1, 0, DECEPTUS_ACTION_OWL_EYES, 0},
-                                                {1401, {120, 144, 40, 48}, 0, 256, 512, 512, 1386, 0, 0, 2, DECEPTUS_ACTION_SWORD, 1}};
+   static const DeceptusMechanismDef cages[] = {
+      {1386, {150, 100, 8, 40}, 0, 3, 0, DECEPTUS_MECH_BLOCK, 1, 0},
+      {1387, {158, 100, 8, 40}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0},
+      {1388, {166, 100, 8, 40}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0},
+      {1389, {174, 100, 8, 40}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0}
+   };
+   static const DeceptusInteraction shrine[] = {
+      {1400, {80, 144, 40, 48}, 0, 0, 256, 256, 1386, 0, 1, 0, DECEPTUS_ACTION_OWL_EYES, 0},
+      {1401, {120, 144, 40, 48}, 0, 256, 512, 512, 1386, 0, 0, 2, DECEPTUS_ACTION_SWORD, 1}
+   };
    static const DeceptusInteraction ruby = {200, {32, 144, 32, 48}, 0, 0, 128, 128, 0, 0, 0, 1, 0, 0};
    static const DeceptusAdventureBinding binding = {256, 0, 1386, 0};
    /* authored entrances include feet exactly on the lower edge of their rectangle. */
@@ -265,15 +269,17 @@ int main(void)
 {
    static DeceptusU8 cells[32 * 28];
    static DeceptusRoom rooms[2];
-   static const DeceptusRoom *room_pointers[2];
+   static const DeceptusRoom* room_pointers[2];
    static const DeceptusCampaignGoal goals[2] = {{{0, 0, 1, 1}, 0}, {{0, 0, 1, 1}, 0}};
-   static const char *const pages[] = {"Original dialogue.", "Second page."};
-   static const char *const names[] = {"", "Key", "Handle"};
+   static const char* const pages[] = {"Original dialogue.", "Second page."};
+   static const char* const names[] = {"", "Key", "Handle"};
    static const DeceptusMechanismDef lever = {581, {144, 144, 48, 48}, 0, 0, 0, DECEPTUS_MECH_LEVER, 1, DECEPTUS_MECH_MISSING_HANDLE};
-   static const DeceptusInteraction actions[] = {{1385, {24, 144, 32, 48}, pages, 0, 2, 2, 0, 2, 0, 1, 0, 0},
-                                                 {1432, {88, 144, 32, 48}, pages, 0, 1, 1, 0, 2, 1, 2, 0, 0},
-                                                 {581, {144, 144, 48, 48}, pages, 1, 8, 8, 581, 2, 2, 0, DECEPTUS_ACTION_HANDLE, 0},
-                                                 {945, {200, 144, 32, 48}, pages, 0, 64, 64, 0, 2, 0, 0, DECEPTUS_ACTION_NOTIFICATION, 3}};
+   static const DeceptusInteraction actions[] = {
+      {1385, {24, 144, 32, 48}, pages, 0, 2, 2, 0, 2, 0, 1, 0, 0},
+      {1432, {88, 144, 32, 48}, pages, 0, 1, 1, 0, 2, 1, 2, 0, 0},
+      {581, {144, 144, 48, 48}, pages, 1, 8, 8, 581, 2, 2, 0, DECEPTUS_ACTION_HANDLE, 0},
+      {945, {200, 144, 32, 48}, pages, 0, 64, 64, 0, 2, 0, 0, DECEPTUS_ACTION_NOTIFICATION, 3}
+   };
    static const DeceptusPortal right = {{248, 144, 8, 64}, -256, 0, 1, DECEPTUS_PORTAL_RIGHT, 0, 0, 0};
    static const DeceptusPortal left = {{0, 144, 8, 64}, 256, 0, 0, DECEPTUS_PORTAL_LEFT, 0, 0, 0};
    DeceptusAdventureRoom settings[2];

@@ -18,7 +18,15 @@
 DeceptusU8 ropeLinkAngle(DeceptusI16 dx, DeceptusI16 dy);
 /* the cell's top left for a piece from x0, y0 to x1, y1 that covers covered px of a piece drawn
  * full px long: centred on its points, and a shorter last piece ending at x1, y1. */
-void ropeLinkCell(DeceptusI16 x0, DeceptusI16 y0, DeceptusI16 x1, DeceptusI16 y1, DeceptusU16 covered, DeceptusU16 full,
-                  DeceptusI16 *x, DeceptusI16 *y);
+void ropeLinkCell(
+   DeceptusI16 x0,
+   DeceptusI16 y0,
+   DeceptusI16 x1,
+   DeceptusI16 y1,
+   DeceptusU16 covered,
+   DeceptusU16 full,
+   DeceptusI16* x,
+   DeceptusI16* y
+);
 
 #endif

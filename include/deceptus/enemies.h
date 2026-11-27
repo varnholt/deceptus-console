@@ -26,7 +26,7 @@ typedef struct DeceptusEnemyDef
    DeceptusU8 kind, alignment, cycles[5], animation_fps, idle_ticks;
 } DeceptusEnemyDef;
 
-void deceptusEnemiesInit(DeceptusEngine *engine);
-DeceptusU16 deceptusEnemiesTick(DeceptusEngine *engine);
-void deceptusEnemiesRender(const DeceptusEngine *engine, DeceptusFrame *frame);
+void deceptusEnemiesInit(DeceptusEngine* engine);
+DeceptusU16 deceptusEnemiesTick(DeceptusEngine* engine);
+void deceptusEnemiesRender(const DeceptusEngine* engine, DeceptusFrame* frame);
 #endif

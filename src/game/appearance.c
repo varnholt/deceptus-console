@@ -1,17 +1,23 @@
 #include "deceptus/appearance.h"
-#include "deceptus/ropelink.h"
-#include "deceptus/itemicon.h"
 #include "deceptus/enemies.h"
+#include "deceptus/itemicon.h"
 #include "deceptus/mechanismparts.h"
+#include "deceptus/ropelink.h"
 
 typedef struct DeceptusAppearanceOutput
 {
    DeceptusSpriteEmitter emit;
-   void *context;
+   void* context;
 } DeceptusAppearanceOutput;
 
-static DeceptusU8 addSprite(DeceptusAppearanceOutput *output, DeceptusU8 family, DeceptusU16 frame, DeceptusI16 x, DeceptusI16 y,
-                            DeceptusU8 flip)
+static DeceptusU8 addSprite(
+   DeceptusAppearanceOutput* output,
+   DeceptusU8 family,
+   DeceptusU16 frame,
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU8 flip
+)
 {
    DeceptusSpriteAppearance sprite;
    sprite.family = family;
@@ -22,11 +28,16 @@ static DeceptusU8 addSprite(DeceptusAppearanceOutput *output, DeceptusU8 family,
    return output->emit(output->context, &sprite);
 }
 
-static DeceptusU8 playerSprites(const DeceptusAdventure *game, const DeceptusDraw *draw, const DeceptusAppearanceDef *definition,
-                                DeceptusPlayerAnimation *animation, DeceptusAppearanceOutput *output)
+static DeceptusU8 playerSprites(
+   const DeceptusAdventure* game,
+   const DeceptusDraw* draw,
+   const DeceptusAppearanceDef* definition,
+   DeceptusPlayerAnimation* animation,
+   DeceptusAppearanceOutput* output
+)
 {
-   const DeceptusEngine *engine;
-   const DeceptusHeadtorchPose *pose;
+   const DeceptusEngine* engine;
+   const DeceptusHeadtorchPose* pose;
    DeceptusDraw sword;
    DeceptusI16 x, y, helmet_x, helmet_y;
    DeceptusU8 family, image, flip;
@@ -89,8 +100,14 @@ static DeceptusU8 playerSprites(const DeceptusAdventure *game, const DeceptusDra
       helmet_x = deceptusFloor(engine->entities[0].x) - engine->camera_x + pose->x;
       helmet_y = deceptusFloor(engine->entities[0].y) - engine->camera_y + pose->y;
       if ((addSprite(output, DECEPTUS_SPRITE_HEADTORCH, pose->side, helmet_x, helmet_y, 0) == 0) ||
-          (addSprite(output, DECEPTUS_SPRITE_HEADTORCH_BEAM, 0, helmet_x + definition->lamp_offsets[pose->side][0] - (pose->side ? 64 : 0),
-                     helmet_y + definition->lamp_offsets[pose->side][1] - 16, pose->side) == 0))
+          (addSprite(
+              output,
+              DECEPTUS_SPRITE_HEADTORCH_BEAM,
+              0,
+              helmet_x + definition->lamp_offsets[pose->side][0] - (pose->side ? 64 : 0),
+              helmet_y + definition->lamp_offsets[pose->side][1] - 16,
+              pose->side
+           ) == 0))
       {
          return 0;
       }
@@ -98,7 +115,7 @@ static DeceptusU8 playerSprites(const DeceptusAdventure *game, const DeceptusDra
    return addSprite(output, family, image, x, y, flip);
 }
 
-static DeceptusU8 mechanismIndexSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output, DeceptusU16 index)
+static DeceptusU8 mechanismIndexSprites(const DeceptusEngine* engine, DeceptusAppearanceOutput* output, DeceptusU16 index)
 {
    MechanismPart piece;
    DeceptusU8 part, parts;
@@ -116,7 +133,7 @@ static DeceptusU8 mechanismIndexSprites(const DeceptusEngine *engine, DeceptusAp
 
 /* sprites emitted earlier are drawn in front of later ones: the mechanisms in front of the player
  * come before her, from the list the room start keeps of them. */
-static DeceptusU8 frontMechanismSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
+static DeceptusU8 frontMechanismSprites(const DeceptusEngine* engine, DeceptusAppearanceOutput* output)
 {
    DeceptusU8 front;
    for (front = 0; front < engine->mechanisms.front_count; ++front)
@@ -131,9 +148,9 @@ static DeceptusU8 frontMechanismSprites(const DeceptusEngine *engine, DeceptusAp
 
 /* the mechanisms behind the player, after her. the definitions are walked by pointer: indexing them
  * multiplies by their size on every step on the 65816. */
-static DeceptusU8 backMechanismSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
+static DeceptusU8 backMechanismSprites(const DeceptusEngine* engine, DeceptusAppearanceOutput* output)
 {
-   const DeceptusMechanismDef *definition;
+   const DeceptusMechanismDef* definition;
    DeceptusU16 index;
    definition = engine->mechanisms.definitions;
    for (index = 0; index < engine->mechanisms.count; ++index, ++definition)
@@ -152,7 +169,7 @@ static DeceptusU8 backMechanismSprites(const DeceptusEngine *engine, DeceptusApp
 
 /* each piece runs between two points along the rope: the knot piece from the anchor, then plain
  * links, the last one ending at the rope's end. */
-static DeceptusU8 ropeSprites(const DeceptusEngine *engine, DeceptusAppearanceOutput *output)
+static DeceptusU8 ropeSprites(const DeceptusEngine* engine, DeceptusAppearanceOutput* output)
 {
    DeceptusU16 distance, length, covered, full;
    DeceptusU8 rope, node, image;
@@ -189,7 +206,7 @@ static DeceptusU8 ropeSprites(const DeceptusEngine *engine, DeceptusAppearanceOu
 }
 
 /* the open inventory shows only the selected item's picture; the menu covers the room. */
-static DeceptusU8 inventorySprites(const DeceptusAdventure *game, DeceptusAppearanceOutput *output)
+static DeceptusU8 inventorySprites(const DeceptusAdventure* game, DeceptusAppearanceOutput* output)
 {
    DeceptusI16 x;
    if ((game->selection == 0) || (game->selection > ITEM_ICON_COUNT))
@@ -200,13 +217,19 @@ static DeceptusU8 inventorySprites(const DeceptusAdventure *game, DeceptusAppear
    return addSprite(output, SPRITE_ITEM_ICON, (DeceptusU16)(game->selection - 1), x, ITEM_ICON_TOP, 0);
 }
 
-DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const DeceptusFrame *frame, const DeceptusAppearanceDef *definition,
-                                   DeceptusPlayerAnimation *animation, DeceptusSpriteEmitter emit, void *context)
+DeceptusU8 deceptusAppearanceVisit(
+   const DeceptusAdventure* game,
+   const DeceptusFrame* frame,
+   const DeceptusAppearanceDef* definition,
+   DeceptusPlayerAnimation* animation,
+   DeceptusSpriteEmitter emit,
+   void* context
+)
 {
-   const DeceptusDraw *draw;
+   const DeceptusDraw* draw;
    DeceptusU8 index, family;
    DeceptusAppearanceOutput destination;
-   DeceptusAppearanceOutput *output;
+   DeceptusAppearanceOutput* output;
    if (!emit)
    {
       return 0;
@@ -239,41 +262,41 @@ DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const Deceptus
       }
       switch (draw->kind)
       {
-      case DECEPTUS_RAT:
-         family = DECEPTUS_SPRITE_RAT;
-         break;
-      case DECEPTUS_BLOB_2:
-         family = DECEPTUS_SPRITE_BLOB;
-         break;
-      case DECEPTUS_ARROW_TRAP:
-         family = DECEPTUS_SPRITE_ARROW_TRAP;
-         break;
-      case DECEPTUS_ARROW_MUZZLE:
-         family = DECEPTUS_SPRITE_ARROW_MUZZLE;
-         break;
-      case DECEPTUS_ARROW:
-         family = DECEPTUS_SPRITE_ARROW;
-         break;
-      case DECEPTUS_CANNON_2:
-         family = DECEPTUS_SPRITE_CANNON;
-         break;
-      case DECEPTUS_CANNONBALL:
-         family = DECEPTUS_SPRITE_CANNONBALL;
-         break;
-      case DECEPTUS_ORB:
-         family = DECEPTUS_SPRITE_ORB;
-         break;
-      case DECEPTUS_FROG_BLUE:
-         family = DECEPTUS_SPRITE_FROG_BLUE;
-         break;
-      case DECEPTUS_BLUE_FIREBALL:
-         family = DECEPTUS_SPRITE_BLUE_FIREBALL;
-         break;
-      case DECEPTUS_WATER_SPLASH:
-         family = DECEPTUS_SPRITE_SPLASH;
-         break;
-      default:
-         return 0;
+         case DECEPTUS_RAT:
+            family = DECEPTUS_SPRITE_RAT;
+            break;
+         case DECEPTUS_BLOB_2:
+            family = DECEPTUS_SPRITE_BLOB;
+            break;
+         case DECEPTUS_ARROW_TRAP:
+            family = DECEPTUS_SPRITE_ARROW_TRAP;
+            break;
+         case DECEPTUS_ARROW_MUZZLE:
+            family = DECEPTUS_SPRITE_ARROW_MUZZLE;
+            break;
+         case DECEPTUS_ARROW:
+            family = DECEPTUS_SPRITE_ARROW;
+            break;
+         case DECEPTUS_CANNON_2:
+            family = DECEPTUS_SPRITE_CANNON;
+            break;
+         case DECEPTUS_CANNONBALL:
+            family = DECEPTUS_SPRITE_CANNONBALL;
+            break;
+         case DECEPTUS_ORB:
+            family = DECEPTUS_SPRITE_ORB;
+            break;
+         case DECEPTUS_FROG_BLUE:
+            family = DECEPTUS_SPRITE_FROG_BLUE;
+            break;
+         case DECEPTUS_BLUE_FIREBALL:
+            family = DECEPTUS_SPRITE_BLUE_FIREBALL;
+            break;
+         case DECEPTUS_WATER_SPLASH:
+            family = DECEPTUS_SPRITE_SPLASH;
+            break;
+         default:
+            return 0;
       }
       if (!addSprite(output, family, draw->frame, draw->x, draw->y, draw->flip_x))
       {

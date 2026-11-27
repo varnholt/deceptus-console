@@ -1,21 +1,21 @@
-#include "deceptus/campaign.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define CHECK(value)                                                                                                                       \
-   do                                                                                                                                      \
-   {                                                                                                                                       \
-      if (!(value))                                                                                                                        \
-      {                                                                                                                                    \
-         fprintf(stderr, "line %d: %s\n", __LINE__, #value);                                                                               \
-         exit(1);                                                                                                                          \
-      }                                                                                                                                    \
+#include "deceptus/campaign.h"
+#define CHECK(value)                                         \
+   do                                                        \
+   {                                                         \
+      if (!(value))                                          \
+      {                                                      \
+         fprintf(stderr, "line %d: %s\n", __LINE__, #value); \
+         exit(1);                                            \
+      }                                                      \
    } while (0)
 int main(void)
 {
    static DeceptusU8 cells[32 * 28];
    static DeceptusRoom first, second;
-   static const DeceptusRoom *rooms[2];
+   static const DeceptusRoom* rooms[2];
    static const DeceptusCampaignGoal goals[2] = {{{32, 144, 48, 64}, 77}, {{32, 144, 48, 64}, 0}};
    static const DeceptusMechanismDef flag = {77, {100, 100, 24, 24}, 0, 0, 0, DECEPTUS_MECH_FLAG, 1, 0};
    DeceptusCampaignDef definition;

@@ -7,7 +7,7 @@
 #error the generated thunderstorm curve and thunderstorm.h disagree on the levels
 #endif
 
-void thunderstormTick(Thunderstorm *storm, DeceptusU8 active)
+void thunderstormTick(Thunderstorm* storm, DeceptusU8 active)
 {
    if (!active)
    {
@@ -28,7 +28,7 @@ void thunderstormTick(Thunderstorm *storm, DeceptusU8 active)
    }
 }
 
-DeceptusU8 thunderstormLevel(const Thunderstorm *storm)
+DeceptusU8 thunderstormLevel(const Thunderstorm* storm)
 {
    if (!storm->active)
    {

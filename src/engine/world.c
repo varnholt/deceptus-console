@@ -1,5 +1,5 @@
-#include "deceptus/physics.h"
 #include "arith.h"
+#include "deceptus/physics.h"
 
 DeceptusI16 deceptusFloor(DeceptusFixed value)
 {
@@ -10,7 +10,7 @@ DeceptusI16 deceptusFloor(DeceptusFixed value)
    return (DeceptusI16)(-1 - ((-1 - value) / DECEPTUS_ONE));
 }
 
-DeceptusU8 deceptusCell(const DeceptusRoom *room, DeceptusI16 column, DeceptusI16 row)
+DeceptusU8 deceptusCell(const DeceptusRoom* room, DeceptusI16 column, DeceptusI16 row)
 {
    if (column < 0 || column >= room->columns || row < 0)
    {
@@ -37,8 +37,13 @@ DeceptusI16 deceptusPositionCell(DeceptusFixed position)
 }
 
 /* sideways leaves moveable boxes out: a body moving sideways meets them at their exact edge. */
-static DeceptusU8 collisionCell(const DeceptusRoom *room, const DeceptusMechanismSet *mechanisms, DeceptusI16 column, DeceptusI16 row,
-                                DeceptusU8 sideways)
+static DeceptusU8 collisionCell(
+   const DeceptusRoom* room,
+   const DeceptusMechanismSet* mechanisms,
+   DeceptusI16 column,
+   DeceptusI16 row,
+   DeceptusU8 sideways
+)
 {
    DeceptusRect bounds;
    DeceptusU8 value;
@@ -70,10 +75,16 @@ static DeceptusU8 collisionCell(const DeceptusRoom *room, const DeceptusMechanis
 
 /* next_x stopped at the near edge of any moveable box the body would enter moving sideways. the body
  * keeps its velocity against a box, so pushing one does not start again from rest every tick. */
-static DeceptusFixed stopAtBoxes(const DeceptusEntity *entity, const DeceptusMechanismSet *mechanisms, DeceptusFixed velocity_x,
-                                 DeceptusFixed next_x, DeceptusU8 half_width, DeceptusU8 height)
+static DeceptusFixed stopAtBoxes(
+   const DeceptusEntity* entity,
+   const DeceptusMechanismSet* mechanisms,
+   DeceptusFixed velocity_x,
+   DeceptusFixed next_x,
+   DeceptusU8 half_width,
+   DeceptusU8 height
+)
 {
-   const DeceptusMoveableBox *box;
+   const DeceptusMoveableBox* box;
    DeceptusI16 top, bottom;
    DeceptusU8 index;
    if (mechanisms == 0)
@@ -104,8 +115,14 @@ static DeceptusFixed stopAtBoxes(const DeceptusEntity *entity, const DeceptusMec
    return next_x;
 }
 
-DeceptusU8 deceptusBodyClear(const DeceptusRoom *room, const DeceptusMechanismSet *mechanisms, DeceptusFixed x, DeceptusFixed y,
-                             DeceptusU8 half_width, DeceptusU8 height)
+DeceptusU8 deceptusBodyClear(
+   const DeceptusRoom* room,
+   const DeceptusMechanismSet* mechanisms,
+   DeceptusFixed x,
+   DeceptusFixed y,
+   DeceptusU8 half_width,
+   DeceptusU8 height
+)
 {
    DeceptusI16 column, row, left, right, top, bottom;
    left = deceptusPositionCell(x - DECEPTUS_FIXED(half_width));
@@ -125,8 +142,13 @@ DeceptusU8 deceptusBodyClear(const DeceptusRoom *room, const DeceptusMechanismSe
    return 1;
 }
 
-void deceptusMoveHorizontalDynamic(const DeceptusRoom *room, DeceptusEntity *entity, DeceptusU8 half_width, DeceptusU8 height,
-                                   const DeceptusMechanismSet *mechanisms)
+void deceptusMoveHorizontalDynamic(
+   const DeceptusRoom* room,
+   DeceptusEntity* entity,
+   DeceptusU8 half_width,
+   DeceptusU8 height,
+   const DeceptusMechanismSet* mechanisms
+)
 {
    DeceptusFixed next_x, velocity_x;
    DeceptusI16 column, top, bottom, row;
@@ -158,8 +180,13 @@ void deceptusMoveHorizontalDynamic(const DeceptusRoom *room, DeceptusEntity *ent
    entity->x = stopAtBoxes(entity, mechanisms, velocity_x, next_x, half_width, height);
 }
 
-void deceptusMoveVerticalDynamic(const DeceptusRoom *room, DeceptusEntity *entity, DeceptusU8 half_width, DeceptusU8 height,
-                                 const DeceptusMechanismSet *mechanisms)
+void deceptusMoveVerticalDynamic(
+   const DeceptusRoom* room,
+   DeceptusEntity* entity,
+   DeceptusU8 half_width,
+   DeceptusU8 height,
+   const DeceptusMechanismSet* mechanisms
+)
 {
    DeceptusFixed next_y;
    DeceptusI16 row, left, right, column, old_bottom;
@@ -196,17 +223,17 @@ void deceptusMoveVerticalDynamic(const DeceptusRoom *room, DeceptusEntity *entit
    entity->y = next_y;
 }
 
-void deceptusMoveHorizontal(const DeceptusRoom *room, DeceptusEntity *entity, DeceptusU8 half_width, DeceptusU8 height)
+void deceptusMoveHorizontal(const DeceptusRoom* room, DeceptusEntity* entity, DeceptusU8 half_width, DeceptusU8 height)
 {
    deceptusMoveHorizontalDynamic(room, entity, half_width, height, 0);
 }
 
-void deceptusMoveVertical(const DeceptusRoom *room, DeceptusEntity *entity, DeceptusU8 half_width, DeceptusU8 height)
+void deceptusMoveVertical(const DeceptusRoom* room, DeceptusEntity* entity, DeceptusU8 half_width, DeceptusU8 height)
 {
    deceptusMoveVerticalDynamic(room, entity, half_width, height, 0);
 }
 
-DeceptusI16 deceptusWallSide(const DeceptusRoom *room, const DeceptusEntity *entity, const DeceptusMechanismSet *mechanisms)
+DeceptusI16 deceptusWallSide(const DeceptusRoom* room, const DeceptusEntity* entity, const DeceptusMechanismSet* mechanisms)
 {
    DeceptusI16 side, column, first, last, row;
    first = deceptusPositionCell(entity->y - DECEPTUS_FIXED(24));

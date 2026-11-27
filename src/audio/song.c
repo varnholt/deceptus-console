@@ -84,9 +84,9 @@ static DeceptusI16 clampPeriod(DeceptusI16 period)
 }
 
 /* the cursor at the first cell of a row of the current order's pattern. */
-static void seekRow(SongPlayer *player, DeceptusU16 row)
+static void seekRow(SongPlayer* player, DeceptusU16 row)
 {
-   const DeceptusU8 *cursor;
+   const DeceptusU8* cursor;
    DeceptusU16 cell, cells;
    DeceptusU8 flags;
    cursor = player->song->patterns[player->song->orders[player->order]];
@@ -107,15 +107,15 @@ static void seekRow(SongPlayer *player, DeceptusU16 row)
    player->row = row;
 }
 
-static DeceptusU16 patternRows(const SongPlayer *player)
+static DeceptusU16 patternRows(const SongPlayer* player)
 {
    return player->song->pattern_rows[player->song->orders[player->order]];
 }
 
-void songStart(SongPlayer *player, const Song *song)
+void songStart(SongPlayer* player, const Song* song)
 {
    DeceptusU8 index;
-   SongChannel *channel;
+   SongChannel* channel;
    player->song = song;
    player->order = 0;
    player->tick = 0;
@@ -154,13 +154,13 @@ void songStart(SongPlayer *player, const Song *song)
    seekRow(player, 0);
 }
 
-static DeceptusI16 notePeriod(const SongSample *sample, DeceptusU8 note)
+static DeceptusI16 notePeriod(const SongSample* sample, DeceptusU8 note)
 {
    return (DeceptusI16)(PERIOD_C0 - ((DeceptusI16)note - 1 + sample->relative_note) * SEMITONE - sample->finetune / 2);
 }
 
 /* the parameter, or the channel's memory of it when it is zero. */
-static DeceptusU8 remembered(DeceptusU8 *memory, DeceptusU8 parameter)
+static DeceptusU8 remembered(DeceptusU8* memory, DeceptusU8 parameter)
 {
    if (parameter)
    {
@@ -169,7 +169,7 @@ static DeceptusU8 remembered(DeceptusU8 *memory, DeceptusU8 parameter)
    return *memory;
 }
 
-static void keyOn(SongChannel *channel)
+static void keyOn(SongChannel* channel)
 {
    channel->key_on = 1;
    channel->envelope_tick = 0;
@@ -179,7 +179,7 @@ static void keyOn(SongChannel *channel)
    channel->tremolo_position = 0;
 }
 
-static void keyOff(SongChannel *channel)
+static void keyOff(SongChannel* channel)
 {
    channel->key_on = 0;
    if ((channel->instrument == 0) || (channel->instrument->volume.count == 0))
@@ -188,9 +188,9 @@ static void keyOff(SongChannel *channel)
    }
 }
 
-static void trigger(SongPlayer *player, DeceptusU8 index, DeceptusU32 offset)
+static void trigger(SongPlayer* player, DeceptusU8 index, DeceptusU32 offset)
 {
-   SongOutput *output;
+   SongOutput* output;
    output = &player->outputs[index];
    output->sample = player->channels[index].sample;
    output->offset = offset;
@@ -201,7 +201,7 @@ static void trigger(SongPlayer *player, DeceptusU8 index, DeceptusU32 offset)
    }
 }
 
-static void volumeSlide(SongChannel *channel, DeceptusU8 parameter)
+static void volumeSlide(SongChannel* channel, DeceptusU8 parameter)
 {
    if (parameter & 0xf0)
    {
@@ -213,7 +213,7 @@ static void volumeSlide(SongChannel *channel, DeceptusU8 parameter)
    }
 }
 
-static void tonePortamento(SongChannel *channel)
+static void tonePortamento(SongChannel* channel)
 {
    DeceptusI16 step;
    step = (DeceptusI16)(channel->porta_speed * 4);
@@ -242,19 +242,19 @@ static DeceptusI16 wave(DeceptusU8 position, DeceptusU8 depth, DeceptusU8 shift)
    return (position & 32) ? (DeceptusI16)-value : value;
 }
 
-static void vibrato(SongChannel *channel)
+static void vibrato(SongChannel* channel)
 {
    channel->vibrato_offset = wave(channel->vibrato_position, channel->vibrato_depth, 5);
    channel->vibrato_position = (DeceptusU8)((channel->vibrato_position + channel->vibrato_speed) & 63);
 }
 
-static void tremolo(SongChannel *channel)
+static void tremolo(SongChannel* channel)
 {
    channel->tremolo_volume = (DeceptusU8)(wave(channel->tremolo_position, channel->tremolo_depth, 6) + 64);
    channel->tremolo_position = (DeceptusU8)((channel->tremolo_position + channel->tremolo_speed) & 63);
 }
 
-static void retriggerVolume(SongChannel *channel)
+static void retriggerVolume(SongChannel* channel)
 {
    DeceptusU8 change;
    change = (DeceptusU8)(channel->retrigger >> 4);
@@ -281,11 +281,11 @@ static void retriggerVolume(SongChannel *channel)
 }
 
 /* the cell's note, instrument and volume take effect: on tick 0, or on the tick a note delay names. */
-static void startCell(SongPlayer *player, DeceptusU8 index)
+static void startCell(SongPlayer* player, DeceptusU8 index)
 {
-   SongChannel *channel;
-   const SongInstrument *instrument;
-   const SongSample *sample;
+   SongChannel* channel;
+   const SongInstrument* instrument;
+   const SongSample* sample;
    DeceptusU8 note, porta, volume;
    DeceptusU32 offset;
    channel = &player->channels[index];
@@ -363,9 +363,9 @@ static void startCell(SongPlayer *player, DeceptusU8 index)
 }
 
 /* the effects that act once, on the row's first tick. */
-static void rowEffect(SongPlayer *player, DeceptusU8 index)
+static void rowEffect(SongPlayer* player, DeceptusU8 index)
 {
-   SongChannel *channel;
+   SongChannel* channel;
    DeceptusU8 parameter, high, low;
    channel = &player->channels[index];
    parameter = channel->parameter;
@@ -373,139 +373,139 @@ static void rowEffect(SongPlayer *player, DeceptusU8 index)
    low = (DeceptusU8)(parameter & 15);
    switch (channel->effect)
    {
-   case 0x0:
-      channel->arpeggio = parameter;
-      break;
-   case 0x1:
-      remembered(&channel->porta_up, parameter);
-      break;
-   case 0x2:
-      remembered(&channel->porta_down, parameter);
-      break;
-   case 0x3:
-      remembered(&channel->porta_speed, parameter);
-      break;
-   case 0x4:
-      if (high)
-      {
-         channel->vibrato_speed = high;
-      }
-      if (low)
-      {
-         channel->vibrato_depth = low;
-      }
-      break;
-   case 0x5:
-   case 0x6:
-   case 0xa:
-      remembered(&channel->volume_slide, parameter);
-      break;
-   case 0x7:
-      if (high)
-      {
-         channel->tremolo_speed = high;
-      }
-      if (low)
-      {
-         channel->tremolo_depth = low;
-      }
-      break;
-   case 0xb:
-      player->jump_order = parameter;
-      player->break_row = 0;
-      player->jump = 1;
-      break;
-   case 0xc:
-      channel->volume = clampVolume(parameter);
-      break;
-   case 0xd:
-      if (!player->jump)
-      {
-         player->jump_order = (DeceptusU8)(player->order + 1);
-      }
-      player->break_row = (DeceptusU8)(high * 10 + low);
-      player->jump = 1;
-      break;
-   case 0xe:
-      switch (high)
-      {
+      case 0x0:
+         channel->arpeggio = parameter;
+         break;
       case 0x1:
-         channel->period = clampPeriod((DeceptusI16)(channel->period - remembered(&channel->fine_porta_up, low) * 4));
+         remembered(&channel->porta_up, parameter);
          break;
       case 0x2:
-         channel->period = clampPeriod((DeceptusI16)(channel->period + remembered(&channel->fine_porta_down, low) * 4));
+         remembered(&channel->porta_down, parameter);
          break;
+      case 0x3:
+         remembered(&channel->porta_speed, parameter);
+         break;
+      case 0x4:
+         if (high)
+         {
+            channel->vibrato_speed = high;
+         }
+         if (low)
+         {
+            channel->vibrato_depth = low;
+         }
+         break;
+      case 0x5:
+      case 0x6:
       case 0xa:
-         channel->volume = clampVolume((DeceptusI16)(channel->volume + remembered(&channel->fine_volume_up, low)));
+         remembered(&channel->volume_slide, parameter);
+         break;
+      case 0x7:
+         if (high)
+         {
+            channel->tremolo_speed = high;
+         }
+         if (low)
+         {
+            channel->tremolo_depth = low;
+         }
          break;
       case 0xb:
-         channel->volume = clampVolume((DeceptusI16)(channel->volume - remembered(&channel->fine_volume_down, low)));
+         player->jump_order = parameter;
+         player->break_row = 0;
+         player->jump = 1;
+         break;
+      case 0xc:
+         channel->volume = clampVolume(parameter);
+         break;
+      case 0xd:
+         if (!player->jump)
+         {
+            player->jump_order = (DeceptusU8)(player->order + 1);
+         }
+         player->break_row = (DeceptusU8)(high * 10 + low);
+         player->jump = 1;
          break;
       case 0xe:
-         if (!player->pattern_delay)
+         switch (high)
          {
-            player->pattern_delay = low;
+            case 0x1:
+               channel->period = clampPeriod((DeceptusI16)(channel->period - remembered(&channel->fine_porta_up, low) * 4));
+               break;
+            case 0x2:
+               channel->period = clampPeriod((DeceptusI16)(channel->period + remembered(&channel->fine_porta_down, low) * 4));
+               break;
+            case 0xa:
+               channel->volume = clampVolume((DeceptusI16)(channel->volume + remembered(&channel->fine_volume_up, low)));
+               break;
+            case 0xb:
+               channel->volume = clampVolume((DeceptusI16)(channel->volume - remembered(&channel->fine_volume_down, low)));
+               break;
+            case 0xe:
+               if (!player->pattern_delay)
+               {
+                  player->pattern_delay = low;
+               }
+               break;
+            default:
+               break;
+         }
+         break;
+      case 0xf:
+         if (parameter == 0)
+         {
+            break;
+         }
+         if (parameter < 32)
+         {
+            player->speed = parameter;
+         }
+         else
+         {
+            player->bpm = parameter;
+         }
+         break;
+      case 0x10:
+         player->global_volume = clampVolume(parameter);
+         break;
+      case 0x11:
+         remembered(&channel->global_slide, parameter);
+         break;
+      case 0x14:
+         if (parameter == 0)
+         {
+            keyOff(channel);
+         }
+         break;
+      case 0x1b:
+         if (high)
+         {
+            channel->retrigger = (DeceptusU8)((channel->retrigger & 15) | (high << 4));
+         }
+         if (low)
+         {
+            channel->retrigger = (DeceptusU8)((channel->retrigger & 0xf0) | low);
+         }
+         break;
+      case 0x21:
+         if (high == 1)
+         {
+            channel->period = clampPeriod((DeceptusI16)(channel->period - remembered(&channel->extra_fine_up, low)));
+         }
+         else if (high == 2)
+         {
+            channel->period = clampPeriod((DeceptusI16)(channel->period + remembered(&channel->extra_fine_down, low)));
          }
          break;
       default:
          break;
-      }
-      break;
-   case 0xf:
-      if (parameter == 0)
-      {
-         break;
-      }
-      if (parameter < 32)
-      {
-         player->speed = parameter;
-      }
-      else
-      {
-         player->bpm = parameter;
-      }
-      break;
-   case 0x10:
-      player->global_volume = clampVolume(parameter);
-      break;
-   case 0x11:
-      remembered(&channel->global_slide, parameter);
-      break;
-   case 0x14:
-      if (parameter == 0)
-      {
-         keyOff(channel);
-      }
-      break;
-   case 0x1b:
-      if (high)
-      {
-         channel->retrigger = (DeceptusU8)((channel->retrigger & 15) | (high << 4));
-      }
-      if (low)
-      {
-         channel->retrigger = (DeceptusU8)((channel->retrigger & 0xf0) | low);
-      }
-      break;
-   case 0x21:
-      if (high == 1)
-      {
-         channel->period = clampPeriod((DeceptusI16)(channel->period - remembered(&channel->extra_fine_up, low)));
-      }
-      else if (high == 2)
-      {
-         channel->period = clampPeriod((DeceptusI16)(channel->period + remembered(&channel->extra_fine_down, low)));
-      }
-      break;
-   default:
-      break;
    }
 }
 
 /* the effects that act on the row's later ticks. */
-static void tickEffect(SongPlayer *player, DeceptusU8 index)
+static void tickEffect(SongPlayer* player, DeceptusU8 index)
 {
-   SongChannel *channel;
+   SongChannel* channel;
    DeceptusU8 parameter, high, low, volume;
    channel = &player->channels[index];
    parameter = channel->parameter;
@@ -530,80 +530,80 @@ static void tickEffect(SongPlayer *player, DeceptusU8 index)
    }
    switch (channel->effect)
    {
-   case 0x1:
-      channel->period = clampPeriod((DeceptusI16)(channel->period - channel->porta_up * 4));
-      break;
-   case 0x2:
-      channel->period = clampPeriod((DeceptusI16)(channel->period + channel->porta_down * 4));
-      break;
-   case 0x3:
-      tonePortamento(channel);
-      break;
-   case 0x4:
-      vibrato(channel);
-      break;
-   case 0x5:
-      tonePortamento(channel);
-      volumeSlide(channel, channel->volume_slide);
-      break;
-   case 0x6:
-      vibrato(channel);
-      volumeSlide(channel, channel->volume_slide);
-      break;
-   case 0x7:
-      tremolo(channel);
-      break;
-   case 0xa:
-      volumeSlide(channel, channel->volume_slide);
-      break;
-   case 0xe:
-      if ((high == 0x9) && low && (tickRemainder(player->tick, low) == 0))
-      {
-         trigger(player, index, 0);
-         keyOn(channel);
-      }
-      else if ((high == 0xc) && (player->tick == low))
-      {
-         channel->volume = 0;
-      }
-      else if ((high == 0xd) && (player->tick == low))
-      {
-         startCell(player, index);
-      }
-      break;
-   case 0x11:
-      if (channel->global_slide & 0xf0)
-      {
-         player->global_volume = clampVolume((DeceptusI16)(player->global_volume + (channel->global_slide >> 4)));
-      }
-      else
-      {
-         player->global_volume = clampVolume((DeceptusI16)(player->global_volume - (channel->global_slide & 15)));
-      }
-      break;
-   case 0x14:
-      if (player->tick == parameter)
-      {
-         keyOff(channel);
-      }
-      break;
-   case 0x1b:
-      if ((channel->retrigger & 15) && (++channel->retrigger_ticks >= (channel->retrigger & 15)))
-      {
-         channel->retrigger_ticks = 0;
-         retriggerVolume(channel);
-         trigger(player, index, 0);
-      }
-      break;
-   default:
-      break;
+      case 0x1:
+         channel->period = clampPeriod((DeceptusI16)(channel->period - channel->porta_up * 4));
+         break;
+      case 0x2:
+         channel->period = clampPeriod((DeceptusI16)(channel->period + channel->porta_down * 4));
+         break;
+      case 0x3:
+         tonePortamento(channel);
+         break;
+      case 0x4:
+         vibrato(channel);
+         break;
+      case 0x5:
+         tonePortamento(channel);
+         volumeSlide(channel, channel->volume_slide);
+         break;
+      case 0x6:
+         vibrato(channel);
+         volumeSlide(channel, channel->volume_slide);
+         break;
+      case 0x7:
+         tremolo(channel);
+         break;
+      case 0xa:
+         volumeSlide(channel, channel->volume_slide);
+         break;
+      case 0xe:
+         if ((high == 0x9) && low && (tickRemainder(player->tick, low) == 0))
+         {
+            trigger(player, index, 0);
+            keyOn(channel);
+         }
+         else if ((high == 0xc) && (player->tick == low))
+         {
+            channel->volume = 0;
+         }
+         else if ((high == 0xd) && (player->tick == low))
+         {
+            startCell(player, index);
+         }
+         break;
+      case 0x11:
+         if (channel->global_slide & 0xf0)
+         {
+            player->global_volume = clampVolume((DeceptusI16)(player->global_volume + (channel->global_slide >> 4)));
+         }
+         else
+         {
+            player->global_volume = clampVolume((DeceptusI16)(player->global_volume - (channel->global_slide & 15)));
+         }
+         break;
+      case 0x14:
+         if (player->tick == parameter)
+         {
+            keyOff(channel);
+         }
+         break;
+      case 0x1b:
+         if ((channel->retrigger & 15) && (++channel->retrigger_ticks >= (channel->retrigger & 15)))
+         {
+            channel->retrigger_ticks = 0;
+            retriggerVolume(channel);
+            trigger(player, index, 0);
+         }
+         break;
+      default:
+         break;
    }
 }
 
 /* the envelope value now, 0 .. SONG_VOLUME_MAX, and one tick further along it. */
-static DeceptusU8 envelopeStep(SongChannel *channel)
+static DeceptusU8 envelopeStep(SongChannel* channel)
 {
-   const SongEnvelope *envelope;
+   const SongEnvelope* envelope;
    DeceptusU8 point, value;
    DeceptusU16 start, end;
    envelope = &channel->instrument->volume;
@@ -621,9 +621,9 @@ static DeceptusU8 envelopeStep(SongChannel *channel)
    {
       start = envelope->ticks[point];
       end = envelope->ticks[point + 1];
-      value = (DeceptusU8)(envelope->values[point] +
-                           ((DeceptusI16)(envelope->values[point + 1] - envelope->values[point]) * (DeceptusI16)(channel->envelope_tick - start)) /
-                              (DeceptusI16)(end - start));
+      value = (DeceptusU8)(envelope->values[point] + ((DeceptusI16)(envelope->values[point + 1] - envelope->values[point]) *
+                                                      (DeceptusI16)(channel->envelope_tick - start)) /
+                                                        (DeceptusI16)(end - start));
    }
    if (channel->key_on && (envelope->flags & SONG_ENVELOPE_SUSTAIN) && (channel->envelope_tick == envelope->ticks[envelope->sustain]))
    {
@@ -638,10 +638,10 @@ static DeceptusU8 envelopeStep(SongChannel *channel)
    return value;
 }
 
-static void updateOutput(SongPlayer *player, DeceptusU8 index)
+static void updateOutput(SongPlayer* player, DeceptusU8 index)
 {
-   SongChannel *channel;
-   SongOutput *output;
+   SongChannel* channel;
+   SongOutput* output;
    DeceptusI16 period;
    DeceptusU8 semitones;
    DeceptusU16 volume;
@@ -673,16 +673,17 @@ static void updateOutput(SongPlayer *player, DeceptusU8 index)
       if (!channel->key_on)
       {
          volume = (DeceptusU16)((volume * (channel->fadeout >> 7)) >> 8);
-         channel->fadeout = (channel->fadeout > channel->instrument->fadeout) ? (DeceptusU16)(channel->fadeout - channel->instrument->fadeout) : 0;
+         channel->fadeout =
+            (channel->fadeout > channel->instrument->fadeout) ? (DeceptusU16)(channel->fadeout - channel->instrument->fadeout) : 0;
       }
    }
    output->volume = (DeceptusU8)((volume * player->global_volume) >> 6);
 }
 
 /* the next row's cells into the channels. */
-static void readRow(SongPlayer *player)
+static void readRow(SongPlayer* player)
 {
-   SongChannel *channel;
+   SongChannel* channel;
    DeceptusU8 index, flags, fields[5], field;
    for (index = 0; index < player->song->channels; ++index)
    {
@@ -721,7 +722,7 @@ static void readRow(SongPlayer *player)
    }
 }
 
-static void nextRow(SongPlayer *player)
+static void nextRow(SongPlayer* player)
 {
    DeceptusU16 row;
    if (player->jump)
@@ -755,10 +756,10 @@ static void nextRow(SongPlayer *player)
    seekRow(player, row);
 }
 
-void songTick(SongPlayer *player)
+void songTick(SongPlayer* player)
 {
    DeceptusU8 index;
-   SongChannel *channel;
+   SongChannel* channel;
    if (player->tick == 0)
    {
       readRow(player);
@@ -797,7 +798,7 @@ static DeceptusU32 ticksPerSecondScaled(DeceptusU8 bpm)
    return (DeceptusU32)bpm * TICKS_PER_BEAT_NUMERATOR * SONG_FRAME_RATE_SCALE;
 }
 
-DeceptusU8 songAdvance(SongPlayer *player, DeceptusU16 frame_rate)
+DeceptusU8 songAdvance(SongPlayer* player, DeceptusU16 frame_rate)
 {
    DeceptusU32 tick_cost;
    DeceptusU8 ticks;

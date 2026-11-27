@@ -1,5 +1,5 @@
-#include "deceptus/types.h"
 #include <assert.h>
+#include "deceptus/types.h"
 
 DeceptusU32 deceptusGbaUnsignedDivide(DeceptusU32 numerator, DeceptusU32 denominator);
 

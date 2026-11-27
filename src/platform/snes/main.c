@@ -1,8 +1,8 @@
 #ifndef DECEPTUS_SNES_OPENING
+#include <snes.h>
 #include "asset_sizes.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
-#include <snes.h>
 
 extern char room_patterns, room_patterns_end;
 extern char overflow_patterns, overflow_patterns_end;
@@ -61,11 +61,11 @@ static DeceptusU16 inputRead(void)
 static void videoInit(void)
 {
    setScreenOff();
-   bgInitTileSet(0, (u8 *)&room_patterns, (u8 *)&room_palette, 0, ROOM_PATTERN_BYTES, ROOM_PALETTE_BYTES, BG_16COLORS, 0x1000);
-   bgInitMapSet(0, (u8 *)&room_map, 4096, SC_64x32, 0x0000);
-   bgInitTileSet(1, (u8 *)&overflow_patterns, (u8 *)&room_palette, 0, OVERFLOW_PATTERN_BYTES, ROOM_PALETTE_BYTES, BG_16COLORS, 0x5000);
-   bgInitMapSet(1, (u8 *)&overflow_map, 4096, SC_64x32, 0x0800);
-   oamInitGfxSet((u8 *)&actor_patterns, ACTOR_PATTERN_BYTES, (u8 *)&actor_palette, 64, 0, 0x6000, OBJ_SIZE16_L32);
+   bgInitTileSet(0, (u8*)&room_patterns, (u8*)&room_palette, 0, ROOM_PATTERN_BYTES, ROOM_PALETTE_BYTES, BG_16COLORS, 0x1000);
+   bgInitMapSet(0, (u8*)&room_map, 4096, SC_64x32, 0x0000);
+   bgInitTileSet(1, (u8*)&overflow_patterns, (u8*)&room_palette, 0, OVERFLOW_PATTERN_BYTES, ROOM_PALETTE_BYTES, BG_16COLORS, 0x5000);
+   bgInitMapSet(1, (u8*)&overflow_map, 4096, SC_64x32, 0x0800);
+   oamInitGfxSet((u8*)&actor_patterns, ACTOR_PATTERN_BYTES, (u8*)&actor_palette, 64, 0, 0x6000, OBJ_SIZE16_L32);
    setMode(BG_MODE1, 0);
    bgSetDisable(2);
    bgSetScroll(0, 0, 0);
@@ -78,7 +78,7 @@ static void videoPrepare(void)
 {
    DeceptusU16 index, other, accepted, overlaps, object_id, tile_base, piece;
    DeceptusI16 x, y;
-   const DeceptusDraw *draw;
+   const DeceptusDraw* draw;
    oamClear(0, 0);
    object_id = 0;
    accepted = 0;
@@ -170,11 +170,11 @@ int main(void)
    return 0;
 }
 #else
+#include <snes.h>
 #include "deceptus/adventure.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
 #include "snes_assets.h"
-#include <snes.h>
 
 /* the simulation runs at 60 ticks per second; a presentation that takes longer than a display frame
  * catches up with up to three ticks, as on the Amiga, so the game keeps its speed down to 20
@@ -205,11 +205,11 @@ static DeceptusFrame frame;
 #endif
 
 #include "background.h"
+#include "ppu_timing.h"
+#include "snes_audio.h"
 #include "sprites.h"
 #include "storm.h"
-#include "ppu_timing.h"
 #include "ui.h"
-#include "snes_audio.h"
 
 /* snesmod's soundbank (build_snes.py), read by the S-CPU through its long address. */
 extern char SOUNDBANK__;
@@ -235,7 +235,7 @@ static void audioStart(void)
    from 0, the cues from 1. */
 static void audioPlayCues(void)
 {
-   SoundQueue *queue;
+   SoundQueue* queue;
    DeceptusU8 index;
    queue = &SNES_GAME->sounds;
    for (index = 0; index < queue->count; ++index)
@@ -246,8 +246,8 @@ static void audioPlayCues(void)
    spcProcess();
 }
 
-#define SNES_HVBJOY (*(volatile DeceptusU8 *)0x4212)
-#define SNES_JOY1 (*(volatile DeceptusU16 *)0x4218)
+#define SNES_HVBJOY (*(volatile DeceptusU8*)0x4212)
+#define SNES_JOY1 (*(volatile DeceptusU16*)0x4218)
 #define SNES_JOYPAD_READING 0x01
 /* a standard pad reports zero in the low four bits; anything else counts as no pad. */
 #define SNES_JOYPAD_SIGNATURE 0x000F
@@ -326,8 +326,8 @@ static DeceptusU16 inputRead(void)
 
 static void debugWrite(DeceptusU8 buffer)
 {
-   const DeceptusAdventure *game;
-   const DeceptusEngine *engine;
+   const DeceptusAdventure* game;
+   const DeceptusEngine* engine;
    game = SNES_GAME;
    engine = &game->campaign.engine;
    deceptus_debug[0] = 0xD3CE;
@@ -387,12 +387,11 @@ static void debugWrite(DeceptusU8 buffer)
 /* the screen goes back on after a commit only when it was actually blanked. */
 static DeceptusU8 screen_blanked;
 
-
 #ifdef SNES_SA1
 /* hands one command to the SA-1, which runs it while this cpu goes on. */
 static void gameRequestStart(DeceptusU16 command)
 {
-   volatile SnesSa1Mailbox *mailbox;
+   volatile SnesSa1Mailbox* mailbox;
    mailbox = SNES_SA1_MAILBOX;
    mailbox->command = command;
    ++mailbox->request;
@@ -401,7 +400,7 @@ static void gameRequestStart(DeceptusU16 command)
 /* waits until the SA-1 has done the last command. */
 static void gameRequestWait(void)
 {
-   volatile SnesSa1Mailbox *mailbox;
+   volatile SnesSa1Mailbox* mailbox;
    mailbox = SNES_SA1_MAILBOX;
    while (mailbox->done != mailbox->request)
    {
@@ -416,7 +415,7 @@ static void gameRequest(DeceptusU16 command)
 
 static void gameStart(void)
 {
-   volatile SnesSa1Mailbox *mailbox;
+   volatile SnesSa1Mailbox* mailbox;
    mailbox = SNES_SA1_MAILBOX;
    mailbox->request = 0;
    mailbox->done = 0;
@@ -428,7 +427,7 @@ static void gameStart(void)
  * into the presentation buffer. */
 static void gamePresentStart(DeceptusU16 buttons, DeceptusU8 ticks, DeceptusU8 buffer)
 {
-   volatile SnesSa1Mailbox *mailbox;
+   volatile SnesSa1Mailbox* mailbox;
    mailbox = SNES_SA1_MAILBOX;
    mailbox->buttons = buttons;
    mailbox->ticks = ticks;
@@ -440,7 +439,7 @@ static void gamePresentStart(DeceptusU16 buttons, DeceptusU8 ticks, DeceptusU8 b
  * ticks early and leaves the frame unprepared. */
 static DeceptusU8 gamePresentFinish(void)
 {
-   volatile SnesSa1Mailbox *mailbox;
+   volatile SnesSa1Mailbox* mailbox;
    mailbox = SNES_SA1_MAILBOX;
    gameRequestWait();
    snes_sa1_stack_low_water = mailbox->stack_low_water;
@@ -457,7 +456,7 @@ static void gameLoadRoom(void)
  * sprites and their staged transfers, into the presentation buffer. */
 static void gamePrepare(DeceptusU8 buffer)
 {
-   volatile SnesSa1Mailbox *mailbox;
+   volatile SnesSa1Mailbox* mailbox;
    mailbox = SNES_SA1_MAILBOX;
    mailbox->buffer = buffer;
    gameRequest(SNES_SA1_PREPARE);

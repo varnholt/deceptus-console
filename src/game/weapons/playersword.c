@@ -1,13 +1,13 @@
 #include "deceptus/playersword.h"
-#include "deceptus/enemies.h"
 #include <string.h>
+#include "deceptus/enemies.h"
 
-void deceptusPlayerSwordInit(DeceptusPlayerSword *sword)
+void deceptusPlayerSwordInit(DeceptusPlayerSword* sword)
 {
    memset(sword, 0, sizeof(*sword));
 }
 
-void deceptusPlayerSwordTick(DeceptusPlayerSword *sword, DeceptusEngine *engine, DeceptusU16 pressed)
+void deceptusPlayerSwordTick(DeceptusPlayerSword* sword, DeceptusEngine* engine, DeceptusU16 pressed)
 {
    DeceptusEntity *player, *enemy;
    DeceptusI16 left, top, width, height, x, y, hit_width;
@@ -78,7 +78,7 @@ void deceptusPlayerSwordTick(DeceptusPlayerSword *sword, DeceptusEngine *engine,
    }
    for (index = 0; index < engine->mechanisms.count; ++index)
    {
-      const DeceptusMechanismDef *definition;
+      const DeceptusMechanismDef* definition;
       definition = &engine->mechanisms.definitions[index];
       if (definition->kind == DECEPTUS_MECH_DESTRUCTIBLE && definition->bounds.x < left + width &&
           definition->bounds.x + definition->bounds.width > left && definition->bounds.y < top + height &&

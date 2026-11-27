@@ -26,7 +26,7 @@ static const DeceptusU8 frame_times[FLOOR_SPIKES_FRAMES] = {1, 50, 50, 50, 100, 
 #define PHASE_EXTRACTING 1
 
 /* one tick of animation towards frame limit, which it does not pass. */
-static void advance(DeceptusMechanismState *state, DeceptusU8 limit)
+static void advance(DeceptusMechanismState* state, DeceptusU8 limit)
 {
    DeceptusU16 position, step;
    position = (DeceptusU16)(state->frame * FRACTION_ONE + state->fraction);
@@ -40,14 +40,14 @@ static void advance(DeceptusMechanismState *state, DeceptusU8 limit)
    state->fraction = (DeceptusU8)(position % FRACTION_ONE);
 }
 
-static void jumpTo(DeceptusMechanismState *state, DeceptusU8 frame)
+static void jumpTo(DeceptusMechanismState* state, DeceptusU8 frame)
 {
    state->frame = frame;
    state->fraction = 0;
 }
 
 /* updateInterval: extend, wait on_ticks, retract, wait off_ticks. */
-static void intervalTick(DeceptusMechanismState *state, const DeceptusMechanismTiming *timing)
+static void intervalTick(DeceptusMechanismState* state, const DeceptusMechanismTiming* timing)
 {
    ++state->timer;
    if ((state->frame == EXTRACT_END) && (state->phase == PHASE_EXTRACTING))
@@ -83,7 +83,7 @@ static void intervalTick(DeceptusMechanismState *state, const DeceptusMechanismT
 
 /* updateTrap: a body touching the retracted spikes makes them extend after the trap delay, stay up
  * for on_ticks and retract. triggered marks the running count. */
-static void trapTick(DeceptusMechanismState *state, const DeceptusMechanismTiming *timing, DeceptusU8 touched)
+static void trapTick(DeceptusMechanismState* state, const DeceptusMechanismTiming* timing, DeceptusU8 touched)
 {
    if (state->triggered)
    {
@@ -116,16 +116,16 @@ static void trapTick(DeceptusMechanismState *state, const DeceptusMechanismTimin
    }
 }
 
-static DeceptusU8 touches(const DeceptusRect *tile, const DeceptusRect *body)
+static DeceptusU8 touches(const DeceptusRect* tile, const DeceptusRect* body)
 {
    return (body->x < tile->x + TILE - TOLERANCE) && (body->x + body->width > tile->x + TOLERANCE) &&
           (body->y < tile->y + TILE - TOLERANCE) && (body->y + body->height > tile->y + TOLERANCE);
 }
 
-void floorSpikesInit(DeceptusMechanismSet *set)
+void floorSpikesInit(DeceptusMechanismSet* set)
 {
-   const DeceptusMechanismDef *definition;
-   DeceptusMechanismState *state;
+   const DeceptusMechanismDef* definition;
+   DeceptusMechanismState* state;
    DeceptusU16 index;
    for (index = 0; index < set->count; ++index)
    {
@@ -136,8 +136,10 @@ void floorSpikesInit(DeceptusMechanismSet *set)
       }
       state = &set->states[index];
       /* trap spikes wait fully retracted; the others start at the frame their tile shows. */
-      jumpTo(state, (definition->flags & FLOOR_SPIKES_TRAP) ? (DeceptusU8)RETRACT_END
-                                                            : (DeceptusU8)(definition->value % FLOOR_SPIKES_ATLAS_COLUMNS));
+      jumpTo(
+         state,
+         (definition->flags & FLOOR_SPIKES_TRAP) ? (DeceptusU8)RETRACT_END : (DeceptusU8)(definition->value % FLOOR_SPIKES_ATLAS_COLUMNS)
+      );
       state->phase = PHASE_RETRACTING;
       state->timer = (set->timings != 0) ? set->timings[index].phase_offset_ticks : 0;
       state->pending = 0;
@@ -145,10 +147,10 @@ void floorSpikesInit(DeceptusMechanismSet *set)
    }
 }
 
-DeceptusU16 floorSpikesTick(DeceptusMechanismSet *set, const DeceptusRect *bounds)
+DeceptusU16 floorSpikesTick(DeceptusMechanismSet* set, const DeceptusRect* bounds)
 {
-   const DeceptusMechanismDef *definition;
-   DeceptusMechanismState *state;
+   const DeceptusMechanismDef* definition;
+   DeceptusMechanismState* state;
    DeceptusU16 index, damage;
    DeceptusU8 touched;
    damage = 0;
@@ -185,7 +187,7 @@ DeceptusU16 floorSpikesTick(DeceptusMechanismSet *set, const DeceptusRect *bound
    return damage;
 }
 
-DeceptusU8 floorSpikesImage(const DeceptusMechanismSet *set, DeceptusU16 index)
+DeceptusU8 floorSpikesImage(const DeceptusMechanismSet* set, DeceptusU16 index)
 {
    DeceptusU8 row;
    row = (DeceptusU8)(set->definitions[index].value / FLOOR_SPIKES_ATLAS_COLUMNS);

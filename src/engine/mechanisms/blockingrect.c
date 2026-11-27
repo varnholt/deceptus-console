@@ -18,9 +18,9 @@
 #define DECEPTUS_SOLID_QUERY_BOX 3
 
 /* a moving solid stays a candidate for every query: its bins would change as it moves. */
-static void bindSolidMechanism(DeceptusMechanismSet *set, DeceptusU16 index, DeceptusU8 moving)
+static void bindSolidMechanism(DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8 moving)
 {
-   const DeceptusRect *bounds;
+   const DeceptusRect* bounds;
    DeceptusI32 right, bottom;
    DeceptusU16 bin, last;
    DeceptusU32 mask;
@@ -49,7 +49,7 @@ static void bindSolidMechanism(DeceptusMechanismSet *set, DeceptusU16 index, Dec
    }
 }
 
-static DeceptusU32 solidCandidates(const DeceptusMechanismSet *set, const DeceptusRect *bounds)
+static DeceptusU32 solidCandidates(const DeceptusMechanismSet* set, const DeceptusRect* bounds)
 {
    DeceptusI32 right, bottom;
    DeceptusU16 bin, last;
@@ -76,7 +76,7 @@ static DeceptusU32 solidCandidates(const DeceptusMechanismSet *set, const Decept
    return (mask & rows) | set->solid_outside;
 }
 
-const DeceptusRect *deceptusMechanismBounds(const DeceptusMechanismSet *set, DeceptusU16 index)
+const DeceptusRect* deceptusMechanismBounds(const DeceptusMechanismSet* set, DeceptusU16 index)
 {
    DeceptusU8 box;
    if (set->definitions[index].kind == DECEPTUS_MECH_MOVEABLE_BOX)
@@ -93,7 +93,7 @@ const DeceptusRect *deceptusMechanismBounds(const DeceptusMechanismSet *set, Dec
 }
 
 /* ignore names the box a box query moves, which does not stop itself. */
-static DeceptusU8 mechanismSolidQuery(const DeceptusMechanismSet *set, const DeceptusRect *bounds, DeceptusU8 query, DeceptusU16 ignore)
+static DeceptusU8 mechanismSolidQuery(const DeceptusMechanismSet* set, const DeceptusRect* bounds, DeceptusU8 query, DeceptusU16 ignore)
 {
    DeceptusU16 candidate, index;
    DeceptusU32 mask;
@@ -153,8 +153,8 @@ static DeceptusU8 mechanismSolidQuery(const DeceptusMechanismSet *set, const Dec
          }
       }
       else if ((set->definitions[index].kind == DECEPTUS_MECH_DOOR && set->states[index].active) ||
-               (set->definitions[index].kind == DECEPTUS_MECH_DESTRUCTIBLE && set->states[index].enabled &&
-                !set->states[index].triggered) ||
+               (set->definitions[index].kind == DECEPTUS_MECH_DESTRUCTIBLE && set->states[index].enabled && !set->states[index].triggered
+               ) ||
                (set->definitions[index].kind == DECEPTUS_MECH_CANNON_BODY && set->states[index].enabled && !projectile))
       {
          if (overlaps(bounds, &set->definitions[index].bounds))
@@ -169,22 +169,22 @@ static DeceptusU8 mechanismSolidQuery(const DeceptusMechanismSet *set, const Dec
 /* no mechanism index reaches this, so it ignores nothing. */
 #define DECEPTUS_SOLID_IGNORE_NONE 0xffffU
 
-DeceptusU8 deceptusMechanismSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds)
+DeceptusU8 deceptusMechanismSolid(const DeceptusMechanismSet* set, const DeceptusRect* bounds)
 {
    return mechanismSolidQuery(set, bounds, DECEPTUS_SOLID_QUERY_BODY, DECEPTUS_SOLID_IGNORE_NONE);
 }
 
-DeceptusU8 deceptusMechanismProjectileSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds)
+DeceptusU8 deceptusMechanismProjectileSolid(const DeceptusMechanismSet* set, const DeceptusRect* bounds)
 {
    return mechanismSolidQuery(set, bounds, DECEPTUS_SOLID_QUERY_PROJECTILE, DECEPTUS_SOLID_IGNORE_NONE);
 }
 
-DeceptusU8 deceptusMechanismSidewaysSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds)
+DeceptusU8 deceptusMechanismSidewaysSolid(const DeceptusMechanismSet* set, const DeceptusRect* bounds)
 {
    return mechanismSolidQuery(set, bounds, DECEPTUS_SOLID_QUERY_SIDEWAYS, DECEPTUS_SOLID_IGNORE_NONE);
 }
 
-DeceptusU8 deceptusMechanismBoxSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds, DeceptusU8 box)
+DeceptusU8 deceptusMechanismBoxSolid(const DeceptusMechanismSet* set, const DeceptusRect* bounds, DeceptusU8 box)
 {
    return mechanismSolidQuery(set, bounds, DECEPTUS_SOLID_QUERY_BOX, box);
 }

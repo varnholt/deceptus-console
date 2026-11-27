@@ -9,15 +9,15 @@
 #include <proto/exec.h>
 #include <proto/graphics.h>
 
-struct ExecBase *SysBase;
+struct ExecBase* SysBase;
 /* for the debugger: free memory after loading, for the resource budget (chip total, chip largest,
    other total, other largest); rooms.c then records the banks it allocated. */
 volatile DeceptusU32 amiga_memory_debug[4];
-struct GfxBase *GfxBase;
-struct DosLibrary *DOSBase;
-static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
-static APTR volatile *volatile level_three_vector = (APTR volatile *)0x6c;
-static struct View *saved_view;
+struct GfxBase* GfxBase;
+struct DosLibrary* DOSBase;
+static volatile struct Custom* const hardware = (struct Custom*)0xdff000;
+static APTR volatile* volatile level_three_vector = (APTR volatile*)0x6c;
+static struct View* saved_view;
 static APTR saved_interrupt;
 static DeceptusU16 saved_dma, saved_ints;
 static DeceptusU8 display_owned;
@@ -27,18 +27,18 @@ static char program_folder[128];
 
 static void findProgramFolder(void)
 {
-   struct Process *self;
-   struct CommandLineInterface *cli;
-   const UBYTE *name;
+   struct Process* self;
+   struct CommandLineInterface* cli;
+   const UBYTE* name;
    DeceptusU8 length, index, end;
    program_folder[0] = 0;
-   self = (struct Process *)FindTask(0);
+   self = (struct Process*)FindTask(0);
    if (self->pr_Task.tc_Node.ln_Type != NT_PROCESS || !self->pr_CLI)
    {
       return;
    }
-   cli = (struct CommandLineInterface *)BADDR(self->pr_CLI);
-   name = (const UBYTE *)BADDR(cli->cli_CommandName);
+   cli = (struct CommandLineInterface*)BADDR(self->pr_CLI);
+   name = (const UBYTE*)BADDR(cli->cli_CommandName);
    if (!name)
    {
       return;
@@ -66,14 +66,14 @@ int amigaSystemOpen(void)
    {
       return 0;
    }
-   GfxBase = (struct GfxBase *)OpenLibrary((CONST_STRPTR) "graphics.library", 0);
+   GfxBase = (struct GfxBase*)OpenLibrary((CONST_STRPTR) "graphics.library", 0);
    if (!GfxBase)
    {
       return 0;
    }
    if (!(GfxBase->DisplayFlags & PAL))
    {
-      CloseLibrary((struct Library *)GfxBase);
+      CloseLibrary((struct Library*)GfxBase);
       GfxBase = 0;
       return 0;
    }
@@ -83,11 +83,11 @@ int amigaSystemOpen(void)
    amiga_memory_debug[1] = AvailMem(MEMF_CHIP | MEMF_LARGEST);
    amiga_memory_debug[2] = AvailMem(MEMF_ANY) - amiga_memory_debug[0];
    amiga_memory_debug[3] = AvailMem(MEMF_FAST | MEMF_LARGEST) > AvailMem(MEMF_PUBLIC | MEMF_LARGEST) ? AvailMem(MEMF_FAST | MEMF_LARGEST)
-                                                                                                    : AvailMem(MEMF_PUBLIC | MEMF_LARGEST);
+                                                                                                     : AvailMem(MEMF_PUBLIC | MEMF_LARGEST);
    return 1;
 }
 
-void amigaSystemTakeDisplay(void (*interrupt_handler)(void), const DeceptusU16 *copper)
+void amigaSystemTakeDisplay(void (*interrupt_handler)(void), const DeceptusU16* copper)
 {
    Forbid();
    saved_dma = hardware->dmaconr;
@@ -132,7 +132,7 @@ void amigaSystemReleaseDisplay(void)
    display_owned = 0;
 }
 
-static LONG readInto(BPTR file, DeceptusU8 *destination, DeceptusU32 capacity)
+static LONG readInto(BPTR file, DeceptusU8* destination, DeceptusU32 capacity)
 {
    LONG count;
    DeceptusU32 total;
@@ -153,13 +153,18 @@ static LONG readInto(BPTR file, DeceptusU8 *destination, DeceptusU32 capacity)
    return (LONG)total;
 }
 
-DeceptusU32 amigaSystemReadFile(const char *path, DeceptusU8 *destination, DeceptusU32 capacity)
+DeceptusU32 amigaSystemReadFile(const char* path, DeceptusU8* destination, DeceptusU32 capacity)
 {
    return amigaSystemReadFilePair(path, destination, capacity, 0, 0);
 }
 
-DeceptusU32 amigaSystemReadFilePair(const char *path, DeceptusU8 *first, DeceptusU32 first_capacity, DeceptusU8 *second,
-                                    DeceptusU32 second_capacity)
+DeceptusU32 amigaSystemReadFilePair(
+   const char* path,
+   DeceptusU8* first,
+   DeceptusU32 first_capacity,
+   DeceptusU8* second,
+   DeceptusU32 second_capacity
+)
 {
    BPTR file;
    char located[192];
@@ -172,7 +177,7 @@ DeceptusU32 amigaSystemReadFilePair(const char *path, DeceptusU8 *first, Deceptu
    }
    if (!DOSBase)
    {
-      DOSBase = (struct DosLibrary *)OpenLibrary((CONST_STRPTR) "dos.library", 0);
+      DOSBase = (struct DosLibrary*)OpenLibrary((CONST_STRPTR) "dos.library", 0);
    }
    if (!DOSBase)
    {
@@ -185,8 +190,8 @@ DeceptusU32 amigaSystemReadFilePair(const char *path, DeceptusU8 *first, Deceptu
    {
       if (program_folder[0])
       {
-         char *cursor;
-         const char *source;
+         char* cursor;
+         const char* source;
          cursor = located;
          for (source = program_folder; *source; ++source)
          {
@@ -225,9 +230,9 @@ DeceptusU32 amigaSystemReadFilePair(const char *path, DeceptusU8 *first, Deceptu
 
 /* cpu-only data asks for non-chip memory first (slow or fast RAM), so it never takes Chip RAM the
    blitter and display need while other memory exists; machines with Chip RAM only fall back to it. */
-void *amigaSystemAllocate(DeceptusU32 bytes, DeceptusU8 chip)
+void* amigaSystemAllocate(DeceptusU32 bytes, DeceptusU8 chip)
 {
-   void *memory;
+   void* memory;
    if (!bytes)
    {
       return 0;
@@ -246,7 +251,7 @@ void *amigaSystemAllocate(DeceptusU32 bytes, DeceptusU8 chip)
    return memory;
 }
 
-void amigaSystemFree(void *memory, DeceptusU32 bytes)
+void amigaSystemFree(void* memory, DeceptusU32 bytes)
 {
    if (memory && bytes)
    {
@@ -265,7 +270,7 @@ DeceptusU32 amigaSystemLargest(DeceptusU8 chip)
    return largest ? largest : AvailMem(MEMF_PUBLIC | MEMF_LARGEST);
 }
 
-static char *appendText(char *cursor, const char *text)
+static char* appendText(char* cursor, const char* text)
 {
    while (*text)
    {
@@ -274,7 +279,7 @@ static char *appendText(char *cursor, const char *text)
    return cursor;
 }
 
-static char *appendNumber(char *cursor, DeceptusU32 value)
+static char* appendNumber(char* cursor, DeceptusU32 value)
 {
    char digits[10];
    DeceptusU8 count;
@@ -291,12 +296,12 @@ static char *appendNumber(char *cursor, DeceptusU32 value)
    return cursor;
 }
 
-void amigaSystemReportMemory(const char *what, DeceptusU32 needed, DeceptusU8 chip)
+void amigaSystemReportMemory(const char* what, DeceptusU32 needed, DeceptusU8 chip)
 {
    char line[128], *cursor;
    if (!DOSBase)
    {
-      DOSBase = (struct DosLibrary *)OpenLibrary((CONST_STRPTR) "dos.library", 0);
+      DOSBase = (struct DosLibrary*)OpenLibrary((CONST_STRPTR) "dos.library", 0);
    }
    if (!DOSBase || !Output())
    {
@@ -319,12 +324,12 @@ void amigaSystemClose(void)
       LoadView(saved_view);
       WaitTOF();
       WaitTOF();
-      CloseLibrary((struct Library *)GfxBase);
+      CloseLibrary((struct Library*)GfxBase);
       GfxBase = 0;
    }
    if (DOSBase)
    {
-      CloseLibrary((struct Library *)DOSBase);
+      CloseLibrary((struct Library*)DOSBase);
       DOSBase = 0;
    }
 }

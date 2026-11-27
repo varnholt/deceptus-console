@@ -1,11 +1,11 @@
 #include "rooms.h"
+#include <string.h>
 #include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
 #include "deceptus/roomcontent.h"
 #include "keyboard.h"
 #include "opening_video.h"
 #include "system.h"
-#include <string.h>
 
 #define CHIP __attribute__((section(".MEMF_CHIP")))
 /* for the debugger: the banks actually allocated (see system.c). */
@@ -15,8 +15,8 @@ extern volatile DeceptusU32 amiga_memory_debug[4];
    machine has it. a static Chip RAM array this large forces one huge contiguous load hunk. */
 #define RESERVE_CHIP_BYTES (16UL * 1024)
 #define RESERVE_OTHER_BYTES (24UL * 1024)
-static DeceptusU8 *resource_normal;
-static DeceptusU16 *resource_chip;
+static DeceptusU8* resource_normal;
+static DeceptusU16* resource_chip;
 static DeceptusU32 resource_normal_bytes, resource_chip_bytes;
 static DeceptusU8 simulation[AMIGA_ROOM_BYTES];
 static DeceptusMechanismDef mechanisms[AMIGA_ROOM_MECHANISMS];
@@ -24,17 +24,18 @@ static DeceptusMechanismTiming timings[AMIGA_ROOM_MECHANISMS];
 static DeceptusU16 targets[AMIGA_ROOM_TARGETS];
 static DeceptusEnemyDef enemies[AMIGA_ROOM_ENEMIES];
 static DeceptusPathPoint paths[AMIGA_ROOM_PATHS];
-static DeceptusRoomContent content = {
-   {0}, {0}, mechanisms, timings, targets, enemies, paths, AMIGA_ROOM_MECHANISMS, AMIGA_ROOM_TARGETS, AMIGA_ROOM_ENEMIES, AMIGA_ROOM_PATHS};
+static DeceptusRoomContent content =
+   {{0}, {0}, mechanisms, timings, targets, enemies, paths, AMIGA_ROOM_MECHANISMS, AMIGA_ROOM_TARGETS, AMIGA_ROOM_ENEMIES, AMIGA_ROOM_PATHS
+};
 static AmigaGraphics graphics;
 static DeceptusU16 room_loads;
 static DeceptusU8 sword_graphics;
 static DeceptusU32 tile_cache_offset;
 static DeceptusU32 chip_cache_offset;
 static AmigaTileArchive native_tiles;
-static const DeceptusU8 *tile_animations;
+static const DeceptusU8* tile_animations;
 static DeceptusU32 tile_animation_bytes;
-static const DeceptusU8 *message_boxes;
+static const DeceptusU8* message_boxes;
 static DeceptusU32 message_box_bytes;
 
 static DeceptusU32 bankSize(DeceptusU8 chip, DeceptusU32 minimum, DeceptusU32 reserve)
@@ -47,14 +48,14 @@ static DeceptusU32 bankSize(DeceptusU8 chip, DeceptusU32 minimum, DeceptusU32 re
 DeceptusU8 amigaRoomsAllocate(void)
 {
    resource_normal_bytes = bankSize(0, AMIGA_RESOURCE_NORMAL_BYTES, RESERVE_OTHER_BYTES);
-   resource_normal = (DeceptusU8 *)amigaSystemAllocate(resource_normal_bytes, 0);
+   resource_normal = (DeceptusU8*)amigaSystemAllocate(resource_normal_bytes, 0);
    if (!resource_normal)
    {
       amigaSystemReportMemory("Deceptus room data", resource_normal_bytes, 0);
       return 0;
    }
    resource_chip_bytes = bankSize(1, AMIGA_RESOURCE_CHIP_BYTES, RESERVE_CHIP_BYTES);
-   resource_chip = (DeceptusU16 *)amigaSystemAllocate(resource_chip_bytes, 1);
+   resource_chip = (DeceptusU16*)amigaSystemAllocate(resource_chip_bytes, 1);
    if (!resource_chip)
    {
       amigaSystemReportMemory("Deceptus room graphics", resource_chip_bytes, 1);
@@ -80,24 +81,24 @@ DeceptusU32 amigaRoomBankBytes(DeceptusU8 chip)
    return chip ? resource_chip_bytes : resource_normal_bytes;
 }
 
-const AmigaTileArchive *amigaRoomTiles(void)
+const AmigaTileArchive* amigaRoomTiles(void)
 {
    return &native_tiles;
 }
 
-const DeceptusU8 *amigaRoomMessageBoxes(DeceptusU32 *size)
+const DeceptusU8* amigaRoomMessageBoxes(DeceptusU32* size)
 {
    *size = message_box_bytes;
    return message_boxes;
 }
 
-const DeceptusU8 *amigaRoomTileAnimations(DeceptusU32 *size)
+const DeceptusU8* amigaRoomTileAnimations(DeceptusU32* size)
 {
    *size = tile_animation_bytes;
    return tile_animations;
 }
 
-const AmigaGraphics *amigaRoomGraphics(void)
+const AmigaGraphics* amigaRoomGraphics(void)
 {
    return &graphics;
 }
@@ -107,19 +108,19 @@ DeceptusU16 amigaRoomLoads(void)
    return room_loads;
 }
 
-DeceptusU8 *amigaRoomScratch(DeceptusU32 *size)
+DeceptusU8* amigaRoomScratch(DeceptusU32* size)
 {
    *size = resource_normal_bytes - tile_cache_offset;
    return resource_normal + tile_cache_offset;
 }
 
-DeceptusU8 *amigaRoomChipScratch(DeceptusU32 *size)
+DeceptusU8* amigaRoomChipScratch(DeceptusU32* size)
 {
    *size = resource_chip_bytes - chip_cache_offset;
-   return (DeceptusU8 *)resource_chip + chip_cache_offset;
+   return (DeceptusU8*)resource_chip + chip_cache_offset;
 }
 
-static void roomPath(char *destination, const char *prefix, DeceptusU8 room, const char *suffix, DeceptusU8 two_digits)
+static void roomPath(char* destination, const char* prefix, DeceptusU8 room, const char* suffix, DeceptusU8 two_digits)
 {
    while (*prefix)
    {
@@ -142,10 +143,10 @@ DeceptusU8 amigaRoomSwordGraphics(void)
    return sword_graphics;
 }
 
-static DeceptusU8 *reserveChipScratch(DeceptusU32 bytes)
+static DeceptusU8* reserveChipScratch(DeceptusU32 bytes)
 {
    DeceptusU32 minimum, chip_free, normal_free;
-   DeceptusU8 *pixels;
+   DeceptusU8* pixels;
    minimum = ((DeceptusU32)graphics.pattern_count + 15) / 16 + 3 + AMIGA_TILE_GROUP_BYTES;
    chip_free = resource_chip_bytes - chip_cache_offset;
    normal_free = resource_normal_bytes - tile_cache_offset;
@@ -153,7 +154,7 @@ static DeceptusU8 *reserveChipScratch(DeceptusU32 bytes)
    {
       return 0;
    }
-   pixels = (DeceptusU8 *)resource_chip + chip_cache_offset;
+   pixels = (DeceptusU8*)resource_chip + chip_cache_offset;
    chip_cache_offset += bytes;
    return pixels;
 }
@@ -161,7 +162,7 @@ static DeceptusU8 *reserveChipScratch(DeceptusU32 bytes)
 static DeceptusU8 loadNativeBackground(DeceptusU8 room, DeceptusU8 sword)
 {
    DeceptusU32 bytes;
-   DeceptusU8 *pixels;
+   DeceptusU8* pixels;
    char path[64];
    bytes = (DeceptusU32)((graphics.width + 15) / 16) * 2 * graphics.height * 5;
    pixels = reserveChipScratch(bytes);
@@ -174,14 +175,14 @@ static DeceptusU8 loadNativeBackground(DeceptusU8 room, DeceptusU8 sword)
    {
       return 0;
    }
-   graphics.background_pixels = (const DeceptusU16 *)pixels;
+   graphics.background_pixels = (const DeceptusU16*)pixels;
    return 1;
 }
 
 static DeceptusU8 loadNativeComposite(DeceptusU8 room, DeceptusU8 sword)
 {
    DeceptusU32 plane_bytes, bytes, clips_size;
-   DeceptusU8 *pixels;
+   DeceptusU8* pixels;
    char path[64];
    plane_bytes = (DeceptusU32)((graphics.width + 15) / 16) * 2 * graphics.height;
    bytes = plane_bytes * 6;
@@ -199,8 +200,13 @@ static DeceptusU8 loadNativeComposite(DeceptusU8 room, DeceptusU8 sword)
    {
       return 1;
    }
-   roomPath(path, "Build:assets/area", room,
-            graphics.clip_count ? (sword ? "/graphics-sword.acb" : "/graphics.acb") : (sword ? "/graphics-sword.acp" : "/graphics.acp"), 0);
+   roomPath(
+      path,
+      "Build:assets/area",
+      room,
+      graphics.clip_count ? (sword ? "/graphics-sword.acb" : "/graphics.acb") : (sword ? "/graphics-sword.acp" : "/graphics.acp"),
+      0
+   );
    if (amigaSystemReadFile(path, pixels, bytes) != bytes)
    {
       return 0;
@@ -214,8 +220,8 @@ static DeceptusU8 loadNativeComposite(DeceptusU8 room, DeceptusU8 sword)
          return 0;
       }
    }
-   graphics.background_pixels = (const DeceptusU16 *)pixels;
-   graphics.native_foreground = (const DeceptusU16 *)(pixels + plane_bytes * 5);
+   graphics.background_pixels = (const DeceptusU16*)pixels;
+   graphics.native_foreground = (const DeceptusU16*)(pixels + plane_bytes * 5);
    return 1;
 }
 
@@ -240,7 +246,7 @@ static DeceptusU8 loadRasterColumns(DeceptusU8 room, DeceptusU8 sword)
    }
    else if (chip_free >= reserved + (DeceptusU32)(AMIGA_BASE_CACHE_WIDTH / 8) * AMIGA_BASE_CACHE_HEIGHT * 11 + 16UL * 1024)
    {
-      pixels = (DeceptusU8 *)resource_chip + chip_cache_offset;
+      pixels = (DeceptusU8*)resource_chip + chip_cache_offset;
       in_chip = 1;
    }
    else
@@ -260,7 +266,7 @@ static DeceptusU8 loadRasterColumns(DeceptusU8 room, DeceptusU8 sword)
    {
       tile_cache_offset += reserved;
    }
-   graphics.raster_scratch = (DeceptusU16 *)(pixels + ((bytes + 3) & ~3UL));
+   graphics.raster_scratch = (DeceptusU16*)(pixels + ((bytes + 3) & ~3UL));
    return 1;
 }
 
@@ -277,8 +283,8 @@ static DeceptusU8 reserveWindow(DeceptusU16 width, DeceptusU16 height)
    smallest_window = (DeceptusU32)(AMIGA_BASE_CACHE_WIDTH / 8) * AMIGA_BASE_CACHE_HEIGHT * 11;
    normal_free = resource_normal_bytes - tile_cache_offset;
    mask_bytes = (DeceptusU32)(width / 8) * height;
-   graphics.viewport_pixels = (DeceptusU16 *)reserveChipScratch(mask_bytes * 10);
-   graphics.foreground_pixels = graphics.viewport_pixels ? (DeceptusU16 *)reserveChipScratch(mask_bytes) : 0;
+   graphics.viewport_pixels = (DeceptusU16*)reserveChipScratch(mask_bytes * 10);
+   graphics.foreground_pixels = graphics.viewport_pixels ? (DeceptusU16*)reserveChipScratch(mask_bytes) : 0;
    if (!graphics.foreground_pixels || resource_chip_bytes - chip_cache_offset < 16UL * 1024 ||
        (tile_bytes && resource_chip_bytes - checkpoint >= smallest_window + tile_bytes &&
         resource_chip_bytes - chip_cache_offset < tile_bytes) ||
@@ -304,7 +310,7 @@ static DeceptusU8 reserveNativeWindow(DeceptusU16 width, DeceptusU16 height)
    {
       return 0;
    }
-   graphics.viewport_pixels = (DeceptusU16 *)reserveChipScratch(bytes);
+   graphics.viewport_pixels = (DeceptusU16*)reserveChipScratch(bytes);
    if (!graphics.viewport_pixels)
    {
       return 0;
@@ -315,19 +321,19 @@ static DeceptusU8 reserveNativeWindow(DeceptusU16 width, DeceptusU16 height)
    return 1;
 }
 
-static DeceptusU16 nativeWord(const DeceptusU8 *bytes)
+static DeceptusU16 nativeWord(const DeceptusU8* bytes)
 {
    return ((DeceptusU16)bytes[0] << 8) | bytes[1];
 }
 
-static DeceptusU32 nativeLong(const DeceptusU8 *bytes)
+static DeceptusU32 nativeLong(const DeceptusU8* bytes)
 {
    return ((DeceptusU32)nativeWord(bytes) << 16) | nativeWord(bytes + 2);
 }
 
 static DeceptusU8 loadTileGraphics(DeceptusU8 room, DeceptusU8 sword)
 {
-   const DeceptusU32 *sizes;
+   const DeceptusU32* sizes;
    DeceptusU8 *chip, *normal;
    DeceptusU32 metadata, atlas, animations, sprite_bytes, available, split, index, table, end, atlas_at, animation_at, sprites_at;
    char path[64];
@@ -336,7 +342,7 @@ static DeceptusU8 loadTileGraphics(DeceptusU8 room, DeceptusU8 sword)
    metadata = sizes[1];
    sprite_bytes = sizes[2];
    animations = sizes[3];
-   chip = (DeceptusU8 *)resource_chip;
+   chip = (DeceptusU8*)resource_chip;
    normal = resource_normal;
    /* the cpu reads dictionaries, animations and compressed sprites, so they fill the non-chip bank
       first; only a sprite tail spills into Chip RAM, which blitter sources need. */
@@ -431,7 +437,7 @@ static DeceptusU8 loadTileGraphics(DeceptusU8 room, DeceptusU8 sword)
 DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
 {
    char path[64];
-   DeceptusU8 *world;
+   DeceptusU8* world;
    DeceptusU32 world_size, sprite_size, split, native_bytes;
    DeceptusU8 native_only;
    if (room >= AMIGA_OPENING_ROOMS)
@@ -444,20 +450,25 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    {
       return loadTileGraphics(room, sword);
    }
-   world = (DeceptusU8 *)resource_chip;
+   world = (DeceptusU8*)resource_chip;
    native_bytes = amiga_native_sizes[room][sword != 0][0] + amiga_native_sizes[room][sword != 0][1] +
                   amiga_native_sizes[room][sword != 0][2] + amiga_native_sizes[room][sword != 0][3] + 3;
    native_only = amiga_native_sizes[room][sword != 0][0] && amiga_native_sizes[room][sword != 0][2] &&
                  native_bytes <= resource_chip_bytes && resource_chip_bytes - native_bytes >= AMIGA_SPRITE_SCRATCH_BYTES;
-   roomPath(path, "Build:assets/area", room,
-            native_only ? (sword ? "/graphics-sword.agn" : "/graphics.agn") : (sword ? "/graphics-sword.agp" : "/graphics.agp"), 0);
+   roomPath(
+      path,
+      "Build:assets/area",
+      room,
+      native_only ? (sword ? "/graphics-sword.agn" : "/graphics.agn") : (sword ? "/graphics-sword.agp" : "/graphics.agp"),
+      0
+   );
    world_size = amigaSystemReadFile(path, world, resource_chip_bytes);
    if (!world_size || world_size >= resource_chip_bytes)
    {
       return 0;
    }
-   split = native_only ? amiga_native_sizes[room][sword != 0][3]
-                       : amigaGraphicsSpriteSplit(world, world_size, resource_chip_bytes - world_size);
+   split =
+      native_only ? amiga_native_sizes[room][sword != 0][3] : amigaGraphicsSpriteSplit(world, world_size, resource_chip_bytes - world_size);
    roomPath(path, "Build:assets/area", room, sword ? "/graphics-sword.asp" : "/graphics.asp", 0);
    sprite_size = amigaSystemReadFilePair(path, world + world_size, split, resource_normal, resource_normal_bytes);
    if (!sprite_size)
@@ -495,13 +506,13 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
       graphics.viewport_width = AMIGA_LARGE_CACHE_WIDTH;
       graphics.viewport_height = AMIGA_LARGE_CACHE_HEIGHT;
       graphics.viewport_pixels =
-         (DeceptusU16 *)reserveChipScratch((DeceptusU32)(graphics.viewport_width / 8) * graphics.viewport_height * 5 * 2);
+         (DeceptusU16*)reserveChipScratch((DeceptusU32)(graphics.viewport_width / 8) * graphics.viewport_height * 5 * 2);
       if (!graphics.viewport_pixels)
       {
          graphics.viewport_width = AMIGA_WIDE_CACHE_WIDTH;
          graphics.viewport_height = AMIGA_WIDE_CACHE_HEIGHT;
          graphics.viewport_pixels =
-            (DeceptusU16 *)reserveChipScratch((DeceptusU32)(graphics.viewport_width / 8) * graphics.viewport_height * 5 * 2);
+            (DeceptusU16*)reserveChipScratch((DeceptusU32)(graphics.viewport_width / 8) * graphics.viewport_height * 5 * 2);
       }
    }
    if (!graphics.viewport_pixels)
@@ -521,12 +532,12 @@ DeceptusU8 amigaRoomLoadGraphics(DeceptusU8 room, DeceptusU8 sword)
    return 1;
 }
 
-const DeceptusRoom *amigaRoomLoad(void *context, DeceptusU8 room)
+const DeceptusRoom* amigaRoomLoad(void* context, DeceptusU8 room)
 {
-   const DeceptusAdventure *game;
+   const DeceptusAdventure* game;
    char path[64];
    DeceptusU32 size;
-   game = (const DeceptusAdventure *)context;
+   game = (const DeceptusAdventure*)context;
    if (room >= AMIGA_OPENING_ROOMS)
    {
       return 0;

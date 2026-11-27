@@ -1,10 +1,10 @@
 /* the game loop on the SA-1: it owns the adventure state in BW-RAM and runs what the S-CPU's
  * mailbox requests. the S-CPU keeps pacing, input, video and the presentation of each frame. */
+#include "background.h"
 #include "deceptus/adventure.h"
 #include "deceptus/game.h"
-#include "snes_assets.h"
 #include "sa1_mailbox.h"
-#include "background.h"
+#include "snes_assets.h"
 #include "sprites.h"
 #include "storm.h"
 
@@ -15,7 +15,7 @@ DeceptusFrame snes_sa1_frame;
 
 static const DeceptusVideoCaps video = {256, 224, DECEPTUS_DRAW_CAPACITY};
 
-static void advance(volatile SnesSa1Mailbox *mailbox)
+static void advance(volatile SnesSa1Mailbox* mailbox)
 {
    DeceptusU16 ticks;
    mailbox->room_changed = 0;
@@ -46,11 +46,11 @@ static DeceptusU16 stack_low_water;
 /* a deeper stack shows in the bytes just below the previous low-water mark, so only a window there
  * is read: a scan of the whole stack before every answer cost a third of the SA-1's time. a frame
  * that leaves more than a window of untouched bytes below it is reported shallower. */
-static void recordStackLowWater(volatile SnesSa1Mailbox *mailbox)
+static void recordStackLowWater(volatile SnesSa1Mailbox* mailbox)
 {
-   const volatile DeceptusU8 *floor;
+   const volatile DeceptusU8* floor;
    DeceptusU16 address, previous;
-   floor = (const volatile DeceptusU8 *)SNES_SA1_STACK_FLOOR;
+   floor = (const volatile DeceptusU8*)SNES_SA1_STACK_FLOOR;
    if (stack_low_water == 0)
    {
       stack_low_water = SNES_SA1_STACK_TOP;
@@ -73,7 +73,7 @@ static void recordStackLowWater(volatile SnesSa1Mailbox *mailbox)
 
 void snesSa1Main(void)
 {
-   volatile SnesSa1Mailbox *mailbox;
+   volatile SnesSa1Mailbox* mailbox;
    DeceptusU8 request;
    mailbox = SNES_SA1_MAILBOX;
    while (1)

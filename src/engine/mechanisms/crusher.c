@@ -64,7 +64,7 @@ static DeceptusI32 easeOutCosine(DeceptusI32 x)
    return (4 * (EASING_ONE * EASING_ONE - x * x)) / ((4 * EASING_ONE * EASING_ONE + x * x) >> EASING_SHIFT);
 }
 
-void crushersInit(DeceptusMechanismSet *set)
+void crushersInit(DeceptusMechanismSet* set)
 {
    DeceptusU16 index;
    for (index = 0; index < set->count; ++index)
@@ -78,9 +78,9 @@ void crushersInit(DeceptusMechanismSet *set)
    }
 }
 
-static DeceptusI16 crusherOffset(const DeceptusMechanismSet *set, DeceptusU16 index)
+static DeceptusI16 crusherOffset(const DeceptusMechanismSet* set, DeceptusU16 index)
 {
-   const DeceptusMechanismState *state;
+   const DeceptusMechanismState* state;
    DeceptusI32 travel;
    state = &set->states[index];
    travel = set->definitions[index].value;
@@ -94,16 +94,15 @@ static DeceptusI16 crusherOffset(const DeceptusMechanismSet *set, DeceptusU16 in
    }
    if (state->phase == CRUSHER_RETRACTING)
    {
-      return (DeceptusI16)((travel * easeOutCosine(((DeceptusI32)state->timer << EASING_SHIFT) / CRUSHER_RETRACT_TICKS)) >>
-                           EASING_SHIFT);
+      return (DeceptusI16)((travel * easeOutCosine(((DeceptusI32)state->timer << EASING_SHIFT) / CRUSHER_RETRACT_TICKS)) >> EASING_SHIFT);
    }
    return 0;
 }
 
 /* the source alternates waits with drops and lifts: wait, drop, wait, lift. */
-static void crusherTick(DeceptusMechanismSet *set, DeceptusU16 index)
+static void crusherTick(DeceptusMechanismSet* set, DeceptusU16 index)
 {
-   DeceptusMechanismState *state;
+   DeceptusMechanismState* state;
    DeceptusU16 duration;
    state = &set->states[index];
    ++state->timer;
@@ -118,18 +117,18 @@ static void crusherTick(DeceptusMechanismSet *set, DeceptusU16 index)
    }
 }
 
-static DeceptusU8 bladeTouches(const DeceptusMechanismSet *set, DeceptusU16 index, const DeceptusRect *body)
+static DeceptusU8 bladeTouches(const DeceptusMechanismSet* set, DeceptusU16 index, const DeceptusRect* body)
 {
-   const DeceptusRect *bounds;
+   const DeceptusRect* bounds;
    DeceptusI16 left, top;
    bounds = &set->definitions[index].bounds;
    left = bounds->x + CRUSHER_BLADE_INSET;
    top = bounds->y + CRUSHER_BLADE_BODY_TOP + crusherOffset(set, index);
-   return (body->x < left + CRUSHER_WIDTH - 2 * CRUSHER_BLADE_INSET) && (body->x + body->width > left) &&
-          (body->y < top + CRUSHER_TILE) && (body->y + body->height > top);
+   return (body->x < left + CRUSHER_WIDTH - 2 * CRUSHER_BLADE_INSET) && (body->x + body->width > left) && (body->y < top + CRUSHER_TILE) &&
+          (body->y + body->height > top);
 }
 
-DeceptusU8 crushersTick(DeceptusMechanismSet *set, const DeceptusRect *bounds)
+DeceptusU8 crushersTick(DeceptusMechanismSet* set, const DeceptusRect* bounds)
 {
    DeceptusU16 index;
    DeceptusU8 touched;
@@ -151,16 +150,16 @@ DeceptusU8 crushersTick(DeceptusMechanismSet *set, const DeceptusRect *bounds)
 
 /* the chain hangs from the blade and is lowered with it; links are cut off where they disappear into
  * the mount, so one link per mount tile of gap between the mount and the blade. */
-DeceptusU8 crusherPartCount(const DeceptusMechanismSet *set, DeceptusU16 index)
+DeceptusU8 crusherPartCount(const DeceptusMechanismSet* set, DeceptusU16 index)
 {
    DeceptusI16 gap;
    gap = CRUSHER_BLADE_TOP - CRUSHER_TILE + crusherOffset(set, index);
    return (DeceptusU8)(2 + (gap + CRUSHER_LINK_HEIGHT - 1) / CRUSHER_LINK_HEIGHT);
 }
 
-void crusherPart(const DeceptusMechanismSet *set, DeceptusU16 index, DeceptusU8 part, DeceptusU8 *image, DeceptusI16 *x, DeceptusI16 *y)
+void crusherPart(const DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8 part, DeceptusU8* image, DeceptusI16* x, DeceptusI16* y)
 {
-   const DeceptusRect *bounds;
+   const DeceptusRect* bounds;
    DeceptusI16 blade_top, mount_bottom, link_top, hidden;
    bounds = &set->definitions[index].bounds;
    blade_top = bounds->y + CRUSHER_BLADE_TOP + crusherOffset(set, index);

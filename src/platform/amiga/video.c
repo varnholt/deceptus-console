@@ -1,6 +1,4 @@
 #include "video.h"
-#include "amiga_assets.h"
-#include "system.h"
 #include <exec/execbase.h>
 #include <graphics/gfxbase.h>
 #include <hardware/blit.h>
@@ -10,6 +8,8 @@
 #include <proto/exec.h>
 #include <proto/graphics.h>
 #include <stddef.h>
+#include "amiga_assets.h"
+#include "system.h"
 
 #define ROW_WORDS ((AMIGA_ROOM_WIDTH + 32) / 16)
 #define PLANE_WORDS (ROW_WORDS * AMIGA_ROOM_HEIGHT)
@@ -19,7 +19,7 @@
 #define ACTOR_FRAME_WORDS (ACTOR_ROW_WORDS * ACTOR_HEIGHT * AMIGA_PLANES)
 #define CHIP __attribute__((section(".MEMF_CHIP")))
 
-static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
+static volatile struct Custom* const hardware = (struct Custom*)0xdff000;
 static DeceptusU16 buffers[2][BUFFER_WORDS] CHIP;
 static DeceptusU16 copper[2][128] CHIP;
 typedef struct AmigaSavedBob
@@ -34,7 +34,7 @@ static AmigaSavedBob saved_bobs[2][AMIGA_BOB_CAPACITY];
 static DeceptusU16 saved_counts[2];
 
 static void waitBlitter(void);
-static void initializeRoom(DeceptusU16 *destination);
+static void initializeRoom(DeceptusU16* destination);
 static DeceptusU16 draw_buffer;
 static volatile DeceptusU32 video_frames;
 
@@ -59,7 +59,7 @@ void amigaVideoWait(void)
    }
 }
 
-static void copperWrite(DeceptusU16 **cursor, DeceptusU16 reg, DeceptusU16 value)
+static void copperWrite(DeceptusU16** cursor, DeceptusU16 reg, DeceptusU16 value)
 {
    *(*cursor)++ = reg;
    *(*cursor)++ = value;
@@ -67,7 +67,7 @@ static void copperWrite(DeceptusU16 **cursor, DeceptusU16 reg, DeceptusU16 value
 
 static void prepareCopper(DeceptusU16 buffer, DeceptusI16 camera)
 {
-   DeceptusU16 *cursor;
+   DeceptusU16* cursor;
    DeceptusU16 plane, delay;
    DeceptusU32 address;
    cursor = copper[buffer];
@@ -130,7 +130,7 @@ static void waitBlitter(void)
    }
 }
 
-static void initializeRoom(DeceptusU16 *destination)
+static void initializeRoom(DeceptusU16* destination)
 {
    DeceptusU16 x, y, tile;
    for (y = 0; y < AMIGA_ROOM_HEIGHT / 16; ++y)
@@ -155,7 +155,7 @@ static void initializeRoom(DeceptusU16 *destination)
 static void saveActor(DeceptusU16 buffer, DeceptusU16 index, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusI16 first, last, top, bottom;
-   AmigaSavedBob *saved;
+   AmigaSavedBob* saved;
    saved = &saved_bobs[buffer][index];
    saved->height = 0;
    if (x <= -32 || x >= AMIGA_ROOM_WIDTH || y <= -ACTOR_HEIGHT || y >= AMIGA_ROOM_HEIGHT)
@@ -187,7 +187,7 @@ static void saveActor(DeceptusU16 buffer, DeceptusU16 index, DeceptusI16 x, Dece
 
 static void restoreActor(DeceptusU16 buffer, DeceptusU16 index)
 {
-   const AmigaSavedBob *saved;
+   const AmigaSavedBob* saved;
    saved = &saved_bobs[buffer][index];
    if (!saved->height)
    {
@@ -205,7 +205,7 @@ static void restoreActor(DeceptusU16 buffer, DeceptusU16 index)
    hardware->bltsize = (saved->height << 6) | saved->width;
 }
 
-static void drawClippedActor(DeceptusU16 *destination, const DeceptusDraw *draw, DeceptusI16 x, DeceptusI16 y)
+static void drawClippedActor(DeceptusU16* destination, const DeceptusDraw* draw, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 row, plane, word, slot, shift, mask_word, pixel_word;
    DeceptusI16 target_row, target_word, first;
@@ -261,11 +261,11 @@ static void drawClippedActor(DeceptusU16 *destination, const DeceptusDraw *draw,
    }
 }
 
-static void drawActor(DeceptusU16 *destination, const DeceptusDraw *draw, DeceptusI16 x, DeceptusI16 y)
+static void drawActor(DeceptusU16* destination, const DeceptusDraw* draw, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusI16 first, top, height;
    DeceptusU16 slot, shift;
-   DeceptusU16 *target;
+   DeceptusU16* target;
    const DeceptusU16 *source, *mask;
    if (draw->frame >= AMIGA_ACTOR_FRAMES || y >= AMIGA_ROOM_HEIGHT || y <= -48)
    {
@@ -302,10 +302,10 @@ static void drawActor(DeceptusU16 *destination, const DeceptusDraw *draw, Decept
    hardware->bltsize = ((height * AMIGA_PLANES) << 6) | 3;
 }
 
-void amigaVideoDraw(const DeceptusFrame *frame)
+void amigaVideoDraw(const DeceptusFrame* frame)
 {
    DeceptusU16 index, count;
-   const DeceptusDraw *draw;
+   const DeceptusDraw* draw;
    draw_buffer ^= 1;
    /* undo in reverse order because a later BOB may have saved an earlier one. */
    index = saved_counts[draw_buffer];

@@ -1,12 +1,12 @@
-#include "audio.h"
-#include "songs.h"
 #include "amiga_opening_assets.h"
+#include "audio.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
 #include "input.h"
 #include "keyboard.h"
 #include "opening_video.h"
 #include "rooms.h"
+#include "songs.h"
 #include "system.h"
 
 static DeceptusAdventure adventure;
@@ -22,8 +22,8 @@ volatile DeceptusU32 amiga_debug[32];
 
 static void debugWrite(void)
 {
-   const DeceptusEngine *engine;
-   const AmigaGraphics *graphics;
+   const DeceptusEngine* engine;
+   const AmigaGraphics* graphics;
    engine = &adventure.campaign.engine;
    graphics = amigaRoomGraphics();
    amiga_debug[0] = 0xd3ce500;

@@ -1,16 +1,16 @@
-#include "deceptus/game.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "deceptus/game.h"
 
-#define CHECK(condition)                                                                                                                   \
-   do                                                                                                                                      \
-   {                                                                                                                                       \
-      if (!(condition))                                                                                                                    \
-      {                                                                                                                                    \
-         fprintf(stderr, "failure at line %d: %s\n", __LINE__, #condition);                                                                \
-         exit(1);                                                                                                                          \
-      }                                                                                                                                    \
+#define CHECK(condition)                                                    \
+   do                                                                       \
+   {                                                                        \
+      if (!(condition))                                                     \
+      {                                                                     \
+         fprintf(stderr, "failure at line %d: %s\n", __LINE__, #condition); \
+         exit(1);                                                           \
+      }                                                                     \
    } while (0)
 
 static DeceptusU8 cells[64 * 28];

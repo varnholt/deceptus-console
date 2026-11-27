@@ -7,7 +7,7 @@
 
 int amigaVideoInit(void);
 void amigaVideoClose(void);
-void amigaVideoDraw(const DeceptusFrame *frame);
+void amigaVideoDraw(const DeceptusFrame* frame);
 DeceptusU32 amigaVideoFrames(void);
 void amigaVideoWait(void);
 

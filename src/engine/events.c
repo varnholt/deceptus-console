@@ -1,6 +1,6 @@
 #include "deceptus/engine.h"
 
-void deceptusEventPush(DeceptusEngine *engine, DeceptusU8 kind)
+void deceptusEventPush(DeceptusEngine* engine, DeceptusU8 kind)
 {
    if (engine->event_count == DECEPTUS_EVENT_CAPACITY)
    {

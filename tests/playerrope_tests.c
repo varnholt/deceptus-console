@@ -1,6 +1,6 @@
-#include "deceptus/game.h"
 #include <assert.h>
 #include <string.h>
+#include "deceptus/game.h"
 
 static DeceptusU8 cells[80 * 64];
 static DeceptusEngine engine, baseline;

@@ -8,12 +8,12 @@
 #define DECEPTUS_HEADTORCH_BEAM 15
 
 /* initializes caller-owned state; room and collision storage must outlive it. */
-void deceptusInit(DeceptusEngine *engine, const DeceptusRoom *room, const DeceptusVideoCaps *video);
+void deceptusInit(DeceptusEngine* engine, const DeceptusRoom* room, const DeceptusVideoCaps* video);
 /* advances one 60Hz simulation tick; replaces the transient event queue. */
-void deceptusTick(DeceptusEngine *engine, DeceptusU16 buttons);
+void deceptusTick(DeceptusEngine* engine, DeceptusU16 buttons);
 /* builds a bounded list of logical metasprites without modifying simulation. */
-void deceptusRender(const DeceptusEngine *engine, DeceptusFrame *frame);
+void deceptusRender(const DeceptusEngine* engine, DeceptusFrame* frame);
 /* move to a room entrance and immediately reframe the camera. */
-void deceptusPlacePlayer(DeceptusEngine *engine, DeceptusI16 x, DeceptusI16 y);
+void deceptusPlacePlayer(DeceptusEngine* engine, DeceptusI16 x, DeceptusI16 y);
 
 #endif
