@@ -47,6 +47,18 @@ static void debugWrite(void)
    amiga_debug[20] = amigaRoomLoads();
 }
 
+/* the track Paula plays (include/deceptus/music.h numbering); it follows the game's. */
+static DeceptusU8 music_track;
+
+static void followMusic(const DeceptusMusic* music)
+{
+   if (music->track != music_track)
+   {
+      music_track = music->track;
+      audioPlaySong(music_songs[music_track]);
+   }
+}
+
 int main(void)
 {
    DeceptusRoomProvider provider;
@@ -67,7 +79,7 @@ int main(void)
    provider.load = amigaRoomLoad;
    provider.context = &adventure;
    deceptusAdventureInitWithRoomProvider(&adventure, &amiga_tutorial_definition, &video, &provider);
-   audioStart(SONG_LEVEL_TEST_TRACK_MUFFLER_AWAKENING);
+   audioStart(0);
    if (adventure.campaign.engine.content_error)
    {
       debugWrite();
@@ -114,6 +126,7 @@ int main(void)
          break;
       }
       audioPlayCues(&adventure.sounds);
+      followMusic(&adventure.music);
       deceptusRender(&adventure.campaign.engine, &frame);
       debugWrite();
       if (adventure.campaign.engine.content_error || !amigaOpeningVideoDraw(&adventure, &frame))

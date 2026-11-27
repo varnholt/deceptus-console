@@ -28,6 +28,18 @@ static DeceptusU16 smd_free_memory;
 #include "video/opening_sprites.h"
 #include "video/opening_ui.h"
 
+/* the track the Z80 plays (include/deceptus/music.h numbering); it follows the game's. */
+static DeceptusU8 music_track;
+
+static void followMusic(const DeceptusMusic* music)
+{
+   if (music->track != music_track)
+   {
+      music_track = music->track;
+      audioPlaySong(music_songs[music_track]);
+   }
+}
+
 /* direct, bounded transfers own presentation; the sdk queue is not needed. */
 void __wrap_DMA_init(void)
 {
@@ -176,7 +188,7 @@ int main(bool hard_reset)
    deceptusAdventureInit(&adventure, &smd_tutorial_definition, &video);
    videoLoad();
    deceptusPacingInit(&pacing, IS_PAL_SYSTEM ? 50 : 60, SMD_PACING_MAX_TICKS);
-   audioStart(SONG_LEVEL_TEST_TRACK_MUFFLER_AWAKENING);
+   audioStart(0);
    previous_vblank = vtimer - 1;
    room_loaded = 0;
    while (1)
@@ -198,6 +210,7 @@ int main(bool hard_reset)
          }
       }
       audioPlayCues(&adventure.sounds);
+      followMusic(&adventure.music);
       deceptusRender(&adventure.campaign.engine, &frame);
       flags = deceptusAdventurePresentationFlags(&adventure);
       smdBackgroundSetFlags(flags);

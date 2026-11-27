@@ -303,6 +303,16 @@ platform turns that into sound. `songAdvance` steps the song for one display fra
 at the display's real rate, so a platform calls it from a timer or scanline
 interrupt and the music keeps time however long the game takes for a frame.
 
+Which track plays follows the original (`include/deceptus/music.h`,
+`src/game/music.c`): the title and the pause menus play the menu track, a level its
+default track, and entering a level's music zone switches to the zone's track for
+good. After a death the level starts again with the zone's track only when the last
+checkpoint reached is one of the zone's, as the original's `trackForCheckpoint`
+decides. `tools/level_music.py` reads the zones from the level scripts'
+`music_zones.configure` calls without running them; a level without one, the
+graveyard, is silent. The platform follows `DeceptusAdventure.music.track` and
+starts a new track from its beginning, without the original's one-second crossfade.
+
 The GBA mixes four voices into Direct Sound A at 10,512 Hz, exactly 176 samples
 per 280,896-cycle frame, from a VCOUNT interrupt at line 100, outside the vblank
 the video commit needs. DMA 1 feeds the FIFO from two frame buffers; the inner

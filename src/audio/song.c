@@ -119,8 +119,6 @@ void songStart(SongPlayer* player, const Song* song)
    player->song = song;
    player->order = 0;
    player->tick = 0;
-   player->speed = song->speed;
-   player->bpm = song->bpm;
    player->global_volume = SONG_VOLUME_MAX;
    player->pattern_delay = 0;
    player->jump = 0;
@@ -151,6 +149,12 @@ void songStart(SongPlayer* player, const Song* song)
       player->outputs[index].volume = 0;
       player->outputs[index].started = 0;
    }
+   if (song == 0)
+   {
+      return;
+   }
+   player->speed = song->speed;
+   player->bpm = song->bpm;
    seekRow(player, 0);
 }
 
@@ -802,6 +806,10 @@ DeceptusU8 songAdvance(SongPlayer* player, DeceptusU16 frame_rate)
 {
    DeceptusU32 tick_cost;
    DeceptusU8 ticks;
+   if (player->song == 0)
+   {
+      return 0;
+   }
    tick_cost = (DeceptusU32)frame_rate * TICKS_PER_BEAT_DENOMINATOR;
    player->tick_due += ticksPerSecondScaled(player->bpm);
    ticks = 0;
