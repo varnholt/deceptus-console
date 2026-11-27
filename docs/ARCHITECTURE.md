@@ -45,11 +45,12 @@ or console. A platform specializes it without `#if` blocks in shared files, in
 two ways:
 
 - **Arithmetic primitives** (`include/arith.h`): `arithSquareU16`,
-  `arithMulS16`, `arithDivS32U16` and `arithRootU32`, each with an exact
+  `arithMulS16`, `arithMulU16`, `arithDivS32U16` and `arithRootU32`, each with an exact
   contract and a portable reference in `src/engine/arith.c`. A platform that
   defines `PLATFORM_ARITH` provides `platform_arith.h` in its own source folder,
-  which its build puts on the include path: the Amiga maps them to inline
-  `mulu`, `muls` and `divs` where those are exact, the SNES to 65816 routines in
+  which its build puts on the include path: the Amiga and the Mega Drive share
+  the 68000 one in `src/platform/m68k`, which maps them to inline `mulu`, `muls`
+  and `divs` where those are exact, the SNES maps them to 65816 routines in
   `engine_math.asm`. Other platforms use the reference.
 - **Platform content limits** in the platform's tooling, such as re-timed
   animation clips on the Amiga or the SNES grab rope cap

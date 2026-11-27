@@ -23,6 +23,14 @@ static __inline__ DeceptusI32 arithMulS16(DeceptusI16 left, DeceptusI16 right)
    return result;
 }
 
+static __inline__ DeceptusU32 arithMulU16(DeceptusU16 left, DeceptusU16 right)
+{
+   DeceptusU32 result;
+   result = left;
+   __asm__("mulu.w %1,%0" : "+d"(result) : "d"(right) : "cc");
+   return result;
+}
+
 static __inline__ DeceptusI32 arithDivS32U16(DeceptusI32 numerator, DeceptusU16 denominator)
 {
    DeceptusI32 result, range;
