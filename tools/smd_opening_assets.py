@@ -164,12 +164,18 @@ def compile_font(data,writer):
             'const SmdFontGlyph smd_font_glyphs[95] = {'+','.join('{'+str(tile)+','+str(columns)+'}' for tile,columns in glyphs)+'};'],len(payload)//32
 
 
+# grab rope physics runs every tick per node: room 22's 22-node rope cost the 68000 about two display
+# frames per tick and its pieces' points another. six segments, as on the Amiga, settle the same way.
+SMD_ROPE_SEGMENTS=6
+
+
 def compile_opening(data,output,metadata_source,rooms=26):
     data,output,metadata_source=Path(data).resolve(),Path(output).resolve(),Path(metadata_source).resolve()
     output.mkdir(parents=True,exist_ok=True);recipes,identity=original_imports(data)
     files=portable_metadata(metadata_source,output)
-    # the room declarations are exported again without the SNES's platform limits (its rope cap).
-    export_opening_worlds(recipes,output,output/'worlds','smd')
+    # the room declarations are exported again with the Mega Drive's own limits: the 68000 caps
+    # grab ropes like the Amiga (SMD_ROPE_SEGMENTS), not like the SNES.
+    export_opening_worlds(recipes,output,output/'worlds','smd',SMD_ROPE_SEGMENTS)
     writer=Writer(output);stages=[];lines=[];reports=[]
     for index,(recipe,source) in enumerate(recipes[:rooms]):
         image=Image.open(source/'catacombs.png').convert('RGB');front=Image.open(source/'foreground.png').convert('RGBA')
