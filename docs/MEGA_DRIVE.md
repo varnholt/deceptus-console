@@ -258,9 +258,35 @@ takes longer than a display frame catches up with up to three ticks
 (`SMD_PACING_MAX_TICKS`, as on the SNES and the Amiga). The cartridge used one,
 so the game ran at its frame rate: 29.9 ticks/s at 29.9 presentations/s in the
 first room (route steps 2-5). With three it runs 37.1 ticks/s at 22.4
-presentations/s. Each tick itself costs the 68000 about one display frame, so
-catching up cannot reach full speed until the tick is cheaper; that is the next
-profiling target.
+presentations/s. Catching up cannot reach full speed while a presentation takes
+two or three display frames; the measurements below show where they go.
+
+### Where a presentation goes, room by room
+
+Timing every part of the loop with the V counter (as above, `vtimer * 262` plus
+the remapped line, summed per room on the tick-locked route) showed that a tick
+costs about 45 scan lines on average, a sixth of a display frame, not a whole
+one. Most rooms spend 400 to 840 lines per presentation: background preparation
+135 to 420 (loading the cells a scroll brings in), sprite preparation 50 to 200,
+the transfers after vblank 100 to 270, and the tick 40 to 160. Room 22 was the
+exception at about 2,000 lines: its 22-node grab rope cost 1,100 lines per tick
+and its rope pieces another 350 in sprite preparation.
+
+Two causes in the tick were plain waste. gcc compiles even a 16x16 product into
+a call to `__mulsi3` and a division into `__divsi3`, so the shared engine now
+uses the 68000 primitives in `src/platform/m68k/platform_arith.h` (`mulu`,
+`muls`, `divs`, shared with the Amiga), including `arithMulU16` for the cell
+lookup. And room 22's rope never went to sleep, because its box collider counted
+as a moving solid; box colliders only stop moveable boxes, so the rope now sleeps
+when nobody holds it. Together: tick time over the route -25%, room 22's tick
+1,111 to 607 lines, route 56,972 to 54,152 display frames.
+
+A cell load cost about 3,400 cycles: half fetching the cell (walking its
+run-length row from the start, past the clips), half storing it in the pattern
+cache. A new window row is now read in one pass over its run-length row
+(`loadRow`); rows a clip covers keep the per-cell lookup, and cells are stored
+in the same order, so the cache state is unchanged. Route: 53,068 to 50,325
+display frames.
 
 ## Retained small prototype
 

@@ -484,10 +484,71 @@ static void refreshClipRow(const SmdBackgroundAnimation *clip, DeceptusU16 frame
    }
 }
 
+/* whether an enabled clip of the plane covers part of the window row, where cellValue reads the clip. */
+static DeceptusU8 rowHasClip(DeceptusU8 plane, DeceptusI16 y, DeceptusI16 left)
+{
+   const SmdBackgroundAnimation *clip;
+   DeceptusU16 index;
+   for (index = 0; index < stage->animation_count; ++index)
+   {
+      clip = &stage->animations[index];
+      if ((clip->plane == plane) && clipEnabled(clip, source_flags) && (y >= clip->top) && (y < clip->top + clip->rows) &&
+          (left < clip->left + clip->columns) && (left + WORLD_WIDTH > clip->left))
+      {
+         return 1;
+      }
+   }
+   return 0;
+}
+
+/* a new window row in one pass over its run-length row, instead of walking the row from its start
+   for each cell. rows a clip covers, or that leave the room, take loadCell per cell; the cells are
+   stored in the same order either way, so the cache ends in the same state. skip is a column the
+   caller loads itself. */
+static void loadRow(DeceptusU8 plane, DeceptusI16 y, DeceptusI16 left, DeceptusI16 skip)
+{
+   SmdCellRun run;
+   const DeceptusU8 *cell;
+   DeceptusI16 x;
+   if ((y < 0) || (y >= stage->rows) || (left < 0) || (left + WORLD_WIDTH > stage->columns) || rowHasClip(plane, y, left) ||
+       !cellRunStart(&run, plane ? &stage->foreground : &stage->background, y))
+   {
+      for (x = left; x < left + WORLD_WIDTH; ++x)
+      {
+         if (x != skip)
+         {
+            loadCell(plane, x, y, 2);
+         }
+      }
+      return;
+   }
+   for (x = 0; x < left; ++x)
+   {
+      if (!cellRunNext(&run))
+      {
+         smd_graphics_error = smd_background_error = 1;
+         return;
+      }
+   }
+   for (x = left; x < left + WORLD_WIDTH; ++x)
+   {
+      cell = cellRunNext(&run);
+      if (!cell)
+      {
+         smd_graphics_error = smd_background_error = 1;
+         return;
+      }
+      if (x != skip)
+      {
+         storeCell(plane, x, y, 2, ((DeceptusU16)cell[0] << 8) | cell[1], ((DeceptusU16)cell[2] << 8) | cell[3]);
+      }
+   }
+}
+
 static void loadWindow(DeceptusI16 left, DeceptusI16 top)
 {
    DeceptusU16 plane;
-   DeceptusI16 x, y;
+   DeceptusI16 y;
    DeceptusU16 frames[WORLD_CLIPS], elapsed[WORLD_CLIPS];
    memcpy(frames, work.frame, sizeof(frames));
    memcpy(elapsed, work.elapsed, sizeof(elapsed));
@@ -498,10 +559,7 @@ static void loadWindow(DeceptusI16 left, DeceptusI16 top)
    {
       for (y = top; y < top + WORLD_HEIGHT; ++y)
       {
-         for (x = left; x < left + WORLD_WIDTH; ++x)
-         {
-            loadCell((DeceptusU8)plane, x, y, 2);
-         }
+         loadRow((DeceptusU8)plane, y, left, -1);
       }
    }
    work.loaded = 1;
@@ -621,14 +679,7 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          }
          if (top != work.top)
          {
-            y = top > work.top ? top + WORLD_HEIGHT - 1 : top;
-            for (x = left; x < left + WORLD_WIDTH; ++x)
-            {
-               if (x != added)
-               {
-                  loadCell((DeceptusU8)plane, x, y, 2);
-               }
-            }
+            loadRow((DeceptusU8)plane, top > work.top ? top + WORLD_HEIGHT - 1 : top, left, added);
          }
       }
       for (index = 0; index < stage->animation_count; ++index)
