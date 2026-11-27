@@ -209,6 +209,42 @@ static DeceptusFrame frame;
 #include "storm.h"
 #include "ppu_timing.h"
 #include "ui.h"
+#include "snes_audio.h"
+
+/* snesmod's soundbank (build_snes.py), read by the S-CPU through its long address. */
+extern char SOUNDBANK__;
+/* full volume, centred: spcEffect's volume * 16 + pan. */
+#define EFFECT_VOLUME_PAN (15 * 16 + 8)
+
+/* snesmod on the SPC700 plays the song by itself; the effects are its first module's samples. */
+static void audioStart(void)
+{
+   DeceptusU16 effect;
+   spcBoot();
+   spcSetBank(&SOUNDBANK__);
+   spcStop();
+   spcLoad(SNES_MODULE_LEVEL_TEST_TRACK_MUFFLER_AWAKENING);
+   for (effect = 0; effect < SNES_EFFECT_COUNT; ++effect)
+   {
+      spcLoadEffect(effect);
+   }
+   spcPlay(0);
+}
+
+/* the cues the ticks queued, while the SA-1 rests between presentations; snesmod numbers its effects
+   from 0, the cues from 1. */
+static void audioPlayCues(void)
+{
+   SoundQueue *queue;
+   DeceptusU8 index;
+   queue = &SNES_GAME->sounds;
+   for (index = 0; index < queue->count; ++index)
+   {
+      spcEffect(SNES_EFFECT_PITCH, (u16)(queue->cues[index] - 1), EFFECT_VOLUME_PAN);
+   }
+   queue->count = 0;
+   spcProcess();
+}
 
 #define SNES_HVBJOY (*(volatile DeceptusU8 *)0x4212)
 #define SNES_JOY1 (*(volatile DeceptusU16 *)0x4218)
@@ -532,6 +568,7 @@ int main(void)
    gameStart();
    deceptus_debug[11] = 2;
    videoLoad();
+   audioStart();
    deceptus_debug[11] = 7;
    deceptusPacingInit(&pacing, snes_50hz ? 50 : 60, SNES_PACING_MAX_TICKS);
    previous_vblank = snes_vblank_count;
@@ -550,6 +587,7 @@ int main(void)
          gamePrepare(buffer);
       }
       deceptus_debug[11] = 12;
+      audioPlayCues();
       snesUiPrepare(SNES_GAME);
       deceptus_debug[11] = 13;
       snesSpritesUploadTiles(buffer);

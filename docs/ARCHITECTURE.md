@@ -315,6 +315,18 @@ volumes are `footsteps.json`'s) and converts a platform's bank: decoded with the
 8-bit, with the trailing silence trimmed. The GBA plays cues on two more voices of
 its mixer at its own 10,512 Hz, a new cue taking the voice started longest ago.
 
+The SNES plays both on its SPC700 with PVSnesLib's snesmod, which runs the song
+by itself, so it keeps time like the others. snesmod reads Impulse Tracker
+modules: `tools/it_writer.py` writes each song as IT (instrument mode, with the
+XM key maps, volume envelopes and fadeout; effects mapped to their IT
+counterparts) and the cues as a module of one sample each at 8 kHz, the first
+module of the soundbank, whose samples snesmod loads as its effects. `smconv`
+packs them into a soundbank in ROM bank 40, which both cartridges map at
+`$e8` and keep for it. libopenmpt renders the IT conversion like the XM
+(loudness correlation 0.985); recorded from the SNES, the music follows it
+with a correlation of 0.86 at the same pitch, the rest being snesmod's BRR
+samples at 32 kHz. snesmod adds 0.16% to the SNES route's display frames.
+
 ## Rendering
 
 
