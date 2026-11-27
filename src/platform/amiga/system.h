@@ -5,6 +5,13 @@
 int amigaSystemOpen(void);
 void amigaSystemTakeDisplay(void (*interrupt_handler)(void), const DeceptusU16* copper);
 void amigaSystemReleaseDisplay(void);
+/* while the system owns the display, exec calls handler every vertical blank (an interrupt server),
+   as the game's own interrupt does while it owns the display; at most one is added. */
+void amigaSystemAddVerticalBlankServer(void (*handler)(void));
+void amigaSystemRemoveVerticalBlankServer(void);
+/* while the system owns the display, shows this copper list instead of the system's; amigaSystemClose
+   gives the system its own back. */
+void amigaSystemShowCopper(const DeceptusU16* copper);
 void amigaSystemClose(void);
 /* startup-only memory: large buffers come from whatever the machine has free, in separate blocks,
    so a small executable loads even when the system fragments Chip RAM. never call per frame. */

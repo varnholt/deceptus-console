@@ -1,6 +1,7 @@
 #include "system.h"
 #include <dos/dosextens.h>
 #include <exec/execbase.h>
+#include <exec/interrupts.h>
 #include <graphics/gfxbase.h>
 #include <hardware/custom.h>
 #include <hardware/dmabits.h>
@@ -21,6 +22,11 @@ static struct View* saved_view;
 static APTR saved_interrupt;
 static DeceptusU16 saved_dma, saved_ints;
 static DeceptusU8 display_owned;
+/* the four audio channels' DMA: the song plays on through the hand-overs between the game and the
+   system, so taking and releasing the display leave it alone. */
+#define DMA_ALL_BUT_AUDIO (0x7fff & ~DMAF_AUDIO)
+static struct Interrupt vertical_blank_server;
+static void (*vertical_blank_handler)(void);
 /* the folder the program was started from, as the Shell named it ("DH1:Games/" or empty when it
    was started by plain name from the current directory). */
 static char program_folder[128];
@@ -100,7 +106,7 @@ void amigaSystemTakeDisplay(void (*interrupt_handler)(void), const DeceptusU16* 
    Disable();
    saved_interrupt = *level_three_vector;
    hardware->intena = 0x7fff;
-   hardware->dmacon = 0x7fff;
+   hardware->dmacon = DMA_ALL_BUT_AUDIO;
    hardware->intreq = 0x7fff;
    *level_three_vector = (APTR)interrupt_handler;
    hardware->cop1lc = (ULONG)copper;
@@ -118,7 +124,7 @@ void amigaSystemReleaseDisplay(void)
    }
    WaitBlit();
    hardware->intena = 0x7fff;
-   hardware->dmacon = 0x7fff;
+   hardware->dmacon = DMA_ALL_BUT_AUDIO;
    hardware->intreq = 0x7fff;
    *level_three_vector = saved_interrupt;
    hardware->cop1lc = (ULONG)GfxBase->copinit;
@@ -130,6 +136,46 @@ void amigaSystemReleaseDisplay(void)
    Enable();
    Permit();
    display_owned = 0;
+}
+
+/* exec calls a vertical blank server with the chain's data in a1; returning 0 (Z set) lets the
+   servers after it run. */
+static ULONG verticalBlankServer(void)
+{
+   vertical_blank_handler();
+   return 0;
+}
+
+void amigaSystemAddVerticalBlankServer(void (*handler)(void))
+{
+   if (vertical_blank_handler)
+   {
+      return;
+   }
+   vertical_blank_handler = handler;
+   vertical_blank_server.is_Node.ln_Type = NT_INTERRUPT;
+   vertical_blank_server.is_Node.ln_Pri = 0;
+   vertical_blank_server.is_Node.ln_Name = (char*)"game vertical blank";
+   vertical_blank_server.is_Data = 0;
+   /* exec's field type is the generic void (*)(); the server returns its result in d0. */
+   vertical_blank_server.is_Code = (void (*)())(void (*)(void))verticalBlankServer;
+   AddIntServer(INTB_VERTB, &vertical_blank_server);
+}
+
+void amigaSystemShowCopper(const DeceptusU16* copper)
+{
+   hardware->cop1lc = (ULONG)copper;
+   hardware->copjmp1 = 0;
+}
+
+void amigaSystemRemoveVerticalBlankServer(void)
+{
+   if (!vertical_blank_handler)
+   {
+      return;
+   }
+   RemIntServer(INTB_VERTB, &vertical_blank_server);
+   vertical_blank_handler = 0;
 }
 
 static LONG readInto(BPTR file, DeceptusU8* destination, DeceptusU32 capacity)
@@ -319,8 +365,12 @@ void amigaSystemReportMemory(const char* what, DeceptusU32 needed, DeceptusU8 ch
 void amigaSystemClose(void)
 {
    amigaSystemReleaseDisplay();
+   amigaSystemRemoveVerticalBlankServer();
    if (GfxBase)
    {
+      /* the system's own copper again, in case the display was left showing another while released. */
+      hardware->cop1lc = (ULONG)GfxBase->copinit;
+      hardware->copjmp1 = 0;
       LoadView(saved_view);
       WaitTOF();
       WaitTOF();
