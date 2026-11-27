@@ -8,8 +8,11 @@ static DeceptusAdventure adventure;
 static DeceptusFrame frame;
 static const DeceptusVideoCaps video = {320, 224, DECEPTUS_DRAW_CAPACITY};
 static DeceptusU16 sequence;
+/* the simulation runs at 60 ticks per second; a presentation that takes longer than a display frame
+ * catches up with up to three ticks, as on the SNES and the Amiga, so the game keeps its speed down
+ * to 20 presentations per second. */
 #ifndef SMD_PACING_MAX_TICKS
-#define SMD_PACING_MAX_TICKS 1
+#define SMD_PACING_MAX_TICKS 3
 #endif
 static DeceptusPacing pacing;
 volatile DeceptusU16 smd_opening_packets[2][56];
