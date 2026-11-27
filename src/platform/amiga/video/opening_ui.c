@@ -2,7 +2,7 @@
 #include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
 
-#include "perfcount.h"
+#include "../system/perfcount.h"
 
 typedef struct AmigaUiCanvas
 {

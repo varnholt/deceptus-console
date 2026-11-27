@@ -1,10 +1,10 @@
 #include <genesis.h>
-#include "audio.h"
+#include "audio/audio.h"
 #include "deceptus/adventure.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
-#include "opening_video.h"
 #include "songs.h"
+#include "video/opening_video.h"
 
 static DeceptusAdventure adventure;
 static DeceptusFrame frame;
@@ -24,9 +24,9 @@ static DeceptusU8 packet_slot;
    of walking the block list for every published packet. */
 static DeceptusU16 smd_free_memory;
 
-#include "opening_sprites.h"
-#include "opening_storm.h"
-#include "opening_ui.h"
+#include "mechanisms/opening_storm.h"
+#include "video/opening_sprites.h"
+#include "video/opening_ui.h"
 
 /* direct, bounded transfers own presentation; the sdk queue is not needed. */
 void __wrap_DMA_init(void)

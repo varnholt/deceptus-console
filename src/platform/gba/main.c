@@ -7,7 +7,7 @@
 #include "deceptus/playeranimation.h"
 #include "gba_assets.h"
 #if GBA_TUTORIAL
-#include "audio.h"
+#include "audio/audio.h"
 #include "songs.h"
 #endif
 #if GBA_TUTORIAL
@@ -218,9 +218,9 @@ static void __attribute__((section(".romtext"))) videoInit(void)
    REG16(0x04000016) = 0;
 }
 
-#include "background.h"
-#include "hud.h"
-#include "menu.h"
+#include "video/background.h"
+#include "video/hud.h"
+#include "video/menu.h"
 
 static DeceptusU16 mechanismResource(DeceptusU16 resource)
 {
@@ -681,8 +681,8 @@ static void __attribute__((section(".romtext"), noinline)) swordPrepare(void)
 }
 #endif
 
-#include "grabrope.h"
-#include "headtorch.h"
+#include "mechanisms/grabrope.h"
+#include "mechanisms/headtorch.h"
 
 static void videoPrepare(void)
 {

@@ -19,7 +19,7 @@ def verify(assets):
     folder = ROOT / 'build/tests/smd-codec'
     folder.mkdir(parents=True, exist_ok=True)
     bridge = folder / 'bridge.c'
-    bridge.write_text('#include "opening_video.h"\n'
+    bridge.write_text('#include "video/opening_video.h"\n'
         '__declspec(dllexport) int decode(const SmdRomBlob*b,unsigned short i,unsigned char*d)'
         '{return smdDecodeBlock(b,i,d);}\n'
         '__declspec(dllexport) const unsigned char*cell(const SmdRomBlob*b,unsigned short y,unsigned short x)'
@@ -27,7 +27,7 @@ def verify(assets):
     library = folder / 'codec.dll'
     subprocess.run(['clang', '-shared', '-O2', '-std=c90', '-Wall', '-Wextra', '-Werror',
                     '-I' + str(ROOT / 'include'), '-I' + str(ROOT / 'src/platform/smd'), '-I' + str(assets),
-                    str(bridge), str(ROOT / 'src/platform/smd/graphics_io.c'), '-o', str(library)], check=True)
+                    str(bridge), str(ROOT / 'src/platform/smd/video/graphics_io.c'), '-o', str(library)], check=True)
     codec = C.CDLL(str(library))
     codec.decode.argtypes = [C.POINTER(Blob), C.c_ushort, C.POINTER(C.c_ubyte)]
     codec.cell.argtypes = [C.POINTER(Blob), C.c_ushort, C.c_ushort]

@@ -1,13 +1,13 @@
 #include "amiga_opening_assets.h"
-#include "audio.h"
+#include "audio/audio.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
-#include "input.h"
-#include "keyboard.h"
-#include "opening_video.h"
-#include "rooms.h"
 #include "songs.h"
-#include "system.h"
+#include "system/input.h"
+#include "system/keyboard.h"
+#include "system/system.h"
+#include "video/opening_video.h"
+#include "video/rooms.h"
 
 static DeceptusAdventure adventure;
 static DeceptusFrame frame;

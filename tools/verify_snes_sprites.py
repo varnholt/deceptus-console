@@ -15,7 +15,7 @@ def verify(assets, sdk, core):
     replacement = ROOT / 'tests/snes_sprite_rom_tests.c'
     # the test includes sprites.c for its static reference functions, so sprites.c itself
     # compiles to an empty object.
-    sprites = ROOT / 'src/platform/snes/sprites.c'
+    sprites = ROOT / 'src/platform/snes/video/sprites.c'
     folder.mkdir(parents=True, exist_ok=True)
     empty = folder / 'sprites_in_test.c'
     empty.write_text('/* sprites.c is compiled through tests/snes_sprite_rom_tests.c. */\n'

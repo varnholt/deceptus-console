@@ -590,7 +590,7 @@ tiles, without padding.
 
 Decoded color tiles contain 16 interleaved five-plane scanlines (160 bytes);
 mask tiles contain 16 one-plane scanlines (32 bytes). Bottom/right image padding
-is transparent. `src/platform/amiga/tilearchive.c` validates dimensions, layout,
+is transparent. `src/platform/amiga/video/tilearchive.c` validates dimensions, layout,
 map ids and every compressed-bank boundary before exposing the archive. Its
 caller-owned staging requirement is bounded at 2,560 bytes for color banks and
 512 bytes for mask banks. The decoded bytes are ready for a 68000 blitter source;

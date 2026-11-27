@@ -20,18 +20,18 @@ OPENING_SOURCES = (
     'src/engine/compression.c', 'src/game/adventure.c', 'src/game/thunderstorm.c', 'src/game/soundcue.c', 'src/game/mechanismparts.c', 'src/game/appearance.c', 'src/game/ropelink.c',
     'src/game/roomcontent.c', 'src/game/weapons/playersword.c',
     'src/game/player/playeranimation.c', 'src/game/items/itemheadtorch.c',
-    'src/platform/amiga/rooms.c', 'src/platform/amiga/graphics.c',
-    'src/platform/amiga/spritecache.c', 'src/platform/amiga/tilearchive.c', 'src/platform/amiga/lz4.c',
-    'src/platform/amiga/rastercache.c',
-    'src/platform/amiga/opening.c', 'src/platform/amiga/opening_video.c',
-    'src/platform/amiga/opening_ui.c',
-    'src/platform/amiga/scrollsurface.c',
+    'src/platform/amiga/video/rooms.c', 'src/platform/amiga/video/graphics.c',
+    'src/platform/amiga/video/spritecache.c', 'src/platform/amiga/video/tilearchive.c', 'src/platform/amiga/system/lz4.c',
+    'src/platform/amiga/video/rastercache.c',
+    'src/platform/amiga/opening.c', 'src/platform/amiga/video/opening_video.c',
+    'src/platform/amiga/video/opening_ui.c',
+    'src/platform/amiga/video/scrollsurface.c',
 )
 
 
 # Paula reads samples from chip RAM, a word at a time.
 CHIP_SAMPLES = ' __attribute__((section(".MEMF_CHIP"), aligned(2)))'
-# the cues play at Paula's clock over CUE_PERIOD (src/platform/amiga/audio.c).
+# the cues play at Paula's clock over CUE_PERIOD (src/platform/amiga/audio/audio.c).
 PAULA_CLOCK = 3546895
 CUE_PERIOD = 443
 
@@ -53,7 +53,7 @@ def compile_audio(data, generated):
         lines = (generated / name).read_text().split(newline)
         lines = [line.replace('static const DeceptusI8 ', 'static DeceptusI8 ', 1) if '.MEMF_CHIP' in line else line for line in lines]
         (generated / name).write_text(newline.join(lines))
-    return [ROOT / 'src/audio/song.c', ROOT / 'src/platform/amiga/audio.c', generated / 'songs.c', generated / 'amiga_sounds.c']
+    return [ROOT / 'src/audio/song.c', ROOT / 'src/platform/amiga/audio/audio.c', generated / 'songs.c', generated / 'amiga_sounds.c']
 
 
 def validate_assets(data, generated):
@@ -185,10 +185,10 @@ def build_opening(sdk, data, output, reuse_assets=False, renderer='legacy'):
                     or variant['bytes'] + variant['max_sprite_bytes'] > RESOURCE_NORMAL_BYTES + RESOURCE_CHIP_BYTES):
                 raise ValueError(f"room {room['room']} exceeds the bounded Amiga resource banks")
     sources = [ROOT / name for name in SOURCES
-               if name not in ('src/platform/amiga/main.c', 'src/platform/amiga/video.c')]
+               if name not in ('src/platform/amiga/main.c', 'src/platform/amiga/video/video.c')]
     sources.extend(ROOT / name for name in OPENING_SOURCES)
     if renderer == 'native':
-        sources = [ROOT / 'src/platform/amiga/opening_streamed.c'
+        sources = [ROOT / 'src/platform/amiga/video/opening_streamed.c'
                    if source.name == 'opening_video.c' else source for source in sources]
     sources.append(generated / 'opening_content.c')
     sources.append(generated / 'amiga_native_assets.c')

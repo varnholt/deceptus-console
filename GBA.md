@@ -193,7 +193,7 @@ use 1. Because an OBJ only covers BGs with an equal or higher priority number, n
 level sprite can be drawn over an open window. While a dialogue or menu is open, the
 darkening blend applies to BG0, BG1 and OBJ, never to BG2. The only priority-0 OBJ is
 the HUD's room-title strip, which is part of the HUD. It sits at y=16-23
-(`src/platform/gba/hud.h`) and the dialogue window is drawn in the lower part of the
+(`src/platform/gba/video/hud.h`) and the dialogue window is drawn in the lower part of the
 screen, so the two never overlap; its priority was left at 0 rather than changed
 without a capture showing a case where they meet.
 

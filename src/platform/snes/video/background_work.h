@@ -5,8 +5,8 @@
  * has one) and the VBlank commit (background_commit.c, always on the S-CPU). both reach it through
  * its 24-bit address, never through a data bank. */
 
+#include "../system/vram_dma.h"
 #include "snes_assets.h"
-#include "vram_dma.h"
 
 /* slots 0-1023 are VRAM 2000-5fff; the foreground also addresses 120 overflow patterns at 1880-1fff,
  * tile 136 of its character base 1000, below the interface font. */

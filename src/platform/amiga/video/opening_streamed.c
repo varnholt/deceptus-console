@@ -4,18 +4,18 @@
 #include <hardware/intbits.h>
 #include <stddef.h>
 #include <string.h>
+#include "../audio/audio.h"
+#include "../system/lz4.h"
+#include "../system/perfcount.h"
+#include "../system/system.h"
 #include "amiga_message_box.h"
 #include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
-#include "audio.h"
 #include "deceptus/appearance.h"
-#include "lz4.h"
 #include "opening_ui.h"
 #include "opening_video.h"
-#include "perfcount.h"
 #include "rooms.h"
 #include "scrollsurface.h"
-#include "system.h"
 
 #define SURFACE_COLUMNS 23
 /* the 224-line view plus one tile row of scroll margin; every line here costs both pages chip RAM. */

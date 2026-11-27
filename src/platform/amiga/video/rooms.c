@@ -1,11 +1,11 @@
 #include "rooms.h"
 #include <string.h>
+#include "../system/keyboard.h"
+#include "../system/system.h"
 #include "amiga_native_assets.h"
 #include "amiga_opening_assets.h"
 #include "deceptus/roomcontent.h"
-#include "keyboard.h"
 #include "opening_video.h"
-#include "system.h"
 
 #define CHIP __attribute__((section(".MEMF_CHIP")))
 /* for the debugger: the banks actually allocated (see system.c). */

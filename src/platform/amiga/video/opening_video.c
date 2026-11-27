@@ -5,13 +5,13 @@
 #include <hardware/intbits.h>
 #include <stddef.h>
 #include <string.h>
+#include "../system/system.h"
 #include "amiga_opening_assets.h"
 #include "deceptus/appearance.h"
 #include "opening_ui.h"
 #include "rastercache.h"
 #include "rooms.h"
 #include "spritecache.h"
-#include "system.h"
 
 #define BASE_CACHE_WIDTH AMIGA_BASE_CACHE_WIDTH
 #define BASE_CACHE_HEIGHT AMIGA_BASE_CACHE_HEIGHT

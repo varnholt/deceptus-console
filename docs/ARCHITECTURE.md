@@ -38,6 +38,20 @@ Public C functions use the `deceptus` prefix and camelCase; constants use
 Newer interfaces such as `include/arith.h` use neutral names without the project
 prefix.
 
+## Platform folders
+
+Each `src/platform/<platform>/` keeps its entry points (`main.c`, `opening.c`) and
+`platform_arith.h` at the top, and the rest by concern:
+
+- `system/`: start-up, runtime support, interrupts, input, coprocessors (SA-1).
+- `video/`: background, sprites, user interface and their caches.
+- `audio/`: song and cue playback, mixers and sound drivers.
+- `mechanisms/`: a platform's own presentation of one mechanism, named like the
+  shared file it belongs to (the SNES storm next to `src/game/thunderstorm.c`).
+
+A platform has only the folders it needs. Includes between them are relative to
+the including file.
+
 ## Platform specializations
 
 Shared code is the reference behaviour on every platform and never names a CPU
@@ -292,7 +306,7 @@ interrupt and the music keeps time however long the game takes for a frame.
 The GBA mixes four voices into Direct Sound A at 10,512 Hz, exactly 176 samples
 per 280,896-cycle frame, from a VCOUNT interrupt at line 100, outside the vblank
 the video commit needs. DMA 1 feeds the FIFO from two frame buffers; the inner
-loop (`src/platform/gba/mixer.s`) runs as ARM code from IWRAM and adds 16 samples
+loop (`src/platform/gba/audio/mixer.s`) runs as ARM code from IWRAM and adds 16 samples
 at a time into an IWRAM chunk. It costs about 20 of the frame's 228 scan lines.
 Compared with libopenmpt rendering the same module, the GBA's recorded output
 follows its loudness (correlation 0.98) and has the same dominant pitch in 83% of
@@ -328,7 +342,7 @@ with a correlation of 0.86 at the same pitch, the rest being snesmod's BRR
 samples at 32 kHz. snesmod adds 0.16% to the SNES route's display frames.
 
 The Amiga plays the song on Paula's four channels from its vertical blank
-interrupt (`src/platform/amiga/audio.c`), at the PAL rate of 49.92 Hz. Song and
+interrupt (`src/platform/amiga/audio/audio.c`), at the PAL rate of 49.92 Hz. Song and
 cue samples sit in chip RAM. A channel restarts over three blanks, as Paula needs:
 its DMA stops while the start registers are written, starts on the next blank, and
 the blank after that writes the loop, or a silent word, for Paula to repeat. Cues
@@ -339,14 +353,14 @@ the system leave the audio channels' DMA running.
 
 The Mega Drive has no sample channels with a pitch of their own, and pre-rendering
 every note a song plays would not fit the cartridge (some 700 KB for the stand-in
-song). So its Z80 runs a small mixer of its own (`src/platform/smd/audio_driver.s80`,
+song). So its Z80 runs a small mixer of its own (`src/platform/smd/audio/audio_driver.s80`,
 assembled with SGDK's sjasm by `tools/build_smd.py`) that plays four channels of
 signed 8-bit samples at any pitch through the YM2612's DAC. It mixes each channel
 in passes of 64 samples into a 256-byte ring, so that one switch of the Z80's bank
 window serves a whole pass; the converters pad every sample with the values such a
 pass may read past its end. YM2612 timer A paces the DAC at 5,327 Hz (NTSC), which
 the mixing loops poll every four samples. A horizontal interrupt at line 150 steps
-the song once a frame (`src/platform/smd/audio.c`) and copies the channels'
+the song once a frame (`src/platform/smd/audio/audio.c`) and copies the channels'
 changed fields into the driver's table in one short hold of the Z80 bus, since the
 Z80 and the DAC stop while the 68000 holds it. The Z80 also stops when it reads
 the cartridge while the 68000's DMA owns the bus, so the game announces its video

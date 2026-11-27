@@ -1,7 +1,7 @@
 #include "deceptus/game.h"
-#include "input.h"
-#include "keyboard.h"
-#include "video.h"
+#include "system/input.h"
+#include "system/keyboard.h"
+#include "video/video.h"
 
 extern const DeceptusRoom deceptus_scene;
 static DeceptusEngine engine;

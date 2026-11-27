@@ -14,7 +14,7 @@ class SpriteRuntimeTests(unittest.TestCase):
             self.skipTest('clang unavailable')
         folder = ROOT / 'build/tests/smd-sprite-native'
         folder.mkdir(parents=True, exist_ok=True)
-        production = (ROOT / 'src/platform/smd/opening_sprites.h').read_text()
+        production = (ROOT / 'src/platform/smd/video/opening_sprites.h').read_text()
         # compile the actual packing seam without requiring generated game artwork.
         budget = production[production.index('static union'):production.index('static DeceptusU16 smd_obj_request_count')]
         packing = production[production.index('static void smdObjPiece('):production.index('static DeceptusU8 smdObjAppearance(')]

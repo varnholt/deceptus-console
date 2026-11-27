@@ -1,7 +1,7 @@
 /* the S-CPU half of the sprites: OBJ video setup and the transfers sprites.c staged. the stagings
  * may live in SA-1 BW-RAM, so they are reached through their 24-bit address. */
 #include <snes.h>
-#include "ppu_timing.h"
+#include "../system/ppu_timing.h"
 #include "sprites.h"
 
 /* the stagings by index from a table: indexing the array itself multiplies by the staging size in a
