@@ -1,0 +1,428 @@
+; the song mixer on the Mega Drive's Z80 (src/platform/smd/audio.c feeds it).
+;
+; the YM2612's DAC plays one 8-bit stream; this driver mixes four channels of signed 8-bit samples into
+; it at any pitch. each channel is mixed in passes of BLOCK samples into a ring buffer: one bank switch
+; then serves a whole pass, which a per-sample mix of all channels could not afford. timer A of the
+; YM2612 paces the DAC; the mixing loops poll its flag every four samples and write the next ring
+; sample when it is set.
+;
+; the 68000 owns the channel table's request fields and the control block; it writes them while it
+; holds the Z80 bus.
+;
+; a Z80 read from the cartridge waits while the 68000's DMA owns the bus, and the DAC would stop with
+; it. so the 68000 announces the video transfers of its next vertical blank (CONTROL_TRANSFERS), and
+; the Z80's vertical blank interrupt then only plays the ring until the 68000 clears it. the lines marked "shared" are read by tools/build_smd.py into a C header.
+
+; ----- layout shared with the 68000 -----
+CHANNELS            equ 4       ; shared
+CHANNEL_SIZE        equ 32      ; shared
+CHANNEL_TABLE       equ 0D00h   ; shared
+; channel fields the 68000 writes. a start request copies START, END and LOOP once SEQUENCE changes.
+CHANNEL_SEQUENCE    equ 0       ; shared
+CHANNEL_VOLUME      equ 1       ; shared: the volume table page, VOLUME_PAGE + 0 .. 15
+CHANNEL_STEP        equ 2       ; shared: samples per output sample, 8.8 fixed point, low byte first
+CHANNEL_START       equ 4       ; shared: 24-bit 68000 address, low byte first
+CHANNEL_END         equ 7       ; shared: 24-bit address just past the sample's last value
+CHANNEL_LOOP        equ 10      ; shared: 24-bit loop length, 0 for a one-shot
+CHANNEL_REQUEST_SIZE equ 13     ; shared: the 68000's fields come first
+; the driver's own channel fields.
+CHANNEL_SEEN        equ 13
+CHANNEL_ACTIVE      equ 14
+CHANNEL_FRACTION    equ 15
+CHANNEL_POSITION    equ 16
+CHANNEL_CURRENT_END equ 19
+CHANNEL_CURRENT_LOOP equ 22
+CHANNEL_BANK        equ 25
+CONTROL             equ 0D80h   ; shared
+CONTROL_GO          equ 0       ; shared: non-zero once the 68000 has filled the tables
+CONTROL_TIMER_HIGH  equ 1       ; shared: YM2612 register 24h, timer A's high 8 bits
+CONTROL_TIMER_LOW   equ 2       ; shared: YM2612 register 25h, timer A's low 2 bits
+CONTROL_TRANSFERS   equ 3       ; shared: non-zero while the 68000's video transfers may run
+VOLUME_PAGE         equ 10h     ; shared: 16 pages of 256 scaled samples, one per volume, at 1000h
+VOLUME_LEVELS       equ 16      ; shared
+BLOCK               equ 64      ; shared: samples per mixing pass
+BLOCK_SHIFT         equ 6
+            assert BLOCK == 1<<BLOCK_SHIFT
+; the 68000 keeps a step's integer part below this; the converter pads every sample with
+; BLOCK * STEP_INTEGER_LIMIT values, which a pass that runs past the sample's end reads.
+STEP_INTEGER_LIMIT  equ 64      ; shared
+; the YM2612's own sample rate (its clock over 144) on NTSC and PAL machines, in Hz; timer A counts
+; it. the DAC plays a sample every DAC_TIMER_DIVISOR of them: about 5.3 kHz, the rate four channels
+; of mixing leave the Z80 time for.
+YM_RATE_NTSC        equ 53267   ; shared
+YM_RATE_PAL         equ 52781   ; shared
+DAC_TIMER_DIVISOR   equ 10      ; shared
+
+; ----- the driver's memory -----
+STACK_TOP           equ 0D00h
+RING                equ 0E00h   ; one page: the ring index wraps by itself
+RING_SIZE           equ 256
+; the most samples mixed ahead of the DAC: about 24 ms at 5.3 kHz, the cue latency it adds.
+LEAD                equ 128
+            assert LEAD+BLOCK <= RING_SIZE-BLOCK
+; the longest the interrupt waits for the transfers' end, in passes of its loop: about two frames,
+; for a 68000 that announced transfers it does not make.
+TRANSFER_WAIT_LIMIT equ 1500
+
+; ----- hardware -----
+YM_ADDRESS0         equ 4000h   ; also the status: bit 0 is timer A's overflow flag
+YM_DATA0            equ 4001h
+YM_ADDRESS1         equ 4002h
+YM_DATA1            equ 4003h
+BANK_REGISTER       equ 6000h
+WINDOW_PAGE         equ 80h     ; the 32 KiB window into 68000 space starts at 8000h
+YM_TIMER_A_HIGH     equ 24h
+YM_TIMER_A_LOW      equ 25h
+YM_TIMER_CONTROL    equ 27h
+YM_DAC_DATA         equ 2Ah
+YM_DAC_ENABLE       equ 2Bh
+YM_PAN_CHANNEL6     equ 0B6h
+TIMER_A_RESTART     equ 15h     ; load and enable timer A, clear its flag
+DAC_ON              equ 80h
+PAN_BOTH            equ 0C0h
+SILENCE             equ 80h     ; the DAC is unsigned
+
+; writes the next ring sample to the DAC when timer A has run out. clobbers A and the flags.
+            macro POLL
+            ld a,(YM_ADDRESS0)
+            rra
+            call c,output
+            endm
+
+; mixes one sample of the channel: the alternate HL holds the position's low byte and fraction, the
+; alternate BC the step; D is the window page, H the volume page, BC the ring position.
+            macro MIX_SAMPLE
+            exx
+            ld a,h
+            add hl,bc
+            exx
+            ld e,a
+            ld a,(de)
+            call c,next_page
+            ld l,a
+            ld a,(bc)
+            add a,(hl)
+            ld (bc),a
+            inc c
+            endm
+
+            org 0
+            di
+            ld sp,STACK_TOP
+            jp start
+            ds 38h-$
+
+; ----- the vertical blank interrupt (mode 1) -----
+vertical_blank:
+            push af
+            push bc
+            ld bc,TRANSFER_WAIT_LIMIT
+.wait:
+            POLL
+            ld a,(CONTROL+CONTROL_TRANSFERS)
+            or a
+            jr z,.done
+            dec bc
+            ld a,b
+            or c
+            jr nz,.wait
+.done:
+            pop bc
+            pop af
+            ei
+            ret
+
+; ----- the DAC -----
+output:
+            ld a,(iy+0)
+            ld (YM_DATA0),a
+            inc iyl
+            ld a,YM_TIMER_CONTROL
+            ld (YM_ADDRESS0),a
+            ld a,TIMER_A_RESTART
+            ld (YM_DATA0),a
+            ld a,YM_DAC_DATA
+            ld (YM_ADDRESS0),a
+            ret
+
+; ----- banks -----
+; points the window at bank A (address bits 15 .. 22; bit 23 is 0 for the cartridge). the register
+; takes the nine bits one at a time, lowest first, so a bank the window already shows is kept.
+; clobbers HL.
+switch_bank:
+            ld hl,window_bank
+            cp (hl)
+            ret z
+            ld (hl),a
+            ld hl,BANK_REGISTER
+            ld (hl),a
+            rrca
+            ld (hl),a
+            rrca
+            ld (hl),a
+            rrca
+            ld (hl),a
+            rrca
+            ld (hl),a
+            rrca
+            ld (hl),a
+            rrca
+            ld (hl),a
+            rrca
+            ld (hl),a
+            rrca
+            ld (hl),l
+            ret
+
+; the position carried into the next page; past the window's end it continues in the next bank.
+; keeps A and HL.
+next_page:
+            inc d
+            ret nz
+            ld d,WINDOW_PAGE
+            push af
+            push hl
+            ld a,(ix+CHANNEL_BANK)
+            inc a
+            ld (ix+CHANNEL_BANK),a
+            call switch_bank
+            pop hl
+            pop af
+            ret
+
+; ----- start -----
+start:
+            ld a,(CONTROL+CONTROL_GO)
+            or a
+            jr z,start
+            ld a,YM_DAC_ENABLE
+            ld (YM_ADDRESS0),a
+            ld a,DAC_ON
+            ld (YM_DATA0),a
+            ld a,YM_PAN_CHANNEL6
+            ld (YM_ADDRESS1),a
+            ld a,PAN_BOTH
+            ld (YM_DATA1),a
+            ld a,YM_TIMER_A_HIGH
+            ld (YM_ADDRESS0),a
+            ld a,(CONTROL+CONTROL_TIMER_HIGH)
+            ld (YM_DATA0),a
+            ld a,YM_TIMER_A_LOW
+            ld (YM_ADDRESS0),a
+            ld a,(CONTROL+CONTROL_TIMER_LOW)
+            ld (YM_DATA0),a
+            ld a,YM_TIMER_CONTROL
+            ld (YM_ADDRESS0),a
+            ld a,TIMER_A_RESTART
+            ld (YM_DATA0),a
+            ld a,YM_DAC_DATA
+            ld (YM_ADDRESS0),a
+            ld hl,RING
+            ld de,RING+1
+            ld bc,255
+            ld (hl),SILENCE
+            ldir
+            ld iy,RING
+            xor a
+            ld (write_index),a
+            dec a
+            ld (window_bank),a
+            im 1
+            ei
+
+; ----- one pass: a block of every channel -----
+main:
+            POLL
+            ld a,iyl
+            ld b,a
+            ld a,(write_index)
+            sub b
+            cp LEAD
+            jr c,.room
+            ; a lead beyond any the mixing leaves means the DAC has overtaken it: mixing starts again
+            ; at the next block ahead of the DAC.
+            cp RING_SIZE-BLOCK
+            jr c,main
+            ld a,b
+            add a,BLOCK
+            and 256-BLOCK
+            ld (write_index),a
+.room:
+            ld h,RING>>8
+            ld a,(write_index)
+            ld l,a
+            ld c,SILENCE
+            rept BLOCK/4
+            ld (hl),c
+            inc l
+            endm
+            POLL
+            rept BLOCK/4
+            ld (hl),c
+            inc l
+            endm
+            POLL
+            rept BLOCK/4
+            ld (hl),c
+            inc l
+            endm
+            POLL
+            rept BLOCK/4
+            ld (hl),c
+            inc l
+            endm
+            ld ix,CHANNEL_TABLE
+            call mix_channel
+            ld ix,CHANNEL_TABLE+CHANNEL_SIZE
+            call mix_channel
+            ld ix,CHANNEL_TABLE+2*CHANNEL_SIZE
+            call mix_channel
+            ld ix,CHANNEL_TABLE+3*CHANNEL_SIZE
+            call mix_channel
+            ld a,(write_index)
+            add a,BLOCK
+            ld (write_index),a
+            jp main
+
+; ----- one channel's block; IX points at the channel -----
+mix_channel:
+            POLL
+            ld a,(ix+CHANNEL_SEQUENCE)
+            cp (ix+CHANNEL_SEEN)
+            jr z,.requested
+            ld (ix+CHANNEL_SEEN),a
+            ; START, END and LOOP lie in the same order as POSITION, CURRENT_END and CURRENT_LOOP.
+            ld a,ixl
+            add a,CHANNEL_START
+            ld l,a
+            add a,CHANNEL_POSITION-CHANNEL_START
+            ld e,a
+            ld h,CHANNEL_TABLE>>8
+            ld d,h
+            ld bc,9
+            ldir
+            ld (ix+CHANNEL_FRACTION),0
+            ld (ix+CHANNEL_ACTIVE),1
+.requested:
+            ld a,(ix+CHANNEL_ACTIVE)
+            or a
+            ret z
+            call wrap_position
+            ret nc
+            ld a,(ix+CHANNEL_VOLUME)
+            cp VOLUME_PAGE
+            jp z,skip_block
+            ; the bank holds address bits 15 .. 22.
+            ld a,(ix+CHANNEL_POSITION+1)
+            rla
+            ld a,(ix+CHANNEL_POSITION+2)
+            rla
+            ld (ix+CHANNEL_BANK),a
+            call switch_bank
+            POLL
+            ld a,(ix+CHANNEL_POSITION+1)
+            or WINDOW_PAGE
+            ld d,a
+            ld b,RING>>8
+            ld a,(write_index)
+            ld c,a
+            ld h,(ix+CHANNEL_VOLUME)
+            exx
+            ld h,(ix+CHANNEL_POSITION)
+            ld l,(ix+CHANNEL_FRACTION)
+            ld c,(ix+CHANNEL_STEP)
+            ld b,(ix+CHANNEL_STEP+1)
+            exx
+.mix:
+            MIX_SAMPLE
+            MIX_SAMPLE
+            MIX_SAMPLE
+            MIX_SAMPLE
+            POLL
+            MIX_SAMPLE
+            MIX_SAMPLE
+            MIX_SAMPLE
+            MIX_SAMPLE
+            POLL
+            ld a,c
+            and BLOCK-1
+            jp nz,.mix
+            ; back to a 24-bit position: bank * 8000h + the offset in the window.
+            exx
+            ld a,h
+            ld (ix+CHANNEL_POSITION),a
+            ld a,l
+            ld (ix+CHANNEL_FRACTION),a
+            exx
+            ld a,d
+            and 7Fh
+            ld e,a
+            ld a,(ix+CHANNEL_BANK)
+            srl a
+            ld (ix+CHANNEL_POSITION+2),a
+            ld a,0
+            rra
+            or e
+            ld (ix+CHANNEL_POSITION+1),a
+            ret
+
+; a silent channel's block only moves its position on: position += step * BLOCK.
+skip_block:
+            ld l,(ix+CHANNEL_STEP)
+            ld h,(ix+CHANNEL_STEP+1)
+            xor a
+            rept BLOCK_SHIFT
+            add hl,hl
+            rla
+            endm
+            ld b,a
+            ld a,(ix+CHANNEL_FRACTION)
+            add a,l
+            ld (ix+CHANNEL_FRACTION),a
+            ld a,(ix+CHANNEL_POSITION)
+            adc a,h
+            ld (ix+CHANNEL_POSITION),a
+            ld a,(ix+CHANNEL_POSITION+1)
+            adc a,b
+            ld (ix+CHANNEL_POSITION+1),a
+            ld a,(ix+CHANNEL_POSITION+2)
+            adc a,0
+            ld (ix+CHANNEL_POSITION+2),a
+            ret
+
+; past the end, a loop steps back by its length until the position lies inside it, and a one-shot
+; stops. returns with carry set while the channel plays on.
+wrap_position:
+            POLL
+            ld a,(ix+CHANNEL_POSITION)
+            sub (ix+CHANNEL_CURRENT_END)
+            ld a,(ix+CHANNEL_POSITION+1)
+            sbc a,(ix+CHANNEL_CURRENT_END+1)
+            ld a,(ix+CHANNEL_POSITION+2)
+            sbc a,(ix+CHANNEL_CURRENT_END+2)
+            ret c
+            ld a,(ix+CHANNEL_CURRENT_LOOP)
+            or (ix+CHANNEL_CURRENT_LOOP+1)
+            or (ix+CHANNEL_CURRENT_LOOP+2)
+            jr z,.stop
+            ld a,(ix+CHANNEL_POSITION)
+            sub (ix+CHANNEL_CURRENT_LOOP)
+            ld (ix+CHANNEL_POSITION),a
+            ld a,(ix+CHANNEL_POSITION+1)
+            sbc a,(ix+CHANNEL_CURRENT_LOOP+1)
+            ld (ix+CHANNEL_POSITION+1),a
+            ld a,(ix+CHANNEL_POSITION+2)
+            sbc a,(ix+CHANNEL_CURRENT_LOOP+2)
+            ld (ix+CHANNEL_POSITION+2),a
+            jr wrap_position
+.stop:
+            ld (ix+CHANNEL_ACTIVE),0
+            ret
+
+write_index:
+            db 0
+; the bank the window shows; none at the start.
+window_bank:
+            db 0
+driver_end:
+            assert driver_end <= STACK_TOP-32

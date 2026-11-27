@@ -73,6 +73,27 @@ def configure_emulator_controls(emulator, backend, scene):
         controller(0, 513)
 
 
+def open_audio(emulator):
+    """Plays the core's audio through PyAudio when it is installed; returns the stream to close, or None."""
+    try:
+        import pyaudio
+    except ImportError:
+        print('PyAudio is not installed: playing without sound.', flush=True)
+        return None
+    audio = pyaudio.PyAudio()
+    stream = audio.open(format=pyaudio.paInt16, channels=2, rate=int(round(emulator.sample_rate)), output=True)
+    emulator.audio_sink = stream.write
+    return audio, stream
+
+
+def close_audio(output):
+    if output:
+        audio, stream = output
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
+
+
 def play(backend, core, library, rom=None, scene='tutorial', zoom=3, position=None, run_unfocused=False):
     timer_api = C.WinDLL('winmm') if os.name == 'nt' else None
     if timer_api:
@@ -98,6 +119,7 @@ def play(backend, core, library, rom=None, scene='tutorial', zoom=3, position=No
         emulator = None
     if emulator:
         configure_emulator_controls(emulator, backend, scene)
+    audio_output = open_audio(emulator) if emulator else None
     host = Host(library) if backend == "host" else None
     keys = set()
     window.bind("<KeyPress>", lambda event: keys.add(event.keysym.lower()))
@@ -152,6 +174,8 @@ def play(backend, core, library, rom=None, scene='tutorial', zoom=3, position=No
             window.after_cancel(timer)
             timer = None
         if emulator:
+            emulator.audio_sink = None
+            close_audio(audio_output)
             emulator.close()
         if timer_api:
             timer_api.timeEndPeriod(1)

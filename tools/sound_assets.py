@@ -49,14 +49,17 @@ def decode(path, rate, volume):
     return np.clip(np.round(resampled * 127), -128, 127).astype(np.int8)
 
 
-def compile_bank(data, rate, name, sample_attribute=''):
-    """C definitions of a platform's bank: name is a const SoundEffect[SOUND_CUE_COUNT]."""
+def compile_bank(data, rate, name, sample_attribute='', tail=0):
+    """C definitions of a platform's bank: name is a const SoundEffect[SOUND_CUE_COUNT]. tail silent
+    values follow each cue without counting in its length, for a mixer that checks the end only now
+    and then."""
     numbers, count = cue_numbers()
     lines, entries = [], ['   {0, 0},'] * count
     for cue, (filename, volume) in CUES.items():
         samples = decode(Path(data) / 'sounds' / filename, rate, volume)
         label = f'{name}_{cue.lower()}'
-        rows = [', '.join(str(int(value)) for value in samples[index:index + 32]) for index in range(0, len(samples), 32)]
+        values = list(samples) + [0] * tail
+        rows = [', '.join(str(int(value)) for value in values[index:index + 32]) for index in range(0, len(values), 32)]
         lines += [f'static const DeceptusI8 {label}[]{sample_attribute} = {{'] + ['   ' + row + ',' for row in rows] + ['};']
         entries[numbers[cue]] = f'   {{{label}, {len(samples)}}},'
     lines += [f'const SoundEffect {name}[SOUND_CUE_COUNT] = {{'] + entries + ['};']
