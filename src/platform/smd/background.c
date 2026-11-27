@@ -4,6 +4,8 @@
 #define WORLD_HASH 2048
 #define WORLD_WIDTH 41
 #define WORLD_HEIGHT 29
+/* the most cells the camera may move in one presentation before the window is loaded anew. */
+#define STEP_CELLS_MAX 4
 #define WORLD_CLIPS 8
 #define EMPTY 65535U
 #define DELETED 65534U
@@ -318,7 +320,9 @@ static void storeCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8
 {
    DeceptusU16 column, index;
    work.maps[plane][mapAddress(x, y)] = acquire(pattern) | attributes;
-   if (dirty == 1)
+   /* one column per plane goes up as a column; a second in the same presentation, when the window
+    * steps more than one cell, goes up with the rows. */
+   if ((dirty == 1) && ((work.dirty_column[plane] >= 64) || (work.dirty_column[plane] == (x & 63))))
    {
       work.dirty_column[plane] = (DeceptusU8)(x & 63);
    }
@@ -589,12 +593,75 @@ void smdBackgroundSetFlags(DeceptusU16 flags)
    source_flags = flags;
 }
 
+/* moves the window by at most one cell along each axis: the cells it leaves are released and the
+ * column and row it enters are loaded. */
+static void shiftWindow(DeceptusI16 left, DeceptusI16 top)
+{
+   DeceptusU16 plane;
+   DeceptusI16 x, y, added;
+   for (plane = 0; plane < 2; ++plane)
+   {
+      if (left != work.left)
+      {
+         x = left > work.left ? work.left : work.left + WORLD_WIDTH - 1;
+         for (y = work.top; y < work.top + WORLD_HEIGHT; ++y)
+         {
+            releaseCell((DeceptusU8)plane, x, y);
+         }
+      }
+      if (top != work.top)
+      {
+         y = top > work.top ? work.top : work.top + WORLD_HEIGHT - 1;
+         for (x = work.left; x < work.left + WORLD_WIDTH; ++x)
+         {
+            if (left == work.left || x != (left > work.left ? work.left : work.left + WORLD_WIDTH - 1))
+            {
+               releaseCell((DeceptusU8)plane, x, y);
+            }
+         }
+      }
+   }
+   for (plane = 0; plane < 2; ++plane)
+   {
+      added = -1;
+      if (left != work.left)
+      {
+         added = left > work.left ? left + WORLD_WIDTH - 1 : left;
+         for (y = top; y < top + WORLD_HEIGHT; ++y)
+         {
+            loadCell((DeceptusU8)plane, added, y, 1);
+         }
+      }
+      if (top != work.top)
+      {
+         loadRow((DeceptusU8)plane, top > work.top ? top + WORLD_HEIGHT - 1 : top, left, added);
+      }
+   }
+   work.left = left;
+   work.top = top;
+}
+
+/* one cell from current towards target. */
+static DeceptusI16 stepTowards(DeceptusI16 current, DeceptusI16 target)
+{
+   if (target > current)
+   {
+      return (DeceptusI16)(current + 1);
+   }
+   return (DeceptusI16)(target < current ? current - 1 : current);
+}
+
+static DeceptusU8 isNear(DeceptusI16 current, DeceptusI16 target)
+{
+   return (target >= current - STEP_CELLS_MAX) && (target <= current + STEP_CELLS_MAX);
+}
+
 void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
 {
    const SmdBackgroundAnimation *clip;
    DeceptusU16 index, duration, plane, half, rows;
    DeceptusU8 dirty, active, stepped, covered;
-   DeceptusI16 left, top, x, y, added, clip_left, clip_top, clip_right, clip_bottom;
+   DeceptusI16 left, top, x, y, clip_left, clip_top, clip_right, clip_bottom;
    if (smd_background_error)
    {
       return;
@@ -638,49 +705,17 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          }
       }
    }
-   if (!work.loaded || left < work.left - 1 || left > work.left + 1 || top < work.top - 1 || top > work.top + 1)
+   if (!work.loaded || !isNear(work.left, left) || !isNear(work.top, top))
    {
       loadWindow(left, top);
    }
    else
    {
-      for (plane = 0; plane < 2; ++plane)
+      /* a presentation that runs several ticks may move the camera several cells; stepping there
+       * costs a column or row per cell, where a reload decodes the whole window. */
+      while ((left != work.left) || (top != work.top))
       {
-         if (left != work.left)
-         {
-            x = left > work.left ? work.left : work.left + WORLD_WIDTH - 1;
-            for (y = work.top; y < work.top + WORLD_HEIGHT; ++y)
-            {
-               releaseCell((DeceptusU8)plane, x, y);
-            }
-         }
-         if (top != work.top)
-         {
-            y = top > work.top ? work.top : work.top + WORLD_HEIGHT - 1;
-            for (x = work.left; x < work.left + WORLD_WIDTH; ++x)
-            {
-               if (left == work.left || x != (left > work.left ? work.left : work.left + WORLD_WIDTH - 1))
-               {
-                  releaseCell((DeceptusU8)plane, x, y);
-               }
-            }
-         }
-      }
-      for (plane = 0; plane < 2; ++plane)
-      {
-         added = -1;
-         if (left != work.left)
-         {
-            added = left > work.left ? left + WORLD_WIDTH - 1 : left;
-            for (y = top; y < top + WORLD_HEIGHT; ++y)
-            {
-               loadCell((DeceptusU8)plane, added, y, 1);
-            }
-         }
-         if (top != work.top)
-         {
-            loadRow((DeceptusU8)plane, top > work.top ? top + WORLD_HEIGHT - 1 : top, left, added);
-         }
+         shiftWindow(stepTowards(work.left, left), stepTowards(work.top, top));
       }
       for (index = 0; index < stage->animation_count; ++index)
       {
