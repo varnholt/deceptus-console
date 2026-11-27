@@ -1,9 +1,9 @@
 /* shared onoffblock/spikeblock animation, retaining their original frame rules. */
 /* private mechanism implementation; compiled through ../mechanisms.c. */
 
-static void animateSwitch(DeceptusMechanismSet *set, DeceptusU16 index)
+static void animateSwitch(DeceptusMechanismSet* set, DeceptusU16 index)
 {
-   DeceptusMechanismState *state;
+   DeceptusMechanismState* state;
    DeceptusU8 end, enabled;
    state = &set->states[index];
    end = set->definitions[index].kind == DECEPTUS_MECH_SPIKES ? 39 : 31;

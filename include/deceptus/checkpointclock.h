@@ -17,12 +17,12 @@
 #define CHECKPOINT_CLOCK_HEIGHT 120
 
 /* every clock of the room starts not reached. */
-void checkpointClocksInit(DeceptusMechanismSet *set);
+void checkpointClocksInit(DeceptusMechanismSet* set);
 /* one tick of every clock: a reached clock plays its activation once, then ticks. */
-void checkpointClocksTick(DeceptusMechanismSet *set);
+void checkpointClocksTick(DeceptusMechanismSet* set);
 /* nonzero when the checkpoint at mechanism index has a clock to draw. */
-DeceptusU8 checkpointClockVisible(const DeceptusMechanismSet *set, DeceptusU16 index);
+DeceptusU8 checkpointClockVisible(const DeceptusMechanismSet* set, DeceptusU16 index);
 /* the image and room position of the clock at mechanism index. */
-void checkpointClockPart(const DeceptusMechanismSet *set, DeceptusU16 index, DeceptusU8 *image, DeceptusI16 *x, DeceptusI16 *y);
+void checkpointClockPart(const DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8* image, DeceptusI16* x, DeceptusI16* y);
 
 #endif

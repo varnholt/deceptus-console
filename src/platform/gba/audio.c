@@ -3,11 +3,11 @@
  * and mixes the other. at 1596 cycles per sample a 280,896-cycle frame is exactly AUDIO_FRAME_SAMPLES
  * samples, so the buffers stay in step with the interrupt. */
 #include "audio.h"
-#include "gba_sounds.h"
 #include <stddef.h>
+#include "gba_sounds.h"
 
-#define REG16(address) (*(volatile DeceptusU16 *)(address))
-#define REG32(address) (*(volatile DeceptusU32 *)(address))
+#define REG16(address) (*(volatile DeceptusU16*)(address))
+#define REG32(address) (*(volatile DeceptusU32*)(address))
 
 #define CPU_HZ 16777216UL
 #define SAMPLE_CYCLES 1596
@@ -51,21 +51,22 @@ typedef char FrameHoldsWholeSamples[(AUDIO_FRAME_SAMPLES * SAMPLE_CYCLES == FRAM
 /* mixer.s reads this layout; the checks below tie its offsets to the assembly's. */
 typedef struct Voice
 {
-   const DeceptusI8 *data;
+   const DeceptusI8* data;
    DeceptusU32 position, step, end, loop_length;
    DeceptusU8 volume;
 } Voice;
 #define VOICE_OFFSET(member) offsetof(Voice, member)
-typedef char VoiceLayoutMatchesMixer[(VOICE_OFFSET(data) == 0 && VOICE_OFFSET(position) == 4 && VOICE_OFFSET(step) == 8 &&
-                                      VOICE_OFFSET(end) == 12 && VOICE_OFFSET(loop_length) == 16 && VOICE_OFFSET(volume) == 20)
-                                        ? 1
-                                        : -1];
+typedef char VoiceLayoutMatchesMixer
+   [(VOICE_OFFSET(data) == 0 && VOICE_OFFSET(position) == 4 && VOICE_OFFSET(step) == 8 && VOICE_OFFSET(end) == 12 &&
+     VOICE_OFFSET(loop_length) == 16 && VOICE_OFFSET(volume) == 20)
+       ? 1
+       : -1];
 /* the samples one pass of mixVoice adds into the IWRAM chunk. */
 #define CHUNK_SAMPLES 16
 typedef char FrameHoldsWholeChunks[(AUDIO_FRAME_SAMPLES % CHUNK_SAMPLES == 0) ? 1 : -1];
 
 /* mixer.s: adds count samples of the voice into chunk, advancing the voice. */
-extern void mixVoice(DeceptusI32 *chunk, Voice *voice, DeceptusU32 count);
+extern void mixVoice(DeceptusI32* chunk, Voice* voice, DeceptusU32 count);
 
 extern void irqHandler(void);
 extern void irqEnable(void);
@@ -73,7 +74,7 @@ extern void irqEnable(void);
 /* words, as the 32-bit DMA needs: the second buffer starts on a word too. */
 typedef char BuffersAligned[(AUDIO_FRAME_SAMPLES % 4 == 0) ? 1 : -1];
 static DeceptusU32 buffer_words[(2 * AUDIO_FRAME_SAMPLES + FIFO_READ_AHEAD) / 4];
-#define buffers ((DeceptusI8 *)buffer_words)
+#define buffers ((DeceptusI8*)buffer_words)
 static DeceptusI32 chunk[CHUNK_SAMPLES] __attribute__((section(".iwram.audioChunk")));
 /* the sound cues play on voices after the song's; a new cue takes the one started longest ago. */
 #define EFFECT_VOICES 2
@@ -82,9 +83,9 @@ static DeceptusU8 next_effect_voice;
 static SongPlayer player;
 static DeceptusU8 playing_buffer;
 
-static void startVoice(Voice *voice, const SongOutput *output)
+static void startVoice(Voice* voice, const SongOutput* output)
 {
-   const SongSample *sample;
+   const SongSample* sample;
    sample = output->sample;
    if (sample == 0)
    {
@@ -99,8 +100,8 @@ static void startVoice(Voice *voice, const SongOutput *output)
 
 static void applyOutputs(void)
 {
-   SongOutput *output;
-   Voice *voice;
+   SongOutput* output;
+   Voice* voice;
    DeceptusU8 channel;
    for (channel = 0; channel < player.song->channels; ++channel)
    {
@@ -118,12 +119,12 @@ static void applyOutputs(void)
 }
 
 /* the frame in chunks: each voice adds into the IWRAM chunk, which then becomes 8-bit output. */
-static void mixFrame(DeceptusI8 *output)
+static void mixFrame(DeceptusI8* output)
 {
    DeceptusU16 first, index;
    DeceptusI32 value;
    DeceptusU8 channel;
-   Voice *voice;
+   Voice* voice;
    for (first = 0; first < AUDIO_FRAME_SAMPLES; first += CHUNK_SAMPLES)
    {
       for (index = 0; index < CHUNK_SAMPLES; ++index)
@@ -171,10 +172,10 @@ void audioInterrupt(void)
    mixFrame(buffers + (playing_buffer ^ 1) * AUDIO_FRAME_SAMPLES);
 }
 
-void audioPlayCues(SoundQueue *queue)
+void audioPlayCues(SoundQueue* queue)
 {
-   const SoundEffect *effect;
-   Voice *voice;
+   const SoundEffect* effect;
+   Voice* voice;
    DeceptusU8 index;
    for (index = 0; index < queue->count; ++index)
    {
@@ -198,7 +199,7 @@ void audioPlayCues(SoundQueue *queue)
    soundQueueClear(queue);
 }
 
-void audioStart(const Song *song)
+void audioStart(const Song* song)
 {
    DeceptusU16 index;
    songStart(&player, song);

@@ -32,7 +32,7 @@ typedef struct SnesSa1Mailbox
    DeceptusU16 buffer;
 } SnesSa1Mailbox;
 
-#define SNES_SA1_MAILBOX ((volatile SnesSa1Mailbox *)0x3100)
+#define SNES_SA1_MAILBOX ((volatile SnesSa1Mailbox*)0x3100)
 
 /* the SA-1 stack (sa1_boot.asm): I-RAM $140-$7ff, at $3140-$37ff for both cpus, filled with a
  * pattern at start-up, so the lowest overwritten byte shows how deep the stack has grown. */

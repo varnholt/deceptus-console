@@ -26,12 +26,12 @@ typedef struct DeceptusPacing
    DeceptusU8 max_ticks;      /* most ticks one presentation may run */
 } DeceptusPacing;
 
-void deceptusPacingInit(DeceptusPacing *pacing, DeceptusU8 display_hz, DeceptusU8 max_ticks);
+void deceptusPacingInit(DeceptusPacing* pacing, DeceptusU8 display_hz, DeceptusU8 max_ticks);
 
 /* forgets banked time. call after a room load or any other pause the game must not make up for. */
-void deceptusPacingReset(DeceptusPacing *pacing);
+void deceptusPacingReset(DeceptusPacing* pacing);
 
 /* ticks to run for a presentation that came elapsed_frames display frames after the previous one. */
-DeceptusU8 deceptusPacingTicks(DeceptusPacing *pacing, DeceptusU16 elapsed_frames);
+DeceptusU8 deceptusPacingTicks(DeceptusPacing* pacing, DeceptusU16 elapsed_frames);
 
 #endif

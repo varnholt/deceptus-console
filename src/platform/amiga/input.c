@@ -5,7 +5,7 @@
 DeceptusU16 amigaInputRead(void)
 {
    DeceptusU16 joy, buttons;
-   joy = *(volatile DeceptusU16 *)0xdff00c;
+   joy = *(volatile DeceptusU16*)0xdff00c;
    buttons = 0;
    if (joy & 0x0200)
    {
@@ -23,7 +23,7 @@ DeceptusU16 amigaInputRead(void)
    {
       buttons |= DECEPTUS_DOWN;
    }
-   if (!(*(volatile DeceptusU8 *)0xbfe001 & 0x80))
+   if (!(*(volatile DeceptusU8*)0xbfe001 & 0x80))
    {
       buttons |= DECEPTUS_JUMP;
    }
@@ -33,5 +33,5 @@ DeceptusU16 amigaInputRead(void)
 int amigaInputQuit(void)
 {
    /* focusing the emulator with a left click must not end the game. */
-   return !(*(volatile DeceptusU8 *)0xbfe001 & 0x40) && !(*(volatile DeceptusU16 *)0xdff016 & 0x0400);
+   return !(*(volatile DeceptusU8*)0xbfe001 & 0x40) && !(*(volatile DeceptusU16*)0xdff016 & 0x0400);
 }

@@ -1,13 +1,13 @@
 /* original counterpart: src/game/mechanisms/destructibleblockingrect.cpp. */
 /* private mechanism implementation; compiled through ../mechanisms.c. */
 
-static void destructibleBlockingRectConfigure(const DeceptusMechanismDef *definition, DeceptusMechanismState *state)
+static void destructibleBlockingRectConfigure(const DeceptusMechanismDef* definition, DeceptusMechanismState* state)
 {
    state->cooldown = definition->value;
    state->active = state->enabled;
 }
 
-static void destructibleBlockingRectTick(DeceptusMechanismState *state)
+static void destructibleBlockingRectTick(DeceptusMechanismState* state)
 {
    if (state->idle_ticks)
    {
@@ -26,10 +26,10 @@ static void destructibleBlockingRectTick(DeceptusMechanismState *state)
    }
 }
 
-DeceptusU8 deceptusMechanismHit(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU16 damage)
+DeceptusU8 deceptusMechanismHit(DeceptusMechanismSet* set, DeceptusU16 source_id, DeceptusU16 damage)
 {
    DeceptusI16 index;
-   DeceptusMechanismState *state;
+   DeceptusMechanismState* state;
    index = deceptusMechanismFind(set, source_id);
    if ((index < 0) || (damage == 0) || (set->definitions[index].kind != DECEPTUS_MECH_DESTRUCTIBLE))
    {

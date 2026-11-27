@@ -1,6 +1,6 @@
 #include "deceptus/logic.h"
 
-DeceptusU8 deceptusLogicExecute(DeceptusMechanismSet *set, const DeceptusU8 *code, DeceptusU16 length, DeceptusU8 arguments)
+DeceptusU8 deceptusLogicExecute(DeceptusMechanismSet* set, const DeceptusU8* code, DeceptusU16 length, DeceptusU8 arguments)
 {
    DeceptusU8 stack[16], enabled[DECEPTUS_MECHANISM_CAPACITY], visible[DECEPTUS_MECHANISM_CAPACITY];
    DeceptusU16 position, steps, operand, index;

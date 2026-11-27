@@ -16,7 +16,7 @@ static DeceptusI16 tileFloor(DeceptusI16 pixel)
    return pixel < 0 ? (DeceptusI16)(-((-(DeceptusI32)pixel + 15) / 16)) : pixel / 16;
 }
 
-DeceptusU8 amigaScrollSurfaceInit(AmigaScrollSurface *surface, DeceptusU16 columns, DeceptusU16 height, DeceptusU8 planes)
+DeceptusU8 amigaScrollSurfaceInit(AmigaScrollSurface* surface, DeceptusU16 columns, DeceptusU16 height, DeceptusU8 planes)
 {
    DeceptusU32 words;
    surface->words = 0;
@@ -33,7 +33,7 @@ DeceptusU8 amigaScrollSurfaceInit(AmigaScrollSurface *surface, DeceptusU16 colum
    return 1;
 }
 
-DeceptusU16 amigaScrollSurfaceOffset(const AmigaScrollSurface *surface, DeceptusI16 column, DeceptusI16 y, DeceptusU8 plane)
+DeceptusU16 amigaScrollSurfaceOffset(const AmigaScrollSurface* surface, DeceptusI16 column, DeceptusI16 y, DeceptusU8 plane)
 {
    DeceptusI16 row;
    DeceptusI32 offset;
@@ -61,7 +61,7 @@ DeceptusU16 amigaScrollSurfaceOffset(const AmigaScrollSurface *surface, Deceptus
    return (DeceptusU16)offset;
 }
 
-DeceptusU16 amigaScrollSurfaceRows(const AmigaScrollSurface *surface, DeceptusU16 offset, DeceptusU16 rows)
+DeceptusU16 amigaScrollSurfaceRows(const AmigaScrollSurface* surface, DeceptusU16 offset, DeceptusU16 rows)
 {
    DeceptusU16 available;
    /* nearly every blit ends before the ring wraps; avoid the 32-bit division library call then. */
@@ -73,14 +73,20 @@ DeceptusU16 amigaScrollSurfaceRows(const AmigaScrollSurface *surface, DeceptusU1
    return rows < available ? rows : available;
 }
 
-DeceptusU16 amigaScrollSurfaceWrap(const AmigaScrollSurface *surface, DeceptusU16 offset)
+DeceptusU16 amigaScrollSurfaceWrap(const AmigaScrollSurface* surface, DeceptusU16 offset)
 {
    /* below 65535 + stride, so the quotient stays far below 65536. */
    return divideWord((DeceptusU32)surface->words - offset + surface->stride - 1, surface->stride);
 }
 
-DeceptusU8 amigaScrollSurfaceVisit(const AmigaScrollSurface *surface, AmigaScrollWindow *window, DeceptusI16 camera_x, DeceptusI16 camera_y,
-                                   AmigaScrollTileVisitor visitor, void *context)
+DeceptusU8 amigaScrollSurfaceVisit(
+   const AmigaScrollSurface* surface,
+   AmigaScrollWindow* window,
+   DeceptusI16 camera_x,
+   DeceptusI16 camera_y,
+   AmigaScrollTileVisitor visitor,
+   void* context
+)
 {
    DeceptusI16 first_x, first_y, x, y, height, left, right;
    first_x = tileFloor(camera_x) - 1;
@@ -122,8 +128,14 @@ DeceptusU8 amigaScrollSurfaceVisit(const AmigaScrollSurface *surface, AmigaScrol
    return 1;
 }
 
-DeceptusU8 amigaScrollSurfaceVisitRuns(const AmigaScrollSurface *surface, AmigaScrollWindow *window, DeceptusI16 camera_x,
-                                       DeceptusI16 camera_y, AmigaScrollRunVisitor visitor, void *context)
+DeceptusU8 amigaScrollSurfaceVisitRuns(
+   const AmigaScrollSurface* surface,
+   AmigaScrollWindow* window,
+   DeceptusI16 camera_x,
+   DeceptusI16 camera_y,
+   AmigaScrollRunVisitor visitor,
+   void* context
+)
 {
    DeceptusI16 first_x, first_y, y, height, left, right;
    first_x = tileFloor(camera_x) - 1;

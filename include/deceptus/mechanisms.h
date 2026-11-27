@@ -127,9 +127,9 @@ typedef struct DeceptusMechanismEvent
 
 typedef struct DeceptusMechanismSet
 {
-   const DeceptusMechanismDef *definitions;
-   const DeceptusU16 *targets;
-   const DeceptusMechanismTiming *timings;
+   const DeceptusMechanismDef* definitions;
+   const DeceptusU16* targets;
+   const DeceptusMechanismTiming* timings;
    DeceptusMechanismState states[DECEPTUS_MECHANISM_CAPACITY];
    DeceptusMechanismEvent events[DECEPTUS_MECHANISM_EVENT_CAPACITY];
    DeceptusU16 target_count;
@@ -152,24 +152,29 @@ typedef struct DeceptusMechanismSet
 
 /* definitions remain unchanged until reinitialization. invalid or oversized
  * definitions fail without leaving a partially bound set. */
-DeceptusU8 deceptusMechanismsInit(DeceptusMechanismSet *set, const DeceptusMechanismDef *definitions, DeceptusU16 count,
-                                  const DeceptusU16 *targets, DeceptusU16 target_count);
-void deceptusMechanismsConfigure(DeceptusMechanismSet *set, const DeceptusMechanismTiming *timings);
-DeceptusI16 deceptusMechanismFind(const DeceptusMechanismSet *set, DeceptusU16 source_id);
+DeceptusU8 deceptusMechanismsInit(
+   DeceptusMechanismSet* set,
+   const DeceptusMechanismDef* definitions,
+   DeceptusU16 count,
+   const DeceptusU16* targets,
+   DeceptusU16 target_count
+);
+void deceptusMechanismsConfigure(DeceptusMechanismSet* set, const DeceptusMechanismTiming* timings);
+DeceptusI16 deceptusMechanismFind(const DeceptusMechanismSet* set, DeceptusU16 source_id);
 /* where the mechanism at index is now: a moveable box leaves its definition bounds. */
-const DeceptusRect *deceptusMechanismBounds(const DeceptusMechanismSet *set, DeceptusU16 index);
-DeceptusU8 deceptusMechanismEnable(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU8 enabled);
+const DeceptusRect* deceptusMechanismBounds(const DeceptusMechanismSet* set, DeceptusU16 index);
+DeceptusU8 deceptusMechanismEnable(DeceptusMechanismSet* set, DeceptusU16 source_id, DeceptusU8 enabled);
 /* applies one weapon hit to the original destructible blocker durability. */
-DeceptusU8 deceptusMechanismHit(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU16 damage);
+DeceptusU8 deceptusMechanismHit(DeceptusMechanismSet* set, DeceptusU16 source_id, DeceptusU16 damage);
 /* clears the transient event queue and evaluates one frame of rectangle interactions. */
-void deceptusMechanismsTick(DeceptusMechanismSet *set, const DeceptusRect *player, DeceptusU8 interact_pressed);
-DeceptusU8 deceptusMechanismSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds);
+void deceptusMechanismsTick(DeceptusMechanismSet* set, const DeceptusRect* player, DeceptusU8 interact_pressed);
+DeceptusU8 deceptusMechanismSolid(const DeceptusMechanismSet* set, const DeceptusRect* bounds);
 /* source cannon gun projectiles ignore cannon enemy fixtures. */
-DeceptusU8 deceptusMechanismProjectileSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds);
+DeceptusU8 deceptusMechanismProjectileSolid(const DeceptusMechanismSet* set, const DeceptusRect* bounds);
 /* a body moving sideways meets moveable boxes at their exact edge (deceptusMoveHorizontalDynamic),
  * not at the edge of the collision cell they cover, so this leaves them out. */
-DeceptusU8 deceptusMechanismSidewaysSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds);
+DeceptusU8 deceptusMechanismSidewaysSolid(const DeceptusMechanismSet* set, const DeceptusRect* bounds);
 /* what stops the box at mechanism index box: the bodies' solids, other boxes and box colliders. */
-DeceptusU8 deceptusMechanismBoxSolid(const DeceptusMechanismSet *set, const DeceptusRect *bounds, DeceptusU8 box);
+DeceptusU8 deceptusMechanismBoxSolid(const DeceptusMechanismSet* set, const DeceptusRect* bounds, DeceptusU8 box);
 
 #endif

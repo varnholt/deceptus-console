@@ -1,7 +1,7 @@
 #include "deceptus/animation.h"
 
 /* bounded integer division without a platform compiler-runtime dependency. */
-static DeceptusU32 divide(DeceptusU32 value, DeceptusU16 divisor, DeceptusU16 *remainder)
+static DeceptusU32 divide(DeceptusU32 value, DeceptusU16 divisor, DeceptusU16* remainder)
 {
    DeceptusU32 denominator, bit, result;
    denominator = divisor;
@@ -26,14 +26,19 @@ static DeceptusU32 divide(DeceptusU32 value, DeceptusU16 divisor, DeceptusU16 *r
    return result;
 }
 
-void deceptusAnimationReset(DeceptusAnimation *animation)
+void deceptusAnimationReset(DeceptusAnimation* animation)
 {
    animation->frame = 0;
    animation->elapsed = 0;
 }
 
-DeceptusU8 deceptusAnimationAdvanceTimed(DeceptusAnimation *animation, DeceptusU16 frames, const DeceptusU16 *durations, DeceptusU16 ticks,
-                                         DeceptusU8 loop)
+DeceptusU8 deceptusAnimationAdvanceTimed(
+   DeceptusAnimation* animation,
+   DeceptusU16 frames,
+   const DeceptusU16* durations,
+   DeceptusU16 ticks,
+   DeceptusU8 loop
+)
 {
    DeceptusU16 previous, remaining, step;
    previous = animation->frame;
@@ -73,8 +78,8 @@ DeceptusU8 deceptusAnimationAdvanceTimed(DeceptusAnimation *animation, DeceptusU
    return previous != animation->frame;
 }
 
-DeceptusU8 deceptusAnimationAdvance(DeceptusAnimation *animation, DeceptusU16 frames, DeceptusU16 frame_ticks, DeceptusU16 ticks,
-                                    DeceptusU8 loop)
+DeceptusU8
+deceptusAnimationAdvance(DeceptusAnimation* animation, DeceptusU16 frames, DeceptusU16 frame_ticks, DeceptusU16 ticks, DeceptusU8 loop)
 {
    DeceptusU32 elapsed, frame;
    DeceptusU16 previous, remainder;

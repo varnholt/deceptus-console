@@ -16,11 +16,11 @@
 #define SPIKE_BALL_PART_COUNT (1 + SPIKE_BALL_LINKS)
 
 /* every spike ball of the room starts held out to the right of its anchor, as in the source. */
-void spikeBallsInit(DeceptusMechanismSet *set);
+void spikeBallsInit(DeceptusMechanismSet* set);
 /* one tick of every spike ball; nonzero when a ball touches the body at bounds. */
-DeceptusU8 spikeBallsTick(DeceptusMechanismSet *set, const DeceptusRect *bounds);
+DeceptusU8 spikeBallsTick(DeceptusMechanismSet* set, const DeceptusRect* bounds);
 /* the image and room position of one piece of the spike ball at mechanism index:
  * part 0 is the ball, the others the chain links, part < SPIKE_BALL_PART_COUNT. */
-void spikeBallPart(const DeceptusMechanismSet *set, DeceptusU16 index, DeceptusU8 part, DeceptusU8 *image, DeceptusI16 *x, DeceptusI16 *y);
+void spikeBallPart(const DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8 part, DeceptusU8* image, DeceptusI16* x, DeceptusI16* y);
 
 #endif

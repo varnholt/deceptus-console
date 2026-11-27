@@ -5,7 +5,7 @@ static DeceptusU8 smd_ui_window_row, smd_ui_window_bottom;
 static DeceptusU32 smd_ui_font_buffer[8];
 static DeceptusU8 smd_ui_mode, smd_ui_selection, smd_ui_room, smd_ui_page, smd_ui_prompt, smd_ui_label;
 static DeceptusU16 smd_ui_flags;
-static const DeceptusInteraction *smd_ui_dialogue;
+static const DeceptusInteraction* smd_ui_dialogue;
 
 static DeceptusU8 smdUiColumns(DeceptusU8 character)
 {
@@ -18,7 +18,7 @@ static DeceptusU8 smdUiColumns(DeceptusU8 character)
 
 static void smdUiGlyph(DeceptusU16 row, DeceptusU16 column, DeceptusU8 character)
 {
-   const SmdFontGlyph *glyph;
+   const SmdFontGlyph* glyph;
    DeceptusU16 y, x;
    if (character < 32 || character > 126)
    {
@@ -34,9 +34,9 @@ static void smdUiGlyph(DeceptusU16 row, DeceptusU16 column, DeceptusU8 character
    }
 }
 
-static void smdUiText(DeceptusU16 row, DeceptusU16 column, const char *text, DeceptusU16 width, DeceptusU8 lines)
+static void smdUiText(DeceptusU16 row, DeceptusU16 column, const char* text, DeceptusU16 width, DeceptusU8 lines)
 {
-   const char *word;
+   const char* word;
    DeceptusU16 origin, word_width;
    DeceptusU8 character;
    origin = column;
@@ -110,7 +110,7 @@ static void smdUiBox(DeceptusU16 row, DeceptusU16 rows)
    }
 }
 
-static void smdUiOption(DeceptusU16 row, const char *text, DeceptusU8 selected)
+static void smdUiOption(DeceptusU16 row, const char* text, DeceptusU8 selected)
 {
    smdUiText(row, 5, selected ? ">" : " ", 1, 1);
    smdUiText(row, 7, text, 22, 1);
@@ -123,7 +123,7 @@ static void smdUiInit(void)
    {
       for (index = 0; index < SMD_FONT_TILES; ++index)
       {
-         if (!smdDecodeBlock(&smd_font, index, (DeceptusU8 *)smd_ui_font_buffer))
+         if (!smdDecodeBlock(&smd_font, index, (DeceptusU8*)smd_ui_font_buffer))
          {
             return;
          }
@@ -136,11 +136,11 @@ static void smdUiInit(void)
    smd_ui_valid = 0;
 }
 
-static void smdUiPrepare(const DeceptusAdventure *game)
+static void smdUiPrepare(const DeceptusAdventure* game)
 {
    DeceptusU16 index;
    DeceptusU8 mode, label;
-   const DeceptusAdventureRoom *room;
+   const DeceptusAdventureRoom* room;
    mode = game->campaign.mode;
    label = game->room_label_ticks && mode == DECEPTUS_CAMPAIGN_PLAYING;
    if (smd_ui_valid && smd_ui_mode == mode && smd_ui_selection == game->selection && smd_ui_room == game->campaign.room_index &&

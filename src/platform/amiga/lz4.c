@@ -7,7 +7,7 @@
    failure cases match the portable decoder: truncated lengths or offsets, a zero offset or one before
    the output start, a copy past either end, or a stream that does not end exactly after literals
    with a full destination. */
-DeceptusU8 amigaLz4DecodeBlock(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU8 *destination, DeceptusU32 destination_size);
+DeceptusU8 amigaLz4DecodeBlock(const DeceptusU8* source, DeceptusU32 source_size, DeceptusU8* destination, DeceptusU32 destination_size);
 
 __asm__(
    "   .text\n"
@@ -15,19 +15,19 @@ __asm__(
    "   .globl amigaLz4DecodeBlock\n"
    "amigaLz4DecodeBlock:\n"
    "   movem.l %d2-%d5/%a2-%a4,-(%sp)\n"
-   "   move.l 32(%sp),%a0\n"            /* source */
+   "   move.l 32(%sp),%a0\n" /* source */
    "   move.l 36(%sp),%d0\n"
-   "   lea (%a0,%d0.l),%a1\n"           /* source end */
-   "   move.l 40(%sp),%a2\n"            /* destination cursor */
-   "   move.l %a2,%d5\n"                /* destination start */
+   "   lea (%a0,%d0.l),%a1\n" /* source end */
+   "   move.l 40(%sp),%a2\n"  /* destination cursor */
+   "   move.l %a2,%d5\n"      /* destination start */
    "   move.l 44(%sp),%d0\n"
-   "   lea (%a2,%d0.l),%a3\n"           /* destination end */
+   "   lea (%a2,%d0.l),%a3\n" /* destination end */
    ".Llz4_token:\n"
    "   cmpa.l %a1,%a0\n"
    "   bcc.w .Llz4_fail\n"
    "   moveq #0,%d0\n"
    "   move.b (%a0)+,%d0\n"
-   "   move.l %d0,%d1\n"                /* d0 is zero-extended; the length is used as a long */
+   "   move.l %d0,%d1\n" /* d0 is zero-extended; the length is used as a long */
    "   lsr.w #4,%d1\n"
    "   beq.s .Llz4_match\n"
    "   cmp.w #15,%d1\n"
@@ -124,10 +124,10 @@ __asm__(
    "   moveq #0,%d0\n"
    ".Llz4_return:\n"
    "   movem.l (%sp)+,%d2-%d5/%a2-%a4\n"
-   "   rts\n");
+   "   rts\n"
+);
 
-
-DeceptusU8 amigaLz4Decode(const DeceptusU8 *source, DeceptusU32 source_size, DeceptusU8 *destination, DeceptusU32 destination_size)
+DeceptusU8 amigaLz4Decode(const DeceptusU8* source, DeceptusU32 source_size, DeceptusU8* destination, DeceptusU32 destination_size)
 {
    /* the unrolled copies count in 16 bits; anything unusual keeps the portable decoder. */
    if (!source || !source_size || !destination || !destination_size || destination_size > 65535UL)

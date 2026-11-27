@@ -11,11 +11,11 @@
  * contact depends on the box's density and friction, so this is the console engine's choice. */
 #define BOX_PUSH_DIVISOR 2
 
-DeceptusU8 deceptusMoveableBoxesInit(DeceptusEngine *engine)
+DeceptusU8 deceptusMoveableBoxesInit(DeceptusEngine* engine)
 {
-   DeceptusMechanismSet *set;
-   DeceptusMoveableBox *box;
-   const DeceptusMechanismDef *definition;
+   DeceptusMechanismSet* set;
+   DeceptusMoveableBox* box;
+   const DeceptusMechanismDef* definition;
    DeceptusU8 index;
    set = &engine->mechanisms;
    set->box_count = 0;
@@ -42,8 +42,8 @@ DeceptusU8 deceptusMoveableBoxesInit(DeceptusEngine *engine)
 
 /* whether the box fits with its top left corner at x, y. a box moving down lands on a one-way cell
  * whose top its bottom edge had reached, as the player does. */
-static DeceptusU8 boxFits(const DeceptusEngine *engine, const DeceptusMoveableBox *box, DeceptusI16 x, DeceptusI16 y,
-                          DeceptusU8 moving_down)
+static DeceptusU8
+boxFits(const DeceptusEngine* engine, const DeceptusMoveableBox* box, DeceptusI16 x, DeceptusI16 y, DeceptusU8 moving_down)
 {
    DeceptusRect bounds;
    DeceptusI16 column, row, left, right, top, bottom;
@@ -61,8 +61,7 @@ static DeceptusU8 boxFits(const DeceptusEngine *engine, const DeceptusMoveableBo
          {
             return 0;
          }
-         if (moving_down && ((cell & DECEPTUS_ONE_WAY) != 0) && (row == bottom) &&
-             (y - 1 + box->bounds.height <= row * DECEPTUS_CELL_SIZE))
+         if (moving_down && ((cell & DECEPTUS_ONE_WAY) != 0) && (row == bottom) && (y - 1 + box->bounds.height <= row * DECEPTUS_CELL_SIZE))
          {
             return 0;
          }
@@ -77,9 +76,9 @@ static DeceptusU8 boxFits(const DeceptusEngine *engine, const DeceptusMoveableBo
 
 /* moves the box by distance along one axis, a pixel at a time; zero when something stopped it, which
  * leaves it where it last fitted. */
-static DeceptusU8 moveBox(const DeceptusEngine *engine, DeceptusMoveableBox *box, DeceptusFixed distance, DeceptusU8 vertical)
+static DeceptusU8 moveBox(const DeceptusEngine* engine, DeceptusMoveableBox* box, DeceptusFixed distance, DeceptusU8 vertical)
 {
-   DeceptusFixed *position;
+   DeceptusFixed* position;
    DeceptusI16 pixel, target, step;
    position = vertical ? &box->y : &box->x;
    pixel = deceptusFloor(*position);
@@ -87,8 +86,13 @@ static DeceptusU8 moveBox(const DeceptusEngine *engine, DeceptusMoveableBox *box
    step = (target > pixel) ? 1 : -1;
    while (pixel != target)
    {
-      if (!boxFits(engine, box, vertical ? box->bounds.x : pixel + step, vertical ? pixel + step : box->bounds.y,
-                   (DeceptusU8)(vertical && (step > 0))))
+      if (!boxFits(
+             engine,
+             box,
+             vertical ? box->bounds.x : pixel + step,
+             vertical ? pixel + step : box->bounds.y,
+             (DeceptusU8)(vertical && (step > 0))
+          ))
       {
          /* only whole pixels moved: the fraction stays, so a body against the box stays outside it. */
          *position = (step > 0) ? DECEPTUS_FIXED(pixel + 1) - 1 : DECEPTUS_FIXED(pixel);
@@ -108,9 +112,9 @@ static DeceptusU8 moveBox(const DeceptusEngine *engine, DeceptusMoveableBox *box
    return 1;
 }
 
-void deceptusMoveableBoxesFall(DeceptusEngine *engine)
+void deceptusMoveableBoxesFall(DeceptusEngine* engine)
 {
-   DeceptusMoveableBox *box;
+   DeceptusMoveableBox* box;
    DeceptusU8 index;
    for (index = 0; index < engine->mechanisms.box_count; ++index)
    {
@@ -127,9 +131,9 @@ void deceptusMoveableBoxesFall(DeceptusEngine *engine)
    }
 }
 
-void deceptusMoveableBoxesPush(DeceptusEngine *engine, const DeceptusEntity *body, DeceptusU8 half_width, DeceptusU8 height)
+void deceptusMoveableBoxesPush(DeceptusEngine* engine, const DeceptusEntity* body, DeceptusU8 half_width, DeceptusU8 height)
 {
-   DeceptusMoveableBox *box;
+   DeceptusMoveableBox* box;
    DeceptusFixed gap;
    DeceptusI16 top, bottom;
    DeceptusU8 index;

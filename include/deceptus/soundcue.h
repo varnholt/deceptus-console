@@ -25,7 +25,7 @@
 /* a cue's signed 8-bit samples at its platform's rate (tools/sound_assets.py); length 0 is silent. */
 typedef struct SoundEffect
 {
-   const DeceptusI8 *data;
+   const DeceptusI8* data;
    DeceptusU32 length;
 } SoundEffect;
 
@@ -39,12 +39,12 @@ typedef struct SoundQueue
 } SoundQueue;
 
 /* queues a cue; a full queue drops it. */
-void soundQueuePush(SoundQueue *queue, DeceptusU8 cue);
+void soundQueuePush(SoundQueue* queue, DeceptusU8 cue);
 /* queues the sound of an engine event, if it has one, for footsteps on the given surface. */
-void soundQueueEvent(SoundQueue *queue, DeceptusU8 event, DeceptusU8 surface);
+void soundQueueEvent(SoundQueue* queue, DeceptusU8 event, DeceptusU8 surface);
 /* queues the sounds of a tick's engine events. */
-void soundQueueEngineEvents(SoundQueue *queue, const DeceptusEngine *engine, DeceptusU8 surface);
+void soundQueueEngineEvents(SoundQueue* queue, const DeceptusEngine* engine, DeceptusU8 surface);
 /* empties the queue once the platform has started its sounds. */
-void soundQueueClear(SoundQueue *queue);
+void soundQueueClear(SoundQueue* queue);
 
 #endif

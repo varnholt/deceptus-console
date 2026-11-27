@@ -1,20 +1,20 @@
 #include "graphics.h"
-#include "lz4.h"
+#include <string.h>
 #include "amiga_native_assets.h"
 #include "deceptus/compression.h"
-#include <string.h>
+#include "lz4.h"
 
-static DeceptusU16 readWord(const DeceptusU8 *bytes)
+static DeceptusU16 readWord(const DeceptusU8* bytes)
 {
    return (DeceptusU16)((DeceptusU16)bytes[0] << 8) | bytes[1];
 }
 
-static DeceptusU32 readLong(const DeceptusU8 *bytes)
+static DeceptusU32 readLong(const DeceptusU8* bytes)
 {
    return ((DeceptusU32)readWord(bytes) << 16) | readWord(bytes + 2);
 }
 
-DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size)
+DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics* graphics, const DeceptusU8* pixels, DeceptusU32 size)
 {
    DeceptusU16 columns;
    DeceptusU32 blocks, block;
@@ -49,8 +49,8 @@ DeceptusU8 amigaGraphicsSetRaster(AmigaGraphics *graphics, const DeceptusU8 *pix
    return 1;
 }
 
-DeceptusU8 amigaGraphicsRasterBlock(const AmigaGraphics *graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8 *pixels,
-                                    DeceptusU32 capacity)
+DeceptusU8
+amigaGraphicsRasterBlock(const AmigaGraphics* graphics, DeceptusU16 column, DeceptusU16 band, DeceptusU8* pixels, DeceptusU32 capacity)
 {
    DeceptusU16 columns, bands;
    DeceptusU32 start, first, last, block;
@@ -71,13 +71,13 @@ DeceptusU8 amigaGraphicsRasterBlock(const AmigaGraphics *graphics, DeceptusU16 c
    return amigaLz4Decode(graphics->raster + start + first, last - first, pixels, AMIGA_RASTER_BYTES);
 }
 
-static DeceptusU8 worldRange(const AmigaGraphics *graphics, DeceptusU32 offset, DeceptusU32 size)
+static DeceptusU8 worldRange(const AmigaGraphics* graphics, DeceptusU32 offset, DeceptusU32 size)
 {
    return offset <= graphics->world_size && size <= graphics->world_size - offset;
 }
 
-static DeceptusU8 blockRange(const AmigaGraphics *graphics, DeceptusU32 table, DeceptusU16 index, DeceptusU32 base, DeceptusU32 *offset,
-                             DeceptusU32 *size)
+static DeceptusU8
+blockRange(const AmigaGraphics* graphics, DeceptusU32 table, DeceptusU16 index, DeceptusU32 base, DeceptusU32* offset, DeceptusU32* size)
 {
    DeceptusU32 first, last;
    if (!worldRange(graphics, table, ((DeceptusU32)index + 2) * 4))
@@ -95,15 +95,23 @@ static DeceptusU8 blockRange(const AmigaGraphics *graphics, DeceptusU32 table, D
    return 1;
 }
 
-DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, DeceptusU32 world_size, const DeceptusU8 *sprites,
-                             DeceptusU32 sprite_size, DeceptusU32 first_size, const DeceptusU8 *tail)
+DeceptusU8 amigaGraphicsInit(
+   AmigaGraphics* graphics,
+   const DeceptusU8* world,
+   DeceptusU32 world_size,
+   const DeceptusU8* sprites,
+   DeceptusU32 sprite_size,
+   DeceptusU32 first_size,
+   const DeceptusU8* tail
+)
 {
    DeceptusU16 index, resource;
    AmigaGraphicsSprite sprite;
    memset(graphics, 0, sizeof(*graphics));
    if (!world || !sprites || world_size < 48 || world[0] != 'A' || world[2] != '0' ||
-       !((world[1] == 'G' && world[3] == '3') || (world[1] == 'N' && (world[3] == '1' || world[3] == '2' || world[3] == '3'))) || first_size > sprite_size ||
-       (first_size < sprite_size && !tail) || readWord(world + 14) != AMIGA_TILE_GROUP || readLong(world + 44) != sprite_size)
+       !((world[1] == 'G' && world[3] == '3') || (world[1] == 'N' && (world[3] == '1' || world[3] == '2' || world[3] == '3'))) ||
+       first_size > sprite_size || (first_size < sprite_size && !tail) || readWord(world + 14) != AMIGA_TILE_GROUP ||
+       readLong(world + 44) != sprite_size)
    {
       return 0;
    }
@@ -131,8 +139,8 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
    if (!graphics->width || !graphics->height || graphics->width > 2040 || graphics->height > 2040 || (graphics->width & 7) ||
        (graphics->height & 7) || (!graphics->native_only && !graphics->pattern_count) ||
        graphics->sprite_count > AMIGA_GRAPHICS_RESOURCES || !worldRange(graphics, graphics->palette, 64) ||
-       (!graphics->native_only &&
-        !worldRange(graphics, graphics->tile_table, (((DeceptusU32)graphics->pattern_count + 15) / 16 + 1) * 4)) ||
+       (!graphics->native_only && !worldRange(graphics, graphics->tile_table, (((DeceptusU32)graphics->pattern_count + 15) / 16 + 1) * 4)
+       ) ||
        (graphics->native_only &&
         (graphics->pattern_count || graphics->tile_table || graphics->tile_data || graphics->background || graphics->foreground)) ||
        !worldRange(graphics, graphics->sprite_table, (DeceptusU32)graphics->sprite_count * 28) ||
@@ -157,7 +165,7 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
    return 1;
 }
 
-DeceptusU32 amigaGraphicsSpriteSplit(const DeceptusU8 *world, DeceptusU32 size, DeceptusU32 available)
+DeceptusU32 amigaGraphicsSpriteSplit(const DeceptusU8* world, DeceptusU32 size, DeceptusU32 available)
 {
    DeceptusU32 table, offset, bytes, split;
    DeceptusU16 index, count;
@@ -188,7 +196,7 @@ DeceptusU32 amigaGraphicsSpriteSplit(const DeceptusU8 *world, DeceptusU32 size, 
    return split;
 }
 
-DeceptusU8 amigaGraphicsPalette(const AmigaGraphics *graphics, DeceptusU16 *palette)
+DeceptusU8 amigaGraphicsPalette(const AmigaGraphics* graphics, DeceptusU16* palette)
 {
    DeceptusU8 index;
    if (!worldRange(graphics, graphics->palette, 64))
@@ -206,8 +214,8 @@ DeceptusU8 amigaGraphicsPalette(const AmigaGraphics *graphics, DeceptusU16 *pale
    return 1;
 }
 
-DeceptusU8 amigaGraphicsRow(const AmigaGraphics *graphics, DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 row,
-                            DeceptusU16 *cells)
+DeceptusU8
+amigaGraphicsRow(const AmigaGraphics* graphics, DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 row, DeceptusU16* cells)
 {
    DeceptusU16 index;
    DeceptusU32 offset, size, table_size;
@@ -228,7 +236,7 @@ DeceptusU8 amigaGraphicsRow(const AmigaGraphics *graphics, DeceptusU32 map, Dece
    return 1;
 }
 
-DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics *graphics, DeceptusU16 group, DeceptusU8 *destination)
+DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics* graphics, DeceptusU16 group, DeceptusU8* destination)
 {
    DeceptusU32 offset, size;
    if ((DeceptusU32)group * AMIGA_TILE_GROUP >= graphics->pattern_count ||
@@ -239,9 +247,9 @@ DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics *graphics, DeceptusU16 gro
    return amigaLz4Decode(graphics->world + offset, size, destination, AMIGA_TILE_GROUP_BYTES);
 }
 
-DeceptusU8 amigaGraphicsClip(const AmigaGraphics *graphics, DeceptusU16 index, AmigaGraphicsClip *clip)
+DeceptusU8 amigaGraphicsClip(const AmigaGraphics* graphics, DeceptusU16 index, AmigaGraphicsClip* clip)
 {
-   const DeceptusU8 *bytes;
+   const DeceptusU8* bytes;
    if (index >= graphics->clip_count || !worldRange(graphics, graphics->clips, ((DeceptusU32)index + 1) * 26))
    {
       return 0;
@@ -264,9 +272,9 @@ DeceptusU8 amigaGraphicsClip(const AmigaGraphics *graphics, DeceptusU16 index, A
           (!clip->durations || worldRange(graphics, clip->durations, (DeceptusU32)clip->frames * 2));
 }
 
-DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 resource, DeceptusU8 flip, AmigaGraphicsSprite *sprite)
+DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics* graphics, DeceptusU16 resource, DeceptusU8 flip, AmigaGraphicsSprite* sprite)
 {
-   const DeceptusU8 *bytes;
+   const DeceptusU8* bytes;
    DeceptusU16 index;
    if (resource >= AMIGA_GRAPHICS_RESOURCES)
    {
@@ -316,14 +324,14 @@ DeceptusU8 amigaGraphicsSpriteInfo(const AmigaGraphics *graphics, DeceptusU16 re
           sprite->offset <= graphics->sprite_size && sprite->bytes <= graphics->sprite_size - sprite->offset;
 }
 
-DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
-                                     DeceptusU32 capacity)
+DeceptusU8
+amigaGraphicsSpriteDecode(const AmigaGraphics* graphics, const AmigaGraphicsSprite* sprite, DeceptusU8* destination, DeceptusU32 capacity)
 {
    DeceptusU32 size, offset, compact;
    DeceptusU16 row, plane, stored, words, index, line[20], *output;
-   DeceptusU8 *tail;
-   const DeceptusU8 *input;
-   const DeceptusU8 *source;
+   DeceptusU8* tail;
+   const DeceptusU8* input;
+   const DeceptusU8* source;
    size = (DeceptusU32)sprite->row_bytes * sprite->height * (graphics->interleaved_sprites ? sprite->planes * 2 : 6);
    if (size > capacity || sprite->offset > graphics->sprite_size || sprite->bytes > graphics->sprite_size - sprite->offset)
    {
@@ -366,7 +374,7 @@ DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaG
    words = sprite->row_bytes / 2;
    line[words - 1] = 0;
    input = tail;
-   output = (DeceptusU16 *)destination;
+   output = (DeceptusU16*)destination;
    for (row = 0; row < sprite->height * sprite->planes; ++row)
    {
       for (index = 0; index < words - 1; ++index, input += 2)
@@ -395,11 +403,11 @@ DeceptusU8 amigaGraphicsSpriteDecode(const AmigaGraphics *graphics, const AmigaG
    return 1;
 }
 
-DeceptusU32 amigaGraphicsSpriteCompact(const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite, DeceptusU8 *destination,
-                                       DeceptusU32 capacity)
+DeceptusU32
+amigaGraphicsSpriteCompact(const AmigaGraphics* graphics, const AmigaGraphicsSprite* sprite, DeceptusU8* destination, DeceptusU32 capacity)
 {
    DeceptusU32 compact, offset;
-   const DeceptusU8 *source;
+   const DeceptusU8* source;
    compact = (DeceptusU32)(sprite->row_bytes - 2) * sprite->height * (sprite->planes + 1);
    if (!graphics->compact_masks || compact > capacity || sprite->offset > graphics->sprite_size ||
        sprite->bytes > graphics->sprite_size - sprite->offset)
@@ -437,7 +445,7 @@ static DeceptusU8 reverseByte(DeceptusU8 value)
 static DeceptusU8 reversed[256];
 static DeceptusU8 reversed_ready;
 
-void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *sprite)
+void amigaGraphicsSpriteFlip(DeceptusU8* pixels, const AmigaGraphicsSprite* sprite)
 {
    DeceptusU16 row, left, right, bytes;
    DeceptusU8 first, last, shift;
@@ -472,7 +480,7 @@ void amigaGraphicsSpriteFlip(DeceptusU8 *pixels, const AmigaGraphicsSprite *spri
    }
 }
 
-static DeceptusU32 nativeClipFrameBytes(const AmigaGraphicsClip *clip)
+static DeceptusU32 nativeClipFrameBytes(const AmigaGraphicsClip* clip)
 {
    DeceptusI16 left;
    left = clip->bounds.x / 16;
@@ -483,7 +491,7 @@ static DeceptusU32 nativeClipFrameBytes(const AmigaGraphicsClip *clip)
    return (DeceptusU32)((clip->bounds.x - left * 16 + clip->bounds.width + 15) / 16) * 2 * clip->bounds.height * 6;
 }
 
-DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics *graphics, const DeceptusU8 *pixels, DeceptusU32 size)
+DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics* graphics, const DeceptusU8* pixels, DeceptusU32 size)
 {
    DeceptusU16 index;
    DeceptusU32 start, previous, next, bytes;
@@ -523,7 +531,7 @@ DeceptusU8 amigaGraphicsSetNativeClips(AmigaGraphics *graphics, const DeceptusU8
    return 1;
 }
 
-const DeceptusU16 *amigaGraphicsNativeClip(const AmigaGraphics *graphics, DeceptusU16 index, DeceptusU16 frame)
+const DeceptusU16* amigaGraphicsNativeClip(const AmigaGraphics* graphics, DeceptusU16 index, DeceptusU16 frame)
 {
    AmigaGraphicsClip clip;
    DeceptusU32 start, offset;
@@ -533,10 +541,10 @@ const DeceptusU16 *amigaGraphicsNativeClip(const AmigaGraphics *graphics, Decept
    }
    start = 8 + ((DeceptusU32)graphics->clip_count + 1) * 4;
    offset = readLong(graphics->native_clips + 8 + (DeceptusU32)index * 4);
-   return (const DeceptusU16 *)(graphics->native_clips + start + offset + (DeceptusU32)frame * nativeClipFrameBytes(&clip));
+   return (const DeceptusU16*)(graphics->native_clips + start + offset + (DeceptusU32)frame * nativeClipFrameBytes(&clip));
 }
 
-DeceptusU8 amigaGraphicsStormEntries(const AmigaGraphics *graphics, DeceptusU8 *entries, DeceptusU8 *count)
+DeceptusU8 amigaGraphicsStormEntries(const AmigaGraphics* graphics, DeceptusU8* entries, DeceptusU8* count)
 {
    DeceptusU32 list;
    DeceptusU16 length;

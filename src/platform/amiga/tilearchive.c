@@ -1,14 +1,14 @@
 #include "tilearchive.h"
-#include "lz4.h"
-#include "deceptus/compression.h"
 #include <string.h>
+#include "deceptus/compression.h"
+#include "lz4.h"
 
-static DeceptusU16 readWord(const DeceptusU8 *bytes)
+static DeceptusU16 readWord(const DeceptusU8* bytes)
 {
    return ((DeceptusU16)bytes[0] << 8) | bytes[1];
 }
 
-static DeceptusU32 readLong(const DeceptusU8 *bytes)
+static DeceptusU32 readLong(const DeceptusU8* bytes)
 {
    return ((DeceptusU32)readWord(bytes) << 16) | readWord(bytes + 2);
 }
@@ -18,7 +18,7 @@ static DeceptusU16 bankCount(DeceptusU16 tiles)
    return (DeceptusU16)(((DeceptusU32)tiles + AMIGA_NATIVE_TILES_PER_BANK - 1) / AMIGA_NATIVE_TILES_PER_BANK);
 }
 
-static DeceptusU8 validateBanks(const AmigaTileArchive *archive, DeceptusU32 table, DeceptusU16 count, DeceptusU32 *previous)
+static DeceptusU8 validateBanks(const AmigaTileArchive* archive, DeceptusU32 table, DeceptusU16 count, DeceptusU32* previous)
 {
    DeceptusU16 bank;
    DeceptusU32 next;
@@ -39,7 +39,7 @@ static DeceptusU8 validateBanks(const AmigaTileArchive *archive, DeceptusU32 tab
 }
 
 /* once per room: small rather than fast, its code comes out of the room data memory. */
-__attribute__((optimize("Os"))) DeceptusU8 amigaTileArchiveInit(AmigaTileArchive *archive, const DeceptusU8 *bytes, DeceptusU32 size)
+__attribute__((optimize("Os"))) DeceptusU8 amigaTileArchiveInit(AmigaTileArchive* archive, const DeceptusU8* bytes, DeceptusU32 size)
 {
    AmigaTileArchive candidate;
    DeceptusU32 cells, index, previous;
@@ -108,25 +108,25 @@ __attribute__((optimize("Os"))) DeceptusU8 amigaTileArchiveInit(AmigaTileArchive
    return 1;
 }
 
-DeceptusU8 amigaTileArchiveCell(const AmigaTileArchive *archive, DeceptusU16 column, DeceptusU16 row, DeceptusU16 *colors,
-                                DeceptusU16 *masks)
+DeceptusU8
+amigaTileArchiveCell(const AmigaTileArchive* archive, DeceptusU16 column, DeceptusU16 row, DeceptusU16* colors, DeceptusU16* masks)
 {
    DeceptusU32 cell;
-   const DeceptusU16 *words;
+   const DeceptusU16* words;
    if (!archive->bytes || column >= archive->columns || row >= archive->rows)
    {
       return 0;
    }
    cell = (DeceptusU32)(DeceptusU16)row * archive->columns + column;
    /* the 68000 is big-endian and the archive word-aligned: its tables are read as native words. */
-   words = (const DeceptusU16 *)(archive->bytes + archive->color_map) + cell * 4;
+   words = (const DeceptusU16*)(archive->bytes + archive->color_map) + cell * 4;
    colors[0] = words[0];
    colors[1] = words[1];
    colors[2] = words[2];
    colors[3] = words[3];
    /* cells name an interned mask quad; quad 0 is empty. */
-   words = (const DeceptusU16 *)(archive->bytes + archive->quad_table) +
-           (DeceptusU32)((const DeceptusU16 *)(archive->bytes + archive->mask_map))[cell] * 4;
+   words = (const DeceptusU16*)(archive->bytes + archive->quad_table) +
+           (DeceptusU32)((const DeceptusU16*)(archive->bytes + archive->mask_map))[cell] * 4;
    masks[0] = words[0];
    masks[1] = words[1];
    masks[2] = words[2];
@@ -135,7 +135,7 @@ DeceptusU8 amigaTileArchiveCell(const AmigaTileArchive *archive, DeceptusU16 col
 }
 
 /* a bank stored with exactly its decoded size is raw and is read in place. */
-const DeceptusU8 *amigaTileArchiveRawBank(const AmigaTileArchive *archive, DeceptusU8 mask_bank, DeceptusU16 bank)
+const DeceptusU8* amigaTileArchiveRawBank(const AmigaTileArchive* archive, DeceptusU8 mask_bank, DeceptusU16 bank)
 {
    DeceptusU16 count, remaining;
    DeceptusU32 table, first, bytes, span;
@@ -162,8 +162,13 @@ const DeceptusU8 *amigaTileArchiveRawBank(const AmigaTileArchive *archive, Decep
    return span == bytes ? archive->bytes + archive->payload + first : 0;
 }
 
-DeceptusU8 amigaTileArchiveDecode(const AmigaTileArchive *archive, DeceptusU8 mask_bank, DeceptusU16 bank, DeceptusU8 *destination,
-                                  DeceptusU32 capacity)
+DeceptusU8 amigaTileArchiveDecode(
+   const AmigaTileArchive* archive,
+   DeceptusU8 mask_bank,
+   DeceptusU16 bank,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+)
 {
    DeceptusU16 count, remaining;
    DeceptusU32 table, first, last, bytes;

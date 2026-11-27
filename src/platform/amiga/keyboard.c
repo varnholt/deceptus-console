@@ -1,8 +1,8 @@
 #include "keyboard.h"
-#include "deceptus/engine.h"
 #include <hardware/cia.h>
 #include <hardware/custom.h>
 #include <string.h>
+#include "deceptus/engine.h"
 
 #define KEY_SPACE 0x40
 #define KEY_BACKSPACE 0x41
@@ -17,8 +17,8 @@
 #define KEY_CONTROL 0x63
 #define KEY_Z 0x31
 
-static volatile struct CIA *const cia = (struct CIA *)0xbfe001;
-static volatile struct Custom *const hardware = (struct Custom *)0xdff000;
+static volatile struct CIA* const cia = (struct CIA*)0xbfe001;
+static volatile struct Custom* const hardware = (struct Custom*)0xdff000;
 static DeceptusU8 keys[128];
 
 void amigaKeyboardReset(void)

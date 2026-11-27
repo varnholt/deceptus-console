@@ -27,7 +27,7 @@ static DeceptusU16 randomWord(void)
    return (DeceptusU16)((seed >> 8) | (seed << 8));
 }
 
-static void saveState(SnesSpriteTestState *state)
+static void saveState(SnesSpriteTestState* state)
 {
    memcpy(state->oam, snes_obj_oam, sizeof(state->oam));
    memcpy(state->line_load, snes_obj_line_load, sizeof(state->line_load));
@@ -40,7 +40,7 @@ static void saveState(SnesSpriteTestState *state)
    state->blank = snes_sprite_blank;
 }
 
-static void loadState(const SnesSpriteTestState *state)
+static void loadState(const SnesSpriteTestState* state)
 {
    memcpy(snes_obj_oam, state->oam, sizeof(state->oam));
    memcpy(snes_obj_line_load, state->line_load, sizeof(state->line_load));
@@ -73,7 +73,7 @@ static void loadLines(void)
 static void randomRequest(DeceptusU16 index)
 {
    DeceptusU16 kind;
-   const SnesSpriteResource *entry;
+   const SnesSpriteResource* entry;
    test_request.resource = randomWord() % SNES_SPRITE_RESOURCE_COUNT;
    if ((index & 3) == 0)
    {

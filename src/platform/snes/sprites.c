@@ -1,17 +1,17 @@
 /* logical source frames mapped to bounded SNES OBJ tiles and palette banks. preparation only:
  * no video access, so on the SA-1 cartridge it runs on the SA-1 (sprites_commit.c transfers). */
 #include "sprites.h"
-#include "snes_assets.h"
-#include "deceptus/appearance.h"
-#include "deceptus/ropelink.h"
-#include "deceptus/enemies.h"
-#include "deceptus/physics.h"
-#include "arith.h"
-#include "snes_headtorch_resources.h"
-#include "snes_sword_resources.h"
 #include <snes.h>
 #include <stddef.h>
 #include <string.h>
+#include "arith.h"
+#include "deceptus/appearance.h"
+#include "deceptus/enemies.h"
+#include "deceptus/physics.h"
+#include "deceptus/ropelink.h"
+#include "snes_assets.h"
+#include "snes_headtorch_resources.h"
+#include "snes_sword_resources.h"
 
 #define SNES_OBJ_REQUESTS 96
 
@@ -46,7 +46,7 @@ DeceptusU8 snes_obj_oam[SNES_OBJ_OAM_BYTES];
 #define SNES_OBJ_LINE_EMPTY 0x5D5FU
 #define SNES_OBJ_LINE_FULL 0x8080U
 DeceptusU16 snes_obj_line_load[224];
-static const DeceptusU16 *snes_obj_palettes[8];
+static const DeceptusU16* snes_obj_palettes[8];
 static DeceptusU16 snes_obj_palette_count;
 /* tile pressure: a needed piece found no slot that is neither used nor on screen. */
 static DeceptusU8 snes_sprite_blank;
@@ -64,8 +64,8 @@ SnesSpriteStaging snes_sprite_stagings[SNES_SPRITE_STAGINGS];
 
 static void snesObjAdd(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y, DeceptusU8 flip, DeceptusU8 priority)
 {
-   const SnesSpriteResource *entry;
-   SnesObjRequest *request;
+   const SnesSpriteResource* entry;
+   SnesObjRequest* request;
    if (resource >= SNES_SPRITE_RESOURCE_COUNT)
    {
       snes_sprite_overflow = 1;
@@ -102,7 +102,7 @@ DeceptusU16 snesObjSlotFor(DeceptusU16 resource, DeceptusU16 piece)
 {
    DeceptusU16 index;
    DeceptusU8 link, previous;
-   SnesObjSlot *slot;
+   SnesObjSlot* slot;
    for (link = snes_obj_heads[resource]; link; link = slot->next)
    {
       slot = &snes_obj_slots[link - 1];
@@ -175,7 +175,7 @@ static void snesObjResetCache(void)
    snes_obj_unused = snes_obj_free_cursor = 0;
 }
 
-static DeceptusU8 snesObjPalette(const DeceptusU16 *palette)
+static DeceptusU8 snesObjPalette(const DeceptusU16* palette)
 {
    DeceptusU16 index, colour;
    for (index = 0; index < snes_obj_palette_count; ++index)
@@ -202,8 +202,15 @@ static DeceptusU8 snesObjPalette(const DeceptusU16 *palette)
 }
 
 #if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
-static void snesObjPieceReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile, DeceptusU8 palette, DeceptusU8 flip, DeceptusU8 priority,
-                                  DeceptusU8 size)
+static void snesObjPieceReference(
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU16 tile,
+   DeceptusU8 palette,
+   DeceptusU8 flip,
+   DeceptusU8 priority,
+   DeceptusU8 size
+)
 {
    DeceptusI16 line, top, bottom;
    DeceptusU16 object, high, shift, load;
@@ -254,8 +261,15 @@ static void snesObjPieceReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 tile
    ++snes_obj_count;
 }
 
-static void snesObjEmitQuadsReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 slot, DeceptusU8 palette, DeceptusU8 flip,
-                                      DeceptusU8 priority, DeceptusU8 quads)
+static void snesObjEmitQuadsReference(
+   DeceptusI16 x,
+   DeceptusI16 y,
+   DeceptusU16 slot,
+   DeceptusU8 palette,
+   DeceptusU8 flip,
+   DeceptusU8 priority,
+   DeceptusU8 quads
+)
 {
    DeceptusU8 quadrant;
    DeceptusU16 tile;
@@ -270,8 +284,15 @@ static void snesObjEmitQuadsReference(DeceptusI16 x, DeceptusI16 y, DeceptusU16 
       {
          if (quads & (1U << quadrant))
          {
-            snesObjPieceReference(x + (flip ? 1 - (quadrant & 1) : quadrant & 1) * 8, y + (quadrant >> 1) * 8,
-                                  tile + (quadrant & 1) + (quadrant >> 1) * 16, palette, flip, priority, 8);
+            snesObjPieceReference(
+               x + (flip ? 1 - (quadrant & 1) : quadrant & 1) * 8,
+               y + (quadrant >> 1) * 8,
+               tile + (quadrant & 1) + (quadrant >> 1) * 16,
+               palette,
+               flip,
+               priority,
+               8
+            );
          }
       }
    }
@@ -307,14 +328,15 @@ typedef char SnesObjResourceSize[(sizeof(SnesSpriteResource) == 16) ? 1 : -1];
 typedef char SnesObjResourceShape[(offsetof(SnesSpriteResource, columns) == 10) && (offsetof(SnesSpriteResource, rows) == 11) ? 1 : -1];
 typedef char SnesObjRequestSize[(sizeof(SnesObjRequest) == 8) ? 1 : -1];
 typedef char SnesObjRequestFlags[(offsetof(SnesObjRequest, flip) == 6) && (offsetof(SnesObjRequest, priority) == 7) ? 1 : -1];
-typedef char SnesObjSlotFields[(offsetof(SnesObjSlot, piece) == 2) && (offsetof(SnesObjSlot, used) == 4) && (offsetof(SnesObjSlot, next) == 7) ? 1 : -1];
-void snesObjDrawResource(const SnesObjRequest *request, DeceptusU16 palette);
+typedef char SnesObjSlotFields
+   [(offsetof(SnesObjSlot, piece) == 2) && (offsetof(SnesObjSlot, used) == 4) && (offsetof(SnesObjSlot, next) == 7) ? 1 : -1];
+void snesObjDrawResource(const SnesObjRequest* request, DeceptusU16 palette);
 #endif
 
 #if !defined(SNES_SPRITES_ASM) || defined(SNES_SPRITES_REFERENCE)
-static void snesObjDrawResourceReference(const SnesObjRequest *request, DeceptusU16 palette)
+static void snesObjDrawResourceReference(const SnesObjRequest* request, DeceptusU16 palette)
 {
-   const SnesSpriteResource *entry;
+   const SnesSpriteResource* entry;
    DeceptusU16 row, column, piece, slot;
    DeceptusI16 x, y;
    DeceptusU8 quads;
@@ -355,7 +377,7 @@ typedef struct SnesRopeAxis
    DeceptusU8 negative;
 } SnesRopeAxis;
 
-static void snesRopeAxisStart(SnesRopeAxis *axis, DeceptusFixed start, DeceptusI32 delta, DeceptusU16 remaining, DeceptusU16 length)
+static void snesRopeAxisStart(SnesRopeAxis* axis, DeceptusFixed start, DeceptusI32 delta, DeceptusU16 remaining, DeceptusU16 length)
 {
    DeceptusI32 product;
    axis->start = start;
@@ -366,7 +388,7 @@ static void snesRopeAxisStart(SnesRopeAxis *axis, DeceptusFixed start, DeceptusI
    axis->remainder = (DeceptusU16)(product - arithMulS16((DeceptusI16)axis->quotient, (DeceptusI16)length));
 }
 
-static void snesRopeAxisSetStep(SnesRopeAxis *axis, DeceptusU16 step, DeceptusU16 length)
+static void snesRopeAxisSetStep(SnesRopeAxis* axis, DeceptusU16 step, DeceptusU16 length)
 {
    DeceptusI32 product;
    product = arithMulS16((DeceptusI16)axis->magnitude, (DeceptusI16)step);
@@ -374,7 +396,7 @@ static void snesRopeAxisSetStep(SnesRopeAxis *axis, DeceptusU16 step, DeceptusU1
    axis->step_remainder = (DeceptusU16)(product - arithMulS16((DeceptusI16)axis->step_quotient, (DeceptusI16)length));
 }
 
-static void snesRopeAxisAdvance(SnesRopeAxis *axis, DeceptusU16 length)
+static void snesRopeAxisAdvance(SnesRopeAxis* axis, DeceptusU16 length)
 {
    axis->quotient += axis->step_quotient;
    axis->remainder += axis->step_remainder;
@@ -385,7 +407,7 @@ static void snesRopeAxisAdvance(SnesRopeAxis *axis, DeceptusU16 length)
    }
 }
 
-static DeceptusI16 snesRopeAxisPixel(const SnesRopeAxis *axis)
+static DeceptusI16 snesRopeAxisPixel(const SnesRopeAxis* axis)
 {
    if (axis->negative)
    {
@@ -395,7 +417,7 @@ static DeceptusI16 snesRopeAxisPixel(const SnesRopeAxis *axis)
 }
 
 /* whether every link's coordinate deltas and length fit the 16-bit products the stepping uses. */
-static DeceptusU8 snesRopeSteppable(const DeceptusGrabRope *chain)
+static DeceptusU8 snesRopeSteppable(const DeceptusGrabRope* chain)
 {
    DeceptusU8 node;
    DeceptusI32 dx, dy;
@@ -415,9 +437,9 @@ static DeceptusU8 snesRopeSteppable(const DeceptusGrabRope *chain)
 /* the grab ropes' pieces exactly as the shared appearance emits them (ropelink.h). the shared drawing finds each
  * piece's point with a 32-bit multiply and divide; here a link costs one division per step size and
  * each piece some additions. */
-static DeceptusU8 snesRopeSprites(const DeceptusEngine *engine, DeceptusSpriteEmitter emit, void *context)
+static DeceptusU8 snesRopeSprites(const DeceptusEngine* engine, DeceptusSpriteEmitter emit, void* context)
 {
-   const DeceptusGrabRope *chain;
+   const DeceptusGrabRope* chain;
    DeceptusSpriteAppearance sprite;
    SnesRopeAxis axis_x, axis_y;
    DeceptusU16 distance, previous_distance, length, height, total, previous_total, remaining, link, step;
@@ -502,8 +524,7 @@ static DeceptusU8 snesRopeSprites(const DeceptusEngine *engine, DeceptusSpriteEm
             }
             else
             {
-               ropeLinkCell(previous_x, previous_y, x, y, (DeceptusU16)(distance - previous_distance), ROPE_LINK_LENGTH, &cell_x,
-                            &cell_y);
+               ropeLinkCell(previous_x, previous_y, x, y, (DeceptusU16)(distance - previous_distance), ROPE_LINK_LENGTH, &cell_x, &cell_y);
             }
             sprite.x = cell_x - engine->camera_x;
             sprite.y = cell_y - engine->camera_y;
@@ -540,22 +561,47 @@ static DeceptusU8 snesObjPriority(DeceptusU8 family)
    return 2;
 }
 
-static DeceptusU8 snesObjAppearance(void *context, const DeceptusSpriteAppearance *sprite)
+static DeceptusU8 snesObjAppearance(void* context, const DeceptusSpriteAppearance* sprite)
 {
    static const DeceptusU16 first[DECEPTUS_SPRITE_FAMILY_COUNT] = {
-      SNES_ACTOR_FIRST,     SNES_LEVER_FIRST,         SNES_SPIKES_FIRST,    SNES_BLOCK_FIRST,          SNES_COLLAPSE_FIRST,
-      SNES_RAT_FIRST,       SNES_TRAP_FIRST,          SNES_MUZZLE_FIRST,    SNES_ARROW_FIRST,          SNES_SWIM_FIRST,
-      SNES_BLOB_FIRST,      SNES_SPLASH_FIRST,        SNES_SWORD_FIRST,     SNES_CANNON_FIRST,         SNES_CANNONBALL_FIRST,
-      SNES_IRON_DOOR_FIRST, SNES_WOODEN_PLANKS_FIRST, SNES_HEADTORCH_FIRST, SNES_HEADTORCH_BEAM_FIRST, SNES_ORB_FIRST,
-      SNES_FROG_BLUE_FIRST, SNES_BLUE_FIREBALL_FIRST, SNES_GRAB_ROPE_FIRST, SNES_PLAYER_ROPE_FIRST, SNES_MOVEABLE_BOX_FIRST,
-      SNES_CRUSHER_FIRST, SNES_FLOOR_SPIKES_FIRST, SNES_SPIKE_BALL_FIRST, SNES_CHECKPOINT_CLOCK_FIRST, SNES_ROPE_LINK_FIRST, SNES_ITEM_ICON_FIRST};
+      SNES_ACTOR_FIRST,
+      SNES_LEVER_FIRST,
+      SNES_SPIKES_FIRST,
+      SNES_BLOCK_FIRST,
+      SNES_COLLAPSE_FIRST,
+      SNES_RAT_FIRST,
+      SNES_TRAP_FIRST,
+      SNES_MUZZLE_FIRST,
+      SNES_ARROW_FIRST,
+      SNES_SWIM_FIRST,
+      SNES_BLOB_FIRST,
+      SNES_SPLASH_FIRST,
+      SNES_SWORD_FIRST,
+      SNES_CANNON_FIRST,
+      SNES_CANNONBALL_FIRST,
+      SNES_IRON_DOOR_FIRST,
+      SNES_WOODEN_PLANKS_FIRST,
+      SNES_HEADTORCH_FIRST,
+      SNES_HEADTORCH_BEAM_FIRST,
+      SNES_ORB_FIRST,
+      SNES_FROG_BLUE_FIRST,
+      SNES_BLUE_FIREBALL_FIRST,
+      SNES_GRAB_ROPE_FIRST,
+      SNES_PLAYER_ROPE_FIRST,
+      SNES_MOVEABLE_BOX_FIRST,
+      SNES_CRUSHER_FIRST,
+      SNES_FLOOR_SPIKES_FIRST,
+      SNES_SPIKE_BALL_FIRST,
+      SNES_CHECKPOINT_CLOCK_FIRST,
+      SNES_ROPE_LINK_FIRST,
+      SNES_ITEM_ICON_FIRST
+   };
    (void)context;
    if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
    {
       return 0;
    }
-   snesObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x,
-              snesObjPriority(sprite->family));
+   snesObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x, snesObjPriority(sprite->family));
    return 1;
 }
 
@@ -577,7 +623,7 @@ void snesSpritesReset(void)
    snes_obj_shown = SNES_OBJ_PIECES;
 }
 
-void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *frame)
+void snesSpritesPrepare(const DeceptusAdventure* game, const DeceptusFrame* frame)
 {
    DeceptusU16 index, other, resource, active_count;
    DeceptusU8 palette, link;
@@ -588,9 +634,10 @@ void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *fram
       snes_headtorch_rope,
       snes_headtorch_sword,
       snes_headtorch_lamp_offsets,
-      snesRopeSprites};
-   const SnesSpriteResource *entry;
-   const SnesObjRequest *request;
+      snesRopeSprites
+   };
+   const SnesSpriteResource* entry;
+   const SnesObjRequest* request;
    SNES_OBJ_PROFILE(1);
    snes_obj_request_count = snes_obj_count = snes_obj_palette_count = 0;
    snes_sprite_overflow = snes_sprite_blank = 0;
@@ -642,11 +689,11 @@ void snesSpritesPrepare(const DeceptusAdventure *game, const DeceptusFrame *fram
    SNES_OBJ_PROFILE(8);
 }
 
-static void snesObjStageTileDma(SnesSpriteStaging *staging, const DeceptusU8 *source, DeceptusU16 target)
+static void snesObjStageTileDma(SnesSpriteStaging* staging, const DeceptusU8* source, DeceptusU16 target)
 {
    dmaMemory memory;
-   SnesVramDmaCommand *command;
-   memory.mem.p = (void *)source;
+   SnesVramDmaCommand* command;
+   memory.mem.p = (void*)source;
    command = &staging->tile_dma[staging->tile_dma_count++];
    command->source = memory.mem.c.addr;
    command->bank = memory.mem.c.bank;
@@ -655,7 +702,7 @@ static void snesObjStageTileDma(SnesSpriteStaging *staging, const DeceptusU8 *so
    command->bytes = 64;
 }
 
-static void snesSpritesStagePalettes(SnesSpriteStaging *staging)
+static void snesSpritesStagePalettes(SnesSpriteStaging* staging)
 {
    DeceptusU16 index;
    staging->palette_count = snes_obj_palette_count;
@@ -665,10 +712,10 @@ static void snesSpritesStagePalettes(SnesSpriteStaging *staging)
    }
 }
 
-static void snesObjStagePiece(SnesSpriteStaging *staging, DeceptusU16 index, SnesObjSlot *slot)
+static void snesObjStagePiece(SnesSpriteStaging* staging, DeceptusU16 index, SnesObjSlot* slot)
 {
    DeceptusU16 tile;
-   const DeceptusU8 *graphics;
+   const DeceptusU8* graphics;
    tile = 0x6000 + snesObjTile(index) * 16;
    graphics = snes_sprite_resources[slot->resource].graphics + slot->piece * 128;
    snesObjStageTileDma(staging, graphics, tile);
@@ -679,7 +726,7 @@ static void snesObjStagePiece(SnesSpriteStaging *staging, DeceptusU16 index, Sne
 void snesSpritesStage(DeceptusU8 staging_index)
 {
    DeceptusU16 index, pieces;
-   SnesSpriteStaging *staging;
+   SnesSpriteStaging* staging;
    staging = &snes_sprite_stagings[staging_index];
    staging->tile_dma_count = 0;
    snesSpritesStagePalettes(staging);

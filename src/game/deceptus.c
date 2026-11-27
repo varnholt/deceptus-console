@@ -1,13 +1,13 @@
-#include "deceptus/crusher.h"
-#include "deceptus/spikeball.h"
+#include <string.h>
 #include "deceptus/checkpointclock.h"
+#include "deceptus/crusher.h"
 #include "deceptus/enemies.h"
 #include "deceptus/floorspikes.h"
 #include "deceptus/game.h"
 #include "deceptus/moveablebox.h"
 #include "deceptus/physics.h"
 #include "deceptus/playerwater.h"
-#include <string.h>
+#include "deceptus/spikeball.h"
 
 #define PLAYER_HALF_WIDTH 8
 #define PLAYER_HEIGHT 30
@@ -18,9 +18,9 @@
 #define ACCELERATION 4
 #define FRICTION 6
 
-static void respawn(DeceptusEngine *engine)
+static void respawn(DeceptusEngine* engine)
 {
-   DeceptusEntity *player;
+   DeceptusEntity* player;
    player = &engine->entities[0];
    player->x = DECEPTUS_FIXED(engine->checkpoint_x);
    player->y = DECEPTUS_FIXED(engine->checkpoint_y);
@@ -35,10 +35,10 @@ static void respawn(DeceptusEngine *engine)
    deceptusPlayerRopeReset(engine);
 }
 
-static void updateCamera(DeceptusEngine *engine)
+static void updateCamera(DeceptusEngine* engine)
 {
    DeceptusI16 maximum_camera, target;
-   const DeceptusEntity *player;
+   const DeceptusEntity* player;
    player = &engine->entities[0];
    target = deceptusFloor(player->x) - engine->video.width / 2;
    maximum_camera = engine->room->columns * DECEPTUS_CELL_SIZE - engine->video.width;
@@ -72,7 +72,7 @@ static void updateCamera(DeceptusEngine *engine)
    engine->camera_y = target;
 }
 
-void deceptusInit(DeceptusEngine *engine, const DeceptusRoom *room, const DeceptusVideoCaps *video)
+void deceptusInit(DeceptusEngine* engine, const DeceptusRoom* room, const DeceptusVideoCaps* video)
 {
    DeceptusVideoCaps saved_video;
    saved_video = *video;
@@ -82,8 +82,9 @@ void deceptusInit(DeceptusEngine *engine, const DeceptusRoom *room, const Decept
    engine->health = room->max_health ? room->max_health : 3;
    engine->checkpoint_x = room->spawn_x;
    engine->checkpoint_y = room->spawn_y;
-   engine->content_error = !deceptusMechanismsInit(&engine->mechanisms, room->mechanisms, room->mechanism_count, room->mechanism_targets,
-                                                   room->mechanism_target_count);
+   engine->content_error = !deceptusMechanismsInit(
+      &engine->mechanisms, room->mechanisms, room->mechanism_count, room->mechanism_targets, room->mechanism_target_count
+   );
    deceptusMechanismsConfigure(&engine->mechanisms, room->mechanism_timings);
    crushersInit(&engine->mechanisms);
    floorSpikesInit(&engine->mechanisms);
@@ -121,10 +122,10 @@ static DeceptusFixed approach(DeceptusFixed value, DeceptusFixed target, Deceptu
    return value;
 }
 
-static void updatePlayer(DeceptusEngine *engine, const DeceptusInput *input)
+static void updatePlayer(DeceptusEngine* engine, const DeceptusInput* input)
 {
    static const DeceptusU8 bend_frames[18] = {0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6};
-   DeceptusEntity *player;
+   DeceptusEntity* player;
    DeceptusFixed target, speed;
    DeceptusI16 direction, wall;
    DeceptusU16 gravity;
@@ -294,7 +295,7 @@ static void updatePlayer(DeceptusEngine *engine, const DeceptusInput *input)
    }
 }
 
-static void hurt(DeceptusEngine *engine, DeceptusU16 damage)
+static void hurt(DeceptusEngine* engine, DeceptusU16 damage)
 {
    /* keep both rejection branches explicit for the 65816 compiler. */
    if (engine->hurt_ticks)
@@ -320,7 +321,7 @@ static void hurt(DeceptusEngine *engine, DeceptusU16 damage)
    deceptusEventPush(engine, DECEPTUS_EVENT_HURT);
 }
 
-static void updateActors(DeceptusEngine *engine, const DeceptusInput *input)
+static void updateActors(DeceptusEngine* engine, const DeceptusInput* input)
 {
    DeceptusU16 index;
    DeceptusEntity *player, *entity;
@@ -383,7 +384,7 @@ static void updateActors(DeceptusEngine *engine, const DeceptusInput *input)
    }
 }
 
-void deceptusPlacePlayer(DeceptusEngine *engine, DeceptusI16 x, DeceptusI16 y)
+void deceptusPlacePlayer(DeceptusEngine* engine, DeceptusI16 x, DeceptusI16 y)
 {
    deceptusPlayerRopeReset(engine);
    engine->entities[0].x = DECEPTUS_FIXED(x);
@@ -394,15 +395,15 @@ void deceptusPlacePlayer(DeceptusEngine *engine, DeceptusI16 x, DeceptusI16 y)
    updateCamera(engine);
 }
 
-void deceptusTick(DeceptusEngine *engine, DeceptusU16 buttons)
+void deceptusTick(DeceptusEngine* engine, DeceptusU16 buttons)
 {
    DeceptusInput input;
    DeceptusU16 mechanism_index;
    DeceptusI16 mechanism_slot;
-   DeceptusEntity *player;
+   DeceptusEntity* player;
    DeceptusRect player_rect;
-   const DeceptusMechanismEvent *mechanism_event;
-   const DeceptusMechanismDef *mechanism;
+   const DeceptusMechanismEvent* mechanism_event;
+   const DeceptusMechanismDef* mechanism;
    if (engine->content_error)
    {
       return;
@@ -502,12 +503,12 @@ void deceptusTick(DeceptusEngine *engine, DeceptusU16 buttons)
    updateCamera(engine);
 }
 
-void deceptusRender(const DeceptusEngine *engine, DeceptusFrame *frame)
+void deceptusRender(const DeceptusEngine* engine, DeceptusFrame* frame)
 {
    DeceptusU16 index;
    DeceptusI16 screen_x, screen_y;
-   const DeceptusEntity *entity;
-   DeceptusDraw *draw;
+   const DeceptusEntity* entity;
+   DeceptusDraw* draw;
    frame->count = 0;
    frame->camera_x = engine->camera_x;
    frame->camera_y = engine->camera_y;

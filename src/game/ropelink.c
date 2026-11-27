@@ -7,8 +7,8 @@
 #define SEARCH_STEPS 5
 
 /* tan of the angles halfway between two piece images, in 1/256. */
-static const DeceptusI16 angle_bounds[ROPE_LINK_ANGLES - 1] = {
-   -2599, -844, -479, -312, -210, -137, -78, -25, 25, 78, 137, 210, 312, 479, 844, 2599};
+static const DeceptusI16 angle_bounds[ROPE_LINK_ANGLES - 1] =
+   {-2599, -844, -479, -312, -210, -137, -78, -25, 25, 78, 137, 210, 312, 479, 844, 2599};
 
 DeceptusU8 ropeLinkAngle(DeceptusI16 dx, DeceptusI16 dy)
 {
@@ -47,8 +47,16 @@ DeceptusU8 ropeLinkAngle(DeceptusI16 dx, DeceptusI16 dy)
    return low;
 }
 
-void ropeLinkCell(DeceptusI16 x0, DeceptusI16 y0, DeceptusI16 x1, DeceptusI16 y1, DeceptusU16 covered, DeceptusU16 full,
-                  DeceptusI16 *x, DeceptusI16 *y)
+void ropeLinkCell(
+   DeceptusI16 x0,
+   DeceptusI16 y0,
+   DeceptusI16 x1,
+   DeceptusI16 y1,
+   DeceptusU16 covered,
+   DeceptusU16 full,
+   DeceptusI16* x,
+   DeceptusI16* y
+)
 {
    DeceptusI16 dx, dy;
    dx = (DeceptusI16)(x1 - x0);

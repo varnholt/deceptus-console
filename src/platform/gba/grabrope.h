@@ -37,14 +37,14 @@ static DeceptusU16 ropeAngle(DeceptusI16 x, DeceptusI16 y)
    return (x < 0 ? 32 - angle : angle) & 31;
 }
 
-static void __attribute__((section(".iwram"), noinline)) ropeObjects(DeceptusU16 *count)
+static void __attribute__((section(".iwram"), noinline)) ropeObjects(DeceptusU16* count)
 {
    DeceptusU16 angle, best_angle, distance, length, height, slice, tile, along, remaining, interval;
    DeceptusU8 rope, node, previous_node;
    DeceptusI16 x, y, end_x, end_y, dx, dy, center, cosine, sine;
    DeceptusI32 reciprocal, delta_x, delta_y;
-   GbaObject *object;
-   const DeceptusGrabRope *chain;
+   GbaObject* object;
+   const DeceptusGrabRope* chain;
    deceptus_debug[71] = 0;
    if (!engine.grab_ropes.count)
    {
@@ -133,7 +133,7 @@ static void __attribute__((section(".iwram"), noinline)) ropeObjects(DeceptusU16
    }
 }
 #else
-static void ropeObjects(DeceptusU16 *count)
+static void ropeObjects(DeceptusU16* count)
 {
    (void)count;
 }

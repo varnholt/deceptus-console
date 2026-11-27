@@ -1,5 +1,5 @@
 /* original counterpart: data/scripts/enemies/blob_2.lua, normal ground patrol. */
-static void blob2Sprite(DeceptusEntity *blob, DeceptusU8 row, DeceptusU8 column)
+static void blob2Sprite(DeceptusEntity* blob, DeceptusU8 row, DeceptusU8 column)
 {
    static const DeceptusU8 first[6] = {0, 15, 31, 0, 0, 47};
    blob->inverse = row;
@@ -7,7 +7,7 @@ static void blob2Sprite(DeceptusEntity *blob, DeceptusU8 row, DeceptusU8 column)
    blob->frame = first[row] + column;
 }
 
-static void blob2Tick(DeceptusEngine *engine, DeceptusEntity *blob, const DeceptusEnemyDef *definition)
+static void blob2Tick(DeceptusEngine* engine, DeceptusEntity* blob, const DeceptusEnemyDef* definition)
 {
    /* sin(sprite_index / 16 * tau) + 1, quantized to sixteenths. */
    static const DeceptusU8 speed_wave[16] = {16, 22, 27, 31, 32, 31, 27, 22, 16, 10, 5, 1, 0, 1, 5, 10};
@@ -98,9 +98,9 @@ static void blob2Tick(DeceptusEngine *engine, DeceptusEntity *blob, const Decept
    deceptusMoveVerticalDynamic(engine->room, blob, 14, 24, &engine->mechanisms);
 }
 
-static DeceptusU16 blob2Contact(DeceptusEngine *engine, DeceptusEntity *blob, const DeceptusEnemyDef *definition)
+static DeceptusU16 blob2Contact(DeceptusEngine* engine, DeceptusEntity* blob, const DeceptusEnemyDef* definition)
 {
-   DeceptusEntity *player;
+   DeceptusEntity* player;
    DeceptusI16 dx, dy;
    if (blob->state == 3)
    {

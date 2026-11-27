@@ -5,7 +5,7 @@
 /* startup and shutdown only: display memory taken from free Chip RAM before the room banks. */
 DeceptusU8 amigaOpeningVideoAllocate(void);
 void amigaOpeningVideoRelease(void);
-DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFrame *frame);
+DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure* game, const DeceptusFrame* frame);
 void amigaOpeningVideoSuspend(void);
 void amigaOpeningVideoReset(void);
 void amigaOpeningVideoClose(void);

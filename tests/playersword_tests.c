@@ -1,7 +1,7 @@
-#include "deceptus/enemies.h"
-#include "deceptus/playersword.h"
 #include <assert.h>
 #include <string.h>
+#include "deceptus/enemies.h"
+#include "deceptus/playersword.h"
 
 static DeceptusEngine engine;
 static DeceptusPlayerSword sword;

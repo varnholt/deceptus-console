@@ -1,7 +1,7 @@
 #include "spritecache.h"
 #include <string.h>
 
-void amigaSpriteCacheInit(AmigaSpriteCache *cache, DeceptusU8 *storage, DeceptusU32 capacity, DeceptusU8 chip_memory)
+void amigaSpriteCacheInit(AmigaSpriteCache* cache, DeceptusU8* storage, DeceptusU32 capacity, DeceptusU8 chip_memory)
 {
    memset(cache, 0, sizeof(*cache));
    cache->pixels = storage;
@@ -9,16 +9,21 @@ void amigaSpriteCacheInit(AmigaSpriteCache *cache, DeceptusU8 *storage, Deceptus
    cache->chip_memory = storage && chip_memory;
 }
 
-void amigaSpriteCacheSetScratch(AmigaSpriteCache *cache, DeceptusU8 *storage, DeceptusU32 capacity)
+void amigaSpriteCacheSetScratch(AmigaSpriteCache* cache, DeceptusU8* storage, DeceptusU32 capacity)
 {
    cache->decode_pixels = storage;
    cache->decode_capacity = storage ? capacity : 0;
 }
 
-static DeceptusU8 decodeSprite(const AmigaSpriteCache *cache, const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite,
-                               DeceptusU8 *destination, DeceptusU32 capacity)
+static DeceptusU8 decodeSprite(
+   const AmigaSpriteCache* cache,
+   const AmigaGraphics* graphics,
+   const AmigaGraphicsSprite* sprite,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+)
 {
-   DeceptusU8 *pixels;
+   DeceptusU8* pixels;
    DeceptusU32 size;
    size = (DeceptusU32)sprite->row_bytes * sprite->height * 6;
    pixels = cache->chip_memory && size <= cache->decode_capacity ? cache->decode_pixels : destination;
@@ -38,7 +43,7 @@ static DeceptusU8 decodeSprite(const AmigaSpriteCache *cache, const AmigaGraphic
    return 1;
 }
 
-static const DeceptusU8 *stageSprite(const AmigaSpriteCache *cache, const DeceptusU8 *pixels, DeceptusU8 *destination, DeceptusU32 size)
+static const DeceptusU8* stageSprite(const AmigaSpriteCache* cache, const DeceptusU8* pixels, DeceptusU8* destination, DeceptusU32 size)
 {
    if (cache->chip_memory)
    {
@@ -48,12 +53,17 @@ static const DeceptusU8 *stageSprite(const AmigaSpriteCache *cache, const Decept
    return destination;
 }
 
-const DeceptusU8 *amigaSpriteCachePixels(AmigaSpriteCache *cache, const AmigaGraphics *graphics, const AmigaGraphicsSprite *sprite,
-                                         DeceptusU8 *destination, DeceptusU32 capacity)
+const DeceptusU8* amigaSpriteCachePixels(
+   AmigaSpriteCache* cache,
+   const AmigaGraphics* graphics,
+   const AmigaGraphicsSprite* sprite,
+   DeceptusU8* destination,
+   DeceptusU32 capacity
+)
 {
    DeceptusU32 size;
    DeceptusU8 slot;
-   AmigaSpriteCacheEntry *entry;
+   AmigaSpriteCacheEntry* entry;
    size = (DeceptusU32)sprite->row_bytes * sprite->height * 6;
    if (!size || size > capacity || !destination)
    {

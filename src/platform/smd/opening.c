@@ -1,8 +1,8 @@
+#include <genesis.h>
 #include "deceptus/adventure.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
 #include "opening_video.h"
-#include <genesis.h>
 
 static DeceptusAdventure adventure;
 static DeceptusFrame frame;
@@ -16,15 +16,15 @@ static DeceptusU16 sequence;
 #endif
 static DeceptusPacing pacing;
 volatile DeceptusU16 smd_opening_packets[2][56];
-static volatile DeceptusU16 *smd_opening_debug = smd_opening_packets[0];
+static volatile DeceptusU16* smd_opening_debug = smd_opening_packets[0];
 static DeceptusU8 packet_slot;
 /* the heap is only allocated from while a room loads, so its free size is sampled there instead
    of walking the block list for every published packet. */
 static DeceptusU16 smd_free_memory;
 
 #include "opening_sprites.h"
-#include "opening_ui.h"
 #include "opening_storm.h"
+#include "opening_ui.h"
 
 /* direct, bounded transfers own presentation; the sdk queue is not needed. */
 void __wrap_DMA_init(void)
@@ -97,7 +97,7 @@ static void videoLoad(void)
 
 static void debugWrite(DeceptusU16 buttons, DeceptusU8 blank)
 {
-   const DeceptusEngine *engine;
+   const DeceptusEngine* engine;
    engine = &adventure.campaign.engine;
    packet_slot ^= 1;
    smd_opening_debug = smd_opening_packets[packet_slot];

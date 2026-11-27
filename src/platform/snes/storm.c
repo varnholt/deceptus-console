@@ -1,8 +1,8 @@
 /* the preparation half of the thunderstorm (storm.h): the room's colours with its lit sky entries
  * (tools/storm_sky.py) brightened to the flash level. */
 #include "storm.h"
-#include "snes_assets.h"
 #include "deceptus/thunderstorm.h"
+#include "snes_assets.h"
 
 SnesStormStaging snes_storm_stagings[SNES_STORM_STAGINGS];
 /* the flash level CGRAM shows once the staged colours are uploaded. */
@@ -20,11 +20,11 @@ static DeceptusU16 litColour(DeceptusU16 colour, DeceptusU8 level)
                         ((DeceptusU16)thunderstormChannel((DeceptusU8)((colour >> 10) & 31), 31, level) << 10));
 }
 
-void snesStormStage(const DeceptusAdventure *game, DeceptusU8 buffer)
+void snesStormStage(const DeceptusAdventure* game, DeceptusU8 buffer)
 {
-   const SnesStage *stage;
-   const DeceptusU8 *palette;
-   SnesStormStaging *staging;
+   const SnesStage* stage;
+   const DeceptusU8* palette;
+   SnesStormStaging* staging;
    DeceptusU8 level, index, entry;
    staging = &snes_storm_stagings[buffer];
    staging->pending = 0;

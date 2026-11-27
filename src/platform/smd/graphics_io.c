@@ -15,7 +15,7 @@ DeceptusU16 smdGraphicsTile(DeceptusU16 logical)
    return logical + 448;
 }
 
-DeceptusU8 smdDecodeBlock(const SmdRomBlob *blob, DeceptusU16 block, DeceptusU8 *destination)
+DeceptusU8 smdDecodeBlock(const SmdRomBlob* blob, DeceptusU16 block, DeceptusU8* destination)
 {
    const DeceptusU8 *source, *end;
    DeceptusU16 count, bytes, written, unit;
@@ -66,7 +66,7 @@ DeceptusU8 smdDecodeBlock(const SmdRomBlob *blob, DeceptusU16 block, DeceptusU8 
    return 1;
 }
 
-const DeceptusU8 *smdCell(const SmdRomBlob *blob, DeceptusU16 row, DeceptusU16 column)
+const DeceptusU8* smdCell(const SmdRomBlob* blob, DeceptusU16 row, DeceptusU16 column)
 {
    const DeceptusU8 *source, *end;
    DeceptusU16 count, bytes;

@@ -1,14 +1,14 @@
 /* original counterpart: src/game/mechanisms/door.cpp, animated version 2. */
 /* private mechanism implementation; compiled through ../mechanisms.c. */
 
-static void doorConfigure(DeceptusMechanismState *state)
+static void doorConfigure(DeceptusMechanismState* state)
 {
    state->active = !state->enabled;
    state->visible = state->active;
    state->frame = state->enabled ? 56 : 0;
 }
 
-static void doorEnable(DeceptusMechanismState *state, DeceptusU8 enabled)
+static void doorEnable(DeceptusMechanismState* state, DeceptusU8 enabled)
 {
    state->enabled = enabled;
    state->phase = enabled ? 1 : 2;
@@ -19,7 +19,7 @@ static void doorEnable(DeceptusMechanismState *state, DeceptusU8 enabled)
    state->visible = 1;
 }
 
-static void doorTick(DeceptusMechanismState *state)
+static void doorTick(DeceptusMechanismState* state)
 {
    if (state->cooldown)
    {

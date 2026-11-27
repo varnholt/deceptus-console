@@ -1,8 +1,8 @@
-#include "deceptus/enemies.h"
-#include "deceptus/game.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "deceptus/enemies.h"
+#include "deceptus/game.h"
 static DeceptusU8 cells[32 * 28];
 static DeceptusEngine engine;
 static DeceptusRoom room;

@@ -17,8 +17,8 @@
 #endif
 #endif
 
-#define REG16(address) (*(volatile DeceptusU16 *)(address))
-#define REG32(address) (*(volatile DeceptusU32 *)(address))
+#define REG16(address) (*(volatile DeceptusU16*)(address))
+#define REG32(address) (*(volatile DeceptusU32*)(address))
 #define REG_DISPLAY REG16(0x04000000)
 #define REG_SCANLINE REG16(0x04000006)
 #define REG_KEYS REG16(0x04000130)
@@ -47,7 +47,7 @@ static DeceptusU16 scenery_flags;
 static DeceptusCampaign campaign;
 #endif
 #define engine campaign.engine
-static const GbaStage *active_stage;
+static const GbaStage* active_stage;
 /* the flash level the sky colours in palette RAM show; the room's palette upload resets it to unlit. */
 static DeceptusU8 storm_level;
 #else
@@ -67,7 +67,7 @@ static DeceptusPacing pacing;
 static GbaObject objects[128] __attribute__((aligned(4)));
 static DeceptusU16 object_count;
 static DeceptusU16 uploaded_frame[3];
-static const DeceptusDraw *actor_draws[3];
+static const DeceptusDraw* actor_draws[3];
 static DeceptusU16 actor_count;
 typedef struct GbaUpload
 {
@@ -90,7 +90,7 @@ volatile DeceptusU16 deceptus_debug[96];
 static DeceptusU16 map_chunk = 65535;
 #endif
 
-static void dmaCopy(const void *source, void *destination, DeceptusU32 bytes)
+static void dmaCopy(const void* source, void* destination, DeceptusU32 bytes)
 {
    REG_DMA_CONTROL = 0;
    REG_DMA_SOURCE = (DeceptusU32)source;
@@ -112,7 +112,7 @@ static void waitVblank(void)
 
 /* display frames since the previous call, which must come right after a vertical blank. the 16-bit
    timer wraps after ~15 frames; only room loads take that long, and they resync anyway. */
-static DeceptusU16 framesSinceVblank(DeceptusU16 *previous_timer)
+static DeceptusU16 framesSinceVblank(DeceptusU16* previous_timer)
 {
    DeceptusU16 now, frames;
    DeceptusU32 counts;
@@ -183,20 +183,20 @@ static void __attribute__((section(".romtext"))) videoInit(void)
    REG16(0x0400010a) = 0;
    REG16(0x04000108) = 0;
    REG16(0x0400010a) = 0x81;
-   dmaCopy(gba_background0, (void *)0x06000000, GBA_BACKGROUND0_BYTES);
-   dmaCopy(gba_background1, (void *)0x06008000, GBA_BACKGROUND1_BYTES);
+   dmaCopy(gba_background0, (void*)0x06000000, GBA_BACKGROUND0_BYTES);
+   dmaCopy(gba_background1, (void*)0x06008000, GBA_BACKGROUND1_BYTES);
 
 #if GBA_CAMPAIGN
-   dmaCopy(active_stage->palette, (void *)0x05000000, 512);
+   dmaCopy(active_stage->palette, (void*)0x05000000, 512);
    storm_level = 0;
-   dmaCopy(gba_font, (void *)0x0600c000, GBA_FONT_BYTES);
+   dmaCopy(gba_font, (void*)0x0600c000, GBA_FONT_BYTES);
    REG16(0x050001e2) = 0x7fff;
    REG16(0x050001e6) = 0x0821;
    REG16(0x0400000c) = (3 << 2) | (26 << 8);
 #else
-   dmaCopy(gba_background_palette, (void *)0x05000000, GBA_BACKGROUND_PALETTE_BYTES);
+   dmaCopy(gba_background_palette, (void*)0x05000000, GBA_BACKGROUND_PALETTE_BYTES);
 #endif
-   dmaCopy(gba_actor_palette, (void *)0x05000200, GBA_ACTOR_PALETTE_BYTES);
+   dmaCopy(gba_actor_palette, (void*)0x05000200, GBA_ACTOR_PALETTE_BYTES);
    /* two 512x256 4bpp planes, with independent character blocks. */
    REG16(0x04000008) = (GBA_LAYERED_BACKGROUND ? 3 : 1) | (28 << 8) | (1 << 14);
    REG16(0x0400000a) = (GBA_LAYERED_BACKGROUND ? 1 : 2) | (2 << 2) | (30 << 8) | (1 << 14);
@@ -211,7 +211,7 @@ static void __attribute__((section(".romtext"))) videoInit(void)
    {
       uploaded_frame[index] = 65535;
    }
-   dmaCopy(objects, (void *)0x07000000, sizeof(objects));
+   dmaCopy(objects, (void*)0x07000000, sizeof(objects));
    REG16(0x04000010) = 0;
    REG16(0x04000012) = 0;
    REG16(0x04000014) = 0;
@@ -226,7 +226,7 @@ static DeceptusU16 mechanismResource(DeceptusU16 resource)
 {
    DeceptusU16 index;
    const GbaMechanismResource *table, *entry;
-   table = (const GbaMechanismResource *)gba_mechanism_table;
+   table = (const GbaMechanismResource*)gba_mechanism_table;
    if (resource >= GBA_MECHANISM_FRAME_COUNT)
    {
       engine.content_error = 1;
@@ -254,13 +254,13 @@ static DeceptusU16 mechanismResource(DeceptusU16 resource)
    return index;
 }
 
-static const DeceptusU16 *objectPalette(const GbaMechanismResource *entry)
+static const DeceptusU16* objectPalette(const GbaMechanismResource* entry)
 {
-   return (const DeceptusU16 *)(gba_mechanism_palettes + entry->palette_offset);
+   return (const DeceptusU16*)(gba_mechanism_palettes + entry->palette_offset);
 }
 
-static DeceptusU8 __attribute__((section(".romtext"), noinline)) objectPaletteFits(const DeceptusU16 *palette, DeceptusU16 first,
-                                                                                   DeceptusU16 count)
+static DeceptusU8 __attribute__((section(".romtext"), noinline))
+objectPaletteFits(const DeceptusU16* palette, DeceptusU16 first, DeceptusU16 count)
 {
    DeceptusU16 colour;
    for (colour = 0; colour < count; ++colour)
@@ -278,14 +278,14 @@ static void __attribute__((section(".romtext"), noinline)) objectPalettesPrepare
    DeceptusU8 order[32], temporary, value;
    DeceptusU16 index, other, first, colour, pixel, selected, previous_count, cache_slot;
    const GbaMechanismResource *table, *entry;
-   const DeceptusU16 *palette;
-   const DeceptusU8 *source;
-   DeceptusU8 *destination;
+   const DeceptusU16* palette;
+   const DeceptusU8* source;
+   DeceptusU8* destination;
    DeceptusI16 delta;
    DeceptusU8 reusable;
    previous_count = previous_palette_count;
    previous_palette_count = 0;
-   table = (const GbaMechanismResource *)gba_mechanism_table;
+   table = (const GbaMechanismResource*)gba_mechanism_table;
    for (index = 0; index < 256; ++index)
    {
       object_colour_used[index] = 0;
@@ -427,54 +427,54 @@ static DeceptusU16 mechanismFamilyFirst(DeceptusU8 family)
 {
    switch (family)
    {
-   case DECEPTUS_SPRITE_LEVER:
-      return GBA_LEVER_FIRST;
-   case DECEPTUS_SPRITE_SPIKES:
-      return GBA_SPIKES_FIRST;
-   case DECEPTUS_SPRITE_BLOCK:
-      return GBA_BLOCK_FIRST;
-   case DECEPTUS_SPRITE_COLLAPSING:
-      return GBA_COLLAPSE_FIRST;
+      case DECEPTUS_SPRITE_LEVER:
+         return GBA_LEVER_FIRST;
+      case DECEPTUS_SPRITE_SPIKES:
+         return GBA_SPIKES_FIRST;
+      case DECEPTUS_SPRITE_BLOCK:
+         return GBA_BLOCK_FIRST;
+      case DECEPTUS_SPRITE_COLLAPSING:
+         return GBA_COLLAPSE_FIRST;
 #ifdef GBA_IRON_DOOR_FIRST
-   case DECEPTUS_SPRITE_IRON_DOOR:
-      return GBA_IRON_DOOR_FIRST;
-   case DECEPTUS_SPRITE_WOODEN_PLANKS:
-      return GBA_WOODEN_PLANKS_FIRST;
+      case DECEPTUS_SPRITE_IRON_DOOR:
+         return GBA_IRON_DOOR_FIRST;
+      case DECEPTUS_SPRITE_WOODEN_PLANKS:
+         return GBA_WOODEN_PLANKS_FIRST;
 #endif
 #ifdef GBA_MOVEABLE_BOX_FIRST
-   case DECEPTUS_SPRITE_MOVEABLE_BOX:
-      return GBA_MOVEABLE_BOX_FIRST;
+      case DECEPTUS_SPRITE_MOVEABLE_BOX:
+         return GBA_MOVEABLE_BOX_FIRST;
 #endif
 #ifdef GBA_CRUSHER_FIRST
-   case SPRITE_CRUSHER:
-      return GBA_CRUSHER_FIRST;
+      case SPRITE_CRUSHER:
+         return GBA_CRUSHER_FIRST;
 #endif
 #ifdef GBA_FLOOR_SPIKES_FIRST
-   case SPRITE_FLOOR_SPIKES:
-      return GBA_FLOOR_SPIKES_FIRST;
+      case SPRITE_FLOOR_SPIKES:
+         return GBA_FLOOR_SPIKES_FIRST;
 #endif
 #ifdef GBA_SPIKE_BALL_FIRST
-   case SPRITE_SPIKE_BALL:
-      return GBA_SPIKE_BALL_FIRST;
+      case SPRITE_SPIKE_BALL:
+         return GBA_SPIKE_BALL_FIRST;
 #endif
 #ifdef GBA_CHECKPOINT_CLOCK_FIRST
-   case SPRITE_CHECKPOINT_CLOCK:
-      return GBA_CHECKPOINT_CLOCK_FIRST;
+      case SPRITE_CHECKPOINT_CLOCK:
+         return GBA_CHECKPOINT_CLOCK_FIRST;
 #endif
-   default:
-      return 65535;
+      default:
+         return 65535;
    }
 }
 
 /* the mechanisms in front of the player (front nonzero) or behind her: earlier objects are in front. */
-static void mechanismObjects(DeceptusU16 *count, DeceptusU8 front)
+static void mechanismObjects(DeceptusU16* count, DeceptusU8 front)
 {
    MechanismPart sprite;
    DeceptusU16 index, first, resource, piece, tile, piece_x, piece_y;
    DeceptusU8 part, parts;
    DeceptusI16 x, y, origin_x, origin_y;
-   const GbaMechanismResource *entry;
-   GbaObject *object;
+   const GbaMechanismResource* entry;
+   GbaObject* object;
    for (index = 0; index < engine.mechanisms.count; ++index)
    {
       if (((engine.mechanisms.definitions[index].flags & MECHANISM_IN_FRONT) != 0) != front)
@@ -491,7 +491,7 @@ static void mechanismObjects(DeceptusU16 *count, DeceptusU8 front)
             continue;
          }
          resource = first + sprite.image;
-         entry = &((const GbaMechanismResource *)gba_mechanism_table)[resource];
+         entry = &((const GbaMechanismResource*)gba_mechanism_table)[resource];
          /* the converter trims transparent borders; the descriptor keeps the trimmed offset. */
          origin_x = sprite.x - frame.camera_x + (entry->reserved & 255);
          origin_y = sprite.y - frame.camera_y + (entry->reserved >> 8);
@@ -529,12 +529,12 @@ static void mechanismObjects(DeceptusU16 *count, DeceptusU8 front)
    }
 }
 
-static void enemyObjects(DeceptusU16 *count, const DeceptusDraw *draw)
+static void enemyObjects(DeceptusU16* count, const DeceptusDraw* draw)
 {
    DeceptusU16 resource, tile, row, column, piece;
    DeceptusI16 x, y, origin_x, origin_y;
-   const GbaMechanismResource *entry;
-   GbaObject *object;
+   const GbaMechanismResource* entry;
+   GbaObject* object;
    if (draw->kind == DECEPTUS_WATER_SPLASH)
    {
       resource = GBA_SPLASH_FIRST + draw->frame;
@@ -617,7 +617,7 @@ static void enemyObjects(DeceptusU16 *count, const DeceptusDraw *draw)
    {
       return;
    }
-   entry = &((const GbaMechanismResource *)gba_mechanism_table)[resource];
+   entry = &((const GbaMechanismResource*)gba_mechanism_table)[resource];
    origin_x = draw->x + (entry->reserved & 255);
    origin_y = draw->y + (entry->reserved >> 8);
    piece = 0;
@@ -652,8 +652,9 @@ static void enemyObjects(DeceptusU16 *count, const DeceptusDraw *draw)
 static void __attribute__((section(".romtext"), noinline)) swordPrepare(void)
 {
    static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER;
-   static const DeceptusSwordAnimationDef definition = {gba_sword_clips, gba_sword_durations, sizeof(gba_sword_durations),
-                                                        sizeof(gba_sword_clips) / sizeof(gba_sword_clips[0])};
+   static const DeceptusSwordAnimationDef definition = {
+      gba_sword_clips, gba_sword_durations, sizeof(gba_sword_durations), sizeof(gba_sword_clips) / sizeof(gba_sword_clips[0])
+   };
    DeceptusDraw appearance, *draw;
    DeceptusU16 index;
    DeceptusU8 result;
@@ -684,8 +685,8 @@ static void videoPrepare(void)
 {
    DeceptusU16 index, piece, count, phase_timer;
    DeceptusI16 x, y;
-   const DeceptusDraw *draw;
-   GbaObject *object;
+   const DeceptusDraw* draw;
+   GbaObject* object;
    for (index = 0; index < 128; ++index)
    {
       objects[index].attribute0 = 1 << 9;
@@ -781,10 +782,10 @@ static void mapsCommit(void)
       next = 0;
    }
    /* screen blocks alternate as the camera crosses each 256px boundary. */
-   dmaCopy(gba_map0 + chunk * 2048, (void *)(0x0600e000 + (chunk & 1) * 2048), 2048);
-   dmaCopy(gba_map1 + chunk * 2048, (void *)(0x0600f000 + (chunk & 1) * 2048), 2048);
-   dmaCopy(gba_map0 + next * 2048, (void *)(0x0600e000 + ((chunk + 1) & 1) * 2048), 2048);
-   dmaCopy(gba_map1 + next * 2048, (void *)(0x0600f000 + ((chunk + 1) & 1) * 2048), 2048);
+   dmaCopy(gba_map0 + chunk * 2048, (void*)(0x0600e000 + (chunk & 1) * 2048), 2048);
+   dmaCopy(gba_map1 + chunk * 2048, (void*)(0x0600f000 + (chunk & 1) * 2048), 2048);
+   dmaCopy(gba_map0 + next * 2048, (void*)(0x0600e000 + ((chunk + 1) & 1) * 2048), 2048);
+   dmaCopy(gba_map1 + next * 2048, (void*)(0x0600f000 + ((chunk + 1) & 1) * 2048), 2048);
    map_chunk = chunk;
 #endif
 }
@@ -793,7 +794,7 @@ static void mapsCommit(void)
 /* thunderstormoverlay.cpp lights only the sky and far forest: rewrite just their palette entries. */
 static void __attribute__((section(".romtext"), noinline)) stormCommit(void)
 {
-   const DeceptusU8 *source;
+   const DeceptusU8* source;
    DeceptusU16 colour;
    DeceptusU8 level, index, entry;
    level = thunderstormLevel(&adventure.thunderstorm);
@@ -807,9 +808,9 @@ static void __attribute__((section(".romtext"), noinline)) stormCommit(void)
       entry = active_stage->storm_entries[index];
       source = active_stage->palette + entry * 2;
       colour = (DeceptusU16)(source[0] | (source[1] << 8));
-      REG16(0x05000000 + entry * 2) = (DeceptusU16)(thunderstormChannel(colour & 31, 31, level) |
-                                                    (thunderstormChannel((colour >> 5) & 31, 31, level) << 5) |
-                                                    (thunderstormChannel((colour >> 10) & 31, 31, level) << 10));
+      REG16(0x05000000 + entry * 2) =
+         (DeceptusU16)(thunderstormChannel(colour & 31, 31, level) | (thunderstormChannel((colour >> 5) & 31, 31, level) << 5) |
+                       (thunderstormChannel((colour >> 10) & 31, 31, level) << 10));
    }
 }
 #endif
@@ -817,7 +818,7 @@ static void __attribute__((section(".romtext"), noinline)) stormCommit(void)
 static void __attribute__((section(".romtext"), noinline)) videoCommit(void)
 {
    DeceptusU16 index, resource;
-   const DeceptusDraw *draw;
+   const DeceptusDraw* draw;
    for (index = 0; index < actor_count; ++index)
    {
       draw = actor_draws[index];
@@ -828,8 +829,9 @@ static void __attribute__((section(".romtext"), noinline)) videoCommit(void)
       resource = draw->frame + (draw->palette ? GBA_ACTOR_FRAME_COUNT : 0);
       if (resource != uploaded_frame[index])
       {
-         dmaCopy(gba_actor_frames + resource * GBA_ACTOR_FRAME_BYTES, (void *)(0x06010000 + index * GBA_ACTOR_FRAME_BYTES),
-                 GBA_ACTOR_FRAME_BYTES);
+         dmaCopy(
+            gba_actor_frames + resource * GBA_ACTOR_FRAME_BYTES, (void*)(0x06010000 + index * GBA_ACTOR_FRAME_BYTES), GBA_ACTOR_FRAME_BYTES
+         );
          uploaded_frame[index] = resource;
       }
    }
@@ -839,21 +841,23 @@ static void __attribute__((section(".romtext"), noinline)) videoCommit(void)
    }
    for (index = 0; index < upload_count; ++index)
    {
-      const GbaMechanismResource *entry;
-      entry = &((const GbaMechanismResource *)gba_mechanism_table)[uploads[index].resource];
+      const GbaMechanismResource* entry;
+      entry = &((const GbaMechanismResource*)gba_mechanism_table)[uploads[index].resource];
       if (uploads[index].palette_first == 65535)
       {
          continue;
       }
-      dmaCopy(uploads[index].palette_first == entry->palette_first ? gba_mechanism_frames + entry->offset
-                                                                   : remapped_objects + uploads[index].offset,
-              (void *)(0x06010000 + uploads[index].offset), entry->bytes);
-      dmaCopy(objectPalette(entry), (void *)(0x05000200 + uploads[index].palette_first * 2),
-              entry->palette_count * 2);
+      dmaCopy(
+         uploads[index].palette_first == entry->palette_first ? gba_mechanism_frames + entry->offset
+                                                              : remapped_objects + uploads[index].offset,
+         (void*)(0x06010000 + uploads[index].offset),
+         entry->bytes
+      );
+      dmaCopy(objectPalette(entry), (void*)(0x05000200 + uploads[index].palette_first * 2), entry->palette_count * 2);
    }
    mapsCommit();
    hudCommit();
-   dmaCopy(objects, (void *)0x07000000, sizeof(objects));
+   dmaCopy(objects, (void*)0x07000000, sizeof(objects));
    REG16(0x04000010) = frame.camera_x & 511;
    REG16(0x04000012) = frame.camera_y;
    REG16(0x04000014) = frame.camera_x & 511;
@@ -999,7 +1003,7 @@ static void __attribute__((section(".romtext"), noinline)) debugWrite(void)
    deceptus_debug[66] = 0;
    {
       DeceptusU16 index;
-      const DeceptusEntity *enemy;
+      const DeceptusEntity* enemy;
       for (index = 1; index < DECEPTUS_ENTITY_CAPACITY; ++index)
       {
          enemy = &engine.entities[index];

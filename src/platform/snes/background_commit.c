@@ -1,9 +1,9 @@
 /* the S-CPU half of the background: video registers at room load, and the VBlank commit of what
  * snesBackgroundPrepare staged in the work area. */
+#include <snes.h>
 #include "background.h"
 #include "background_work.h"
 #include "ppu_timing.h"
-#include <snes.h>
 #ifdef SNES_SA1
 #include "sa1.h"
 #endif
@@ -22,7 +22,7 @@ void snesBackgroundLoadVideo(DeceptusU8 room)
    bgSetGfxPtr(1, 0x1000);
    bgSetMapPtr(0, 0x0000, SC_64x32);
    bgSetMapPtr(1, 0x0800, SC_64x32);
-   dmaCopyCGram((u8 *)snes_stages[room].palette + 32, 16, 224);
+   dmaCopyCGram((u8*)snes_stages[room].palette + 32, 16, 224);
 }
 
 DeceptusU8 snesBackgroundError(void)
@@ -32,11 +32,10 @@ DeceptusU8 snesBackgroundError(void)
 
 /* the packets by index from a table: indexing the array itself multiplies by the packet size in a
  * library routine, several times in every commit vblank. */
-static const SnesBackgroundPacket *const packet_table[SNES_BG_PACKETS] = {&snes_background_packets[0],
-                                                                         &snes_background_packets[1]};
+static const SnesBackgroundPacket* const packet_table[SNES_BG_PACKETS] = {&snes_background_packets[0], &snes_background_packets[1]};
 typedef char SnesPacketTableComplete[(SNES_BG_PACKETS == 2) ? 1 : -1];
 
-static const SnesBackgroundPacket *packetAt(DeceptusU8 index)
+static const SnesBackgroundPacket* packetAt(DeceptusU8 index)
 {
    return packet_table[index];
 }
@@ -56,10 +55,10 @@ DeceptusU16 snesBackgroundUploads(void)
    return work->status.uploads;
 }
 
-static void copyColumn(const DeceptusU16 *source, DeceptusU16 address)
+static void copyColumn(const DeceptusU16* source, DeceptusU16 address)
 {
    dmaMemory memory;
-   memory.mem.p = (void *)source;
+   memory.mem.p = (void*)source;
    REG_VMAIN = 0x81;
    REG_VMADDLH = address;
    REG_DMAP0 = 1;
@@ -74,8 +73,8 @@ static void copyColumn(const DeceptusU16 *source, DeceptusU16 address)
 void snesBackgroundCommit(DeceptusU8 packet_index)
 {
    DeceptusU16 index, slot, pattern, plane, row, column, base, mask, first, batch, entry;
-   const DeceptusU8 *bytes;
-   const SnesBackgroundPacket *packet;
+   const DeceptusU8* bytes;
+   const SnesBackgroundPacket* packet;
    packet = packetAt(packet_index);
    if (work->status.error)
    {
@@ -113,7 +112,7 @@ void snesBackgroundCommit(DeceptusU8 packet_index)
       if (pattern != SNES_BG_EMPTY)
       {
          bytes = work->stage->patterns.chunks[pattern >> 10] + (pattern & 1023) * 32;
-         dmaCopyVram((u8 *)bytes, SNES_BG_SLOT_ADDRESS(slot), 32);
+         dmaCopyVram((u8*)bytes, SNES_BG_SLOT_ADDRESS(slot), 32);
       }
       work->pending[slot] = 0;
    }
@@ -130,8 +129,8 @@ void snesBackgroundCommit(DeceptusU8 packet_index)
          }
          if (mask & 1)
          {
-            dmaCopyVram((u8 *)&work->maps[plane][row * 32], base + row * 32, 64);
-            dmaCopyVram((u8 *)&work->maps[plane][1024 + row * 32], base + 1024 + row * 32, 64);
+            dmaCopyVram((u8*)&work->maps[plane][row * 32], base + row * 32, 64);
+            dmaCopyVram((u8*)&work->maps[plane][1024 + row * 32], base + 1024 + row * 32, 64);
          }
          mask >>= 1;
       }

@@ -2,12 +2,12 @@
 
 typedef unsigned long __attribute__((may_alias)) MemoryWord;
 
-void *__attribute__((noinline, noclone)) memset(void *destination, int value, size_t count)
+void* __attribute__((noinline, noclone)) memset(void* destination, int value, size_t count)
 {
-   unsigned char *output;
-   MemoryWord *words;
+   unsigned char* output;
+   MemoryWord* words;
    MemoryWord fill;
-   output = (unsigned char *)destination;
+   output = (unsigned char*)destination;
    while (count && ((size_t)output & (sizeof(MemoryWord) - 1)))
    {
       *output++ = (unsigned char)value;
@@ -16,7 +16,7 @@ void *__attribute__((noinline, noclone)) memset(void *destination, int value, si
    fill = (unsigned char)value;
    fill |= fill << 8;
    fill |= fill << 16;
-   words = (MemoryWord *)output;
+   words = (MemoryWord*)output;
    while (count >= sizeof(MemoryWord) * 4)
    {
       words[0] = fill;
@@ -31,7 +31,7 @@ void *__attribute__((noinline, noclone)) memset(void *destination, int value, si
       *words++ = fill;
       count -= sizeof(MemoryWord);
    }
-   output = (unsigned char *)words;
+   output = (unsigned char*)words;
    while (count)
    {
       *output++ = (unsigned char)value;
@@ -40,14 +40,14 @@ void *__attribute__((noinline, noclone)) memset(void *destination, int value, si
    return destination;
 }
 
-void *__attribute__((noinline, noclone)) memcpy(void *destination, const void *source, size_t count)
+void* __attribute__((noinline, noclone)) memcpy(void* destination, const void* source, size_t count)
 {
-   unsigned char *output;
-   const unsigned char *input;
-   MemoryWord *output_words;
-   const MemoryWord *input_words;
-   output = (unsigned char *)destination;
-   input = (const unsigned char *)source;
+   unsigned char* output;
+   const unsigned char* input;
+   MemoryWord* output_words;
+   const MemoryWord* input_words;
+   output = (unsigned char*)destination;
+   input = (const unsigned char*)source;
    /* use native transfers for aligned sprite staging and struct copies. */
    if (((size_t)output & (sizeof(MemoryWord) - 1)) == ((size_t)input & (sizeof(MemoryWord) - 1)))
    {
@@ -56,8 +56,8 @@ void *__attribute__((noinline, noclone)) memcpy(void *destination, const void *s
          *output++ = *input++;
          --count;
       }
-      output_words = (MemoryWord *)output;
-      input_words = (const MemoryWord *)input;
+      output_words = (MemoryWord*)output;
+      input_words = (const MemoryWord*)input;
       while (count >= sizeof(MemoryWord) * 4)
       {
          output_words[0] = input_words[0];
@@ -73,8 +73,8 @@ void *__attribute__((noinline, noclone)) memcpy(void *destination, const void *s
          *output_words++ = *input_words++;
          count -= sizeof(MemoryWord);
       }
-      output = (unsigned char *)output_words;
-      input = (const unsigned char *)input_words;
+      output = (unsigned char*)output_words;
+      input = (const unsigned char*)input_words;
    }
    while (count)
    {

@@ -1,8 +1,8 @@
-#include "deceptus/game.h"
 #include "deceptus/campaign.h"
 #include <string.h>
+#include "deceptus/game.h"
 
-void deceptusCampaignInit(DeceptusCampaign *campaign, const DeceptusCampaignDef *definition, const DeceptusVideoCaps *video)
+void deceptusCampaignInit(DeceptusCampaign* campaign, const DeceptusCampaignDef* definition, const DeceptusVideoCaps* video)
 {
    DeceptusVideoCaps saved_video;
    saved_video = *video;
@@ -18,9 +18,9 @@ void deceptusCampaignInit(DeceptusCampaign *campaign, const DeceptusCampaignDef 
    deceptusTick(&campaign->engine, 0);
 }
 
-DeceptusU8 deceptusCampaignAtGoal(const DeceptusCampaign *campaign)
+DeceptusU8 deceptusCampaignAtGoal(const DeceptusCampaign* campaign)
 {
-   const DeceptusRect *goal;
+   const DeceptusRect* goal;
    DeceptusI16 x, y, slot;
    if (campaign->mode != DECEPTUS_CAMPAIGN_PLAYING)
    {
@@ -44,7 +44,7 @@ DeceptusU8 deceptusCampaignAtGoal(const DeceptusCampaign *campaign)
    return 1;
 }
 
-DeceptusU8 deceptusCampaignTick(DeceptusCampaign *campaign, DeceptusU16 buttons)
+DeceptusU8 deceptusCampaignTick(DeceptusCampaign* campaign, DeceptusU16 buttons)
 {
    DeceptusU16 pressed, deaths;
    pressed = buttons & ~campaign->previous_buttons;

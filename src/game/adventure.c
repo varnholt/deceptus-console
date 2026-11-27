@@ -1,8 +1,8 @@
 #include "deceptus/adventure.h"
-#include "deceptus/game.h"
 #include <string.h>
+#include "deceptus/game.h"
 
-DeceptusU8 deceptusInventoryAdd(DeceptusInventory *inventory, DeceptusU8 item)
+DeceptusU8 deceptusInventoryAdd(DeceptusInventory* inventory, DeceptusU8 item)
 {
    if (!item || item >= DECEPTUS_INVENTORY_ITEMS || inventory->counts[item] == 255)
    {
@@ -12,7 +12,7 @@ DeceptusU8 deceptusInventoryAdd(DeceptusInventory *inventory, DeceptusU8 item)
    return 1;
 }
 
-DeceptusU8 deceptusInventoryRemove(DeceptusInventory *inventory, DeceptusU8 item)
+DeceptusU8 deceptusInventoryRemove(DeceptusInventory* inventory, DeceptusU8 item)
 {
    if ((item == 0) || (item >= DECEPTUS_INVENTORY_ITEMS) || (inventory->counts[item] == 0))
    {
@@ -22,7 +22,7 @@ DeceptusU8 deceptusInventoryRemove(DeceptusInventory *inventory, DeceptusU8 item
    return 1;
 }
 
-DeceptusU16 deceptusAdventurePresentationFlags(const DeceptusAdventure *game)
+DeceptusU16 deceptusAdventurePresentationFlags(const DeceptusAdventure* game)
 {
    /* the original owl ward controls the altar ring independently of inventory flags. */
    const DeceptusU16 sword_ward_source_id = 1386;
@@ -38,12 +38,12 @@ DeceptusU16 deceptusAdventurePresentationFlags(const DeceptusAdventure *game)
    return flags;
 }
 
-static DeceptusU8 overlaps(const DeceptusRect *bounds, DeceptusI16 x, DeceptusI16 y)
+static DeceptusU8 overlaps(const DeceptusRect* bounds, DeceptusI16 x, DeceptusI16 y)
 {
    return x + 8 > bounds->x && x - 8 < bounds->x + bounds->width && y > bounds->y && y - 30 < bounds->y + bounds->height;
 }
 
-DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure *game, const DeceptusInteraction *interaction)
+DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure* game, const DeceptusInteraction* interaction)
 {
    DeceptusI16 slot;
    if (interaction->effect == DECEPTUS_ACTION_EXAMINE_BLOCKER)
@@ -74,11 +74,11 @@ DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure *game, const Dec
       }
    }
    return (game->flags & interaction->required_flags) == interaction->required_flags && !(game->flags & interaction->forbidden_flags) &&
-          (!interaction->cost_item ||
-           (interaction->cost_item < DECEPTUS_INVENTORY_ITEMS && game->inventory.counts[interaction->cost_item]));
+          (!interaction->cost_item || (interaction->cost_item < DECEPTUS_INVENTORY_ITEMS && game->inventory.counts[interaction->cost_item])
+          );
 }
 
-static const DeceptusRoom *requestRoom(DeceptusAdventure *game, DeceptusU8 room)
+static const DeceptusRoom* requestRoom(DeceptusAdventure* game, DeceptusU8 room)
 {
    if (game->room_provider.load)
    {
@@ -87,17 +87,21 @@ static const DeceptusRoom *requestRoom(DeceptusAdventure *game, DeceptusU8 room)
    return game->definition->campaign->rooms[room];
 }
 
-void deceptusAdventureInit(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video)
+void deceptusAdventureInit(DeceptusAdventure* game, const DeceptusAdventureDef* definition, const DeceptusVideoCaps* video)
 {
    deceptusAdventureInitWithRoomProvider(game, definition, video, 0);
 }
 
-void deceptusAdventureInitWithRoomProvider(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video,
-                                           const DeceptusRoomProvider *provider)
+void deceptusAdventureInitWithRoomProvider(
+   DeceptusAdventure* game,
+   const DeceptusAdventureDef* definition,
+   const DeceptusVideoCaps* video,
+   const DeceptusRoomProvider* provider
+)
 {
    DeceptusVideoCaps saved_video;
    DeceptusRoomProvider saved_provider;
-   const DeceptusRoom *room;
+   const DeceptusRoom* room;
    DeceptusU8 index;
    saved_video = *video;
    saved_provider.load = 0;
@@ -141,7 +145,7 @@ void deceptusAdventureInitWithRoomProvider(DeceptusAdventure *game, const Decept
    deceptusTick(&game->campaign.engine, 0);
 }
 
-static void saveRoom(DeceptusAdventure *game)
+static void saveRoom(DeceptusAdventure* game)
 {
    DeceptusU8 room;
    room = game->campaign.room_index;
@@ -149,14 +153,14 @@ static void saveRoom(DeceptusAdventure *game)
    game->visited[room] = 1;
 }
 
-static DeceptusU8 linkedValid(const DeceptusMechanismSet *set, DeceptusU16 source_id)
+static DeceptusU8 linkedValid(const DeceptusMechanismSet* set, DeceptusU16 source_id)
 {
    return deceptusMechanismFind(set, source_id) >= 0;
 }
 
-static void enableLinked(DeceptusMechanismSet *set, DeceptusU16 source_id, DeceptusU8 enabled)
+static void enableLinked(DeceptusMechanismSet* set, DeceptusU16 source_id, DeceptusU8 enabled)
 {
-   const DeceptusMechanismDef *definition;
+   const DeceptusMechanismDef* definition;
    DeceptusI16 slot;
    DeceptusU16 target;
    slot = deceptusMechanismFind(set, source_id);
@@ -172,10 +176,10 @@ static void enableLinked(DeceptusMechanismSet *set, DeceptusU16 source_id, Decep
    }
 }
 
-static void applyBindings(DeceptusAdventure *game)
+static void applyBindings(DeceptusAdventure* game)
 {
-   const DeceptusAdventureRoom *room;
-   const DeceptusAdventureBinding *binding;
+   const DeceptusAdventureRoom* room;
+   const DeceptusAdventureBinding* binding;
    DeceptusU8 index;
    room = &game->definition->rooms[game->campaign.room_index];
    for (index = 0; index < room->binding_count; ++index)
@@ -200,10 +204,10 @@ static void applyBindings(DeceptusAdventure *game)
    }
 }
 
-static DeceptusU8 loadRoom(DeceptusAdventure *game, DeceptusU8 room, DeceptusU16 buttons)
+static DeceptusU8 loadRoom(DeceptusAdventure* game, DeceptusU8 room, DeceptusU16 buttons)
 {
-   DeceptusEngine *engine;
-   const DeceptusRoom *definition;
+   DeceptusEngine* engine;
+   const DeceptusRoom* definition;
    DeceptusU8 health;
    engine = &game->campaign.engine;
    health = engine->health;
@@ -231,7 +235,7 @@ static DeceptusU8 loadRoom(DeceptusAdventure *game, DeceptusU8 room, DeceptusU16
    return !engine->content_error;
 }
 
-static DeceptusU8 interact(DeceptusAdventure *game, const DeceptusInteraction *action)
+static DeceptusU8 interact(DeceptusAdventure* game, const DeceptusInteraction* action)
 {
    DeceptusI16 slot;
    DeceptusU8 event;
@@ -292,8 +296,9 @@ static DeceptusU8 interact(DeceptusAdventure *game, const DeceptusInteraction *a
    }
    else if (action->effect == DECEPTUS_ACTION_DOOR)
    {
-      deceptusMechanismEnable(&game->campaign.engine.mechanisms, action->mechanism_id,
-                              !game->campaign.engine.mechanisms.states[slot].enabled);
+      deceptusMechanismEnable(
+         &game->campaign.engine.mechanisms, action->mechanism_id, !game->campaign.engine.mechanisms.states[slot].enabled
+      );
    }
    applyBindings(game);
    event = action->effect == DECEPTUS_ACTION_DOOR              ? DECEPTUS_EVENT_DOOR
@@ -315,7 +320,7 @@ static DeceptusU8 interact(DeceptusAdventure *game, const DeceptusInteraction *a
 }
 
 /* the room's thunderstorm runs while its flags are all set. */
-static void stormTick(DeceptusAdventure *game, const DeceptusAdventureRoom *room)
+static void stormTick(DeceptusAdventure* game, const DeceptusAdventureRoom* room)
 {
    DeceptusU8 active;
    active = 0;
@@ -329,13 +334,13 @@ static void stormTick(DeceptusAdventure *game, const DeceptusAdventureRoom *room
    thunderstormTick(&game->thunderstorm, active);
 }
 
-DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons)
+DeceptusU8 deceptusAdventureTick(DeceptusAdventure* game, DeceptusU16 buttons)
 {
-   DeceptusCampaign *campaign;
-   DeceptusEngine *engine;
-   const DeceptusAdventureRoom *room;
-   const DeceptusInteraction *action;
-   const DeceptusPortal *portal;
+   DeceptusCampaign* campaign;
+   DeceptusEngine* engine;
+   const DeceptusAdventureRoom* room;
+   const DeceptusInteraction* action;
+   const DeceptusPortal* portal;
    DeceptusU16 pressed, deaths;
    DeceptusI16 x, y;
    DeceptusFixed velocity_x, velocity_y;

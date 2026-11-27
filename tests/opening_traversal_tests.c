@@ -36,7 +36,7 @@ OPENING_API void openingTick(int buttons)
 /* integer getters keep target-dependent structure layouts out of the verifier. */
 OPENING_API int openingState(int field)
 {
-   const DeceptusEngine *engine;
+   const DeceptusEngine* engine;
    engine = &opening.campaign.engine;
    if (field >= 16 && field < 32)
    {
@@ -44,39 +44,39 @@ OPENING_API int openingState(int field)
    }
    switch (field)
    {
-   case 0:
-      return opening.campaign.room_index;
-   case 1:
-      return deceptusFloor(engine->entities[0].x);
-   case 2:
-      return deceptusFloor(engine->entities[0].y);
-   case 3:
-      return opening.campaign.mode;
-   case 4:
-      return opening.flags;
-   case 5:
-      return engine->health;
-   case 6:
-      return opening.campaign.deaths;
-   case 7:
-      return engine->content_error;
-   case 8:
-      return opening.has_sword;
-   case 9:
-      return engine->entities[0].grounded;
-   case 10:
-      return engine->ticks;
-   case 11:
-      return opening.page;
-   case 12:
-      return (int)opening.campaign.elapsed_ticks;
-   case 13:
-      return rope_ticks;
-   case 14:
-      return engine->hurt_ticks;
-   case 15:
-      return engine->projectiles_fired;
-   default:
-      return 0;
+      case 0:
+         return opening.campaign.room_index;
+      case 1:
+         return deceptusFloor(engine->entities[0].x);
+      case 2:
+         return deceptusFloor(engine->entities[0].y);
+      case 3:
+         return opening.campaign.mode;
+      case 4:
+         return opening.flags;
+      case 5:
+         return engine->health;
+      case 6:
+         return opening.campaign.deaths;
+      case 7:
+         return engine->content_error;
+      case 8:
+         return opening.has_sword;
+      case 9:
+         return engine->entities[0].grounded;
+      case 10:
+         return engine->ticks;
+      case 11:
+         return opening.page;
+      case 12:
+         return (int)opening.campaign.elapsed_ticks;
+      case 13:
+         return rope_ticks;
+      case 14:
+         return engine->hurt_ticks;
+      case 15:
+         return engine->projectiles_fired;
+      default:
+         return 0;
    }
 }

@@ -1,6 +1,6 @@
 #include "deceptus/pacing.h"
 
-void deceptusPacingInit(DeceptusPacing *pacing, DeceptusU8 display_hz, DeceptusU8 max_ticks)
+void deceptusPacingInit(DeceptusPacing* pacing, DeceptusU8 display_hz, DeceptusU8 max_ticks)
 {
    pacing->phase = 0;
    pacing->dropped_ticks = 0;
@@ -8,12 +8,12 @@ void deceptusPacingInit(DeceptusPacing *pacing, DeceptusU8 display_hz, DeceptusU
    pacing->max_ticks = max_ticks ? max_ticks : 1;
 }
 
-void deceptusPacingReset(DeceptusPacing *pacing)
+void deceptusPacingReset(DeceptusPacing* pacing)
 {
    pacing->phase = 0;
 }
 
-DeceptusU8 deceptusPacingTicks(DeceptusPacing *pacing, DeceptusU16 elapsed_frames)
+DeceptusU8 deceptusPacingTicks(DeceptusPacing* pacing, DeceptusU16 elapsed_frames)
 {
 #ifdef DECEPTUS_PACING_LOCKED
    (void)pacing;

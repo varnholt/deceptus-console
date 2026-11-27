@@ -1,5 +1,5 @@
-#include "opening_video.h"
 #include <genesis.h>
+#include "opening_video.h"
 
 #define WORLD_HASH 2048
 #define WORLD_WIDTH 41
@@ -27,7 +27,7 @@ typedef struct SmdBackgroundWork
 } SmdBackgroundWork;
 
 static SmdBackgroundWork work;
-static const SmdStage *stage;
+static const SmdStage* stage;
 static DeceptusU16 source_flags;
 static DeceptusI16 scroll_x, scroll_y;
 static DeceptusU32 tile_buffer[8];
@@ -274,16 +274,16 @@ static DeceptusU16 acquire(DeceptusU16 pattern)
    return slot;
 }
 
-static DeceptusU8 clipEnabled(const SmdBackgroundAnimation *clip, DeceptusU16 flags)
+static DeceptusU8 clipEnabled(const SmdBackgroundAnimation* clip, DeceptusU16 flags)
 {
    return (flags & clip->required_flags) == clip->required_flags && !(flags & clip->forbidden_flags);
 }
 
-static DeceptusU8 cellValue(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 *pattern_out, DeceptusU16 *attributes_out)
+static DeceptusU8 cellValue(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16* pattern_out, DeceptusU16* attributes_out)
 {
-   const SmdRomBlob *blob;
-   const SmdBackgroundAnimation *clip;
-   const DeceptusU8 *cell;
+   const SmdRomBlob* blob;
+   const SmdBackgroundAnimation* clip;
+   const DeceptusU8* cell;
    DeceptusU16 row, column, index, pattern, attributes;
    pattern = attributes = 0;
    if (x >= 0 && y >= 0 && x < stage->columns && y < stage->rows)
@@ -408,7 +408,7 @@ typedef struct SmdCellRun
    DeceptusU8 literal;
 } SmdCellRun;
 
-static DeceptusU8 cellRunStart(SmdCellRun *run, const SmdRomBlob *blob, DeceptusU16 row)
+static DeceptusU8 cellRunStart(SmdCellRun* run, const SmdRomBlob* blob, DeceptusU16 row)
 {
    if (row >= blob->blocks || blob->unit_bytes != 4)
    {
@@ -420,9 +420,9 @@ static DeceptusU8 cellRunStart(SmdCellRun *run, const SmdRomBlob *blob, Deceptus
    return 1;
 }
 
-static const DeceptusU8 *cellRunNext(SmdCellRun *run)
+static const DeceptusU8* cellRunNext(SmdCellRun* run)
 {
-   const DeceptusU8 *cell;
+   const DeceptusU8* cell;
    DeceptusU8 code;
    if (!run->left)
    {
@@ -453,8 +453,15 @@ static const DeceptusU8 *cellRunNext(SmdCellRun *run)
 
 /* a clip that stepped to its next frame only changes the cells whose data differs from the frame
    before; both frames' rows are read side by side instead of resolving every cell of the clip. */
-static void refreshClipRow(const SmdBackgroundAnimation *clip, DeceptusU16 frame, DeceptusU16 previous, DeceptusI16 y,
-                           DeceptusI16 clip_left, DeceptusI16 clip_right, DeceptusU8 covered)
+static void refreshClipRow(
+   const SmdBackgroundAnimation* clip,
+   DeceptusU16 frame,
+   DeceptusU16 previous,
+   DeceptusI16 y,
+   DeceptusI16 clip_left,
+   DeceptusI16 clip_right,
+   DeceptusU8 covered
+)
 {
    SmdCellRun now, before;
    const DeceptusU8 *a, *b;
@@ -491,7 +498,7 @@ static void refreshClipRow(const SmdBackgroundAnimation *clip, DeceptusU16 frame
 /* whether an enabled clip of the plane covers part of the window row, where cellValue reads the clip. */
 static DeceptusU8 rowHasClip(DeceptusU8 plane, DeceptusI16 y, DeceptusI16 left)
 {
-   const SmdBackgroundAnimation *clip;
+   const SmdBackgroundAnimation* clip;
    DeceptusU16 index;
    for (index = 0; index < stage->animation_count; ++index)
    {
@@ -512,7 +519,7 @@ static DeceptusU8 rowHasClip(DeceptusU8 plane, DeceptusI16 y, DeceptusI16 left)
 static void loadRow(DeceptusU8 plane, DeceptusI16 y, DeceptusI16 left, DeceptusI16 skip)
 {
    SmdCellRun run;
-   const DeceptusU8 *cell;
+   const DeceptusU8* cell;
    DeceptusI16 x;
    if ((y < 0) || (y >= stage->rows) || (left < 0) || (left + WORLD_WIDTH > stage->columns) || rowHasClip(plane, y, left) ||
        !cellRunStart(&run, plane ? &stage->foreground : &stage->background, y))
@@ -658,7 +665,7 @@ static DeceptusU8 isNear(DeceptusI16 current, DeceptusI16 target)
 
 void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
 {
-   const SmdBackgroundAnimation *clip;
+   const SmdBackgroundAnimation* clip;
    DeceptusU16 index, duration, plane, half, rows;
    DeceptusU8 dirty, active, stepped, covered;
    DeceptusI16 left, top, x, y, clip_left, clip_top, clip_right, clip_bottom;
@@ -733,8 +740,9 @@ void smdBackgroundPrepare(DeceptusI16 camera_x, DeceptusI16 camera_y)
          {
             if (stepped & (1U << index))
             {
-               refreshClipRow(clip, work.frame[index], work.frame[index] ? work.frame[index] - 1 : clip->frames - 1, y, clip_left,
-                              clip_right, covered);
+               refreshClipRow(
+                  clip, work.frame[index], work.frame[index] ? work.frame[index] - 1 : clip->frames - 1, y, clip_left, clip_right, covered
+               );
                continue;
             }
             for (x = clip_left; x < clip_right; ++x)
@@ -794,7 +802,7 @@ void smdBackgroundCommit(void)
       slot = work.reload ? index : work.uploads[index];
       if ((work.pending[slot] & SLOT_PENDING) && work.resident[slot] != EMPTY)
       {
-         if (!smdDecodeBlock(&stage->patterns, work.resident[slot], (DeceptusU8 *)tile_buffer))
+         if (!smdDecodeBlock(&stage->patterns, work.resident[slot], (DeceptusU8*)tile_buffer))
          {
             return;
          }
@@ -816,8 +824,13 @@ void smdBackgroundCommit(void)
          {
             if (rows & 1)
             {
-               DMA_doDma(DMA_VRAM, &work.maps[plane][row * 64 + work.row_left[plane][row]],
-                         base + row * 128 + work.row_left[plane][row] * 2, work.row_right[plane][row] - work.row_left[plane][row] + 1, 2);
+               DMA_doDma(
+                  DMA_VRAM,
+                  &work.maps[plane][row * 64 + work.row_left[plane][row]],
+                  base + row * 128 + work.row_left[plane][row] * 2,
+                  work.row_right[plane][row] - work.row_left[plane][row] + 1,
+                  2
+               );
             }
          }
       }

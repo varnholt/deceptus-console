@@ -3,8 +3,8 @@
 #if GBA_TUTORIAL && defined(GBA_HEADTORCH_FIRST)
 static void __attribute__((section(".romtext"), noinline)) headtorchPrepare(void)
 {
-   const GbaHeadtorchPose *pose;
-   const DeceptusDraw *body;
+   const GbaHeadtorchPose* pose;
+   const DeceptusDraw* body;
    DeceptusDraw helmet, beam;
    DeceptusI16 x, y;
    DeceptusU16 index, player_index;

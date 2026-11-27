@@ -1,9 +1,9 @@
 #ifndef DECEPTUS_ADVENTURE_H
 #define DECEPTUS_ADVENTURE_H
-#include "deceptus/thunderstorm.h"
-#include "deceptus/soundcue.h"
 #include "deceptus/campaign.h"
 #include "deceptus/playersword.h"
+#include "deceptus/soundcue.h"
+#include "deceptus/thunderstorm.h"
 
 #define DECEPTUS_ADVENTURE_ROOMS 32
 #define DECEPTUS_INVENTORY_ITEMS 16
@@ -31,8 +31,8 @@ typedef struct DeceptusInventory
 {
    DeceptusU8 counts[DECEPTUS_INVENTORY_ITEMS];
 } DeceptusInventory;
-DeceptusU8 deceptusInventoryAdd(DeceptusInventory *inventory, DeceptusU8 item);
-DeceptusU8 deceptusInventoryRemove(DeceptusInventory *inventory, DeceptusU8 item);
+DeceptusU8 deceptusInventoryAdd(DeceptusInventory* inventory, DeceptusU8 item);
+DeceptusU8 deceptusInventoryRemove(DeceptusInventory* inventory, DeceptusU8 item);
 
 typedef struct DeceptusPortal
 {
@@ -47,7 +47,7 @@ typedef struct DeceptusInteraction
 {
    DeceptusU16 source_id;
    DeceptusRect bounds;
-   const char *const *pages;
+   const char* const* pages;
    DeceptusU16 required_flags, forbidden_flags, set_flags, mechanism_id;
    DeceptusU8 page_count, cost_item, grant_item, effect, automatic;
    /* nonzero: the player's controls stay locked while this automatic action counts down. */
@@ -56,10 +56,10 @@ typedef struct DeceptusInteraction
 
 typedef struct DeceptusAdventureRoom
 {
-   const DeceptusPortal *portals;
-   const DeceptusInteraction *interactions;
+   const DeceptusPortal* portals;
+   const DeceptusInteraction* interactions;
    DeceptusU8 portal_count, interaction_count;
-   const struct DeceptusAdventureBinding *bindings;
+   const struct DeceptusAdventureBinding* bindings;
    DeceptusU8 binding_count;
    /* the flags that turn the room's thunderstorm on; 0 for a room without one. */
    DeceptusU16 storm_flags;
@@ -76,24 +76,24 @@ typedef struct DeceptusAdventureBinding
 
 typedef struct DeceptusAdventureDef
 {
-   const DeceptusCampaignDef *campaign;
-   const DeceptusAdventureRoom *rooms;
-   const char *const *item_names;
+   const DeceptusCampaignDef* campaign;
+   const DeceptusAdventureRoom* rooms;
+   const char* const* item_names;
    DeceptusU8 item_count;
 } DeceptusAdventureDef;
 
 /* returned room storage remains valid until the next load; null reports a load failure. */
 typedef struct DeceptusRoomProvider
 {
-   const DeceptusRoom *(*load)(void *context, DeceptusU8 room);
-   void *context;
+   const DeceptusRoom* (*load)(void* context, DeceptusU8 room);
+   void* context;
 } DeceptusRoomProvider;
 
 typedef struct DeceptusAdventure
 {
    DeceptusCampaign campaign;
    DeceptusRoomProvider room_provider;
-   const DeceptusAdventureDef *definition;
+   const DeceptusAdventureDef* definition;
    DeceptusInventory inventory;
    DeceptusPlayerSword sword;
    DeceptusMechanismState saved[DECEPTUS_ADVENTURE_ROOMS][DECEPTUS_MECHANISM_CAPACITY];
@@ -102,18 +102,22 @@ typedef struct DeceptusAdventure
    Thunderstorm thunderstorm;
    /* the sounds of the ticks since the platform last emptied it. */
    SoundQueue sounds;
-   const DeceptusInteraction *dialogue;
-   const DeceptusInteraction *automatic_action;
+   const DeceptusInteraction* dialogue;
+   const DeceptusInteraction* automatic_action;
    DeceptusU8 automatic_ticks;
-   const DeceptusInteraction *pending_action;
+   const DeceptusInteraction* pending_action;
    DeceptusU8 pending_room, pending_ticks, has_sword;
    DeceptusU8 page, selection, prompt, portal_cooldown, room_label_ticks, menu_return, options_return;
 } DeceptusAdventure;
 
-void deceptusAdventureInit(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video);
-void deceptusAdventureInitWithRoomProvider(DeceptusAdventure *game, const DeceptusAdventureDef *definition, const DeceptusVideoCaps *video,
-                                           const DeceptusRoomProvider *provider);
-DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons);
-DeceptusU16 deceptusAdventurePresentationFlags(const DeceptusAdventure *game);
-DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure *game, const DeceptusInteraction *interaction);
+void deceptusAdventureInit(DeceptusAdventure* game, const DeceptusAdventureDef* definition, const DeceptusVideoCaps* video);
+void deceptusAdventureInitWithRoomProvider(
+   DeceptusAdventure* game,
+   const DeceptusAdventureDef* definition,
+   const DeceptusVideoCaps* video,
+   const DeceptusRoomProvider* provider
+);
+DeceptusU8 deceptusAdventureTick(DeceptusAdventure* game, DeceptusU16 buttons);
+DeceptusU16 deceptusAdventurePresentationFlags(const DeceptusAdventure* game);
+DeceptusU8 deceptusInteractionAvailable(const DeceptusAdventure* game, const DeceptusInteraction* interaction);
 #endif

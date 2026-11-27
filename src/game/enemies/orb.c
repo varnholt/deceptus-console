@@ -1,9 +1,9 @@
 /* original counterpart: data/scripts/enemies/orb.lua. source contours and
  * nearest-key alignment are imported by tools/enemy_paths.py. */
 
-static void orbTick(DeceptusEngine *engine, DeceptusEntity *orb, const DeceptusEnemyDef *definition)
+static void orbTick(DeceptusEngine* engine, DeceptusEntity* orb, const DeceptusEnemyDef* definition)
 {
-   const DeceptusPathPoint *point;
+   const DeceptusPathPoint* point;
    DeceptusFixed distance, remaining, amount;
    DeceptusU16 fraction;
    distance = definition->speed;
@@ -54,9 +54,9 @@ static void orbTick(DeceptusEngine *engine, DeceptusEntity *orb, const DeceptusE
    }
 }
 
-static DeceptusU16 orbContact(const DeceptusEngine *engine, const DeceptusEntity *orb, const DeceptusEnemyDef *definition)
+static DeceptusU16 orbContact(const DeceptusEngine* engine, const DeceptusEntity* orb, const DeceptusEnemyDef* definition)
 {
-   const DeceptusEntity *player;
+   const DeceptusEntity* player;
    DeceptusI16 dx, dy, x, y, feet;
    player = &engine->entities[0];
    x = deceptusFloor(orb->x);

@@ -1,25 +1,27 @@
-#include "deceptus/game.h"
-#include "deceptus/logic.h"
-#include "deceptus/physics.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "deceptus/game.h"
+#include "deceptus/logic.h"
+#include "deceptus/physics.h"
 
-#define CHECK(condition)                                                                                                                   \
-   do                                                                                                                                      \
-   {                                                                                                                                       \
-      if (!(condition))                                                                                                                    \
-      {                                                                                                                                    \
-         fprintf(stderr, "failure at line %d: %s\n", __LINE__, #condition);                                                                \
-         exit(1);                                                                                                                          \
-      }                                                                                                                                    \
+#define CHECK(condition)                                                    \
+   do                                                                       \
+   {                                                                        \
+      if (!(condition))                                                     \
+      {                                                                     \
+         fprintf(stderr, "failure at line %d: %s\n", __LINE__, #condition); \
+         exit(1);                                                           \
+      }                                                                     \
    } while (0)
 
-static const DeceptusMechanismDef definitions[] = {{10, {24, 144, 32, 48}, 0, 1, 0, DECEPTUS_MECH_LEVER, 1, 0},
-                                                   {20, {80, 144, 8, 48}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0},
-                                                   {30, {120, 144, 32, 48}, 0, 0, 1, DECEPTUS_MECH_CHECKPOINT, 1, 0},
-                                                   {40, {0, 0, 16, 16}, 0, 0, 0, DECEPTUS_MECH_SENSOR, 1, 0},
-                                                   {50, {176, 144, 8, 48}, 0, 0, 1, DECEPTUS_MECH_DAMAGE, 1, 0}};
+static const DeceptusMechanismDef definitions[] = {
+   {10, {24, 144, 32, 48}, 0, 1, 0, DECEPTUS_MECH_LEVER, 1, 0},
+   {20, {80, 144, 8, 48}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0},
+   {30, {120, 144, 32, 48}, 0, 0, 1, DECEPTUS_MECH_CHECKPOINT, 1, 0},
+   {40, {0, 0, 16, 16}, 0, 0, 0, DECEPTUS_MECH_SENSOR, 1, 0},
+   {50, {176, 144, 8, 48}, 0, 0, 1, DECEPTUS_MECH_DAMAGE, 1, 0}
+};
 static const DeceptusU16 targets[] = {20};
 
 int main(void)
@@ -133,7 +135,8 @@ int main(void)
    {
       static const DeceptusMechanismDef inverted[] = {
          {1585, {24, 144, 32, 48}, 0, 1, 0, DECEPTUS_MECH_LEVER, 0, DECEPTUS_MECH_INVERT_TARGETS},
-         {1586, {80, 144, 8, 48}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0}};
+         {1586, {80, 144, 8, 48}, 0, 0, 0, DECEPTUS_MECH_BLOCK, 1, 0}
+      };
       static const DeceptusU16 inverted_targets[] = {1586};
       CHECK(deceptusMechanismsInit(&mechanisms, inverted, 2, inverted_targets, 1));
       CHECK(!mechanisms.states[0].enabled && mechanisms.states[1].enabled);
@@ -149,7 +152,8 @@ int main(void)
       static const DeceptusMechanismDef gates[] = {
          {425, {0, 24, 24, 72}, 0, 0, 7, DECEPTUS_MECH_DOOR, 0, 0},
          {1439, {80, 24, 48, 96}, 0, 0, 30, DECEPTUS_MECH_DESTRUCTIBLE, 1, DECEPTUS_MECH_RIGHT_ALIGNED},
-         {493, {160, 24, 48, 36}, 0, 0, 0, DECEPTUS_MECH_CANNON_BODY, 1, 0}};
+         {493, {160, 24, 48, 36}, 0, 0, 0, DECEPTUS_MECH_CANNON_BODY, 1, 0}
+      };
       CHECK(deceptusMechanismsInit(&mechanisms, gates, 3, 0, 0));
       player.x = 160;
       player.y = 24;

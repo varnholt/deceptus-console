@@ -16,7 +16,7 @@
 #define PHASE_ACTIVATING 1
 #define PHASE_TICKING 2
 
-static void activationTick(DeceptusMechanismState *state)
+static void activationTick(DeceptusMechanismState* state)
 {
    ++state->timer;
    state->frame = (DeceptusU8)(state->timer / ACTIVATION_TICKS_PER_FRAME);
@@ -27,7 +27,7 @@ static void activationTick(DeceptusMechanismState *state)
    }
 }
 
-static void tickingTick(DeceptusMechanismState *state)
+static void tickingTick(DeceptusMechanismState* state)
 {
    ++state->timer;
    if (state->timer == ACTIVE_LOOP_TICKS)
@@ -37,9 +37,9 @@ static void tickingTick(DeceptusMechanismState *state)
    state->frame = (DeceptusU8)(CHECKPOINT_CLOCK_ACTIVATION_FRAMES + state->timer / ACTIVE_TICKS_PER_FRAME);
 }
 
-void checkpointClocksInit(DeceptusMechanismSet *set)
+void checkpointClocksInit(DeceptusMechanismSet* set)
 {
-   DeceptusMechanismState *state;
+   DeceptusMechanismState* state;
    DeceptusU16 index;
    for (index = 0; index < set->count; ++index)
    {
@@ -54,9 +54,9 @@ void checkpointClocksInit(DeceptusMechanismSet *set)
    }
 }
 
-void checkpointClocksTick(DeceptusMechanismSet *set)
+void checkpointClocksTick(DeceptusMechanismSet* set)
 {
-   DeceptusMechanismState *state;
+   DeceptusMechanismState* state;
    DeceptusU16 index;
    for (index = 0; index < set->count; ++index)
    {
@@ -85,14 +85,14 @@ void checkpointClocksTick(DeceptusMechanismSet *set)
    }
 }
 
-DeceptusU8 checkpointClockVisible(const DeceptusMechanismSet *set, DeceptusU16 index)
+DeceptusU8 checkpointClockVisible(const DeceptusMechanismSet* set, DeceptusU16 index)
 {
    return (set->definitions[index].flags & CHECKPOINT_HIDDEN) == 0;
 }
 
-void checkpointClockPart(const DeceptusMechanismSet *set, DeceptusU16 index, DeceptusU8 *image, DeceptusI16 *x, DeceptusI16 *y)
+void checkpointClockPart(const DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8* image, DeceptusI16* x, DeceptusI16* y)
 {
-   const DeceptusMechanismDef *definition;
+   const DeceptusMechanismDef* definition;
    definition = &set->definitions[index];
    *image = set->states[index].frame;
    *x = definition->bounds.x;

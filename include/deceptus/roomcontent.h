@@ -7,14 +7,14 @@ typedef struct DeceptusRoomContent
 {
    DeceptusRoom room;
    DeceptusWaterConfiguration water;
-   DeceptusMechanismDef *mechanisms;
-   DeceptusMechanismTiming *timings;
-   DeceptusU16 *targets;
-   DeceptusEnemyDef *enemies;
-   DeceptusPathPoint *paths;
+   DeceptusMechanismDef* mechanisms;
+   DeceptusMechanismTiming* timings;
+   DeceptusU16* targets;
+   DeceptusEnemyDef* enemies;
+   DeceptusPathPoint* paths;
    DeceptusU16 mechanism_capacity, target_capacity, enemy_capacity, path_capacity;
 } DeceptusRoomContent;
 
 /* DRM1 uses explicit big-endian fields, independent of compiler structure layout. */
-DeceptusU8 deceptusRoomContentLoad(DeceptusRoomContent *content, const DeceptusU8 *bytes, DeceptusU32 size);
+DeceptusU8 deceptusRoomContentLoad(DeceptusRoomContent* content, const DeceptusU8* bytes, DeceptusU32 size);
 #endif

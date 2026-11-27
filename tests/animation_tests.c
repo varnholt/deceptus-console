@@ -1,6 +1,6 @@
-#include "deceptus/animation.h"
 #include <assert.h>
 #include <stdio.h>
+#include "deceptus/animation.h"
 
 int main(void)
 {

@@ -1,10 +1,10 @@
-#include "deceptus/engine.h"
 #include <string.h>
+#include "deceptus/engine.h"
 
-DeceptusEntity *deceptusSpawn(DeceptusEngine *engine, DeceptusU8 kind, DeceptusI16 x, DeceptusI16 y)
+DeceptusEntity* deceptusSpawn(DeceptusEngine* engine, DeceptusU8 kind, DeceptusI16 x, DeceptusI16 y)
 {
    DeceptusU16 index;
-   DeceptusEntity *entity;
+   DeceptusEntity* entity;
    for (index = 0; index < DECEPTUS_ENTITY_CAPACITY; ++index)
    {
       entity = &engine->entities[index];

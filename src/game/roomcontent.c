@@ -4,7 +4,7 @@
 /* one mechanism: id, bounds, targets, value, kind, enabled, flags, then its timing: five words, flags and the phase offset. */
 #define ROOM_MECHANISM_BYTES 32
 
-static DeceptusU16 readWord(const DeceptusU8 **cursor)
+static DeceptusU16 readWord(const DeceptusU8** cursor)
 {
    DeceptusU16 value;
    value = (DeceptusU16)((DeceptusU16)(*cursor)[0] << 8) | (*cursor)[1];
@@ -12,7 +12,7 @@ static DeceptusU16 readWord(const DeceptusU8 **cursor)
    return value;
 }
 
-static DeceptusI16 readSignedWord(const DeceptusU8 **cursor)
+static DeceptusI16 readSignedWord(const DeceptusU8** cursor)
 {
    DeceptusU16 value;
    value = readWord(cursor);
@@ -23,13 +23,13 @@ static DeceptusI16 readSignedWord(const DeceptusU8 **cursor)
    return (DeceptusI16)value;
 }
 
-DeceptusU8 deceptusRoomContentLoad(DeceptusRoomContent *content, const DeceptusU8 *bytes, DeceptusU32 size)
+DeceptusU8 deceptusRoomContentLoad(DeceptusRoomContent* content, const DeceptusU8* bytes, DeceptusU32 size)
 {
    DeceptusRoom room;
-   const DeceptusU8 *cursor;
-   DeceptusMechanismDef *mechanism;
-   DeceptusMechanismTiming *timing;
-   DeceptusEnemyDef *enemy;
+   const DeceptusU8* cursor;
+   DeceptusMechanismDef* mechanism;
+   DeceptusMechanismTiming* timing;
+   DeceptusEnemyDef* enemy;
    DeceptusU32 collision_size, expected;
    DeceptusU16 index, field;
    DeceptusU8 has_water;
@@ -69,8 +69,9 @@ DeceptusU8 deceptusRoomContentLoad(DeceptusRoomContent *content, const DeceptusU
       return 0;
    }
    collision_size = (DeceptusU32)room.columns * room.rows;
-   expected = 35 + collision_size + (DeceptusU32)room.mechanism_count * ROOM_MECHANISM_BYTES + (DeceptusU32)room.mechanism_target_count * 2 +
-              (DeceptusU32)room.enemy_count * 35 + (DeceptusU32)room.enemy_path_count * 4 + (has_water ? 26 : 0);
+   expected = 35 + collision_size + (DeceptusU32)room.mechanism_count * ROOM_MECHANISM_BYTES +
+              (DeceptusU32)room.mechanism_target_count * 2 + (DeceptusU32)room.enemy_count * 35 + (DeceptusU32)room.enemy_path_count * 4 +
+              (has_water ? 26 : 0);
    if (expected != size)
    {
       return 0;

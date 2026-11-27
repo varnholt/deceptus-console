@@ -44,7 +44,7 @@ typedef struct DeceptusSpriteAppearance
    DeceptusU8 family, flip_x;
 } DeceptusSpriteAppearance;
 
-typedef DeceptusU8 (*DeceptusSpriteEmitter)(void *context, const DeceptusSpriteAppearance *sprite);
+typedef DeceptusU8 (*DeceptusSpriteEmitter)(void* context, const DeceptusSpriteAppearance* sprite);
 
 typedef struct DeceptusAppearanceDef
 {
@@ -54,9 +54,15 @@ typedef struct DeceptusAppearanceDef
    const DeceptusI16 (*lamp_offsets)[2];
    /* a platform's own drawing of the grab ropes, which must emit what the shared one does; zero for
     * the shared one. */
-   DeceptusU8 (*rope_sprites)(const struct DeceptusEngine *engine, DeceptusSpriteEmitter emit, void *context);
+   DeceptusU8 (*rope_sprites)(const struct DeceptusEngine* engine, DeceptusSpriteEmitter emit, void* context);
 } DeceptusAppearanceDef;
 
-DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const DeceptusFrame *frame, const DeceptusAppearanceDef *definition,
-                                   DeceptusPlayerAnimation *animation, DeceptusSpriteEmitter emit, void *context);
+DeceptusU8 deceptusAppearanceVisit(
+   const DeceptusAdventure* game,
+   const DeceptusFrame* frame,
+   const DeceptusAppearanceDef* definition,
+   DeceptusPlayerAnimation* animation,
+   DeceptusSpriteEmitter emit,
+   void* context
+);
 #endif

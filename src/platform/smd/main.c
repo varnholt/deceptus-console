@@ -1,7 +1,7 @@
+#include <genesis.h>
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
 #include "smd_assets.h"
-#include <genesis.h>
 
 extern const DeceptusRoom deceptus_scene;
 typedef char SmdEngineMemoryLength[sizeof(DeceptusEngine) < 65536UL ? 1 : -1];
@@ -48,7 +48,7 @@ static DeceptusU16 inputRead(void)
    return buttons;
 }
 
-static void loadTiles(const DeceptusU32 *data, DeceptusU16 first, DeceptusU16 count)
+static void loadTiles(const DeceptusU32* data, DeceptusU16 first, DeceptusU16 count)
 {
    DeceptusU16 prefix;
    prefix = first < 1536 ? 1536 - first : 0;
@@ -92,7 +92,7 @@ static void videoInit(void)
 
 static void videoPrepare(void)
 {
-   const DeceptusDraw *draw;
+   const DeceptusDraw* draw;
    DeceptusU16 index, piece, tile;
    DeceptusI16 x, y, top, bottom, line;
    object_count = sprite_error = 0;

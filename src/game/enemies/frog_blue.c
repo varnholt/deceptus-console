@@ -29,7 +29,7 @@ static DeceptusI16 frogBlueSine(DeceptusU16 phase)
    return first + (DeceptusI16)((DeceptusI32)difference * (phase & 255) / 256);
 }
 
-static void frogBlueClearOrb(DeceptusEngine *engine, DeceptusU8 owner)
+static void frogBlueClearOrb(DeceptusEngine* engine, DeceptusU8 owner)
 {
    DeceptusU16 index;
    for (index = 0; index < DECEPTUS_PROJECTILE_CAPACITY; ++index)
@@ -41,10 +41,10 @@ static void frogBlueClearOrb(DeceptusEngine *engine, DeceptusU8 owner)
    }
 }
 
-static void frogBlueFire(DeceptusEngine *engine, DeceptusU8 owner, const DeceptusEnemyDef *definition)
+static void frogBlueFire(DeceptusEngine* engine, DeceptusU8 owner, const DeceptusEnemyDef* definition)
 {
    DeceptusU16 index;
-   DeceptusProjectile *orb;
+   DeceptusProjectile* orb;
    for (index = 0; index < DECEPTUS_PROJECTILE_CAPACITY; ++index)
    {
       orb = &engine->projectiles[index];
@@ -67,7 +67,7 @@ static void frogBlueFire(DeceptusEngine *engine, DeceptusU8 owner, const Deceptu
    engine->content_error = 6;
 }
 
-static void frogBlueTick(DeceptusEngine *engine, DeceptusEntity *frog, const DeceptusEnemyDef *definition, DeceptusU8 owner)
+static void frogBlueTick(DeceptusEngine* engine, DeceptusEntity* frog, const DeceptusEnemyDef* definition, DeceptusU8 owner)
 {
    DeceptusU8 column;
    if (++frog->drop_ticks >= 80)
@@ -174,9 +174,9 @@ static void frogBlueTick(DeceptusEngine *engine, DeceptusEntity *frog, const Dec
    deceptusMoveVerticalDynamic(engine->room, frog, 19, 24, &engine->mechanisms);
 }
 
-static DeceptusU16 frogBlueContact(DeceptusEngine *engine, DeceptusEntity *frog, const DeceptusEnemyDef *definition)
+static DeceptusU16 frogBlueContact(DeceptusEngine* engine, DeceptusEntity* frog, const DeceptusEnemyDef* definition)
 {
-   DeceptusEntity *player;
+   DeceptusEntity* player;
    DeceptusI16 dx, dy;
    if (frog->state == 3)
    {
@@ -204,10 +204,10 @@ static DeceptusU16 frogBlueContact(DeceptusEngine *engine, DeceptusEntity *frog,
    return definition->damage;
 }
 
-static DeceptusU16 frogBlueOrbTick(DeceptusEngine *engine, DeceptusProjectile *orb)
+static DeceptusU16 frogBlueOrbTick(DeceptusEngine* engine, DeceptusProjectile* orb)
 {
    DeceptusEntity *frog, *player;
-   const DeceptusEnemyDef *definition;
+   const DeceptusEnemyDef* definition;
    DeceptusI32 x, y;
    DeceptusI16 dx, dy, half, offset_y;
    if (!orb->owner || orb->owner >= DECEPTUS_ENTITY_CAPACITY)

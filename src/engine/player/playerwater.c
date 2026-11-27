@@ -2,10 +2,10 @@
 #include "deceptus/playerwater.h"
 #include "deceptus/physics.h"
 
-DeceptusU8 deceptusPlayerWaterTick(DeceptusEngine *engine, const DeceptusInput *input)
+DeceptusU8 deceptusPlayerWaterTick(DeceptusEngine* engine, const DeceptusInput* input)
 {
-   DeceptusEntity *player;
-   const DeceptusWaterConfiguration *water;
+   DeceptusEntity* player;
+   const DeceptusWaterConfiguration* water;
    DeceptusI16 direction, target, surface_row;
    DeceptusU8 wet;
    player = &engine->entities[0];
@@ -129,9 +129,9 @@ DeceptusU8 deceptusPlayerWaterTick(DeceptusEngine *engine, const DeceptusInput *
    return 1;
 }
 
-void deceptusPlayerWaterRender(const DeceptusEngine *engine, DeceptusFrame *frame)
+void deceptusPlayerWaterRender(const DeceptusEngine* engine, DeceptusFrame* frame)
 {
-   DeceptusDraw *draw;
+   DeceptusDraw* draw;
    DeceptusI16 x, y;
    if (!engine->splash_active || frame->count >= DECEPTUS_DRAW_CAPACITY || frame->count >= engine->video.max_draws)
    {

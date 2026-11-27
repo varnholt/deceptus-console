@@ -1,7 +1,7 @@
 /* original counterparts: mechanisms/rope.cpp and mechanisms/grabrope.cpp. */
-#include "deceptus/physics.h"
-#include "arith.h"
 #include <string.h>
+#include "arith.h"
+#include "deceptus/physics.h"
 
 /* exact 16x16 products where both factors fit; 16-bit cpus otherwise pay a 32-bit multiply call. */
 static DeceptusU32 square(DeceptusI32 value)
@@ -46,7 +46,7 @@ DeceptusU16 deceptusGrabRopeDistance(DeceptusI32 x, DeceptusI32 y)
    return arithRootU32(square(x) + square(y));
 }
 
-static DeceptusU8 ropePointClear(const DeceptusEngine *engine, const DeceptusGrabRope *rope, DeceptusFixed x, DeceptusFixed y)
+static DeceptusU8 ropePointClear(const DeceptusEngine* engine, const DeceptusGrabRope* rope, DeceptusFixed x, DeceptusFixed y)
 {
    DeceptusRect point;
    DeceptusI16 column, row, first_column, last_column, last_row;
@@ -70,7 +70,7 @@ static DeceptusU8 ropePointClear(const DeceptusEngine *engine, const DeceptusGra
    return (rope->dynamic_solids == 0) || (deceptusMechanismProjectileSolid(&engine->mechanisms, &point) == 0);
 }
 
-static void ropeMeasure(DeceptusGrabRope *rope)
+static void ropeMeasure(DeceptusGrabRope* rope)
 {
    DeceptusU8 node;
    rope->cumulative_length[0] = 0;
@@ -83,7 +83,7 @@ static void ropeMeasure(DeceptusGrabRope *rope)
    rope->total_length = rope->cumulative_length[rope->node_count - 1];
 }
 
-static void ropeMoveNode(const DeceptusEngine *engine, DeceptusGrabRope *rope, DeceptusU8 node, DeceptusFixed x, DeceptusFixed y)
+static void ropeMoveNode(const DeceptusEngine* engine, DeceptusGrabRope* rope, DeceptusU8 node, DeceptusFixed x, DeceptusFixed y)
 {
    if (x != rope->x[node] && ropePointClear(engine, rope, x, rope->y[node]))
    {
@@ -95,9 +95,9 @@ static void ropeMoveNode(const DeceptusEngine *engine, DeceptusGrabRope *rope, D
    }
 }
 
-static void ropeSolve(DeceptusEngine *engine, DeceptusGrabRope *rope, DeceptusU8 pinned, DeceptusFixed pin_x, DeceptusFixed pin_y)
+static void ropeSolve(DeceptusEngine* engine, DeceptusGrabRope* rope, DeceptusU8 pinned, DeceptusFixed pin_x, DeceptusFixed pin_y)
 {
-   const DeceptusMechanismDef *definition;
+   const DeceptusMechanismDef* definition;
    DeceptusI32 dx, dy, correction_x, correction_y, correction_scale;
    DeceptusU16 distance, rest;
    DeceptusU8 iteration, node, previous;
@@ -137,21 +137,24 @@ static void ropeSolve(DeceptusEngine *engine, DeceptusGrabRope *rope, DeceptusU8
          {
             if (node != pinned)
             {
-               ropeMoveNode(engine, rope, node, (DeceptusFixed)(rope->x[node] - correction_x),
-                            (DeceptusFixed)(rope->y[node] - correction_y));
+               ropeMoveNode(
+                  engine, rope, node, (DeceptusFixed)(rope->x[node] - correction_x), (DeceptusFixed)(rope->y[node] - correction_y)
+               );
             }
          }
          else if (node == pinned)
          {
-            ropeMoveNode(engine, rope, previous, (DeceptusFixed)(rope->x[previous] + correction_x),
-                         (DeceptusFixed)(rope->y[previous] + correction_y));
+            ropeMoveNode(
+               engine, rope, previous, (DeceptusFixed)(rope->x[previous] + correction_x), (DeceptusFixed)(rope->y[previous] + correction_y)
+            );
          }
          else
          {
             correction_x /= 2;
             correction_y /= 2;
-            ropeMoveNode(engine, rope, previous, (DeceptusFixed)(rope->x[previous] + correction_x),
-                         (DeceptusFixed)(rope->y[previous] + correction_y));
+            ropeMoveNode(
+               engine, rope, previous, (DeceptusFixed)(rope->x[previous] + correction_x), (DeceptusFixed)(rope->y[previous] + correction_y)
+            );
             ropeMoveNode(engine, rope, node, (DeceptusFixed)(rope->x[node] - correction_x), (DeceptusFixed)(rope->y[node] - correction_y));
          }
       }
@@ -163,9 +166,9 @@ static void ropeSolve(DeceptusEngine *engine, DeceptusGrabRope *rope, DeceptusU8
    }
 }
 
-static DeceptusU8 ropeDynamicSolids(const DeceptusEngine *engine, const DeceptusMechanismDef *rope)
+static DeceptusU8 ropeDynamicSolids(const DeceptusEngine* engine, const DeceptusMechanismDef* rope)
 {
-   const DeceptusMechanismDef *definition;
+   const DeceptusMechanismDef* definition;
    DeceptusI32 reach, left, right, top, bottom;
    DeceptusU8 index;
    /* cover the full chain, attachment link, anchor slack and player extent. */
@@ -179,41 +182,41 @@ static DeceptusU8 ropeDynamicSolids(const DeceptusEngine *engine, const Deceptus
       definition = &engine->mechanisms.definitions[index];
       switch (definition->kind)
       {
-      case DECEPTUS_MECH_BLOCK:
-      case DECEPTUS_MECH_COLLAPSING:
-      case DECEPTUS_MECH_DOOR:
-      case DECEPTUS_MECH_DESTRUCTIBLE:
-         /* these source families never move their immutable collision bounds. */
-         if ((DeceptusI32)definition->bounds.x <= right && (DeceptusI32)definition->bounds.x + definition->bounds.width >= left &&
-             (DeceptusI32)definition->bounds.y <= bottom && (DeceptusI32)definition->bounds.y + definition->bounds.height >= top)
-         {
+         case DECEPTUS_MECH_BLOCK:
+         case DECEPTUS_MECH_COLLAPSING:
+         case DECEPTUS_MECH_DOOR:
+         case DECEPTUS_MECH_DESTRUCTIBLE:
+            /* these source families never move their immutable collision bounds. */
+            if ((DeceptusI32)definition->bounds.x <= right && (DeceptusI32)definition->bounds.x + definition->bounds.width >= left &&
+                (DeceptusI32)definition->bounds.y <= bottom && (DeceptusI32)definition->bounds.y + definition->bounds.height >= top)
+            {
+               return 1;
+            }
+            break;
+         case DECEPTUS_MECH_CHECKPOINT:
+         case DECEPTUS_MECH_SENSOR:
+         case DECEPTUS_MECH_LEVER:
+         case DECEPTUS_MECH_DAMAGE:
+         case DECEPTUS_MECH_FLAG:
+         case DECEPTUS_MECH_SPIKES:
+         case DECEPTUS_MECH_WIND:
+         case DECEPTUS_MECH_CANNON_BODY:
+         case DECEPTUS_MECH_GRAB_ROPE:
+         /* box colliders stop moveable boxes only; the rope's projectile query never sees them. */
+         case DECEPTUS_MECH_BOX_COLLIDER:
+            break;
+         default:
+            /* future moving or unknown solid families must retain the full query. */
             return 1;
-         }
-         break;
-      case DECEPTUS_MECH_CHECKPOINT:
-      case DECEPTUS_MECH_SENSOR:
-      case DECEPTUS_MECH_LEVER:
-      case DECEPTUS_MECH_DAMAGE:
-      case DECEPTUS_MECH_FLAG:
-      case DECEPTUS_MECH_SPIKES:
-      case DECEPTUS_MECH_WIND:
-      case DECEPTUS_MECH_CANNON_BODY:
-      case DECEPTUS_MECH_GRAB_ROPE:
-      /* box colliders stop moveable boxes only; the rope's projectile query never sees them. */
-      case DECEPTUS_MECH_BOX_COLLIDER:
-         break;
-      default:
-         /* future moving or unknown solid families must retain the full query. */
-         return 1;
       }
    }
    return 0;
 }
 
-DeceptusU8 deceptusGrabRopesInit(DeceptusEngine *engine)
+DeceptusU8 deceptusGrabRopesInit(DeceptusEngine* engine)
 {
-   const DeceptusMechanismDef *definition;
-   DeceptusGrabRope *rope;
+   const DeceptusMechanismDef* definition;
+   DeceptusGrabRope* rope;
    DeceptusU8 index, node;
    memset(&engine->grab_ropes, 0, sizeof(engine->grab_ropes));
    for (index = 0; index < engine->mechanisms.count; ++index)
@@ -243,9 +246,9 @@ DeceptusU8 deceptusGrabRopesInit(DeceptusEngine *engine)
    return 1;
 }
 
-void deceptusGrabRopesTick(DeceptusEngine *engine)
+void deceptusGrabRopesTick(DeceptusEngine* engine)
 {
-   DeceptusGrabRope *rope;
+   DeceptusGrabRope* rope;
    DeceptusFixed x, y;
    DeceptusFixed before[4][DECEPTUS_GRAB_ROPE_NODES];
    DeceptusI16 vx, vy;
@@ -323,9 +326,9 @@ void deceptusGrabRopesTick(DeceptusEngine *engine)
    }
 }
 
-void deceptusGrabRopePin(DeceptusEngine *engine, DeceptusU8 index, DeceptusU8 node, DeceptusFixed x, DeceptusFixed y)
+void deceptusGrabRopePin(DeceptusEngine* engine, DeceptusU8 index, DeceptusU8 node, DeceptusFixed x, DeceptusFixed y)
 {
-   DeceptusGrabRope *rope;
+   DeceptusGrabRope* rope;
    if (index >= engine->grab_ropes.count)
    {
       return;
@@ -342,9 +345,9 @@ void deceptusGrabRopePin(DeceptusEngine *engine, DeceptusU8 index, DeceptusU8 no
    ropeMeasure(rope);
 }
 
-DeceptusU16 deceptusGrabRopeLength(const DeceptusEngine *engine, DeceptusU8 index)
+DeceptusU16 deceptusGrabRopeLength(const DeceptusEngine* engine, DeceptusU8 index)
 {
-   const DeceptusGrabRope *rope;
+   const DeceptusGrabRope* rope;
    if (index >= engine->grab_ropes.count)
    {
       return 0;
@@ -357,10 +360,16 @@ DeceptusU16 deceptusGrabRopeLength(const DeceptusEngine *engine, DeceptusU8 inde
    return (rope->total_length + 15) / 16;
 }
 
-DeceptusU8 deceptusGrabRopePointFrom(const DeceptusEngine *engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusU8 *node_hint,
-                                    DeceptusI16 *x, DeceptusI16 *y)
+DeceptusU8 deceptusGrabRopePointFrom(
+   const DeceptusEngine* engine,
+   DeceptusU8 index,
+   DeceptusU16 distance_px,
+   DeceptusU8* node_hint,
+   DeceptusI16* x,
+   DeceptusI16* y
+)
 {
-   const DeceptusGrabRope *rope;
+   const DeceptusGrabRope* rope;
    DeceptusU16 remaining, length;
    DeceptusI32 dx, dy;
    DeceptusU8 node;
@@ -401,7 +410,7 @@ DeceptusU8 deceptusGrabRopePointFrom(const DeceptusEngine *engine, DeceptusU8 in
    return 1;
 }
 
-DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine *engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusI16 *x, DeceptusI16 *y)
+DeceptusU8 deceptusGrabRopePointAt(const DeceptusEngine* engine, DeceptusU8 index, DeceptusU16 distance_px, DeceptusI16* x, DeceptusI16* y)
 {
    DeceptusU8 node;
    node = 1;

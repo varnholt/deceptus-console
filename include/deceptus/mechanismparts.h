@@ -13,8 +13,8 @@ typedef struct MechanismPart
 } MechanismPart;
 
 /* how many parts the mechanism at index shows this frame; zero when it is hidden or has no sprite. */
-DeceptusU8 mechanismPartCount(const DeceptusEngine *engine, DeceptusU16 index);
+DeceptusU8 mechanismPartCount(const DeceptusEngine* engine, DeceptusU16 index);
 /* one of those parts, part < mechanismPartCount. */
-void mechanismPart(const DeceptusEngine *engine, DeceptusU16 index, DeceptusU8 part, MechanismPart *result);
+void mechanismPart(const DeceptusEngine* engine, DeceptusU16 index, DeceptusU8 part, MechanismPart* result);
 
 #endif

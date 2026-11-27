@@ -13,14 +13,14 @@ typedef struct DeceptusCampaignGoal
 } DeceptusCampaignGoal;
 typedef struct DeceptusCampaignDef
 {
-   const DeceptusRoom *const *rooms;
-   const DeceptusCampaignGoal *goals;
+   const DeceptusRoom* const* rooms;
+   const DeceptusCampaignGoal* goals;
    DeceptusU8 room_count;
 } DeceptusCampaignDef;
 typedef struct DeceptusCampaign
 {
    DeceptusEngine engine;
-   const DeceptusCampaignDef *definition;
+   const DeceptusCampaignDef* definition;
    DeceptusVideoCaps video;
    DeceptusU32 elapsed_ticks;
    DeceptusU16 deaths, restarts, previous_buttons, seconds;
@@ -28,8 +28,8 @@ typedef struct DeceptusCampaign
    DeceptusU8 room_index, mode;
 } DeceptusCampaign;
 
-void deceptusCampaignInit(DeceptusCampaign *campaign, const DeceptusCampaignDef *definition, const DeceptusVideoCaps *video);
+void deceptusCampaignInit(DeceptusCampaign* campaign, const DeceptusCampaignDef* definition, const DeceptusVideoCaps* video);
 /* returns one when platform resources must change to the current room. */
-DeceptusU8 deceptusCampaignTick(DeceptusCampaign *campaign, DeceptusU16 buttons);
-DeceptusU8 deceptusCampaignAtGoal(const DeceptusCampaign *campaign);
+DeceptusU8 deceptusCampaignTick(DeceptusCampaign* campaign, DeceptusU16 buttons);
+DeceptusU8 deceptusCampaignAtGoal(const DeceptusCampaign* campaign);
 #endif

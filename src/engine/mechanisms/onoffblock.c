@@ -1,13 +1,13 @@
 /* original counterpart: src/game/mechanisms/onoffblock.cpp. */
 /* private mechanism implementation; compiled through ../mechanisms.c. */
 
-static void onOffBlockConfigure(const DeceptusMechanismDef *definition, DeceptusMechanismState *state)
+static void onOffBlockConfigure(const DeceptusMechanismDef* definition, DeceptusMechanismState* state)
 {
    state->active = state->enabled ^ ((definition->flags & DECEPTUS_MECH_INVERTED) != 0);
    state->frame = state->active ? 14 : 0;
 }
 
-static DeceptusU8 onOffBlockSolid(const DeceptusMechanismSet *set, DeceptusU16 index, const DeceptusRect *bounds)
+static DeceptusU8 onOffBlockSolid(const DeceptusMechanismSet* set, DeceptusU16 index, const DeceptusRect* bounds)
 {
    DeceptusU8 enabled;
    enabled = set->states[index].enabled;

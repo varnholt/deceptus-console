@@ -1,7 +1,7 @@
 /* original counterpart: src/game/mechanisms/lever.cpp. */
 /* private mechanism implementation; compiled through ../mechanisms.c. */
 
-static void animateLever(DeceptusMechanismState *state)
+static void animateLever(DeceptusMechanismState* state)
 {
    if (state->cooldown)
    {
@@ -29,19 +29,19 @@ static void animateLever(DeceptusMechanismState *state)
    }
 }
 
-static void leverConfigure(DeceptusMechanismState *state)
+static void leverConfigure(DeceptusMechanismState* state)
 {
    state->progress = state->enabled ? 10 : 0;
    state->frame = state->enabled ? 22 : 0;
 }
 
-static DeceptusU8 leverInteract(DeceptusMechanismSet *set, DeceptusU16 index, DeceptusU8 inside, DeceptusU8 interact_pressed)
+static DeceptusU8 leverInteract(DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8 inside, DeceptusU8 interact_pressed)
 {
    DeceptusU16 target;
    DeceptusI16 slot;
    DeceptusU8 target_enabled;
-   DeceptusMechanismState *state;
-   const DeceptusMechanismDef *definition;
+   DeceptusMechanismState* state;
+   const DeceptusMechanismDef* definition;
    state = &set->states[index];
    definition = &set->definitions[index];
    if (inside && interact_pressed && !state->cooldown && state->handle_available)

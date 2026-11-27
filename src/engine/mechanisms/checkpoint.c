@@ -1,7 +1,7 @@
 /* original counterpart: src/game/mechanisms/checkpoint.cpp. */
 /* private mechanism implementation; compiled through ../mechanisms.c. */
 
-static void checkpointContact(DeceptusMechanismSet *set, DeceptusU16 index, DeceptusU8 entering)
+static void checkpointContact(DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8 entering)
 {
    if (entering && !set->states[index].triggered)
    {

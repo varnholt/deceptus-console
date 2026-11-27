@@ -14,10 +14,10 @@ static void menuPrepare(void)
    if (requested && !menu_active)
    {
       REG_DISPLAY = 1 << 6;
-      dmaCopy(gba_menu_texture, (void *)0x06000000, 16384);
-      dmaCopy(gba_menu_map, (void *)0x0600e000, 256);
-      dmaCopy(gba_menu_palette, (void *)0x05000000, 512);
-      dmaCopy(gba_font, (void *)0x0600c000, GBA_FONT_BYTES);
+      dmaCopy(gba_menu_texture, (void*)0x06000000, 16384);
+      dmaCopy(gba_menu_map, (void*)0x0600e000, 256);
+      dmaCopy(gba_menu_palette, (void*)0x05000000, 512);
+      dmaCopy(gba_font, (void*)0x0600c000, GBA_FONT_BYTES);
       REG16(0x050001e2) = 0x7fff;
       REG16(0x04000008) = (3 << 2) | (26 << 8);
       REG16(0x0400000c) = 3 | (28 << 8) | (1 << 13);
@@ -40,8 +40,8 @@ static void menuPrepare(void)
 static void menuCommit(void)
 {
    DeceptusI16 sine, cosine;
-   const DeceptusI16 *table;
-   table = (const DeceptusI16 *)gba_menu_sine;
+   const DeceptusI16* table;
+   table = (const DeceptusI16*)gba_menu_sine;
    sine = table[menu_angle];
    cosine = table[(menu_angle + 1024) & 4095];
    REG16(0x04000020) = cosine;

@@ -1,23 +1,23 @@
-#include "deceptus/logic.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "deceptus/logic.h"
 
 #ifdef DECEPTUS_HAVE_LUA_REFERENCE
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
 extern const DeceptusU16 source_logic_definition_count;
-extern const char *const source_logic_names[];
-extern const char *const source_logic_groups[];
+extern const char* const source_logic_names[];
+extern const char* const source_logic_groups[];
 static DeceptusU8 reference_enabled[DECEPTUS_MECHANISM_CAPACITY];
 static DeceptusU8 reference_seen[DECEPTUS_MECHANISM_CAPACITY];
 static DeceptusU16 reference_writes;
 
-static int referenceSetEnabled(lua_State *state)
+static int referenceSetEnabled(lua_State* state)
 {
-   const char *name;
-   const char *group;
+   const char* name;
+   const char* group;
    DeceptusU16 index;
    name = luaL_checkstring(state, 1);
    group = luaL_checkstring(state, 3);
@@ -40,14 +40,14 @@ extern const DeceptusU16 source_logic_definition_count;
 extern const DeceptusU8 source_logic_program[];
 extern const DeceptusU16 source_logic_program_length;
 
-#define CHECK(condition)                                                                                                                   \
-   do                                                                                                                                      \
-   {                                                                                                                                       \
-      if (!(condition))                                                                                                                    \
-      {                                                                                                                                    \
-         fprintf(stderr, "failure at line %d\n", __LINE__);                                                                                \
-         exit(1);                                                                                                                          \
-      }                                                                                                                                    \
+#define CHECK(condition)                                    \
+   do                                                       \
+   {                                                        \
+      if (!(condition))                                     \
+      {                                                     \
+         fprintf(stderr, "failure at line %d\n", __LINE__); \
+         exit(1);                                           \
+      }                                                     \
    } while (0)
 
 int main(void)
@@ -55,7 +55,7 @@ int main(void)
    DeceptusMechanismSet mechanisms;
    DeceptusU16 index;
 #ifdef DECEPTUS_HAVE_LUA_REFERENCE
-   lua_State *reference;
+   lua_State* reference;
    int released;
    reference = luaL_newstate();
    CHECK(reference != 0);
@@ -95,8 +95,9 @@ int main(void)
          return 1;
       }
       CHECK(reference_writes >= source_logic_definition_count);
-      CHECK(deceptusLogicExecute(&mechanisms, source_logic_program, source_logic_program_length, (DeceptusU8)released) ==
-            DECEPTUS_LOGIC_OK);
+      CHECK(
+         deceptusLogicExecute(&mechanisms, source_logic_program, source_logic_program_length, (DeceptusU8)released) == DECEPTUS_LOGIC_OK
+      );
       for (index = 0; index < mechanisms.count; ++index)
       {
          CHECK(reference_seen[index]);

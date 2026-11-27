@@ -1,8 +1,8 @@
 /* original counterparts: player/playerrope.cpp and player/playerropehold.cpp. */
-#include "deceptus/physics.h"
 #include <string.h>
+#include "deceptus/physics.h"
 
-void deceptusPlayerRopeReset(DeceptusEngine *engine)
+void deceptusPlayerRopeReset(DeceptusEngine* engine)
 {
    memset(&engine->player_rope, 0, sizeof(engine->player_rope));
 }
@@ -20,9 +20,9 @@ static DeceptusFixed playerRopeLimit(DeceptusI32 velocity)
    return (DeceptusFixed)velocity;
 }
 
-static void playerRopeMove(DeceptusEngine *engine)
+static void playerRopeMove(DeceptusEngine* engine)
 {
-   DeceptusEntity *player;
+   DeceptusEntity* player;
    DeceptusU8 grounded;
    player = &engine->entities[0];
    grounded = player->grounded;
@@ -37,7 +37,7 @@ static void playerRopeMove(DeceptusEngine *engine)
    player->frame = player->velocity_y < 0 ? 16 : 17;
 }
 
-static DeceptusU8 playerRopeNear(const DeceptusGrabRope *rope, const DeceptusEntity *player)
+static DeceptusU8 playerRopeNear(const DeceptusGrabRope* rope, const DeceptusEntity* player)
 {
    DeceptusU8 node;
    DeceptusI16 x, y, left, right, top, bottom, first_x, first_y, second_x, second_y;
@@ -61,12 +61,12 @@ static DeceptusU8 playerRopeNear(const DeceptusGrabRope *rope, const DeceptusEnt
    return 0;
 }
 
-static DeceptusU8 playerRopeGrab(DeceptusEngine *engine)
+static DeceptusU8 playerRopeGrab(DeceptusEngine* engine)
 {
-   DeceptusEntity *player;
-   DeceptusPlayerRope *hold;
-   const DeceptusGrabRope *rope;
-   const DeceptusMechanismDef *definition;
+   DeceptusEntity* player;
+   DeceptusPlayerRope* hold;
+   const DeceptusGrabRope* rope;
+   const DeceptusMechanismDef* definition;
    DeceptusU16 best, distance, segment_length;
    DeceptusU8 index, node, closest;
    player = &engine->entities[0];
@@ -87,8 +87,10 @@ static DeceptusU8 playerRopeGrab(DeceptusEngine *engine)
       best = 65535;
       for (node = 0; node < rope->node_count; ++node)
       {
-         distance = deceptusGrabRopeDistance((DeceptusI32)player->x - rope->x[node],
-                                             (DeceptusI32)player->y - DECEPTUS_FIXED(DECEPTUS_PLAYER_ROPE_HAND_OFFSET) - rope->y[node]);
+         distance = deceptusGrabRopeDistance(
+            (DeceptusI32)player->x - rope->x[node],
+            (DeceptusI32)player->y - DECEPTUS_FIXED(DECEPTUS_PLAYER_ROPE_HAND_OFFSET) - rope->y[node]
+         );
          if (distance < best)
          {
             best = distance;
@@ -111,12 +113,12 @@ static DeceptusU8 playerRopeGrab(DeceptusEngine *engine)
    return 0;
 }
 
-DeceptusU8 deceptusPlayerRopeTick(DeceptusEngine *engine, const DeceptusInput *input)
+DeceptusU8 deceptusPlayerRopeTick(DeceptusEngine* engine, const DeceptusInput* input)
 {
-   DeceptusPlayerRope *hold;
-   DeceptusEntity *player;
-   DeceptusGrabRope *rope;
-   const DeceptusMechanismDef *definition;
+   DeceptusPlayerRope* hold;
+   DeceptusEntity* player;
+   DeceptusGrabRope* rope;
+   const DeceptusMechanismDef* definition;
    DeceptusI32 dx, dy, square, acceleration_x, acceleration_y;
    DeceptusFixed previous_x, previous_y, next_x, next_y;
    DeceptusI16 direction, gravity;
