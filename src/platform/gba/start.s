@@ -51,6 +51,50 @@ reset:
     b 3b
 .ltorg
 
+@ the BIOS calls the handler at 0x03007ffc in ARM state, in IRQ mode on the small IRQ stack: this one
+@ acknowledges the interrupts, then runs audioInterrupt on the system stack with interrupts still off.
+.section .text.irq,"ax",%progbits
+.arm
+.balign 4
+.global irqHandler
+irqHandler:
+    mov r0, #0x04000000
+    add r0, r0, #0x200
+    ldrh r1, [r0]
+    ldrh r2, [r0, #2]
+    and r1, r1, r2
+    strh r1, [r0, #2]
+    ldr r2, =0x03007ff8
+    ldrh r3, [r2]
+    orr r3, r3, r1
+    strh r3, [r2]
+    mrs r3, spsr
+    stmfd sp!, {r3, lr}
+    mov r3, #0x9f
+    msr cpsr_c, r3
+    stmfd sp!, {lr}
+    ldr r3, =audioInterrupt
+    mov lr, pc
+    bx r3
+    ldmfd sp!, {lr}
+    mov r3, #0x92
+    msr cpsr_c, r3
+    ldmfd sp!, {r3, lr}
+    msr spsr_cf, r3
+    bx lr
+.ltorg
+
+@ clears the CPSR's IRQ mask, which Thumb code cannot reach.
+.section .text.irqEnable,"ax",%progbits
+.arm
+.balign 4
+.global irqEnable
+irqEnable:
+    mrs r0, cpsr
+    bic r0, r0, #0x80
+    msr cpsr_c, r0
+    bx lr
+
 @ compiler signed division uses the console BIOS integer service.
 .section .text.__aeabi_idiv,"ax",%progbits
 .thumb

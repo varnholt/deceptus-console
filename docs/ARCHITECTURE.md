@@ -271,7 +271,33 @@ flags. They do not preserve every enemy, projectile or arbitrary Lua global.
 Dialogue and menu modes stop the normal adventure simulation. The title's
 background has a separate presentation clock so it can keep rotating.
 
-## Rendering
+## Music
+
+The consoles play tracked modules in place of the original's recorded tracks
+(`assets/music`, public domain or CC0; the README there lists them).
+`tools/music_assets.py` maps each original track to a module and converts it with
+`tools/song_assets.py` into `assets/generated/music/songs.c`: XM patterns keep their
+own cell packing, samples become signed 8-bit with ping-pong loops unrolled, and
+instruments keep their key maps and volume envelopes. Console songs have at most
+four channels, the Amiga's Paula hardware channels.
+
+The shared player (`include/deceptus/song.h`, `src/audio/song.c`) follows
+FastTracker 2's tick rules with linear frequencies and its effect memories, and
+leaves out panning: the consoles play in mono. It only decides what each channel
+plays after a tick (sample, start offset, frequency in 1/256 Hz, volume); a
+platform turns that into sound. `songAdvance` steps the song for one display frame
+at the display's real rate, so a platform calls it from a timer or scanline
+interrupt and the music keeps time however long the game takes for a frame.
+
+The GBA mixes four voices into Direct Sound A at 10,512 Hz, exactly 176 samples
+per 280,896-cycle frame, from a VCOUNT interrupt at line 100, outside the vblank
+the video commit needs. DMA 1 feeds the FIFO from two frame buffers; the inner
+loop (`src/platform/gba/mixer.s`) runs as ARM code from IWRAM and adds 16 samples
+at a time into an IWRAM chunk. It costs about 20 of the frame's 228 scan lines.
+Compared with libopenmpt rendering the same module, the GBA's recorded output
+follows its loudness (correlation 0.98) and has the same dominant pitch in 83% of
+50 ms windows; the rest is the 8-bit, 10.5 kHz output.
+
 
 The engine emits logical frame/draw information. Platform code translates it
 into hardware objects and palette/tile references. Source sprite sizes remain
