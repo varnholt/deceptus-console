@@ -50,7 +50,7 @@ if not exist "%KICKSTART%" (
   echo gfx_height_windowed=574
   echo gfx_resolution=hires
   echo gfx_linemode=double
-  echo sound_output=interrupts
+  echo sound_output=exact
   echo joyport0=mouse
   echo joyport1=kbd2
   echo hardfile2=rw,DH0:%HERE%Deceptus-Amiga.hdf,__SECTORS__,__HEADS__,2,512,0,,uae0
