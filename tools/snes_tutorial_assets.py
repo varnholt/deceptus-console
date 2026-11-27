@@ -314,16 +314,9 @@ def compile_sprites(data,output,writer):
     from spike_ball_assets import compile_spike_ball
     compile_headtorch(data,output);compile_rope(data,output);compile_spike_ball(data,output)
     records=json.loads((ROOT/'assets/generated/gba/area0/mechanisms-frames.json').read_text())
-    cache={};images=[]
-    for record in records:
-        path=(output if record.get('source_generated') else data/'sprites')/record['source']
-        if str(path) not in cache:
-            cache[str(path)]=Image.open(path).convert('RGBA')
-        x,y,width,height=record['source_rect']
-        image=cache[str(path)].crop((x,y,x+width,y+height))
-        if record.get('rotation'):
-            image=image.transpose({90:Image.Transpose.ROTATE_90,180:Image.Transpose.ROTATE_180,270:Image.Transpose.ROTATE_270}[record['rotation']])
-        images.append(image)
+    from source_sprites import record_image
+    cache={}
+    images=[record_image(record,data,output,cache) for record in records]
     groups={}
     for index,image in enumerate(images):
         groups.setdefault(resource_family(index),[]).append(image)

@@ -81,8 +81,11 @@ durations are compiled into bounded playback tables. Flags select patches;
 picking up an item does not require maintaining a second hand-edited image.
 
 Basic swimming now uses the original atmosphere tiles and full source player
-frames. Falling water entry triggers the original splash once. Underwater tint
-is a backend palette adjustment; it does not modify source art. Bubbles, complete
+frames. Falling water entry triggers the original splash once. The swimming
+frames carry the underwater tint on every target: the converter moves their
+colours a quarter of the way to the water colour (`tools/water_tint.py`) in
+place of the source's semi-transparent water layers, which the consoles cannot
+blend. The source art itself is not modified. Bubbles, complete
 water effects and original cutscene actor choreography remain unfinished.
 
 ## Reports and limits

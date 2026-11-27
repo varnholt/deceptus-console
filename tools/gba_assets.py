@@ -13,6 +13,7 @@ from assets import ROOT, SOURCE, import_deceptus, ACTOR_FRAME_COUNT
 from palettes import banked_background, palette_rgb555
 from world_export import export_world
 import spike_ball_assets
+import water_tint
 import rope_assets
 
 OUTPUT = ROOT / "assets/generated/gba"
@@ -371,11 +372,14 @@ def compile_mechanisms(data, output):
             rects.append(rect)
             rotations.append(rotation)
         images = []
+        tinted = filename == 'player-swim'
         for rect, rotation in zip(rects, rotations):
             x, y, w, h = rect
             image = atlas.crop((x, y, x + w, y + h))
             if rotation:
                 image = image.transpose({90: Image.Transpose.ROTATE_90, 180: Image.Transpose.ROTATE_180, 270: Image.Transpose.ROTATE_270}[rotation])
+            if tinted:
+                image = water_tint.tint(image)
             images.append(image)
         common = set()
         if shared:
@@ -446,6 +450,8 @@ def compile_mechanisms(data, output):
                                     resampling=False, dithering=False, object_count=(padded.width // 16) * (padded.height // 16))
             if generated:
                 manifest[-1]['source_generated'] = True
+            if tinted:
+                manifest[-1]['tint'] = water_tint.NAME
             if filename == 'player-sword':
                 manifest[-1].update(animation=sword[index]['animation'], duration_ticks=sword[index]['duration'])
             if reduced:

@@ -22,6 +22,27 @@ def sprite_resource_count():
     return ACTOR_FRAMES + shared_sprite_count()
 
 
+ROTATIONS = {90: Image.Transpose.ROTATE_90,
+             180: Image.Transpose.ROTATE_180,
+             270: Image.Transpose.ROTATE_270}
+
+
+def record_image(record, data, output, cache):
+    """The source pixels of one converted frame: its rectangle, rotation and tint."""
+    import water_tint
+    folder = Path(output) if record.get('source_generated') else Path(data) / 'sprites'
+    path = folder / record['source']
+    if path not in cache:
+        cache[path] = Image.open(path).convert('RGBA')
+    x, y, width, height = record['source_rect']
+    image = cache[path].crop((x, y, x + width, y + height))
+    if record.get('rotation'):
+        image = image.transpose(ROTATIONS[record['rotation']])
+    if record.get('tint') == water_tint.NAME:
+        image = water_tint.tint(image)
+    return image
+
+
 def source_sprites(data, output):
     from headtorch_assets import compile_headtorch
     from rope_assets import compile_rope
@@ -32,20 +53,8 @@ def source_sprites(data, output):
     compile_rope(data, output)
     compile_spike_ball(data, output)
     records = json.loads(FRAMES.read_text())
-    images, cache = [], {}
-    rotations = {90: Image.Transpose.ROTATE_90,
-                 180: Image.Transpose.ROTATE_180,
-                 270: Image.Transpose.ROTATE_270}
-    for record in records:
-        folder = output if record.get('source_generated') else data / 'sprites'
-        path = folder / record['source']
-        if path not in cache:
-            cache[path] = Image.open(path).convert('RGBA')
-        x, y, width, height = record['source_rect']
-        image = cache[path].crop((x, y, x + width, y + height))
-        if record.get('rotation'):
-            image = image.transpose(rotations[record['rotation']])
-        images.append(image)
+    cache = {}
+    images = [record_image(record, data, output, cache) for record in records]
     animations = json.loads((data / 'sprites/animations.json').read_text())
     player = Image.open(data / 'sprites/player.png').convert('RGBA')
     selection = ([('player_idle_r', index) for index in range(8)]
