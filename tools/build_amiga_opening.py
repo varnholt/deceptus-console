@@ -141,6 +141,26 @@ def check_native_budget(generated, report, box_bytes=None):
     return dict(minimum_chip_scratch=minimum, rooms=budget)
 
 
+# the largest Chip and other blocks free on a stock A500 (512 KiB Chip, 512 KiB slow RAM, Kickstart
+# 1.3) when the program allocates its room banks, plus the program's own static sections: measured
+# in WinUAE on 2026-11-27, where a build with 48,732 bytes of Chip and 219,628 bytes of other static
+# sections had 301,024 bytes of Chip and 242,392 bytes of other memory free at that point.
+STARTUP_CHIP_FREE = 349756
+STARTUP_OTHER_FREE = 462020
+# what the room banks must leave of either, for the program's later allocations and growth.
+STARTUP_MARGIN = 4096
+
+
+def check_startup_memory(program):
+    """Fail the build when the room banks would not fit next to the program on a stock A500."""
+    chip = STARTUP_CHIP_FREE - program['chip_bytes'] - RESOURCE_CHIP_BYTES
+    other = STARTUP_OTHER_FREE - (program['static_bytes'] - program['chip_bytes']) - RESOURCE_NORMAL_BYTES
+    if chip < STARTUP_MARGIN or other < STARTUP_MARGIN:
+        raise ValueError(f'the A500 cannot start the program: {chip} bytes of Chip and {other} bytes of other '
+                         f'memory would remain after the room banks, {STARTUP_MARGIN} needed')
+    print(f'A500 startup memory left after the room banks: Chip {chip}, other {other}')
+
+
 def build_opening(sdk, data, output, reuse_assets=False, renderer='legacy'):
     data, output = Path(data).resolve(), Path(output).resolve()
     generated = output / 'assets'
@@ -181,3 +201,4 @@ def build_opening(sdk, data, output, reuse_assets=False, renderer='legacy'):
                         resource_normal_bytes=RESOURCE_NORMAL_BYTES, resource_chip_bytes=RESOURCE_CHIP_BYTES,
                         graphics=report, native_budget=budget, message_boxes=message_boxes)
     build_program(sdk, output, sources, build_report, generated)
+    check_startup_memory(json.loads((output / 'build.json').read_text()))

@@ -66,6 +66,9 @@ variants are prepared offline; only the currently used variant is resident.
 Fixed buffers divide resources between CPU-accessible and Chip RAM, alongside
 two scrolling display buffers. `build/amiga-opening/build.json` records exact
 static sizes; the OS, loader and largest free block in each bank must also fit.
+`tools/build_amiga_opening.py` checks the tutorial's room banks (288 KiB Chip, 228 KiB other)
+against the memory a stock Kickstart 1.3 A500 leaves next to the program's static sections
+(measured in WinUAE) and fails the build when either would leave less than 4 KiB.
 The prototype's measured frame rate below does not establish opening performance.
 The opening title has now been
 verified under cycle-exact WinUAE with the same 512 KiB Chip + 512 KiB slow RAM
