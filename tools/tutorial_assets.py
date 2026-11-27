@@ -13,6 +13,14 @@ from menu_assets import compile_menu
 from tutorial_progression import extend_rooms, extend_actions, extra_portals, room_bindings, validate_source
 
 
+def room_has_thunderstorm(objects, crop):
+    """whether the source weather object 'thunderstorm' (thunderstormoverlay.cpp) covers part of the room."""
+    left, top, width, height = crop
+    return any(item['group'] == 'weather' and item['name'] == 'thunderstorm' and
+               item['x'] < left + width and item['x'] + item['width'] > left and
+               item['y'] < top + height and item['y'] + item['height'] > top for item in objects)
+
+
 def compile_tutorial(data, reuse_assets=False):
     validate_source(data)
     _, objects = map_objects(data / 'level-catacombs/catacombs.tmx')
@@ -178,9 +186,11 @@ def compile_tutorial(data, reuse_assets=False):
     for room_index, values in bindings.items():
         lines += [f'static const DeceptusAdventureBinding tutorial_bindings_{room_index}[] = {{',
                   *['    {'+','.join(map(str,value))+'},' for value in values], '};']
+    from tutorial_progression import STORM_FLAGS
     lines += ['static const DeceptusAdventureRoom tutorial_rooms[] = {']
     for index,actions in enumerate(interactions):
-        lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}, '+(f'tutorial_bindings_{index}' if index in bindings else '0')+f', {len(bindings.get(index, []))}'+'},')
+        storm = STORM_FLAGS if room_has_thunderstorm(object_sets[room_maps[index]], stages[index]['room_recipe']['crop_pixels']) else 0
+        lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}, '+(f'tutorial_bindings_{index}' if index in bindings else '0')+f', {len(bindings.get(index, []))}, {storm}'+'},')
     source_items=json.loads((data/'sprites/inventory_items.json').read_text())
     item_names=['']+[source_items[key]['title'] for key in ('locker_key','handle','gems','solar_seal','headtorch','sword')]+['Red Key']
     lines += ['};','static const char *const tutorial_items[] = {'+','.join(json.dumps(name) for name in item_names)+'};',

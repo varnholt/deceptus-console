@@ -827,11 +827,19 @@ static void __attribute__((section(".romtext"), noinline)) videoCommit(void)
    REG16(0x04000014) = frame.camera_x & 511;
    REG16(0x04000016) = frame.camera_y;
 #if GBA_CAMPAIGN
-   REG16(0x04000050) = (engine.paused || (campaign.mode != DECEPTUS_CAMPAIGN_PLAYING && campaign.mode != DECEPTUS_NOTIFICATION))
-                          ? (3 << 6) | 0x13
-                          : (1 << 8) | (1 << 9);
+   if (engine.paused || (campaign.mode != DECEPTUS_CAMPAIGN_PLAYING && campaign.mode != DECEPTUS_NOTIFICATION))
+   {
+      REG16(0x04000050) = (3 << 6) | 0x13;
+      REG16(0x04000054) = 8;
+   }
+   else
+   {
+      /* the thunderstorm lights the room's background and backdrop, not the foreground or sprites:
+         brightness increase on BG0 and the backdrop, BG0 and BG1 kept as the second blend target. */
+      REG16(0x04000050) = (thunderstormLevel(&adventure.thunderstorm) ? (2 << 6) | 0x01 | 0x20 : 0) | (1 << 8) | (1 << 9);
+      REG16(0x04000054) = thunderstormLevel(&adventure.thunderstorm);
+   }
    REG16(0x04000052) = 8 | (16 << 8);
-   REG16(0x04000054) = (engine.paused || (campaign.mode != DECEPTUS_CAMPAIGN_PLAYING && campaign.mode != DECEPTUS_NOTIFICATION)) ? 8 : 0;
 #else
    REG16(0x04000050) = engine.paused ? (3 << 6) | 0x13 : 0;
    REG16(0x04000054) = engine.paused ? 8 : 0;

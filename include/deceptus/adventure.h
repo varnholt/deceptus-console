@@ -1,5 +1,6 @@
 #ifndef DECEPTUS_ADVENTURE_H
 #define DECEPTUS_ADVENTURE_H
+#include "deceptus/thunderstorm.h"
 #include "deceptus/campaign.h"
 #include "deceptus/playersword.h"
 
@@ -59,6 +60,8 @@ typedef struct DeceptusAdventureRoom
    DeceptusU8 portal_count, interaction_count;
    const struct DeceptusAdventureBinding *bindings;
    DeceptusU8 binding_count;
+   /* the flags that turn the room's thunderstorm on; 0 for a room without one. */
+   DeceptusU16 storm_flags;
 } DeceptusAdventureRoom;
 
 /* source level callbacks derived from persistent inventory/treasure flags. */
@@ -93,6 +96,7 @@ typedef struct DeceptusAdventure
    DeceptusMechanismState saved[DECEPTUS_ADVENTURE_ROOMS][DECEPTUS_MECHANISM_CAPACITY];
    DeceptusU8 visited[DECEPTUS_ADVENTURE_ROOMS];
    DeceptusU16 flags;
+   Thunderstorm thunderstorm;
    const DeceptusInteraction *dialogue;
    const DeceptusInteraction *automatic_action;
    DeceptusU8 automatic_ticks;

@@ -13,6 +13,8 @@ DIAMOND_CHEST_OPENED = 16384
 DIAMOND_TAKEN = 32768
 DIAMOND_CHEST = 18255
 DIAMOND = 18254
+# level.lua initShrine: the graveyard's storm is on once the owl's eyes are taken.
+STORM_FLAGS = GEMS_TAKEN
 CATACOMBS = 'level-catacombs/catacombs.tmx'
 GRAVEYARD = 'level-graveyard/graveyard.tmx'
 
