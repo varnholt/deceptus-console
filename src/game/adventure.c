@@ -234,6 +234,7 @@ static DeceptusU8 loadRoom(DeceptusAdventure *game, DeceptusU8 room, DeceptusU16
 static DeceptusU8 interact(DeceptusAdventure *game, const DeceptusInteraction *action)
 {
    DeceptusI16 slot;
+   DeceptusU8 event;
    slot = -1;
    if (action->effect == DECEPTUS_ACTION_HANDLE)
    {
@@ -295,12 +296,15 @@ static DeceptusU8 interact(DeceptusAdventure *game, const DeceptusInteraction *a
                               !game->campaign.engine.mechanisms.states[slot].enabled);
    }
    applyBindings(game);
-   deceptusEventPush(&game->campaign.engine, action->effect == DECEPTUS_ACTION_DOOR              ? DECEPTUS_EVENT_DOOR
-                                             : action->effect == DECEPTUS_ACTION_EXAMINE_BLOCKER ? DECEPTUS_EVENT_DIALOGUE
-                                             : action->grant_item                                ? DECEPTUS_EVENT_ITEM
-                                             : action->effect                                    ? DECEPTUS_EVENT_LEVER_INSERT
-                                             : action->cost_item                                 ? DECEPTUS_EVENT_DOOR
-                                                                                                 : DECEPTUS_EVENT_DIALOGUE);
+   event = action->effect == DECEPTUS_ACTION_DOOR              ? DECEPTUS_EVENT_DOOR
+           : action->effect == DECEPTUS_ACTION_EXAMINE_BLOCKER ? DECEPTUS_EVENT_DIALOGUE
+           : action->grant_item                                ? DECEPTUS_EVENT_ITEM
+           : action->effect                                    ? DECEPTUS_EVENT_LEVER_INSERT
+           : action->cost_item                                 ? DECEPTUS_EVENT_DOOR
+                                                               : DECEPTUS_EVENT_DIALOGUE;
+   deceptusEventPush(&game->campaign.engine, event);
+   /* the engine clears its events when its next tick starts, before the queue would read this one. */
+   soundQueueEvent(&game->sounds, event, game->definition->rooms[game->campaign.room_index].footsteps);
    if (action->page_count)
    {
       game->dialogue = action;
@@ -590,6 +594,7 @@ DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons)
    }
    deceptusTick(engine, buttons & ~(DECEPTUS_PAUSE | DECEPTUS_RESTART));
    stormTick(game, room);
+   soundQueueEngineEvents(&game->sounds, engine, room->footsteps);
    if (game->has_sword)
    {
       deceptusPlayerSwordTick(&game->sword, engine, pressed);

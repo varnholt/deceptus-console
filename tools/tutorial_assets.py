@@ -21,6 +21,18 @@ def room_has_thunderstorm(objects, crop):
                item['y'] < top + height and item['y'] + item['height'] > top for item in objects)
 
 
+# the original's footstep surfaces (data/config/footsteps.json), as soundcue.h numbers them.
+FOOTSTEP_SURFACES = {'stone': 0, 'grass': 1}
+
+
+def footstep_surface(data, map_path):
+    """The surface a level's footsteps sound on: its level.json's, else the configured default."""
+    level = Path(data) / Path(map_path).parent / 'level.json'
+    surface = json.loads(level.read_text()).get('footstep_surface') if level.exists() else None
+    surface = surface or json.loads((Path(data) / 'config/footsteps.json').read_text())['default_surface']
+    return FOOTSTEP_SURFACES[surface]
+
+
 def compile_tutorial(data, reuse_assets=False):
     validate_source(data)
     _, objects = map_objects(data / 'level-catacombs/catacombs.tmx')
@@ -190,7 +202,8 @@ def compile_tutorial(data, reuse_assets=False):
     lines += ['static const DeceptusAdventureRoom tutorial_rooms[] = {']
     for index,actions in enumerate(interactions):
         storm = STORM_FLAGS if room_has_thunderstorm(object_sets[room_maps[index]], stages[index]['room_recipe']['crop_pixels']) else 0
-        lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}, '+(f'tutorial_bindings_{index}' if index in bindings else '0')+f', {len(bindings.get(index, []))}, {storm}'+'},')
+        footsteps = footstep_surface(data, room_maps[index])
+        lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}, '+(f'tutorial_bindings_{index}' if index in bindings else '0')+f', {len(bindings.get(index, []))}, {storm}, {footsteps}'+'},')
     source_items=json.loads((data/'sprites/inventory_items.json').read_text())
     item_names=['']+[source_items[key]['title'] for key in ('locker_key','handle','gems','solar_seal','headtorch','sword')]+['Red Key']
     lines += ['};','static const char *const tutorial_items[] = {'+','.join(json.dumps(name) for name in item_names)+'};',
