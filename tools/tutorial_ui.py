@@ -130,11 +130,9 @@ class TutorialUI:
             if not selection:
                 self.text(image,(100,78),'Empty',self.font,'white')
             else:
-                keys = ['locker_key','handle','gems','solar_seal','headtorch','sword','key']
-                descriptions=json.loads((self.data/'sprites/inventory_items.json').read_text())
-                spec=descriptions[keys[selection-1]]
-                x,y,w,h=(spec[field] for field in ('x_px','y_px','width_px','height_px'))
-                icon=Image.open(self.data/'sprites/inventory_items.png').convert('RGBA').crop((x,y,x+w,y+h))
+                from item_icon_assets import ITEM_KEYS, item_icon, item_spec
+                spec=item_spec(self.data,ITEM_KEYS[selection-1])
+                icon=item_icon(self.data,ITEM_KEYS[selection-1])
                 name='Red Key' if selection==7 else spec['title']
                 image.alpha_composite(icon,((240-icon.width)//2,48))
                 self.text(image,((240-self.text_width(name,self.font))//2,104),name,self.font,'white')

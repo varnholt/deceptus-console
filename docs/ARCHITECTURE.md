@@ -117,6 +117,11 @@ under the static foreground tile masks and under the masks of the bobs emitted
 before her. Grab ropes are emitted as pieces between points along the rope, the
 knot piece from the anchor and then 8px links, each picked from 17 pre-turned
 images by its direction (`src/game/ropelink.c`, no trigonometry).
+While the inventory is open the visitor emits only the selected item's picture
+(`itemicon.h`, from the source `inventory_items.png`). The Mega Drive gives it the
+sprite priority bit, the SNES clears its menu layer's priority under it and turns
+the room's layers off while the menu is open, and the Amiga draws it after the
+menu. The GBA keeps its pre-rendered inventory screens.
 SNES and Mega Drive consume this path; it is also available to the Amiga opening.
 GBA still has its existing renderer, with shared sword pose and equipment rules.
 

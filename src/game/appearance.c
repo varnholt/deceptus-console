@@ -1,5 +1,6 @@
 #include "deceptus/appearance.h"
 #include "deceptus/ropelink.h"
+#include "deceptus/itemicon.h"
 #include "deceptus/enemies.h"
 #include "deceptus/mechanismparts.h"
 
@@ -187,6 +188,18 @@ static DeceptusU8 ropeSprites(const DeceptusEngine *engine, DeceptusAppearanceOu
    return 1;
 }
 
+/* the open inventory shows only the selected item's picture; the menu covers the room. */
+static DeceptusU8 inventorySprites(const DeceptusAdventure *game, DeceptusAppearanceOutput *output)
+{
+   DeceptusI16 x;
+   if ((game->selection == 0) || (game->selection > ITEM_ICON_COUNT))
+   {
+      return 1;
+   }
+   x = (DeceptusI16)(((game->campaign.engine.video.width - ITEM_ICON_CELL) / 2) & ~7);
+   return addSprite(output, SPRITE_ITEM_ICON, (DeceptusU16)(game->selection - 1), x, ITEM_ICON_TOP, 0);
+}
+
 DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const DeceptusFrame *frame, const DeceptusAppearanceDef *definition,
                                    DeceptusPlayerAnimation *animation, DeceptusSpriteEmitter emit, void *context)
 {
@@ -204,6 +217,10 @@ DeceptusU8 deceptusAppearanceVisit(const DeceptusAdventure *game, const Deceptus
    if (game->campaign.mode == DECEPTUS_CAMPAIGN_TITLE)
    {
       return 1;
+   }
+   if (game->campaign.mode == DECEPTUS_MENU_INVENTORY)
+   {
+      return inventorySprites(game, output);
    }
    if (!frontMechanismSprites(&game->campaign.engine, output))
    {

@@ -55,6 +55,10 @@ static DeceptusU8 smd_sprite_initialized;
 static DeceptusU16 smd_sprite_upload_bytes;
 static DeceptusU32 smd_sprite_buffer[32];
 
+/* the inventory's item picture is drawn above the menu's high-priority tiles; the other sprites
+ * stay below high-priority tiles. */
+#define SMD_PRIORITY_ABOVE_PLANES 3
+
 static void smdObjAdd(DeceptusU16 resource, DeceptusI16 x, DeceptusI16 y, DeceptusU8 flip, DeceptusU8 priority)
 {
    const SmdSpriteResource *entry;
@@ -349,14 +353,14 @@ static DeceptusU8 smdObjAppearance(void *context, const DeceptusSpriteAppearance
       SMD_BLOB_FIRST,      SMD_SPLASH_FIRST,        SMD_SWORD_FIRST,     SMD_CANNON_FIRST,         SMD_CANNONBALL_FIRST,
       SMD_IRON_DOOR_FIRST, SMD_WOODEN_PLANKS_FIRST, SMD_HEADTORCH_FIRST, SMD_HEADTORCH_BEAM_FIRST, SMD_ORB_FIRST,
       SMD_FROG_BLUE_FIRST, SMD_BLUE_FIREBALL_FIRST, SMD_GRAB_ROPE_FIRST, SMD_PLAYER_ROPE_FIRST, SMD_MOVEABLE_BOX_FIRST,
-      SMD_CRUSHER_FIRST, SMD_FLOOR_SPIKES_FIRST, SMD_SPIKE_BALL_FIRST, SMD_CHECKPOINT_CLOCK_FIRST, SMD_ROPE_LINK_FIRST};
+      SMD_CRUSHER_FIRST, SMD_FLOOR_SPIKES_FIRST, SMD_SPIKE_BALL_FIRST, SMD_CHECKPOINT_CLOCK_FIRST, SMD_ROPE_LINK_FIRST, SMD_ITEM_ICON_FIRST};
    (void)context;
    if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
    {
       return 0;
    }
    smdObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x,
-             sprite->family == DECEPTUS_SPRITE_GRAB_ROPE ? 3 : 2);
+             sprite->family == SPRITE_ITEM_ICON ? SMD_PRIORITY_ABOVE_PLANES : 2);
    return 1;
 }
 
@@ -403,7 +407,8 @@ static void __attribute__((noinline)) smdObjEmitRequest(const SmdObjRequest *req
    columns = smd_sprite_resources[resource].columns;
    quad_row = smd_sprite_quads + smd_sprite_quad_offsets[resource];
    count = smd_obj_count;
-   attributes = TILE_ATTR_FULL(smd_sprite_resources[resource].palette_bank, 0, 0, request->flip, 0);
+   attributes = TILE_ATTR_FULL(smd_sprite_resources[resource].palette_bank, request->priority == SMD_PRIORITY_ABOVE_PLANES, 0,
+                                request->flip, 0);
    smdObjLinkPieces(resource, 1);
    step = request->flip ? -16 : 16;
    first_x = request->flip ? request->x + (columns - 1) * 16 : request->x;

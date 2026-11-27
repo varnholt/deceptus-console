@@ -15,6 +15,7 @@ from world_export import export_world
 import spike_ball_assets
 import water_tint
 import rope_assets
+import item_icon_assets
 
 OUTPUT = ROOT / "assets/generated/gba"
 
@@ -34,7 +35,7 @@ CHECKPOINT_CLOCK_ACTIVE_FRAMES = header_define('checkpointclock.h', 'CHECKPOINT_
 CHECKPOINT_CLOCK_WIDTH = header_define('checkpointclock.h', 'CHECKPOINT_CLOCK_WIDTH')
 CHECKPOINT_CLOCK_HEIGHT = header_define('checkpointclock.h', 'CHECKPOINT_CLOCK_HEIGHT')
 # frames whose source colours exceed their OBJ range: the sword trails and the clock's activation glow.
-PALETTE_REDUCED = ('player-sword', 'checkpoint.png')
+PALETTE_REDUCED = ('player-sword', 'checkpoint.png', item_icon_assets.SHEET)
 FLOOR_SPIKES_ROWS = header_define('floorspikes.h', 'FLOOR_SPIKES_ROWS')
 # the chain link variants follow the engine's crusher image layout.
 CRUSHER_LINK_HEIGHT = header_define('crusher.h', 'CRUSHER_LINK_HEIGHT')
@@ -258,6 +259,7 @@ def compile_mechanisms(data, output):
     from rope_assets import compile_rope
     rope = compile_rope(data, output)
     spike_ball_assets.compile_spike_ball(data, output)
+    item_icon_assets.compile_item_icons(data, output)
     doors = json.loads((data / 'sprites/door_animations.json').read_text())
     for name, offset in [('iron_door_open', [0, 0]), ('iron_door_close', [0, 144])]:
         animation = doors[name]
@@ -301,14 +303,16 @@ def compile_mechanisms(data, output):
                       ('checkpoint.png',CHECKPOINT_CLOCK_WIDTH,CHECKPOINT_CLOCK_HEIGHT,CHECKPOINT_CLOCK_ACTIVATION_FRAMES,
                        CHECKPOINT_CLOCK_ACTIVATION_FRAMES+CHECKPOINT_CLOCK_ACTIVE_FRAMES,52,40,True),
                       # the turned rope links and knot pieces (ropelink.h).
-                      (rope_assets.LINKS_SHEET,rope_assets.LINK_CELL,rope_assets.LINK_CELL,rope_assets.LINK_IMAGES,rope_assets.LINK_IMAGES,52,4,True)]
+                      (rope_assets.LINKS_SHEET,rope_assets.LINK_CELL,rope_assets.LINK_CELL,rope_assets.LINK_IMAGES,rope_assets.LINK_IMAGES,52,4,True),
+                      # the inventory item pictures (itemicon.h); the GBA menus draw their own.
+                      (item_icon_assets.SHEET,item_icon_assets.ICON_CELL,item_icon_assets.ICON_CELL,item_icon_assets.ICON_COUNT,item_icon_assets.ICON_COUNT,52,40,True)]
     for filename, width, height, columns, count, palette_first, palette_count, shared in specifications:
         actual_filename = ('player.png' if filename in ('player-swim','player-splash','player-sword','player-helmet','player-rope') else
                            'enemy_arrowtrap_2.png' if filename.startswith('trap-') else
                            'enemy_pirate_cannon.png' if filename == 'cannon-body' else
                            'enemy_frog.png' if filename in ('frog-blue', 'frog-blue-orb') else
                            'enemy_pirate_cannon_cannonball.png' if filename == 'cannonball' else filename)
-        generated = filename in ('headtorch-beam.png', 'rope-segments.png', spike_ball_assets.SHEET, rope_assets.LINKS_SHEET)
+        generated = filename in ('headtorch-beam.png', 'rope-segments.png', spike_ball_assets.SHEET, rope_assets.LINKS_SHEET, item_icon_assets.SHEET)
         atlas = Image.open((output if generated else data / 'sprites') / actual_filename).convert('RGBA')
         if filename == 'wooden_planks.png' and atlas.size != (7500, 326):
             raise ValueError('wooden plank atlas differs from its authored 50-frame directional layout')
@@ -539,7 +543,7 @@ def compile_assets(data, scene="lever", recipe_path=None):
                '#define GBA_HEADTORCH_FIRST 942', '#define GBA_HEADTORCH_BEAM_FIRST 944',
                '#define GBA_ORB_FIRST 945', '#define GBA_FROG_BLUE_FIRST 953', '#define GBA_BLUE_FIREBALL_FIRST 1016',
                '#define GBA_GRAB_ROPE_FIRST 1024', '#define GBA_PLAYER_ROPE_FIRST 1033', '#define GBA_MOVEABLE_BOX_FIRST 1039',
-               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066', '#define GBA_SPIKE_BALL_FIRST 1126', '#define GBA_CHECKPOINT_CLOCK_FIRST 1145', '#define GBA_ROPE_LINK_FIRST 1179',
+               '#define GBA_CRUSHER_FIRST 1040', '#define GBA_FLOOR_SPIKES_FIRST 1066', '#define GBA_SPIKE_BALL_FIRST 1126', '#define GBA_CHECKPOINT_CLOCK_FIRST 1145', '#define GBA_ROPE_LINK_FIRST 1179', '#define GBA_ITEM_ICON_FIRST 1213',
                f'#define GBA_MECHANISM_FRAME_COUNT {mechanism_frames}',
                '#define GBA_ACTOR_FRAME_BYTES 1536', f'#define GBA_ACTOR_FRAME_COUNT {ACTOR_FRAME_COUNT}', '#endif', '']
     (OUTPUT / 'data.s').write_text('\n'.join(assembly) + '\n')

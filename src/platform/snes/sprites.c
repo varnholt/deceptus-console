@@ -529,6 +529,17 @@ static DeceptusU8 snesRopeSprites(const DeceptusEngine *engine, DeceptusSpriteEm
    return 1;
 }
 
+/* the rope and the inventory's item picture sit above every background; the item picture shows
+ * through a gap in the menu layer (ui.h). */
+static DeceptusU8 snesObjPriority(DeceptusU8 family)
+{
+   if ((family == SPRITE_ROPE_LINK) || (family == SPRITE_ITEM_ICON))
+   {
+      return 3;
+   }
+   return 2;
+}
+
 static DeceptusU8 snesObjAppearance(void *context, const DeceptusSpriteAppearance *sprite)
 {
    static const DeceptusU16 first[DECEPTUS_SPRITE_FAMILY_COUNT] = {
@@ -537,14 +548,14 @@ static DeceptusU8 snesObjAppearance(void *context, const DeceptusSpriteAppearanc
       SNES_BLOB_FIRST,      SNES_SPLASH_FIRST,        SNES_SWORD_FIRST,     SNES_CANNON_FIRST,         SNES_CANNONBALL_FIRST,
       SNES_IRON_DOOR_FIRST, SNES_WOODEN_PLANKS_FIRST, SNES_HEADTORCH_FIRST, SNES_HEADTORCH_BEAM_FIRST, SNES_ORB_FIRST,
       SNES_FROG_BLUE_FIRST, SNES_BLUE_FIREBALL_FIRST, SNES_GRAB_ROPE_FIRST, SNES_PLAYER_ROPE_FIRST, SNES_MOVEABLE_BOX_FIRST,
-      SNES_CRUSHER_FIRST, SNES_FLOOR_SPIKES_FIRST, SNES_SPIKE_BALL_FIRST, SNES_CHECKPOINT_CLOCK_FIRST, SNES_ROPE_LINK_FIRST};
+      SNES_CRUSHER_FIRST, SNES_FLOOR_SPIKES_FIRST, SNES_SPIKE_BALL_FIRST, SNES_CHECKPOINT_CLOCK_FIRST, SNES_ROPE_LINK_FIRST, SNES_ITEM_ICON_FIRST};
    (void)context;
    if (sprite->family >= DECEPTUS_SPRITE_FAMILY_COUNT)
    {
       return 0;
    }
    snesObjAdd(first[sprite->family] + sprite->frame, sprite->x, sprite->y, sprite->flip_x,
-              sprite->family == SPRITE_ROPE_LINK ? 3 : 2);
+              snesObjPriority(sprite->family));
    return 1;
 }
 
