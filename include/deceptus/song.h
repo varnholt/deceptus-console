@@ -96,7 +96,7 @@ typedef struct SongPlayer
    DeceptusU8 order, tick, speed, bpm, global_volume, pattern_delay, jump_order, break_row, jump;
 } SongPlayer;
 
-/* starts the song from its first order. */
+/* starts the song from its first order; a null song silences the player, which then plays nothing. */
 void songStart(SongPlayer* player, const Song* song);
 /* display rates in 1/SONG_FRAME_RATE_SCALE Hz: the GBA's 59.73 Hz is 5973. */
 #define SONG_FRAME_RATE_SCALE 100

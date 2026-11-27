@@ -374,7 +374,7 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     (folder / "hdr.asm").write_text(header)
     objects_audio = compile_soundbank(folder, data, sdk, assembler) if opening else []
     objects = []
-    sources = [ROOT / "src/engine/player/playerwater.c", ROOT / "src/engine/player/playerrope.c", ROOT / "src/engine/mechanisms/grabrope.c", ROOT / "src/engine/mechanisms/moveablebox.c", ROOT / "src/engine/mechanisms/crusher.c", ROOT / "src/engine/mechanisms/floorspikes.c", ROOT / "src/engine/mechanisms/spikeball.c", ROOT / "src/engine/mechanisms/checkpointclock.c", ROOT / "src/game/adventure.c", ROOT / "src/game/thunderstorm.c", ROOT / "src/game/soundcue.c", ROOT / "src/game/mechanismparts.c", ROOT / "src/game/weapons/playersword.c", ROOT / "src/game/player/playeranimation.c", ROOT / "src/game/items/itemheadtorch.c", ROOT / "src/game/appearance.c", ROOT / "src/game/ropelink.c", ROOT / "src/engine/animation.c", ROOT / "src/engine/world.c", ROOT / "src/engine/entities.c", ROOT / "src/engine/events.c", ROOT / "src/engine/mechanisms.c",
+    sources = [ROOT / "src/engine/player/playerwater.c", ROOT / "src/engine/player/playerrope.c", ROOT / "src/engine/mechanisms/grabrope.c", ROOT / "src/engine/mechanisms/moveablebox.c", ROOT / "src/engine/mechanisms/crusher.c", ROOT / "src/engine/mechanisms/floorspikes.c", ROOT / "src/engine/mechanisms/spikeball.c", ROOT / "src/engine/mechanisms/checkpointclock.c", ROOT / "src/game/adventure.c", ROOT / "src/game/thunderstorm.c", ROOT / "src/game/soundcue.c", ROOT / "src/game/music.c", ROOT / "src/game/mechanismparts.c", ROOT / "src/game/weapons/playersword.c", ROOT / "src/game/player/playeranimation.c", ROOT / "src/game/items/itemheadtorch.c", ROOT / "src/game/appearance.c", ROOT / "src/game/ropelink.c", ROOT / "src/engine/animation.c", ROOT / "src/engine/world.c", ROOT / "src/engine/entities.c", ROOT / "src/engine/events.c", ROOT / "src/engine/mechanisms.c",
                ROOT / "src/engine/logic.c", ROOT / "src/engine/pacing.c", ROOT / "src/engine/arith.c", ROOT / "src/game/enemies.c", ROOT / "src/game/deceptus.c",
                ROOT / "src/platform/snes/main.c"]
     if opening:
@@ -515,6 +515,9 @@ def compile_soundbank(folder, data, sdk, assembler):
     defines = [f"#define SNES_EFFECT_PITCH {SNES_EFFECT_PITCH}", "#define SNES_EFFECT_COUNT " + str(len(effects))]
     defines += [f"#define SNES_MODULE_{track.upper()} MOD_{music_assets.song_name(module).upper()}"
                 for track, module in music_assets.TRACKS.items()]
+    # the module of each track number (music_assets.track_number); the first entry, silence, is unused.
+    defines += [f"#define SNES_MUSIC_TRACK_COUNT {len(music_assets.TRACKS) + 1}",
+                "#define SNES_MUSIC_MODULES {0, " + ", ".join(f"SNES_MODULE_{track.upper()}" for track in music_assets.TRACKS) + "}"]
     header = ["#ifndef SNES_AUDIO_H", "#define SNES_AUDIO_H", '#include "soundbank.h"', *defines, "#endif"]
     (folder / "snes_audio.h").write_text("\n".join(header) + "\n")
     return ["soundbank.obj"]

@@ -1,6 +1,7 @@
 #ifndef DECEPTUS_ADVENTURE_H
 #define DECEPTUS_ADVENTURE_H
 #include "deceptus/campaign.h"
+#include "deceptus/music.h"
 #include "deceptus/playersword.h"
 #include "deceptus/soundcue.h"
 #include "deceptus/thunderstorm.h"
@@ -65,6 +66,9 @@ typedef struct DeceptusAdventureRoom
    DeceptusU16 storm_flags;
    /* the floor its footsteps sound on: SOUND_SURFACE_STONE or SOUND_SURFACE_GRASS. */
    DeceptusU8 footsteps;
+   /* its level's default track (0 for a silent level) and music zone (0 for none); music.h. */
+   DeceptusU8 music;
+   const DeceptusMusicZone* music_zone;
 } DeceptusAdventureRoom;
 
 /* source level callbacks derived from persistent inventory/treasure flags. */
@@ -80,6 +84,8 @@ typedef struct DeceptusAdventureDef
    const DeceptusAdventureRoom* rooms;
    const char* const* item_names;
    DeceptusU8 item_count;
+   /* the track the title and the pause menus play. */
+   DeceptusU8 menu_music;
 } DeceptusAdventureDef;
 
 /* returned room storage remains valid until the next load; null reports a load failure. */
@@ -102,6 +108,8 @@ typedef struct DeceptusAdventure
    Thunderstorm thunderstorm;
    /* the sounds of the ticks since the platform last emptied it. */
    SoundQueue sounds;
+   /* the track to play; the platform follows music.track. */
+   DeceptusMusic music;
    const DeceptusInteraction* dialogue;
    const DeceptusInteraction* automatic_action;
    DeceptusU8 automatic_ticks;

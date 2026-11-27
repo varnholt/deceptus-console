@@ -107,6 +107,7 @@ add_library(
     src/game/roomcontent.c
     src/game/ropelink.c
     src/game/soundcue.c
+    src/game/music.c
     src/game/thunderstorm.c
     src/game/weapons/playersword.c)
 set(DECEPTUS_ENEMY_PARTS src/game/enemies/blob_2.c src/game/enemies/cannon_2.c

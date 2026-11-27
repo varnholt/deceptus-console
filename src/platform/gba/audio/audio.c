@@ -103,6 +103,10 @@ static void applyOutputs(void)
    SongOutput* output;
    Voice* voice;
    DeceptusU8 channel;
+   if (player.song == 0)
+   {
+      return;
+   }
    for (channel = 0; channel < player.song->channels; ++channel)
    {
       output = &player.outputs[channel];
@@ -170,6 +174,19 @@ void audioInterrupt(void)
    songAdvance(&player, FRAME_RATE);
    applyOutputs();
    mixFrame(buffers + (playing_buffer ^ 1) * AUDIO_FRAME_SAMPLES);
+}
+
+void audioPlaySong(const Song* song)
+{
+   DeceptusU8 channel;
+   /* the interrupt steps the player and mixes the voices: it must not see the change half done. */
+   REG16(REG_IME) = 0;
+   songStart(&player, song);
+   for (channel = 0; channel < SONG_CHANNELS_MAX; ++channel)
+   {
+      voices[channel].data = 0;
+   }
+   REG16(REG_IME) = 1;
 }
 
 void audioPlayCues(SoundQueue* queue)

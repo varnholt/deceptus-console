@@ -41,6 +41,17 @@ typedef struct GbaObject
 #if GBA_TUTORIAL
 static DeceptusAdventure adventure;
 static DeceptusU16 scenery_flags;
+/* the track the mixer plays (include/deceptus/music.h numbering); it follows the game's. */
+static DeceptusU8 music_track;
+
+static void followMusic(const DeceptusMusic* music)
+{
+   if (music->track != music_track)
+   {
+      music_track = music->track;
+      audioPlaySong(music_songs[music_track]);
+   }
+}
 #define campaign adventure.campaign
 #define GBA_SCENERY_FLAGS scenery_flags
 #else
@@ -1075,7 +1086,7 @@ int __attribute__((section(".iwram"))) main(void)
    videoInit();
 #if GBA_TUTORIAL
    hudReset();
-   audioStart(SONG_LEVEL_TEST_TRACK_MUFFLER_AWAKENING);
+   audioStart(0);
 #endif
    backgroundReset();
    deceptusPacingInit(&pacing, 60, GBA_PACING_MAX_TICKS);
@@ -1115,6 +1126,7 @@ int __attribute__((section(".iwram"))) main(void)
 #if GBA_TUTORIAL
       scenery_flags = deceptusAdventurePresentationFlags(&adventure);
       audioPlayCues(&adventure.sounds);
+      followMusic(&adventure.music);
 #endif
       deceptus_debug[80] = (DeceptusU16)(REG16(0x04000108) - phase_start);
       phase_start = REG16(0x04000108);

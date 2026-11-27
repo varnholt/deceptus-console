@@ -8,6 +8,8 @@
 
 /* the song plays from its start; nothing sounds until the vertical blank handler runs. */
 void audioStart(const Song* song);
+/* switches to another song from its start; a null song is silence. a playing cue plays on. */
+void audioPlaySong(const Song* song);
 /* starts the queued cues, then empties the queue; called by the game between frames. */
 void audioPlayCues(SoundQueue* queue);
 /* one display frame of the song and of Paula's channel restarts; called by the game's vertical blank

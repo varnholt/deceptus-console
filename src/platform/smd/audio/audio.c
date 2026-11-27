@@ -128,6 +128,10 @@ static void applySong(void)
    SongOutput* output;
    const SongSample* sample;
    DeceptusU8 index;
+   if (player.song == 0)
+   {
+      return;
+   }
    for (index = 0; (index < player.song->channels) && (index < Z80_CHANNELS); ++index)
    {
       if ((index == CUE_CHANNEL) && cue_frames)
@@ -251,6 +255,23 @@ void audioTransfersBegin(void)
 void audioTransfersEnd(void)
 {
    writeTransfers(0);
+}
+
+void audioPlaySong(const Song* song)
+{
+   DeceptusU8 index;
+   /* the song's interrupt steps the player and writes the requests: masked, it cannot see the
+    * change half done. */
+   SYS_disableInts();
+   songStart(&player, song);
+   for (index = 0; index < Z80_CHANNELS; ++index)
+   {
+      if ((index != CUE_CHANNEL) || !cue_frames)
+      {
+         requestStart(index, 0, 0, 0);
+      }
+   }
+   SYS_enableInts();
 }
 
 void audioPlayCues(SoundQueue* queue)

@@ -216,19 +216,49 @@ extern char SOUNDBANK__;
 /* full volume, centred: spcEffect's volume * 16 + pan. */
 #define EFFECT_VOLUME_PAN (15 * 16 + 8)
 
-/* snesmod on the SPC700 plays the song by itself; the effects are its first module's samples. */
-static void audioStart(void)
+/* the module each track number plays (include/deceptus/music.h); entry 0, silence, is unused. */
+static const u16 track_modules[SNES_MUSIC_TRACK_COUNT] = SNES_MUSIC_MODULES;
+/* the track snesmod plays; it follows the game's. */
+static DeceptusU8 music_track;
+
+/* loads a module and, after it, the effects: they are its first module's samples, kept above the song. */
+static void loadModule(u16 module)
 {
    DeceptusU16 effect;
-   spcBoot();
-   spcSetBank(&SOUNDBANK__);
-   spcStop();
-   spcLoad(SNES_MODULE_LEVEL_TEST_TRACK_MUFFLER_AWAKENING);
+   spcLoad(module);
    for (effect = 0; effect < SNES_EFFECT_COUNT; ++effect)
    {
       spcLoadEffect(effect);
    }
-   spcPlay(0);
+}
+
+/* snesmod on the SPC700 plays the song by itself. the first track's module comes in at start-up, so
+   the effects play before any song does; silence until the game names a track. */
+static void audioStart(void)
+{
+   spcBoot();
+   spcSetBank(&SOUNDBANK__);
+   spcStop();
+   loadModule(track_modules[1]);
+   music_track = 0;
+}
+
+/* a new track starts from its beginning; silence only stops the song, the effects stay loaded. */
+static void followMusic(void)
+{
+   DeceptusU8 track;
+   track = SNES_GAME->music.track;
+   if (track == music_track)
+   {
+      return;
+   }
+   music_track = track;
+   spcStop();
+   if (track != 0)
+   {
+      loadModule(track_modules[track]);
+      spcPlay(0);
+   }
 }
 
 /* the cues the ticks queued, while the SA-1 rests between presentations; snesmod numbers its effects
@@ -586,6 +616,7 @@ int main(void)
          gamePrepare(buffer);
       }
       deceptus_debug[11] = 12;
+      followMusic();
       audioPlayCues();
       snesUiPrepare(SNES_GAME);
       deceptus_debug[11] = 13;

@@ -334,6 +334,14 @@ static void stormTick(DeceptusAdventure* game, const DeceptusAdventureRoom* room
    thunderstormTick(&game->thunderstorm, active);
 }
 
+/* the menus the original plays its menu track in: the main menu and the pause menu with their
+ * screens. the inventory is shown over the game, which keeps its track. */
+static DeceptusU8 isMusicMenu(DeceptusU8 mode)
+{
+   return (mode == DECEPTUS_CAMPAIGN_TITLE) || (mode == DECEPTUS_MENU_PAUSE) || (mode == DECEPTUS_MENU_CONTROLS) ||
+          (mode == DECEPTUS_MENU_EXIT) || (mode == DECEPTUS_MENU_OPTIONS) || (mode == DECEPTUS_MENU_CONFIRM);
+}
+
 DeceptusU8 deceptusAdventureTick(DeceptusAdventure* game, DeceptusU16 buttons)
 {
    DeceptusCampaign* campaign;
@@ -354,6 +362,10 @@ DeceptusU8 deceptusAdventureTick(DeceptusAdventure* game, DeceptusU16 buttons)
    if (engine->content_error)
    {
       return 0;
+   }
+   if (isMusicMenu(campaign->mode))
+   {
+      deceptusMusicShowMenu(&game->music, game->definition->menu_music);
    }
    if (campaign->mode == DECEPTUS_CAMPAIGN_TITLE)
    {
@@ -600,6 +612,7 @@ DeceptusU8 deceptusAdventureTick(DeceptusAdventure* game, DeceptusU16 buttons)
    deceptusTick(engine, buttons & ~(DECEPTUS_PAUSE | DECEPTUS_RESTART));
    stormTick(game, room);
    soundQueueEngineEvents(&game->sounds, engine, room->footsteps);
+   deceptusMusicTick(&game->music, engine, room->music, room->music_zone, engine->deaths != deaths);
    if (game->has_sword)
    {
       deceptusPlayerSwordTick(&game->sword, engine, pressed);

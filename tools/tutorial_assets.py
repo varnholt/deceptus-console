@@ -25,6 +25,32 @@ def room_has_thunderstorm(objects, crop):
 FOOTSTEP_SURFACES = {'stone': 0, 'grass': 1}
 
 
+def room_music(data, room_maps):
+    """The tracks the rooms' levels play (tools/level_music.py), numbered as music_assets numbers them:
+    dict(menu, levels=[(default track, zone or None)], room_levels=[level index per room])."""
+    from level_music import MENU_TRACK, level_music
+    from music_assets import track_number
+    levels, keys, room_levels = [], [], []
+    for room_map in room_maps:
+        key = Path(room_map).parent.name
+        if key not in keys:
+            configuration = level_music(Path(data) / key, Path(data) / room_map)
+            zones = configuration['zones'] if configuration else []
+            if len(zones) > 1:
+                raise ValueError(f'{key}: the consoles follow one music zone per level, not {len(zones)}')
+            zone = dict(zones[0], track=track_number(zones[0]['track'])) if zones else None
+            keys.append(key)
+            levels.append((track_number(configuration['default_track']) if configuration else 0, zone))
+        room_levels.append(keys.index(key))
+    return dict(menu=track_number(MENU_TRACK), levels=levels, room_levels=room_levels)
+
+
+def room_music_fields(music, room):
+    level = music['room_levels'][room]
+    track, zone = music['levels'][level]
+    return f'{track}, ' + (f'&tutorial_music_zone_{level}' if zone else '0')
+
+
 def footstep_surface(data, map_path):
     """The surface a level's footsteps sound on: its level.json's, else the configured default."""
     level = Path(data) / Path(map_path).parent / 'level.json'
@@ -199,15 +225,22 @@ def compile_tutorial(data, reuse_assets=False):
         lines += [f'static const DeceptusAdventureBinding tutorial_bindings_{room_index}[] = {{',
                   *['    {'+','.join(map(str,value))+'},' for value in values], '};']
     from tutorial_progression import STORM_FLAGS
+    music = room_music(data, room_maps)
+    for level, (_, zone) in enumerate(music['levels']):
+        if zone:
+            lines += [f'static const DeceptusU16 tutorial_music_checkpoints_{level}[] = {{' + ','.join(map(str, zone['checkpoints'])) + '};',
+                      f'static const DeceptusMusicZone tutorial_music_zone_{level} = {{tutorial_music_checkpoints_{level}, '
+                      f'{zone["sensor_id"]}, {len(zone["checkpoints"])}, {zone["track"]}}};']
     lines += ['static const DeceptusAdventureRoom tutorial_rooms[] = {']
     for index,actions in enumerate(interactions):
         storm = STORM_FLAGS if room_has_thunderstorm(object_sets[room_maps[index]], stages[index]['room_recipe']['crop_pixels']) else 0
         footsteps = footstep_surface(data, room_maps[index])
-        lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}, '+(f'tutorial_bindings_{index}' if index in bindings else '0')+f', {len(bindings.get(index, []))}, {storm}, {footsteps}'+'},')
+        lines.append('    {'+(f'tutorial_portals_{index}' if counts[index] else '0')+', '+(f'tutorial_actions_{index}' if actions else '0')+f', {counts[index]}, {len(actions)}, '+(f'tutorial_bindings_{index}' if index in bindings else '0')+f', {len(bindings.get(index, []))}, {storm}, {footsteps}, '+room_music_fields(music, index)+'},')
     source_items=json.loads((data/'sprites/inventory_items.json').read_text())
     item_names=['']+[source_items[key]['title'] for key in ('locker_key','handle','gems','solar_seal','headtorch','sword')]+['Red Key']
     lines += ['};','static const char *const tutorial_items[] = {'+','.join(json.dumps(name) for name in item_names)+'};',
-              'const DeceptusAdventureDef gba_tutorial_definition = {&gba_campaign_definition,tutorial_rooms,tutorial_items,7};']
+              'const DeceptusAdventureDef gba_tutorial_definition = {&gba_campaign_definition,tutorial_rooms,tutorial_items,7,'
+              f'{music["menu"]}}};']
     with (output/'room.c').open('a') as handle:
         handle.write('\n'.join(lines)+'\n'+ui.finish(output))
     compile_menu(data,output)

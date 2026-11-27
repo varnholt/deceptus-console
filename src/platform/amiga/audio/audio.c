@@ -116,6 +116,10 @@ static void applySong(void)
 {
    SongOutput* output;
    DeceptusU8 index;
+   if (player.song == 0)
+   {
+      return;
+   }
    for (index = 0; index < player.song->channels && index < CHANNELS; ++index)
    {
       if ((index == CUE_CHANNEL) && cue_frames)
@@ -190,6 +194,22 @@ void audioStart(const Song* song)
    songStart(&player, song);
    cue_pending = 0;
    cue_frames = 0;
+   playing = 1;
+}
+
+void audioPlaySong(const Song* song)
+{
+   DeceptusU8 index;
+   /* the vertical blank steps the player: it must not see the change half done. */
+   playing = 0;
+   for (index = 0; index < CHANNELS; ++index)
+   {
+      if ((index != CUE_CHANNEL) || !cue_frames)
+      {
+         stopChannel(index);
+      }
+   }
+   songStart(&player, song);
    playing = 1;
 }
 

@@ -24,6 +24,14 @@ TRACKS = {
 CHANNELS = 4
 
 
+def track_number(track):
+    """The number the game's music (include/deceptus/music.h) gives an original track: its place in
+    TRACKS from 1; 0, for no track, is silence."""
+    if track is None:
+        return 0
+    return list(TRACKS).index(track) + 1
+
+
 def song_name(module):
     return 'song_' + re.sub('_+', '_', ''.join(character if character.isalnum() else '_' for character in Path(module).stem.lower())).strip('_')
 
@@ -43,7 +51,11 @@ def compile_music(output=OUTPUT, sample_attribute='', tail=0):
               '#include "deceptus/song.h"']
     header += [f'extern const Song {song_name(module)};' for module in modules]
     header += [f'#define SONG_{track.upper()} (&{song_name(module)})' for track, module in TRACKS.items()]
+    # the songs by track number (track_number); 0 is silence.
+    header += [f'#define MUSIC_TRACK_COUNT {len(TRACKS) + 1}', 'extern const Song *const music_songs[MUSIC_TRACK_COUNT];']
     header += ['#endif', '']
+    source += ['const Song *const music_songs[MUSIC_TRACK_COUNT] = {0, ' +
+               ', '.join(f'&{song_name(module)}' for module in TRACKS.values()) + '};']
     (output / 'songs.c').write_text('\n'.join(source) + '\n')
     (output / 'songs.h').write_text('\n'.join(header))
     return report

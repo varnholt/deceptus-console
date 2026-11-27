@@ -10,6 +10,8 @@
 
 /* loads the Z80 driver and plays the song from its start. */
 void audioStart(const Song* song);
+/* switches to another song from its start; a null song is silence. a playing cue plays on. */
+void audioPlaySong(const Song* song);
 /* the video transfers of the next vertical blanks follow: from that blank the Z80 keeps off the
  * cartridge, whose reads would stop it while the DMA owns the bus, until audioTransfersEnd. */
 void audioTransfersBegin(void);
