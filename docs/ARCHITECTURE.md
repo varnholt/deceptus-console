@@ -327,6 +327,14 @@ packs them into a soundbank in ROM bank 40, which both cartridges map at
 with a correlation of 0.86 at the same pitch, the rest being snesmod's BRR
 samples at 32 kHz. snesmod adds 0.16% to the SNES route's display frames.
 
+The Amiga plays the song on Paula's four channels from its vertical blank
+interrupt (`src/platform/amiga/audio.c`), at the PAL rate of 49.92 Hz. Song and
+cue samples sit in chip RAM. A channel restarts over three blanks, as Paula needs:
+its DMA stops while the start registers are written, starts on the next blank, and
+the blank after that writes the loop, or a silent word, for Paula to repeat. Cues
+play at 8 kHz (period 443) on the fourth channel, which the song gets back when the
+cue ends. While a room loads the system owns the machine and the music pauses.
+
 ## Rendering
 
 

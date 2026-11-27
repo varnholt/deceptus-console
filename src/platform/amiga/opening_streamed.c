@@ -5,6 +5,7 @@
 #include "deceptus/appearance.h"
 #include "opening_ui.h"
 #include "opening_video.h"
+#include "audio.h"
 #include "rooms.h"
 #include "scrollsurface.h"
 #include "perfcount.h"
@@ -285,6 +286,7 @@ static void __attribute__((interrupt)) verticalBlank(void)
    {
       ++video_frames;
    }
+   audioVerticalBlank();
    hardware->intreq = INTF_VERTB;
    hardware->intreq = INTF_VERTB;
 }
