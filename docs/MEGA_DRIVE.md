@@ -251,6 +251,17 @@ pieces that were evicted from the 64-slot cache. Same commands as above:
 
 `python deceptus.py verify smd` still verifies the whole route.
 
+### Game speed
+
+The simulation runs at 60 ticks per second on every target; a presentation that
+takes longer than a display frame catches up with up to three ticks
+(`SMD_PACING_MAX_TICKS`, as on the SNES and the Amiga). The cartridge used one,
+so the game ran at its frame rate: 29.9 ticks/s at 29.9 presentations/s in the
+first room (route steps 2-5). With three it runs 37.1 ticks/s at 22.4
+presentations/s. Each tick itself costs the 68000 about one display frame, so
+catching up cannot reach full speed until the tick is cheaper; that is the next
+profiling target.
+
 ## Retained small prototype
 
 ```powershell
