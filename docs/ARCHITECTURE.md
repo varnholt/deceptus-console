@@ -298,6 +298,25 @@ Compared with libopenmpt rendering the same module, the GBA's recorded output
 follows its loudness (correlation 0.98) and has the same dominant pitch in 83% of
 50 ms windows; the rest is the 8-bit, 10.5 kHz output.
 
+## Sound effects
+
+The game asks for sounds through cues (`include/deceptus/soundcue.h`), one per
+sound file of the original: the jump lift-off and landing, footsteps, hurt, the
+checkpoint's spawn sound, item pick-ups, lever inserts and message boxes. After
+each simulation tick the adventure queues the cues of the engine's events
+(`src/game/soundcue.c`), and an action queues its own, since the engine clears its
+events when the next tick starts. Footsteps alternate feet and sound on the
+room's surface, stone or grass, as `level.json` and `config/footsteps.json` give
+it. The platform plays and empties the queue once per frame.
+
+`tools/sound_assets.py` maps each cue to its file and volume (the footsteps'
+volumes are `footsteps.json`'s) and converts a platform's bank: decoded with the
+`soundfile` package, mixed to mono, resampled to the platform's rate, signed
+8-bit, with the trailing silence trimmed. The GBA plays cues on two more voices of
+its mixer at its own 10,512 Hz, a new cue taking the voice started longest ago.
+
+## Rendering
+
 
 The engine emits logical frame/draw information. Platform code translates it
 into hardware objects and palette/tile references. Source sprite sizes remain

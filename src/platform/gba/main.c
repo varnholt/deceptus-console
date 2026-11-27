@@ -1107,6 +1107,7 @@ int __attribute__((section(".iwram"))) main(void)
       }
 #if GBA_TUTORIAL
       scenery_flags = deceptusAdventurePresentationFlags(&adventure);
+      audioPlayCues(&adventure.sounds);
 #endif
       deceptus_debug[80] = (DeceptusU16)(REG16(0x04000108) - phase_start);
       phase_start = REG16(0x04000108);

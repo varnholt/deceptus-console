@@ -3,6 +3,7 @@
  * and mixes the other. at 1596 cycles per sample a 280,896-cycle frame is exactly AUDIO_FRAME_SAMPLES
  * samples, so the buffers stay in step with the interrupt. */
 #include "audio.h"
+#include "gba_sounds.h"
 #include <stddef.h>
 
 #define REG16(address) (*(volatile DeceptusU16 *)(address))
@@ -74,7 +75,10 @@ typedef char BuffersAligned[(AUDIO_FRAME_SAMPLES % 4 == 0) ? 1 : -1];
 static DeceptusU32 buffer_words[(2 * AUDIO_FRAME_SAMPLES + FIFO_READ_AHEAD) / 4];
 #define buffers ((DeceptusI8 *)buffer_words)
 static DeceptusI32 chunk[CHUNK_SAMPLES] __attribute__((section(".iwram.audioChunk")));
-static Voice voices[SONG_CHANNELS_MAX];
+/* the sound cues play on voices after the song's; a new cue takes the one started longest ago. */
+#define EFFECT_VOICES 2
+static Voice voices[SONG_CHANNELS_MAX + EFFECT_VOICES];
+static DeceptusU8 next_effect_voice;
 static SongPlayer player;
 static DeceptusU8 playing_buffer;
 
@@ -126,7 +130,7 @@ static void mixFrame(DeceptusI8 *output)
       {
          chunk[index] = 0;
       }
-      for (channel = 0; channel < player.song->channels; ++channel)
+      for (channel = 0; channel < SONG_CHANNELS_MAX + EFFECT_VOICES; ++channel)
       {
          voice = &voices[channel];
          if ((voice->data != 0) && (voice->volume != 0))
@@ -167,11 +171,38 @@ void audioInterrupt(void)
    mixFrame(buffers + (playing_buffer ^ 1) * AUDIO_FRAME_SAMPLES);
 }
 
+void audioPlayCues(SoundQueue *queue)
+{
+   const SoundEffect *effect;
+   Voice *voice;
+   DeceptusU8 index;
+   for (index = 0; index < queue->count; ++index)
+   {
+      effect = &gba_sounds[queue->cues[index]];
+      if (effect->length == 0)
+      {
+         continue;
+      }
+      voice = &voices[SONG_CHANNELS_MAX + next_effect_voice];
+      next_effect_voice = (DeceptusU8)((next_effect_voice + 1) % EFFECT_VOICES);
+      /* the interrupt mixes the voices: it must not see one half set. */
+      REG16(REG_IME) = 0;
+      voice->data = effect->data;
+      voice->position = 0;
+      voice->step = 1UL << POSITION_SHIFT;
+      voice->end = effect->length << POSITION_SHIFT;
+      voice->loop_length = 0;
+      voice->volume = SONG_VOLUME_MAX;
+      REG16(REG_IME) = 1;
+   }
+   soundQueueClear(queue);
+}
+
 void audioStart(const Song *song)
 {
    DeceptusU16 index;
    songStart(&player, song);
-   for (index = 0; index < SONG_CHANNELS_MAX; ++index)
+   for (index = 0; index < SONG_CHANNELS_MAX + EFFECT_VOICES; ++index)
    {
       voices[index].data = 0;
    }

@@ -1,6 +1,7 @@
 #ifndef DECEPTUS_ADVENTURE_H
 #define DECEPTUS_ADVENTURE_H
 #include "deceptus/thunderstorm.h"
+#include "deceptus/soundcue.h"
 #include "deceptus/campaign.h"
 #include "deceptus/playersword.h"
 
@@ -62,6 +63,8 @@ typedef struct DeceptusAdventureRoom
    DeceptusU8 binding_count;
    /* the flags that turn the room's thunderstorm on; 0 for a room without one. */
    DeceptusU16 storm_flags;
+   /* the floor its footsteps sound on: SOUND_SURFACE_STONE or SOUND_SURFACE_GRASS. */
+   DeceptusU8 footsteps;
 } DeceptusAdventureRoom;
 
 /* source level callbacks derived from persistent inventory/treasure flags. */
@@ -97,6 +100,8 @@ typedef struct DeceptusAdventure
    DeceptusU8 visited[DECEPTUS_ADVENTURE_ROOMS];
    DeceptusU16 flags;
    Thunderstorm thunderstorm;
+   /* the sounds of the ticks since the platform last emptied it. */
+   SoundQueue sounds;
    const DeceptusInteraction *dialogue;
    const DeceptusInteraction *automatic_action;
    DeceptusU8 automatic_ticks;
