@@ -117,13 +117,14 @@ def parse_xm(data):
                 rows=rows, instruments=instruments, samples=samples)
 
 
-def _array(kind, name, values, per_line=16):
+def _array(kind, name, values, per_line=16, attribute=''):
     rows = [', '.join(str(value) for value in values[index:index + per_line]) for index in range(0, len(values), per_line)]
-    return [f'static const {kind} {name}[] = {{'] + ['   ' + row + ',' for row in rows] + ['};']
+    return [f'static const {kind} {name}[]{attribute} = {{'] + ['   ' + row + ',' for row in rows] + ['};']
 
 
-def song_source(song, name):
-    """C definitions of one song; the Song itself is named name, the rest is static."""
+def song_source(song, name, sample_attribute=''):
+    """C definitions of one song; the Song itself is named name, the rest is static. sample_attribute
+    places the sample data, such as the Amiga's chip RAM section."""
     lines = []
     for index, cells in enumerate(song['patterns']):
         lines += _array('DeceptusU8', f'{name}_pattern{index}', list(cells), 24)
@@ -132,7 +133,7 @@ def song_source(song, name):
     lines += _array('DeceptusU16', f'{name}_rows', song['rows'])
     lines += _array('DeceptusU8', f'{name}_orders', song['orders'])
     for index, sample in enumerate(song['samples']):
-        lines += _array('DeceptusI8', f'{name}_sample{index}', sample['values'] or [0], 32)
+        lines += _array('DeceptusI8', f'{name}_sample{index}', sample['values'] or [0], 32, sample_attribute)
     lines += [f'static const SongSample {name}_samples[] = {{'] + [
         f'   {{{name}_sample{index}, {max(1, len(sample["values"]))}, {sample["loop_start"]}, {sample["loop_length"]}, '
         f'{sample["volume"]}, {sample["relative"]}, {sample["finetune"]}}},' for index, sample in enumerate(song['samples'])] + ['};']

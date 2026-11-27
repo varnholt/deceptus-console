@@ -29,6 +29,33 @@ OPENING_SOURCES = (
 )
 
 
+# Paula reads samples from chip RAM, a word at a time.
+CHIP_SAMPLES = ' __attribute__((section(".MEMF_CHIP"), aligned(2)))'
+# the cues play at Paula's clock over CUE_PERIOD (src/platform/amiga/audio.c).
+PAULA_CLOCK = 3546895
+CUE_PERIOD = 443
+
+
+def compile_audio(data, generated):
+    """The songs and the sound cues' samples, in chip RAM; returns the C sources to build."""
+    import music_assets
+    import sound_assets
+    music_assets.compile_music(generated, CHIP_SAMPLES)
+    header = ['#ifndef AMIGA_SOUNDS_H', '#define AMIGA_SOUNDS_H', '#include "deceptus/soundcue.h"',
+              'extern const SoundEffect amiga_sounds[SOUND_CUE_COUNT];', '#endif']
+    newline = chr(10)
+    (generated / 'amiga_sounds.h').write_text(newline.join(header) + newline)
+    bank = sound_assets.compile_bank(data, PAULA_CLOCK / CUE_PERIOD, 'amiga_sounds', CHIP_SAMPLES)
+    (generated / 'amiga_sounds.c').write_text(newline.join(['#include "amiga_sounds.h"', *bank]) + newline)
+    # gcc keeps const and writable data apart: the chip section holds writable buffers, so its samples
+    # are declared writable too.
+    for name in ('songs.c', 'amiga_sounds.c'):
+        lines = (generated / name).read_text().split(newline)
+        lines = [line.replace('static const DeceptusI8 ', 'static DeceptusI8 ', 1) if '.MEMF_CHIP' in line else line for line in lines]
+        (generated / name).write_text(newline.join(lines))
+    return [ROOT / 'src/audio/song.c', ROOT / 'src/platform/amiga/audio.c', generated / 'songs.c', generated / 'amiga_sounds.c']
+
+
 def validate_assets(data, generated):
     from campaign_assets import asset_identity
 
@@ -145,6 +172,7 @@ def build_opening(sdk, data, output, reuse_assets=False, renderer='legacy'):
                    if source.name == 'opening_video.c' else source for source in sources]
     sources.append(generated / 'opening_content.c')
     sources.append(generated / 'amiga_native_assets.c')
+    sources += compile_audio(data, generated)
     if renderer == 'native':
         sources.append(generated / 'amiga_message_box.c')
     build_report = dict(scope='experimental streamed 26-room Amiga opening',

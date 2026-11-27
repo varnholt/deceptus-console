@@ -1,3 +1,5 @@
+#include "audio.h"
+#include "songs.h"
 #include "amiga_opening_assets.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
@@ -65,6 +67,7 @@ int main(void)
    provider.load = amigaRoomLoad;
    provider.context = &adventure;
    deceptusAdventureInitWithRoomProvider(&adventure, &amiga_tutorial_definition, &video, &provider);
+   audioStart(SONG_LEVEL_TEST_TRACK_MUFFLER_AWAKENING);
    if (adventure.campaign.engine.content_error)
    {
       debugWrite();
@@ -110,6 +113,7 @@ int main(void)
          amiga_debug[21] = 2;
          break;
       }
+      audioPlayCues(&adventure.sounds);
       deceptusRender(&adventure.campaign.engine, &frame);
       debugWrite();
       if (adventure.campaign.engine.content_error || !amigaOpeningVideoDraw(&adventure, &frame))
@@ -119,6 +123,7 @@ int main(void)
       }
       ++amiga_debug[10];
    }
+   audioStop();
    amigaOpeningVideoClose();
    amigaRoomsRelease();
    amigaOpeningVideoRelease();

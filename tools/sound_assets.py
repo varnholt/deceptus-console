@@ -49,7 +49,7 @@ def decode(path, rate, volume):
     return np.clip(np.round(resampled * 127), -128, 127).astype(np.int8)
 
 
-def compile_bank(data, rate, name):
+def compile_bank(data, rate, name, sample_attribute=''):
     """C definitions of a platform's bank: name is a const SoundEffect[SOUND_CUE_COUNT]."""
     numbers, count = cue_numbers()
     lines, entries = [], ['   {0, 0},'] * count
@@ -57,7 +57,7 @@ def compile_bank(data, rate, name):
         samples = decode(Path(data) / 'sounds' / filename, rate, volume)
         label = f'{name}_{cue.lower()}'
         rows = [', '.join(str(int(value)) for value in samples[index:index + 32]) for index in range(0, len(samples), 32)]
-        lines += [f'static const DeceptusI8 {label}[] = {{'] + ['   ' + row + ',' for row in rows] + ['};']
+        lines += [f'static const DeceptusI8 {label}[]{sample_attribute} = {{'] + ['   ' + row + ',' for row in rows] + ['};']
         entries[numbers[cue]] = f'   {{{label}, {len(samples)}}},'
     lines += [f'const SoundEffect {name}[SOUND_CUE_COUNT] = {{'] + entries + ['};']
     return lines
