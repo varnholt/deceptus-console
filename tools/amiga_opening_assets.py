@@ -11,6 +11,7 @@ import numpy as np
 from PIL import Image
 
 from amiga_palette import color_error, fit_palette, map_image
+import storm_sky
 from assets import ROOT
 from content import CHECKPOINT_HIDDEN
 from rle import packbits
@@ -129,6 +130,7 @@ def room_families(source, recipe, sword):
     return families
 
 
+
 def pack_room(data, recipe, source, images, records, families, output, sword=False):
     image = Image.open(source / 'catacombs.png').convert('RGB')
     foreground = Image.open(source / 'foreground.png').convert('RGBA')
@@ -154,7 +156,11 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
     archive = Archive()
     palette = [(int(r) // 17) << 8 | (int(g) // 17) << 4 | int(b) // 17
                for r, g, b in colors]
-    palette_offset = archive.append(struct.pack('>32H', *palette))
+    # the thunderstorm's lit sky colours follow the palette. sprites share the palette, so their pixels
+    # take the nearest unlit colour instead (map_image below) and stay dark, as in the original.
+    storm = storm_sky.lit_entries(np.asarray(background), Image.open(source / storm_sky.MASK),
+                                  excluded={0, len(colors) - 1})
+    palette_offset = archive.append(struct.pack('>33H', *palette, len(storm)) + bytes(storm))
     patterns, lookup = [bytes(48)], {bytes(48): 0}
 
     def cells(frame, opaque):
@@ -213,7 +219,7 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
         bounds = original.getchannel('A').getbbox() or (0, 0, 1, 1)
         trimmed = original.crop(bounds)
         visible = np.asarray(trimmed.getchannel('A')) >= 128
-        pixels = np.where(visible, np.asarray(map_image(trimmed, colors)), 0)
+        pixels = np.where(visible, np.asarray(map_image(trimmed, colors, storm)), 0)
         width = ((trimmed.width + 15) // 16 + 1) * 16
         pad = ((0, 0), (0, width - trimmed.width))
         raw = (planar(np.pad(pixels, pad))
@@ -269,7 +275,7 @@ def pack_room(data, recipe, source, images, records, families, output, sword=Fal
 
 
 def converter_identity():
-    names = ('amiga_opening_assets.py', 'amiga_palette.py', 'room_content.py',
+    names = ('amiga_opening_assets.py', 'amiga_palette.py', 'room_content.py', 'storm_sky.py',
              'source_sprites.py', 'lz4_block.py', 'rle.py', 'pixel_font.py')
     return hashlib.sha256(b''.join((ROOT / 'tools' / name).read_bytes()
                                   for name in names)).hexdigest()

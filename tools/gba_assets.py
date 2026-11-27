@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 
 from assets import ROOT, SOURCE, import_deceptus, ACTOR_FRAME_COUNT
+import storm_sky
 from palettes import banked_background, palette_rgb555
 from world_export import export_world
 import spike_ball_assets
@@ -89,7 +90,7 @@ def compile_background(image, output):
     return len(patterns), metrics
 
 
-def compile_streamed_background(image, output, animations=(), foreground=None):
+def compile_streamed_background(image, output, animations=(), foreground=None, storm_mask=None):
     if image.width % 8 or image.height % 8 or image.width > 2040 or image.height > 2040:
         raise ValueError('streamed room dimensions must be multiples of 8 below 2048px')
     atlas = Image.new('RGB', (image.width, image.height * (2 if foreground is not None else 1) + sum(clip['bounds'][3] * clip['frame_count'] for clip in animations)))
@@ -105,6 +106,7 @@ def compile_streamed_background(image, output, animations=(), foreground=None):
             atlas.paste(frame, (0, cursor))
             cursor += frame.height
     converted, banks, metrics = banked_background(atlas, bank_count=15)
+    metrics['storm_entries'] = storm_sky.banked_entries(converted, storm_mask) if storm_mask is not None else []
     preview = converted.crop((0, 0, image.width, image.height))
     preview.save(output / 'base-background-preview.png')
     pixels = np.asarray(converted).copy()
@@ -499,7 +501,8 @@ def compile_assets(data, scene="lever", recipe_path=None):
     if len(animations) > 4:
         raise ValueError('room exceeds four background animation clips')
     foreground = Image.open(source/'foreground.png').convert('RGBA') if recipe.get('foreground_layers') else None
-    patterns, metrics = compile_streamed_background(room, OUTPUT, animations, foreground) if streamed else compile_background(room, OUTPUT)
+    storm_mask = Image.open(source / storm_sky.MASK)
+    patterns, metrics = compile_streamed_background(room, OUTPUT, animations, foreground, storm_mask) if streamed else compile_background(room, OUTPUT)
     for index, clip in enumerate(animations):
         folder = OUTPUT / f'animation{index}'
         folder.mkdir(exist_ok=True)

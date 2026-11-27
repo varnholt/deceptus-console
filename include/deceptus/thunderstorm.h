@@ -15,5 +15,8 @@ typedef struct Thunderstorm
 void thunderstormTick(Thunderstorm *storm, DeceptusU8 active);
 /* the flash level now, 0 .. THUNDERSTORM_MAX_LEVEL. */
 DeceptusU8 thunderstormLevel(const Thunderstorm *storm);
+/* one colour channel (0 .. maximum) of the lit sky at a flash level. thunderstormoverlay.cpp blends a grey
+   as bright as the flash, with the flash as its alpha, so weak flashes even dim a bright sky a little. */
+DeceptusU8 thunderstormChannel(DeceptusU8 channel, DeceptusU8 maximum, DeceptusU8 level);
 
 #endif

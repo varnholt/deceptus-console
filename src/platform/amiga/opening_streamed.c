@@ -240,6 +240,10 @@ static DeceptusPlayerAnimation animation = DECEPTUS_PLAYER_ANIMATION_INITIALIZER
 static volatile DeceptusI16 pending_buffer = -1;
 static volatile DeceptusU32 video_frames;
 static DeceptusU16 palette[32], last_ticks, last_flags;
+/* the room palette with its thunderstorm-lit sky colours (storm_entries) at lit_level, and the level
+   each copper list's colour moves show. */
+static DeceptusU16 lit_palette[32];
+static DeceptusU8 storm_entries[32], storm_count, lit_level, copper_level[2];
 static DeceptusU8 last_mode, last_selection, last_page, last_prompt, last_label;
 static const DeceptusInteraction *last_dialogue;
 static DeceptusI16 camera_x, camera_y;
@@ -2222,7 +2226,7 @@ static BOX_CODE void boxSplit(DeceptusU16 **cursor, DeceptusU8 stage, const Dece
       }
       for (plane = 1; plane < 16; ++plane)
       {
-         copperWrite(cursor, offsetof(struct Custom, color) + plane * 2, stage == 0 ? box_palette[plane] : palette[plane]);
+         copperWrite(cursor, offsetof(struct Custom, color) + plane * 2, stage == 0 ? box_palette[plane] : lit_palette[plane]);
       }
       return;
    }
@@ -2297,6 +2301,31 @@ static BOX_CODE void boxCopper(DeceptusU16 **cursor, const DeceptusU16 *start, D
    }
 }
 
+/* one RGB444 colour at a flash level. */
+static DeceptusU16 stormColour(DeceptusU16 colour, DeceptusU8 level)
+{
+   return (DeceptusU16)(((DeceptusU16)thunderstormChannel((DeceptusU8)((colour >> 8) & 15), 15, level) << 8) |
+                        ((DeceptusU16)thunderstormChannel((DeceptusU8)((colour >> 4) & 15), 15, level) << 4) |
+                        thunderstormChannel((DeceptusU8)(colour & 15), 15, level));
+}
+
+/* thunderstormoverlay.cpp lights only the sky and far forest: their colours follow the flash. */
+static void prepareStorm(const DeceptusAdventure *game)
+{
+   DeceptusU8 level, index, entry;
+   level = thunderstormLevel(&game->thunderstorm);
+   if (level == lit_level)
+   {
+      return;
+   }
+   lit_level = level;
+   for (index = 0; index < storm_count; ++index)
+   {
+      entry = storm_entries[index];
+      lit_palette[entry] = stormColour(palette[entry], level);
+   }
+}
+
 static void prepareCopper(void)
 {
    DeceptusU16 *cursor;
@@ -2353,13 +2382,14 @@ static void prepareCopper(void)
       wraps[plane] = amigaScrollSurfaceWrap(&surface, start[plane]);
       planePointer(&cursor, plane, start[plane]);
    }
-   if (!copper_built[draw_buffer])
+   if (!copper_built[draw_buffer] || (copper_level[draw_buffer] != lit_level))
    {
       for (plane = 0; plane < 32; ++plane)
       {
-         copperWrite(&cursor, offsetof(struct Custom, color) + plane * 2, palette[plane]);
+         copperWrite(&cursor, offsetof(struct Custom, color) + plane * 2, lit_palette[plane]);
       }
       copper_built[draw_buffer] = 1;
+      copper_level[draw_buffer] = lit_level;
    }
    else
    {
@@ -2418,12 +2448,14 @@ ROOM_CODE void amigaOpeningVideoReset(void)
    tiles = amigaRoomTiles();
    error = 0;
    if (!amigaScrollSurfaceInit(&surface, SURFACE_COLUMNS, SURFACE_HEIGHT, PLANES) || !graphics->interleaved_sprites || !tiles->bytes ||
-       !amigaGraphicsPalette(graphics, palette))
+       !amigaGraphicsPalette(graphics, palette) || !amigaGraphicsStormEntries(graphics, storm_entries, &storm_count))
    {
       error = 1;
       amiga_debug[30] = 6; /* failure site */
       return;
    }
+   memcpy(lit_palette, palette, sizeof(lit_palette));
+   lit_level = 0;
    memory = amigaRoomChipScratch(&size);
    cache_memory = amigaRoomScratch(&cache_size);
    amiga_debug[31] = size;
@@ -3094,6 +3126,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    AMIGA_PERF(amigaPerfPhase(14);) /* guard repair (waits for the blitter) */
    prepareSprites();
    AMIGA_PERF(amigaPerfPhase(15);) /* hardware sprites */
+   prepareStorm(game);
    prepareCopper();
    AMIGA_PERF(phaseEnd(6);)
    AMIGA_PERF(amiga_phase_debug[7] += phase_mark - draw_started;)

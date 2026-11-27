@@ -77,11 +77,13 @@ def fit_palette(background, actors, actor_weight=0.25):
     return hardware[selected]
 
 
-def map_image(image, palette):
+def map_image(image, palette, excluded=()):
+    """Each pixel's nearest palette colour, never one of the excluded entries."""
     source = np.array(image.convert('RGB'))
     colors, inverse = np.unique(source.reshape(-1, 3), axis=0, return_inverse=True)
     differences = _palette_space(colors)[:, None] - _palette_space(palette)[None]
     distances = (differences ** 2).sum(axis=2)
+    distances[:, list(excluded)] = np.inf
     indices = distances.argmin(axis=1)[inverse].astype(np.uint8)
     result = Image.frombytes('P', image.size, indices.tobytes())
     result.putpalette(palette.flatten().tolist() + [0] * (768 - palette.size))

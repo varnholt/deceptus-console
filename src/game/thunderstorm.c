@@ -36,3 +36,14 @@ DeceptusU8 thunderstormLevel(const Thunderstorm *storm)
    }
    return thunderstorm_curve[storm->tick];
 }
+
+DeceptusU8 thunderstormChannel(DeceptusU8 channel, DeceptusU8 maximum, DeceptusU8 level)
+{
+   DeceptusU16 grey;
+   grey = (DeceptusU16)((DeceptusU16)level * maximum / THUNDERSTORM_MAX_LEVEL);
+   if (grey >= channel)
+   {
+      return (DeceptusU8)(channel + (grey - channel) * level / THUNDERSTORM_MAX_LEVEL);
+   }
+   return (DeceptusU8)(channel - (channel - grey) * level / THUNDERSTORM_MAX_LEVEL);
+}

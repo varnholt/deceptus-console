@@ -21,6 +21,7 @@ static DeceptusU16 smd_free_memory;
 
 #include "opening_sprites.h"
 #include "opening_ui.h"
+#include "opening_storm.h"
 
 /* direct, bounded transfers own presentation; the sdk queue is not needed. */
 void __wrap_DMA_init(void)
@@ -87,6 +88,7 @@ static void videoLoad(void)
    smdBackgroundLoad(adventure.campaign.room_index);
    smdSpritesInit();
    smdUiInit();
+   smdStormReset();
    smd_free_memory = MEM_getFree();
 }
 
@@ -196,6 +198,7 @@ int main(bool hard_reset)
       smdSpritesPrepare(&adventure, &frame);
       smdSpritesMeasure();
       smdUiPrepare(&adventure);
+      smdStormPrepare(&adventure);
       blank =
          smd_background_full || smd_sprite_blank || smd_background_dma_bytes + smd_sprite_upload_bytes + (smd_ui_dirty ? 4096 : 0) > 5500;
       debugWrite(buttons, blank);
@@ -208,6 +211,7 @@ int main(bool hard_reset)
       smdBackgroundCommit();
       smdSpritesCommit();
       smdUiCommit();
+      smdStormCommit();
       if (blank)
       {
          SYS_doVBlankProcess();

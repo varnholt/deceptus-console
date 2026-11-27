@@ -130,7 +130,7 @@ def sa1_layout_assembly(room_blocks, rooms):
 
 # SA-1 objects run on the SA-1: their globals live in BW-RAM, which the SA-1 addresses through its
 # data bank $40; the S-CPU keeps work RAM and its multiplier/divider, which the SA-1 cannot reach.
-SA1_HOST_SOURCES = ("main.c", "background_commit.c", "sprites_commit.c")
+SA1_HOST_SOURCES = ("main.c", "background_commit.c", "sprites_commit.c", "storm_commit.c")
 SA1_BSS = '.RAMSECTION ".bss" BANK $40 SLOT 2'
 SA1_RUNTIME = {"tcc__mul": "snesSa1Mul", "tcc__mull": "snesSa1Mull", "tcc__udiv": "snesSa1Udiv",
                "tcc__div": "snesSa1Div", "snesMulS16": "snesSa1MulS16", "snesSquareU16": "snesSa1SquareU16",
@@ -375,7 +375,8 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     if opening:
         sources += [ROOT / "src/game/campaign.c", ROOT / "src/platform/snes/background.c",
                     ROOT / "src/platform/snes/background_commit.c", ROOT / "src/platform/snes/sprites.c",
-                    ROOT / "src/platform/snes/sprites_commit.c"]
+                    ROOT / "src/platform/snes/sprites_commit.c", ROOT / "src/platform/snes/storm.c",
+                    ROOT / "src/platform/snes/storm_commit.c"]
         sources += [generated / name for name in metadata["c_sources"]]
         if sa1:
             sources.append(ROOT / "src/platform/snes/sa1_main.c")

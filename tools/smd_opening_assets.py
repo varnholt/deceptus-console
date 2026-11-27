@@ -11,6 +11,7 @@ import numpy as np
 from PIL import Image
 from assets import ROOT
 from palettes import banked_background
+import storm_sky
 from pixel_font import NativePixelFont
 from smd_assets import array,fit_rgb333_palette,packed_tile,palette_word,rgb333,sprite_chunks,words
 from snes_tutorial_assets import export_opening_worlds,original_imports,source_clips
@@ -19,7 +20,7 @@ from rle import packbits
 
 
 def converter_identity():
-    names = ('smd_opening_assets.py', 'smd_assets.py', 'source_sprites.py', 'rle.py')
+    names = ('smd_opening_assets.py', 'smd_assets.py', 'source_sprites.py', 'rle.py', 'storm_sky.py')
     return hashlib.sha256(b''.join((ROOT / 'tools' / name).read_bytes()
                                   for name in names)).hexdigest()
 
@@ -50,7 +51,7 @@ class Writer:
         (self.output/'data.s').write_text('\n'.join(self.assembly)+'\n')
 
 
-def compile_background(image,foreground,clips,banks=2):
+def compile_background(image,foreground,clips,storm_mask=None,banks=2):
     height=image.height*2+sum(clip['bounds'][3]*clip['frame_count'] for clip in clips)
     atlas=Image.new('RGB',(image.width,height));atlas.paste(image,(0,0));atlas.paste(foreground.convert('RGB'),(0,image.height))
     cursor=image.height*2
@@ -59,6 +60,7 @@ def compile_background(image,foreground,clips,banks=2):
         for frame in clip['frames']:
             atlas.paste(frame,(0,cursor));cursor+=frame.height
     converted,assignments,metrics=banked_background(rgb333(atlas),bank_count=banks)
+    storm_entries=storm_sky.banked_entries(converted,storm_mask) if storm_mask is not None else []
     pixels=np.asarray(converted).copy()
     pixels[image.height:image.height*2][np.asarray(foreground)[:,:,3]<128]=0
     for clip in clips:
@@ -85,7 +87,7 @@ def compile_background(image,foreground,clips,banks=2):
     palette=converted.getpalette();colors=[palette_word(*palette[index*3:index*3+3]) for index in range(banks*16)]
     preview=Image.fromarray(pixels[:image.height]);preview.putpalette(palette)
     return dict(patterns=b''.join(patterns),background=background,foreground=front,animations=animations,
-                palette=colors,preview=preview,pattern_count=len(patterns),metrics=metrics)
+                palette=colors,preview=preview,pattern_count=len(patterns),metrics=metrics,storm_entries=storm_entries)
 
 
 def viewport_peak(background,foreground,width=41,height=29):
@@ -171,7 +173,7 @@ def compile_opening(data,output,metadata_source,rooms=26):
     writer=Writer(output);stages=[];lines=[];reports=[]
     for index,(recipe,source) in enumerate(recipes[:rooms]):
         image=Image.open(source/'catacombs.png').convert('RGB');front=Image.open(source/'foreground.png').convert('RGBA')
-        clips=source_clips(data,recipe,image);result=compile_background(image,front,clips)
+        clips=source_clips(data,recipe,image);result=compile_background(image,front,clips,Image.open(source/storm_sky.MASK))
         prefix='smd_area'+str(index);result['preview'].save(output/(prefix+'-preview.png'))
         patterns=writer.blob(prefix+'_patterns',result['patterns'],32)
         bg=writer.blob(prefix+'_background',result['background'].astype('>u2').tobytes(),image.width//8*4,4)
@@ -187,7 +189,10 @@ def compile_opening(data,output,metadata_source,rooms=26):
         pointer='0'
         if animations:
             pointer=prefix+'_animations';lines+=['static const SmdBackgroundAnimation '+pointer+'[] = {',*['    '+value+',' for value in animations],'};']
-        stages.append('{'+patterns+','+bg+','+fg+','+prefix+'_palette,'+','.join(map(str,[image.width//8,image.height//8,result['pattern_count']]))+','+pointer+','+str(len(animations))+','+json.dumps(recipe['title'])+'}')
+        storm='0'
+        if result['storm_entries']:
+            storm=prefix+'_storm_entries';lines.append('static const DeceptusU8 '+storm+'[] = {'+','.join(map(str,result['storm_entries']))+'};')
+        stages.append('{'+patterns+','+bg+','+fg+','+prefix+'_palette,'+','.join(map(str,[image.width//8,image.height//8,result['pattern_count']]))+','+pointer+','+str(len(animations))+','+json.dumps(recipe['title'])+','+storm+','+str(len(result['storm_entries']))+'}')
         peak=viewport_peak(result['background'],result['foreground'])
         reports.append(dict(room=index,patterns=result['pattern_count'],raw_pattern_bytes=len(result['patterns']),static_peak=peak,color_fidelity=result['metrics'],animation_frames=[clip['frame_count'] for clip in clips]))
         print(f'MD room{index}: {result["pattern_count"]}patterns,staticviewport{peak["patterns"]}',flush=True)
@@ -198,7 +203,7 @@ def compile_opening(data,output,metadata_source,rooms=26):
             '#define SMD_FONT_ROWS 2','#define SMD_FONT_SOURCE_TOP 3','#define SMD_ROM_BLOB_RLE 1',
             'typedef struct SmdRomBlob { const DeceptusU8 *data; const DeceptusU32 *offsets; DeceptusU16 block_bytes,blocks; DeceptusU8 unit_bytes; } SmdRomBlob;',
             'typedef struct SmdBackgroundAnimation { DeceptusU16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags; const DeceptusU16 *durations; SmdRomBlob cells; DeceptusU8 plane; } SmdBackgroundAnimation;',
-            'typedef struct SmdStage { SmdRomBlob patterns,background,foreground; const DeceptusU16 *palette; DeceptusU16 columns,rows,pattern_count; const SmdBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; } SmdStage;',
+            'typedef struct SmdStage { SmdRomBlob patterns,background,foreground; const DeceptusU16 *palette; DeceptusU16 columns,rows,pattern_count; const SmdBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; const DeceptusU8 *storm_entries; DeceptusU8 storm_count; } SmdStage;',
             'typedef struct SmdSpriteResource { SmdRomBlob graphics; DeceptusU16 bytes; DeceptusU8 columns,rows,trim_x,trim_y,palette_bank; } SmdSpriteResource;',
             'typedef struct SmdFontGlyph { DeceptusU16 tile; DeceptusU8 columns; } SmdFontGlyph;',
             'extern const SmdStage smd_stages[SMD_STAGE_COUNT];','extern const SmdSpriteResource smd_sprite_resources[SMD_SPRITE_RESOURCE_COUNT];',

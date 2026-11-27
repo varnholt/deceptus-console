@@ -132,8 +132,21 @@ building a different puzzle.
 
 Conditional scenery uses the original chest, drawer, sword and owl images.
 Graveyard background strips are baked at one static phase at their native size;
-parallax, storm visuals, ghosts, audio and the sinkhole cutscene remain separate
-unsupported work. The native sinkhole keeps its source delay and opens the
+parallax, ghosts, audio and the sinkhole cutscene remain separate unsupported
+work.
+
+The graveyard thunderstorm starts once the owl's eyes are taken, in the rooms the
+source weather object `thunderstorm` covers. Its flash follows
+`thunderstormoverlay.cpp` cycle for cycle (`tools/thunderstorm_curve.py` writes
+the 60 Hz levels to `src/game/thunderstormcurve.h`). The original draws the flash
+over the sky and far forest only, so the import keeps a mask of the pixels where
+those two layers still show (`storm-sky.png`), and each converter lists the
+palette entries used at least 90% by them (`tools/storm_sky.py`). At run time the
+platforms rewrite just those colours: GBA palette RAM, SNES CGRAM (staged by the
+SA-1, uploaded in vblank), Mega Drive CRAM, and the Amiga copper list's colour
+moves. On the Amiga the sprites share the 32 room colours, so in storm rooms they
+are mapped to the nearest unlit colour instead. The extra strike as the sinkhole
+trembles is not wired yet. The native sinkhole keeps its source delay and opens the
 crypt passage. The headtorch is enabled immediately on acquisition.
 
 For interaction and portal development after a full tutorial conversion:
