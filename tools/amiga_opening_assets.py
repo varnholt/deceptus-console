@@ -88,7 +88,8 @@ def raster_columns(patterns, background, foreground):
 def room_families(source, recipe, sword):
     mechanisms = json.loads((source / 'mechanisms.json').read_text())
     enemies = json.loads((source / 'enemies.json').read_text())
-    families = {'HEADTORCH', 'HEADTORCH_BEAM', 'SWORD' if sword else 'ACTOR'}
+    # the inventory can be opened in every room.
+    families = {'HEADTORCH', 'HEADTORCH_BEAM', 'SWORD' if sword else 'ACTOR', 'ITEM_ICON'}
     mechanism_families = {
         3: 'LEVER', 4: 'BLOCK', 7: 'SPIKES', 8: 'COLLAPSE',
         10: 'IRON_DOOR', 11: 'WOODEN_PLANKS', 13: 'GRAB_ROPE', 14: 'MOVEABLE_BOX', 16: 'CRUSHER', 17: 'FLOOR_SPIKES', 18: 'SPIKE_BALL',

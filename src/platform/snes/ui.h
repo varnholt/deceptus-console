@@ -1,6 +1,25 @@
+#include "deceptus/itemicon.h"
 /* original text and bitmap glyphs; console tile layout is backend-local. */
 static DeceptusU16 snes_ui_map[1024];
 static DeceptusU8 snes_ui_dirty, snes_ui_valid, snes_ui_overflow;
+/* while the inventory is open the room's layers are off: its item picture shows through a gap in
+ * the menu layer, which would otherwise let the room show around the picture. */
+static DeceptusU8 snes_ui_room_hidden, snes_ui_room_hidden_shown;
+#define SNES_UI_WIDTH 256
+
+/* clears the menu layer's priority under the item picture, so the picture's sprite is drawn over it. */
+static void snesUiItemGap(void)
+{
+   DeceptusU16 row, column, left;
+   left = (DeceptusU16)((((SNES_UI_WIDTH - ITEM_ICON_CELL) / 2) & ~7) / 8);
+   for (row = ITEM_ICON_TOP / 8; row < (ITEM_ICON_TOP + ITEM_ICON_CELL) / 8; ++row)
+   {
+      for (column = left; column < left + ITEM_ICON_CELL / 8; ++column)
+      {
+         snes_ui_map[row * 32 + column] &= (DeceptusU16)~0x2000;
+      }
+   }
+}
 static DeceptusU8 snes_ui_mode, snes_ui_selection, snes_ui_room, snes_ui_page, snes_ui_prompt, snes_ui_label;
 static DeceptusU16 snes_ui_flags;
 static const DeceptusInteraction *snes_ui_dialogue;
@@ -155,6 +174,11 @@ static void snesUiPrepare(const DeceptusAdventure *game)
    snes_ui_dialogue = game->dialogue;
    snes_ui_flags = game->flags;
    snes_ui_overflow = 0;
+   snes_ui_room_hidden = 0;
+   if (mode == DECEPTUS_MENU_INVENTORY)
+   {
+      snes_ui_room_hidden = 1;
+   }
    for (index = 0; index < 1024; ++index)
    {
       snes_ui_map[index] = SNES_FONT_TILE_BASE | 0x2000;
@@ -184,6 +208,7 @@ static void snesUiPrepare(const DeceptusAdventure *game)
    else if (mode == DECEPTUS_MENU_INVENTORY)
    {
       snesUiBox(3, 22);
+      snesUiItemGap();
       snesUiText(5, 11, "INVENTORY", 20, 1);
       snesUiText(11, 3, game->selection ? game->definition->item_names[game->selection] : "NO ITEMS", 26, 2);
       snesUiText(19, 5, "UP/DOWN BROWSE", 24, 1);
@@ -241,6 +266,20 @@ static void snesUiCommit(void)
    {
       snesWaitForVblank();
       dmaCopyVram((u8 *)snes_ui_map, 0x1000, sizeof(snes_ui_map));
+      if (snes_ui_room_hidden != snes_ui_room_hidden_shown)
+      {
+         if (snes_ui_room_hidden)
+         {
+            bgSetDisable(0);
+            bgSetDisable(1);
+         }
+         else
+         {
+            bgSetEnable(0);
+            bgSetEnable(1);
+         }
+         snes_ui_room_hidden_shown = snes_ui_room_hidden;
+      }
       snes_ui_dirty = 0;
    }
 }

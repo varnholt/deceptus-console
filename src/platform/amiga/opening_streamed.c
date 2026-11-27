@@ -134,6 +134,9 @@ static AmigaSavedBob saved_bobs[2][BOB_CAPACITY];
 static DeceptusU16 bob_count, saved_counts[2], saved_used[2], saved_capacity;
 /* the bobs requested before the player's hardware sprite: they are drawn in front of her. */
 static DeceptusU16 front_bob_count;
+/* the inventory's item picture, drawn after the menu so the menu does not cover it. */
+static AmigaNativeBob item_bob;
+static DeceptusU8 item_bob_used;
 typedef struct AmigaBankCache
 {
    DeceptusU16 *pixels;
@@ -1379,6 +1382,12 @@ static DeceptusU8 requestBob(void *context, const DeceptusSpriteAppearance *appe
    }
    bob->x += camera_x;
    bob->y += camera_y;
+   if (appearance->family == SPRITE_ITEM_ICON)
+   {
+      item_bob = *bob;
+      item_bob_used = 1;
+      return 1;
+   }
    ++bob_count;
    AMIGA_PERF(++amiga_debug[28];)
    return 1;
@@ -2943,6 +2952,7 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    camera_row = tileFloor(camera_y);
    updateClips(game);
    bob_count = front_bob_count = 0;
+   item_bob_used = 0;
    hardware_used = overlay_used = 0;
    if (!deceptusAppearanceVisit(game, frame, &amiga_appearance_definition, &animation, requestBob, 0))
    {
@@ -3070,6 +3080,10 @@ DeceptusU8 amigaOpeningVideoDraw(const DeceptusAdventure *game, const DeceptusFr
    for (index = 0; cached && index < ui_band_count; ++index)
    {
       blitUiBand(&ui_bands[index], ui_mask + (DeceptusU32)index * UI_BAND_ROWS * UI_BAND_WORDS);
+   }
+   if (item_bob_used)
+   {
+      drawBob(&item_bob);
    }
    AMIGA_PERF(phaseEnd(5);)
    repairGuard(0, 0);
