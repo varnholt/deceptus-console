@@ -34,12 +34,21 @@ class SourceRingResourceTests(unittest.TestCase):
         self.assertEqual(clip['bounds'],[472,136,128,128])
         self.assertEqual(clip['source_center'],[3012,2940])
         self.assertAlmostEqual(clip['source_resting_radius'],46.666368)
-        self.assertEqual((clip['frame_count'],clip['frame_ticks']),(24,5))
+        # the frames fill one 2 s heartbeat; frames during the beats are shorter than the rest, so
+        # a beat swells over several frames instead of jumping to its peak in one.
+        durations=clip['frame_durations']
+        self.assertEqual(len(durations),clip['frame_count'])
+        self.assertEqual(sum(durations),120)
+        self.assertLessEqual(max(durations),clip['frame_ticks'])
+        pulses=clip['sampled_heartbeat']
+        steps=[abs(pulses[(index+1)%len(pulses)]-pulses[index]) for index in range(len(pulses))]
+        self.assertLess(max(steps),.35)
+        self.assertLess(min(durations),clip['frame_ticks'])
         self.assertEqual(clip['required_flags'],8192)
         self.assertEqual(clip['plane'],1)
 
     def test_pulse_animates_without_cutting_the_visible_band(self):
-        self.assertEqual(len({frame.tobytes() for frame in self.clip['frames']}),24)
+        self.assertEqual(len({frame.tobytes() for frame in self.clip['frames']}),self.clip['frame_count'])
         for image in self.clip['frames']:
             pixels=np.asarray(image)
             alpha=pixels[:,:,3]

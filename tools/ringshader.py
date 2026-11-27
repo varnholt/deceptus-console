@@ -93,6 +93,10 @@ def render_powered_ring(obj, texture, world_bounds, elapsed, pulse, heartbeat_of
     return Image.fromarray(np.rint(rgba*255).astype(np.uint8))
 
 
+# the heartbeat scale change between two baked frames during a beat (pulse runs 0 to 1).
+BEAT_STEP = .2
+
+
 def bake_ring_shaders(data, recipe):
     data=Path(data)
     _,objects=map_objects(data/recipe['map'])
@@ -115,8 +119,8 @@ def bake_ring_shaders(data, recipe):
         period=float(props.get('heartbeat_period_s',2.0))
         total_ticks=round(period*60)
         frame_ticks=int(spec.get('frame_ticks',5))
-        if total_ticks<=0 or total_ticks%frame_ticks:
-            raise ValueError('ring heartbeat must fit a whole number of native animation frames')
+        if total_ticks<=0:
+            raise ValueError('ring heartbeat needs a positive period')
         center=[obj['x']+obj['width']/2,obj['y']+obj['height']/2]
         size=int(spec.get('size',128))
         if size%8:
@@ -127,22 +131,26 @@ def bake_ring_shaders(data, recipe):
                 world_bounds[0]+size<=crop[0]+crop[2] and world_bounds[1]+size<=crop[1]+crop[3]):
             raise ValueError('ring clip leaves its imported room')
         foreground=TiledMap(data/recipe['map']).render(world_bounds,recipe.get('foreground_layers',[]))
-        frames=[];offset=0.0;pulses=[]
+        frames=[];offset=0.0;pulses=[];starts=[]
         for tick in range(total_ticks):
             phase=tick/total_ticks
             pulse=heartbeat(phase,float(props.get('heartbeat_second_beat',.7)),float(props.get('heartbeat_beat_width',.035)))
-            if tick%frame_ticks==0:
+            # a beat lasts about four ticks in the source: a new frame whenever the beat has grown or
+            # shrunk by BEAT_STEP since the last one, else every frame_ticks, so it swells and settles
+            # instead of jumping to its peak in one frame.
+            if not starts or tick-starts[-1]>=frame_ticks or abs(pulse-pulses[-1])>BEAT_STEP:
                 image=render_powered_ring(obj,texture,world_bounds,tick/60.0,pulse,offset)
                 # source layers above z=20 retain their original foreground pixels and occlusion.
                 image.alpha_composite(foreground)
-                frames.append(image);pulses.append(pulse)
+                frames.append(image);pulses.append(pulse);starts.append(tick)
             offset+=pulse*float(props.get('heartbeat_turbulence',1.0))/60.0
+        durations=[end-start for start,end in zip(starts,starts[1:]+[total_ticks])]
         sources=[data/recipe['map'],shader,texture_path,
                  data.parent/'src/game/mechanisms/ringshaderlayer.cpp',data.parent/'src/game/mechanisms/ringshaderlayer.h',
                  data.parent/'src/game/mechanisms/shaderlayer.cpp',data.parent/'src/game/mechanisms/shaderlayer.h']
         result.append(dict(name=obj['name'],source_id=obj['id'],bounds=[world_bounds[0]-crop[0],world_bounds[1]-crop[1],size,size],
                            plane=1,required_flags=spec['required_flags'],forbidden_flags=0,
-                           frames=frames,frame_count=len(frames),frame_ticks=frame_ticks,
+                           frames=frames,frame_count=len(frames),frame_ticks=frame_ticks,frame_durations=durations,
                            source_center=center,source_resting_radius=(14.0/12.0)*float(props['ring_scale'])*obj['width'],
                            source_heartbeat_period_s=period,sampled_heartbeat=pulses,
                            source_hashes={path.relative_to(data.parent).as_posix():hashlib.sha256(path.read_bytes()).hexdigest() for path in sources},
