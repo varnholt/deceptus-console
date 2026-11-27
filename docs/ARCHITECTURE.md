@@ -335,6 +335,26 @@ the blank after that writes the loop, or a silent word, for Paula to repeat. Cue
 play at 8 kHz (period 443) on the fourth channel, which the song gets back when the
 cue ends. While a room loads the system owns the machine and the music pauses.
 
+The Mega Drive has no sample channels with a pitch of their own, and pre-rendering
+every note a song plays would not fit the cartridge (some 700 KB for the stand-in
+song). So its Z80 runs a small mixer of its own (`src/platform/smd/audio_driver.s80`,
+assembled with SGDK's sjasm by `tools/build_smd.py`) that plays four channels of
+signed 8-bit samples at any pitch through the YM2612's DAC. It mixes each channel
+in passes of 64 samples into a 256-byte ring, so that one switch of the Z80's bank
+window serves a whole pass; the converters pad every sample with the values such a
+pass may read past its end. YM2612 timer A paces the DAC at 5,327 Hz (NTSC), which
+the mixing loops poll every four samples. A horizontal interrupt at line 150 steps
+the song once a frame (`src/platform/smd/audio.c`) and copies the channels'
+changed fields into the driver's table in one short hold of the Z80 bus, since the
+Z80 and the DAC stop while the 68000 holds it. The Z80 also stops when it reads
+the cartridge while the 68000's DMA owns the bus, so the game announces its video
+transfers before each vertical blank, and the Z80's vertical blank interrupt then
+only plays the ring until they are done. Cues play at the DAC's rate on the fourth
+channel, which the song gets back when the cue ends. Recorded from Genesis Plus
+GX and compared with libopenmpt below 2.6 kHz, the music follows the loudness
+with a correlation of 0.94, has the same dominant pitch in 77% of 50 ms windows,
+and its pitch lies within 0.25%.
+
 ## Rendering
 
 

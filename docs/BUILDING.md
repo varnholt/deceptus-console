@@ -112,7 +112,8 @@ python tools/play.py --backend gba --rom build/gba/deceptus-tutorial.gba
 The project player uses its downloaded mGBA libretro core. `--core PATH` selects
 another native core. Standalone mGBA can open the same ROM. Use an integer window
 scale and disable smoothing to preserve the artwork's pixel grid. No external
-BIOS is distributed. Audio is currently silent in both ROM and project player.
+BIOS is distributed. The project player plays the cartridge's sound when PyAudio
+is installed (`python -m pip install pyaudio`); without it, it runs silent.
 
 ## Formatting
 

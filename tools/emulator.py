@@ -65,6 +65,8 @@ class Emulator:
         self.last_image = None
         self.video_frames = 0
         self.audio_samples = 0
+        # receives the core's audio as raw interleaved 16-bit stereo, when a player wants to hear it.
+        self.audio_sink = None
         self.directory = str((ROOT / "artifacts").resolve()).encode()
         Path(self.directory.decode()).mkdir(exist_ok=True)
         self.defaults = []
@@ -156,6 +158,9 @@ class Emulator:
 
     def audio_batch(self, data, frames):
         self.audio_samples += frames
+        if self.audio_sink:
+            # interleaved signed 16-bit stereo frames.
+            self.audio_sink(C.string_at(data, frames * 4))
         return frames
 
     def run(self, frames, buttons=()):

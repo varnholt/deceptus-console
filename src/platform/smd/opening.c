@@ -1,8 +1,10 @@
 #include <genesis.h>
+#include "audio.h"
 #include "deceptus/adventure.h"
 #include "deceptus/game.h"
 #include "deceptus/pacing.h"
 #include "opening_video.h"
+#include "songs.h"
 
 static DeceptusAdventure adventure;
 static DeceptusFrame frame;
@@ -174,6 +176,7 @@ int main(bool hard_reset)
    deceptusAdventureInit(&adventure, &smd_tutorial_definition, &video);
    videoLoad();
    deceptusPacingInit(&pacing, IS_PAL_SYSTEM ? 50 : 60, SMD_PACING_MAX_TICKS);
+   audioStart(SONG_LEVEL_TEST_TRACK_MUFFLER_AWAKENING);
    previous_vblank = vtimer - 1;
    room_loaded = 0;
    while (1)
@@ -194,6 +197,7 @@ int main(bool hard_reset)
             break;
          }
       }
+      audioPlayCues(&adventure.sounds);
       deceptusRender(&adventure.campaign.engine, &frame);
       flags = deceptusAdventurePresentationFlags(&adventure);
       smdBackgroundSetFlags(flags);
@@ -205,6 +209,7 @@ int main(bool hard_reset)
       blank =
          smd_background_full || smd_sprite_blank || smd_background_dma_bytes + smd_sprite_upload_bytes + (smd_ui_dirty ? 4096 : 0) > 5500;
       debugWrite(buttons, blank);
+      audioTransfersBegin();
       SYS_doVBlankProcess();
       if (blank)
       {
@@ -219,6 +224,7 @@ int main(bool hard_reset)
       {
          SYS_doVBlankProcess();
       }
+      audioTransfersEnd();
       VDP_setEnable(TRUE);
    }
    return 0;

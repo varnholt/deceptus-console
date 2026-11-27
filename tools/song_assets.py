@@ -122,9 +122,20 @@ def _array(kind, name, values, per_line=16, attribute=''):
     return [f'static const {kind} {name}[]{attribute} = {{'] + ['   ' + row + ',' for row in rows] + ['};']
 
 
-def song_source(song, name, sample_attribute=''):
+def padded_values(sample, tail):
+    """The sample's values followed by tail more: its loop continued, or silence after a one-shot. a
+    mixer that checks the end only now and then reads them instead of whatever follows."""
+    values, loop_start, loop_length = sample['values'], sample['loop_start'], sample['loop_length']
+    if not loop_length:
+        return values + [0] * tail
+    loop = values[loop_start:loop_start + loop_length]
+    return values + (loop * (tail // loop_length + 1))[:tail]
+
+
+def song_source(song, name, sample_attribute='', tail=0):
     """C definitions of one song; the Song itself is named name, the rest is static. sample_attribute
-    places the sample data, such as the Amiga's chip RAM section."""
+    places the sample data, such as the Amiga's chip RAM section; tail values follow each sample
+    (padded_values) without counting in its length."""
     lines = []
     for index, cells in enumerate(song['patterns']):
         lines += _array('DeceptusU8', f'{name}_pattern{index}', list(cells), 24)
@@ -133,7 +144,7 @@ def song_source(song, name, sample_attribute=''):
     lines += _array('DeceptusU16', f'{name}_rows', song['rows'])
     lines += _array('DeceptusU8', f'{name}_orders', song['orders'])
     for index, sample in enumerate(song['samples']):
-        lines += _array('DeceptusI8', f'{name}_sample{index}', sample['values'] or [0], 32, sample_attribute)
+        lines += _array('DeceptusI8', f'{name}_sample{index}', padded_values(sample, tail) or [0], 32, sample_attribute)
     lines += [f'static const SongSample {name}_samples[] = {{'] + [
         f'   {{{name}_sample{index}, {max(1, len(sample["values"]))}, {sample["loop_start"]}, {sample["loop_length"]}, '
         f'{sample["volume"]}, {sample["relative"]}, {sample["finetune"]}}},' for index, sample in enumerate(song['samples'])] + ['};']
