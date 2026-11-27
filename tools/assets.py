@@ -14,6 +14,8 @@ from tiled import TiledMap, collision_grid, layer_values, GID_MASK
 from palettes import banked_background, palette_rgb555
 from content import crop_mechanisms
 from world_export import export_world
+from scenery import static_layers
+import storm_sky
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "source"
@@ -46,13 +48,16 @@ def import_deceptus(data, recipe_path=None, source=SOURCE):
     names = recipe["visual_layers"]
     room = Image.new("RGBA", crop[2:], (10, 10, 20, 255))
     if recipe.get('static_image_layers'):
-        from scenery import static_layers
         static_layers(data,recipe,room)
     foreground_names = recipe.get('foreground_layers', [])
     room.alpha_composite(tiled.render(crop, [name for name in names if name not in foreground_names]))
     if foreground_names:
         tiled.render(crop, foreground_names).save(source / 'foreground.png')
     room.convert("RGB").save(source / "catacombs.png")
+    sky = Image.new("RGBA", crop[2:])
+    if recipe.get('static_image_layers'):
+        static_layers(data, recipe, sky, storm_sky.LAYERS)
+    storm_sky.sky_mask(sky, room).save(source / storm_sky.MASK)
     # tile collision vectors, not artwork alpha; dynamic blockers stay dynamic.
     masks = collision_masks(tiled, crop, recipe)
     masks['player'].save(source / "collision.png")

@@ -206,6 +206,7 @@ static DeceptusFrame frame;
 
 #include "background.h"
 #include "sprites.h"
+#include "storm.h"
 #include "ppu_timing.h"
 #include "ui.h"
 
@@ -435,6 +436,7 @@ static void gameLoadRoom(void)
 {
    snesBackgroundLoad(adventure.campaign.room_index);
    snesSpritesReset();
+   snesStormReset();
 }
 
 static void gamePrepare(DeceptusU8 buffer)
@@ -444,6 +446,7 @@ static void gamePrepare(DeceptusU8 buffer)
    snesBackgroundStage(buffer);
    snesSpritesPrepare(&adventure, &frame);
    snesSpritesStage(buffer);
+   snesStormStage(&adventure, buffer);
 }
 
 /* without a second cpu the presentation waits for gamePresentFinish, after the transfers of the
@@ -578,11 +581,12 @@ int main(void)
       /* every video transfer first, while vblank lasts. when the background leaves too little of it,
          the sprites take the next vblank; their tiles and the oam that refers to them stay together. */
       snesBackgroundCommit(committed);
-      if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines(committed))
+      if (!screen_blanked && snesVblankLinesLeft() < snesSpritesCommitLines(committed) + snesStormCommitLines(committed))
       {
          snesWaitForVblank();
       }
       snesSpritesCommitTransfers(committed);
+      snesStormCommit(committed);
       snesUiCommit();
       if (screen_blanked)
       {

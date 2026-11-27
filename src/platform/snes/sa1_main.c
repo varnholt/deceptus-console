@@ -6,6 +6,7 @@
 #include "sa1_mailbox.h"
 #include "background.h"
 #include "sprites.h"
+#include "storm.h"
 
 extern const DeceptusAdventureDef snes_tutorial_definition;
 
@@ -36,6 +37,7 @@ static void prepare(DeceptusU8 buffer)
    snesBackgroundStage(buffer);
    snesSpritesPrepare(&snes_sa1_adventure, &snes_sa1_frame);
    snesSpritesStage(buffer);
+   snesStormStage(&snes_sa1_adventure, buffer);
 }
 
 /* the deepest overwritten stack byte found so far; zero until the first request. */
@@ -97,6 +99,7 @@ void snesSa1Main(void)
       {
          snesBackgroundLoad(snes_sa1_adventure.campaign.room_index);
          snesSpritesReset();
+         snesStormReset();
       }
       else if (mailbox->command == SNES_SA1_PREPARE)
       {

@@ -130,7 +130,7 @@ def sa1_layout_assembly(room_blocks, rooms):
 
 # SA-1 objects run on the SA-1: their globals live in BW-RAM, which the SA-1 addresses through its
 # data bank $40; the S-CPU keeps work RAM and its multiplier/divider, which the SA-1 cannot reach.
-SA1_HOST_SOURCES = ("main.c", "background_commit.c", "sprites_commit.c")
+SA1_HOST_SOURCES = ("main.c", "background_commit.c", "sprites_commit.c", "storm_commit.c")
 SA1_BSS = '.RAMSECTION ".bss" BANK $40 SLOT 2'
 SA1_RUNTIME = {"tcc__mul": "snesSa1Mul", "tcc__mull": "snesSa1Mull", "tcc__udiv": "snesSa1Udiv",
                "tcc__div": "snesSa1Div", "snesMulS16": "snesSa1MulS16", "snesSquareU16": "snesSa1SquareU16",
@@ -369,13 +369,14 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         header = header.replace(f"@{key}@", value)
     (folder / "hdr.asm").write_text(header)
     objects = []
-    sources = [ROOT / "src/engine/player/playerwater.c", ROOT / "src/engine/player/playerrope.c", ROOT / "src/engine/mechanisms/grabrope.c", ROOT / "src/engine/mechanisms/moveablebox.c", ROOT / "src/engine/mechanisms/crusher.c", ROOT / "src/engine/mechanisms/floorspikes.c", ROOT / "src/engine/mechanisms/spikeball.c", ROOT / "src/engine/mechanisms/checkpointclock.c", ROOT / "src/game/adventure.c", ROOT / "src/game/mechanismparts.c", ROOT / "src/game/weapons/playersword.c", ROOT / "src/game/player/playeranimation.c", ROOT / "src/game/items/itemheadtorch.c", ROOT / "src/game/appearance.c", ROOT / "src/game/ropelink.c", ROOT / "src/engine/animation.c", ROOT / "src/engine/world.c", ROOT / "src/engine/entities.c", ROOT / "src/engine/events.c", ROOT / "src/engine/mechanisms.c",
+    sources = [ROOT / "src/engine/player/playerwater.c", ROOT / "src/engine/player/playerrope.c", ROOT / "src/engine/mechanisms/grabrope.c", ROOT / "src/engine/mechanisms/moveablebox.c", ROOT / "src/engine/mechanisms/crusher.c", ROOT / "src/engine/mechanisms/floorspikes.c", ROOT / "src/engine/mechanisms/spikeball.c", ROOT / "src/engine/mechanisms/checkpointclock.c", ROOT / "src/game/adventure.c", ROOT / "src/game/thunderstorm.c", ROOT / "src/game/mechanismparts.c", ROOT / "src/game/weapons/playersword.c", ROOT / "src/game/player/playeranimation.c", ROOT / "src/game/items/itemheadtorch.c", ROOT / "src/game/appearance.c", ROOT / "src/game/ropelink.c", ROOT / "src/engine/animation.c", ROOT / "src/engine/world.c", ROOT / "src/engine/entities.c", ROOT / "src/engine/events.c", ROOT / "src/engine/mechanisms.c",
                ROOT / "src/engine/logic.c", ROOT / "src/engine/pacing.c", ROOT / "src/engine/arith.c", ROOT / "src/game/enemies.c", ROOT / "src/game/deceptus.c",
                ROOT / "src/platform/snes/main.c"]
     if opening:
         sources += [ROOT / "src/game/campaign.c", ROOT / "src/platform/snes/background.c",
                     ROOT / "src/platform/snes/background_commit.c", ROOT / "src/platform/snes/sprites.c",
-                    ROOT / "src/platform/snes/sprites_commit.c"]
+                    ROOT / "src/platform/snes/sprites_commit.c", ROOT / "src/platform/snes/storm.c",
+                    ROOT / "src/platform/snes/storm_commit.c"]
         sources += [generated / name for name in metadata["c_sources"]]
         if sa1:
             sources.append(ROOT / "src/platform/snes/sa1_main.c")

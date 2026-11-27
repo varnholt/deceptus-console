@@ -17,6 +17,7 @@ from PIL import Image
 from assets import ROOT, planar4
 from campaign_assets import asset_identity, validate_room_assets
 from palettes import banked_background, palette_rgb555
+import storm_sky
 from pixel_font import NativePixelFont
 from snes_tile_slots import fix_room
 from source_sprites import ACTOR_FRAMES, shared_sprite_count, sprite_families, sprite_resource_count
@@ -63,7 +64,10 @@ class BinaryWriter:
         (self.output/'data.asm').write_text('\n'.join(self.sections)+'\n')
 
 
-def compile_background(image,foreground,clips,output):
+SNES_ROOM_COLOUR_FIRST=16
+
+
+def compile_background(image,foreground,clips,output,storm_mask=None):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     height=image.height*2+sum(clip['bounds'][3]*clip['frame_count'] for clip in clips)
     atlas=Image.new('RGB',(image.width,height))
@@ -74,6 +78,8 @@ def compile_background(image,foreground,clips,output):
         for frame in clip['frames']:
             atlas.paste(frame,(0,cursor));cursor+=frame.height
     converted,banks,metrics=banked_background(atlas,bank_count=7)
+    # CGRAM keeps the UI bank first, so the room's colour n sits at entry n + 16.
+    storm_entries=[entry+SNES_ROOM_COLOUR_FIRST for entry in storm_sky.banked_entries(converted,storm_mask)] if storm_mask is not None else []
     pixels=np.asarray(converted).copy()
     foreground_mask=np.asarray(foreground)[:,:,3]>=128
     pixels[image.height:image.height*2][~foreground_mask]=0
@@ -109,9 +115,9 @@ def compile_background(image,foreground,clips,output):
     if len(patterns)>16384:
         raise ValueError('SNES room exceeds the 14-bit logical pattern identity budget')
     palette_image=Image.new('P',(8,8));palette_image.putpalette(palette)
-    palette_bytes=bytes(32)+palette_rgb555(palette_image,7)
+    palette_bytes=bytes(SNES_ROOM_COLOUR_FIRST*2)+palette_rgb555(palette_image,7)
     return dict(patterns=b''.join(patterns),background=background,foreground=front,animations=animated,
-                palette=palette_bytes,pattern_count=len(patterns),metrics=metrics)
+                palette=palette_bytes,pattern_count=len(patterns),metrics=metrics,storm_entries=storm_entries)
 
 
 # the interface's 2bpp font starts at VRAM 1400 (tile 128 of character base 1000); the foreground's
@@ -178,7 +184,7 @@ def original_imports(data):
         recipe=json.loads((folder/'recipe.json').read_text())
         validate_room_assets(folder,dict(identity,recipe=recipe))
         source=ROOT/'assets/source/campaign'/f'area{index}'/'gba'
-        for name in ('import.json','catacombs.png','foreground.png','collision.png','one_way.png','water.png','mechanisms.json','enemies.json'):
+        for name in ('import.json','catacombs.png','foreground.png',storm_sky.MASK,'collision.png','one_way.png','water.png','mechanisms.json','enemies.json'):
             if not (source/name).is_file():
                 raise ValueError(f'missing lossless original import: {source/name}')
         recipes.append((recipe,source))
@@ -386,7 +392,8 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
         image=Image.open(source/'catacombs.png').convert('RGB')
         foreground=Image.open(source/'foreground.png').convert('RGBA') if (source/'foreground.png').exists() else Image.new('RGBA',image.size)
         clips=source_clips(data,recipe,image)
-        rooms_converted.append((recipe,image,clips,compile_background(image,foreground,clips,output/f'area{index}')))
+        storm_mask=Image.open(source/storm_sky.MASK)
+        rooms_converted.append((recipe,image,clips,compile_background(image,foreground,clips,output/f'area{index}',storm_mask)))
     # fixed tile slots take seconds per room; plan the rooms side by side and keep the plans.
     with ProcessPoolExecutor() as pool:
         jobs=[pool.submit(fix_room,converted['background'],converted['foreground'],
@@ -417,7 +424,11 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
         if animations:
             pointer=prefix+'_animations'
             animation_lines+=['static const SnesBackgroundAnimation '+pointer+'[] = {',*['    '+value+',' for value in animations],'};']
-        stage_lines.append('    {'+','.join([patterns,background,front,palette,str(image.width//8),str(image.height//8),str(converted['pattern_count']),pointer,str(len(animations)),json.dumps(recipe['title']),str(fixed['pool_first']),str(fixed['pool_end'])])+'},')
+        storm_pointer='0'
+        if converted['storm_entries']:
+            storm_pointer=prefix+'_storm_entries'
+            animation_lines.append('static const DeceptusU8 '+storm_pointer+'[] = {'+','.join(map(str,converted['storm_entries']))+'};')
+        stage_lines.append('    {'+','.join([patterns,background,front,palette,str(image.width//8),str(image.height//8),str(converted['pattern_count']),pointer,str(len(animations)),json.dumps(recipe['title']),str(fixed['pool_first']),str(fixed['pool_end']),storm_pointer,str(len(converted['storm_entries']))])+'},')
         reports.append(dict(room=index,patterns=converted['pattern_count'],animations=len(clips),world_palette_banks=7,color_fidelity=converted['metrics'],
                             cache_pool=[fixed['pool_first'],fixed['pool_end']]))
         print(f'converted SNES room{index}: {converted["pattern_count"]}patterns, cache pool {fixed["pool_first"]}-{fixed["pool_end"]-1}',flush=True)
@@ -437,7 +448,7 @@ def compile_tutorial(data,output,rooms=26,sprites=True):
             '#define SNES_SPRITE_QUADS 1',
             'typedef struct SnesRomBlob { const DeceptusU8 *const *chunks; DeceptusU32 bytes; } SnesRomBlob;',
             'typedef struct SnesBackgroundAnimation { DeceptusU16 left,top,columns,rows,frames,frame_ticks,required_flags,forbidden_flags; const DeceptusU16 *durations; SnesRomBlob cells; DeceptusU8 plane; } SnesBackgroundAnimation;',
-            'typedef struct SnesStage { SnesRomBlob patterns,background,foreground; const DeceptusU8 *palette; DeceptusU16 columns,rows,pattern_count; const SnesBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; DeceptusU16 pool_first,pool_end; } SnesStage;',
+            'typedef struct SnesStage { SnesRomBlob patterns,background,foreground; const DeceptusU8 *palette; DeceptusU16 columns,rows,pattern_count; const SnesBackgroundAnimation *animations; DeceptusU8 animation_count; const char *title; DeceptusU16 pool_first,pool_end; const DeceptusU8 *storm_entries; DeceptusU8 storm_count; } SnesStage;',
             'typedef struct SnesSpriteResource { const DeceptusU8 *graphics; const DeceptusU16 *palette; DeceptusU16 bytes; DeceptusU8 columns,rows,trim_x,trim_y; } SnesSpriteResource;',
             'typedef struct SnesFontGlyph { DeceptusU16 layout; DeceptusU8 columns; } SnesFontGlyph;',
             'extern const SnesStage snes_stages[SNES_STAGE_COUNT];','extern const SnesSpriteResource snes_sprite_resources[SNES_SPRITE_RESOURCE_COUNT];',

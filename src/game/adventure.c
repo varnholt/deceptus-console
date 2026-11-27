@@ -310,6 +310,21 @@ static DeceptusU8 interact(DeceptusAdventure *game, const DeceptusInteraction *a
    return 1;
 }
 
+/* the room's thunderstorm runs while its flags are all set. */
+static void stormTick(DeceptusAdventure *game, const DeceptusAdventureRoom *room)
+{
+   DeceptusU8 active;
+   active = 0;
+   if (room->storm_flags != 0)
+   {
+      if ((game->flags & room->storm_flags) == room->storm_flags)
+      {
+         active = 1;
+      }
+   }
+   thunderstormTick(&game->thunderstorm, active);
+}
+
 DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons)
 {
    DeceptusCampaign *campaign;
@@ -574,6 +589,7 @@ DeceptusU8 deceptusAdventureTick(DeceptusAdventure *game, DeceptusU16 buttons)
       pressed = 0;
    }
    deceptusTick(engine, buttons & ~(DECEPTUS_PAUSE | DECEPTUS_RESTART));
+   stormTick(game, room);
    if (game->has_sword)
    {
       deceptusPlayerSwordTick(&game->sword, engine, pressed);

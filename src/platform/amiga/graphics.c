@@ -535,3 +535,30 @@ const DeceptusU16 *amigaGraphicsNativeClip(const AmigaGraphics *graphics, Decept
    offset = readLong(graphics->native_clips + 8 + (DeceptusU32)index * 4);
    return (const DeceptusU16 *)(graphics->native_clips + start + offset + (DeceptusU32)frame * nativeClipFrameBytes(&clip));
 }
+
+DeceptusU8 amigaGraphicsStormEntries(const AmigaGraphics *graphics, DeceptusU8 *entries, DeceptusU8 *count)
+{
+   DeceptusU32 list;
+   DeceptusU16 length;
+   DeceptusU8 index;
+   list = graphics->palette + 64;
+   if (!worldRange(graphics, list, 2))
+   {
+      return 0;
+   }
+   length = readWord(graphics->world + list);
+   if ((length > 32) || !worldRange(graphics, list + 2, length))
+   {
+      return 0;
+   }
+   for (index = 0; index < length; ++index)
+   {
+      entries[index] = graphics->world[list + 2 + index];
+      if (entries[index] > 31)
+      {
+         return 0;
+      }
+   }
+   *count = (DeceptusU8)length;
+   return 1;
+}

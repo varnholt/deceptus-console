@@ -54,7 +54,7 @@ def asset_identity(data):
     digest = hashlib.sha256()
     digest.update((pillow_version+np.__version__).encode())
     for name in ('assets.py','gba_assets.py','campaign_assets.py','tiled.py','palettes.py',
-                 'world_export.py','content.py','lua_source.py','enemies.py','scenery.py','tileanimation.py','water.py','ringshader.py','headtorch_assets.py','rope_assets.py','enemy_paths.py'):
+                 'world_export.py','content.py','lua_source.py','enemies.py','scenery.py','tileanimation.py','water.py','ringshader.py','headtorch_assets.py','rope_assets.py','enemy_paths.py','storm_sky.py'):
         digest.update(name.encode())
         digest.update((ROOT/'tools'/name).read_bytes())
     return dict(source_sha256=source_digest,converters_sha256=digest.hexdigest())
@@ -81,7 +81,7 @@ def compile_campaign(data, config=None, scene='tonight', reuse_assets=False):
     output.mkdir(parents=True, exist_ok=True)
     common_source = ROOT / 'assets/source/campaign'
     identity = asset_identity(data)
-    assemblies, room_sources, stages, goals, reports = [], [], [], [], []
+    assemblies, room_sources, stages, goals, reports, storm_tables = [], [], [], [], [], []
     header = None
     for index, stage in enumerate(config['stages']):
         folder = output / f'area{index}'
@@ -116,7 +116,11 @@ def compile_campaign(data, config=None, scene='tonight', reuse_assets=False):
         room_sources.append(source)
         animation_count = len(report.get('baked_background_animations', []))
         animation_pointer = prefix + '_animations' if animation_count else '0'
-        stages.append(f'    {{&deceptus_area{index}, {prefix}_palette, {prefix}_patterns, {prefix}_cells, {report["background_patterns"]}, {json.dumps(stage["title"])}, {json.dumps(stage["instruction"])}, {json.dumps(stage["hint1"])}, {json.dumps(stage["hint2"])}, {animation_pointer}, {animation_count}, {prefix}_foreground_cells}},')
+        storm_entries = report['background_fidelity'].get('storm_entries', [])
+        if storm_entries:
+            storm_tables.append(f'const DeceptusU8 {prefix}_storm_entries[] = {{{",".join(map(str, storm_entries))}}};')
+        storm_pointer = prefix + '_storm_entries' if storm_entries else '0'
+        stages.append(f'    {{&deceptus_area{index}, {prefix}_palette, {prefix}_patterns, {prefix}_cells, {report["background_patterns"]}, {json.dumps(stage["title"])}, {json.dumps(stage["instruction"])}, {json.dumps(stage["hint1"])}, {json.dumps(stage["hint2"])}, {animation_pointer}, {animation_count}, {prefix}_foreground_cells, {storm_pointer}, {len(storm_entries)}}},')
         goals.append('    {{' + ','.join(map(str, stage['goal'])) + '}, ' + str(stage.get('disabled_mechanism', 0)) + '},')
         if index == 0:
             header = (folder / 'gba_assets.h').read_text()
@@ -135,7 +139,7 @@ def compile_campaign(data, config=None, scene='tonight', reuse_assets=False):
     header = header.replace('extern const DeceptusU8 gba_stream_patterns[];', '').replace('extern const DeceptusU8 gba_stream_cells[];', '')
     header = header.replace('extern const DeceptusU8 gba_foreground_cells[];', '#define gba_foreground_cells (active_stage->foreground_cells)')
     additions = ['#include "deceptus/campaign.h"',
-        'typedef struct GbaStage { const DeceptusRoom *room; const DeceptusU8 *palette, *patterns, *cells; DeceptusU16 pattern_count; const char *title, *instruction, *hint1, *hint2; const GbaBackgroundAnimation *animations; DeceptusU8 animation_count; const DeceptusU8 *foreground_cells; } GbaStage;',
+        'typedef struct GbaStage { const DeceptusRoom *room; const DeceptusU8 *palette, *patterns, *cells; DeceptusU16 pattern_count; const char *title, *instruction, *hint1, *hint2; const GbaBackgroundAnimation *animations; DeceptusU8 animation_count; const DeceptusU8 *foreground_cells; const DeceptusU8 *storm_entries; DeceptusU8 storm_count; } GbaStage;',
         f'extern const GbaStage gba_stages[{len(stages)}];', 'extern const DeceptusCampaignDef gba_campaign_definition;',
         'extern const DeceptusU8 gba_font[];', '#define GBA_FONT_BYTES 3104',
         '#define gba_stream_patterns (active_stage->patterns)', '#define gba_stream_cells (active_stage->cells)']
@@ -147,7 +151,7 @@ def compile_campaign(data, config=None, scene='tonight', reuse_assets=False):
     declarations = ['#include "gba_assets.h"']
     for index in range(len(stages)):
         declarations += [f'extern const DeceptusU8 gba_area{index}_{suffix}[];' for suffix in ('palette', 'patterns', 'cells','foreground_cells')]
-    declarations += ['const GbaStage gba_stages[] = {', *stages, '};',
+    declarations += [*storm_tables, 'const GbaStage gba_stages[] = {', *stages, '};',
                      'static const DeceptusRoom *const campaign_rooms[] = {' + ','.join(f'&deceptus_area{index}' for index in range(len(stages))) + '};',
                      'static const DeceptusCampaignGoal campaign_goals[] = {', *goals, '};',
                      f'const DeceptusCampaignDef gba_campaign_definition = {{campaign_rooms, campaign_goals, {len(stages)}}};']

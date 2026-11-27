@@ -44,6 +44,8 @@ static DeceptusCampaign campaign;
 #endif
 #define engine campaign.engine
 static const GbaStage *active_stage;
+/* the flash level the sky colours in palette RAM show; the room's palette upload resets it to unlit. */
+static DeceptusU8 storm_level;
 #else
 static DeceptusEngine engine;
 #endif
@@ -182,6 +184,7 @@ static void __attribute__((section(".romtext"))) videoInit(void)
 
 #if GBA_CAMPAIGN
    dmaCopy(active_stage->palette, (void *)0x05000000, 512);
+   storm_level = 0;
    dmaCopy(gba_font, (void *)0x0600c000, GBA_FONT_BYTES);
    REG16(0x050001e2) = 0x7fff;
    REG16(0x050001e6) = 0x0821;
@@ -782,6 +785,31 @@ static void mapsCommit(void)
 #endif
 }
 
+#if GBA_TUTORIAL
+/* thunderstormoverlay.cpp lights only the sky and far forest: rewrite just their palette entries. */
+static void __attribute__((section(".romtext"), noinline)) stormCommit(void)
+{
+   const DeceptusU8 *source;
+   DeceptusU16 colour;
+   DeceptusU8 level, index, entry;
+   level = thunderstormLevel(&adventure.thunderstorm);
+   if (level == storm_level)
+   {
+      return;
+   }
+   storm_level = level;
+   for (index = 0; index < active_stage->storm_count; ++index)
+   {
+      entry = active_stage->storm_entries[index];
+      source = active_stage->palette + entry * 2;
+      colour = (DeceptusU16)(source[0] | (source[1] << 8));
+      REG16(0x05000000 + entry * 2) = (DeceptusU16)(thunderstormChannel(colour & 31, 31, level) |
+                                                    (thunderstormChannel((colour >> 5) & 31, 31, level) << 5) |
+                                                    (thunderstormChannel((colour >> 10) & 31, 31, level) << 10));
+   }
+}
+#endif
+
 static void __attribute__((section(".romtext"), noinline)) videoCommit(void)
 {
    DeceptusU16 index, resource;
@@ -832,6 +860,9 @@ static void __attribute__((section(".romtext"), noinline)) videoCommit(void)
                           : (1 << 8) | (1 << 9);
    REG16(0x04000052) = 8 | (16 << 8);
    REG16(0x04000054) = (engine.paused || (campaign.mode != DECEPTUS_CAMPAIGN_PLAYING && campaign.mode != DECEPTUS_NOTIFICATION)) ? 8 : 0;
+#if GBA_TUTORIAL
+   stormCommit();
+#endif
 #else
    REG16(0x04000050) = engine.paused ? (3 << 6) | 0x13 : 0;
    REG16(0x04000054) = engine.paused ? 8 : 0;

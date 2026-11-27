@@ -70,6 +70,8 @@ DeceptusU8 amigaGraphicsInit(AmigaGraphics *graphics, const DeceptusU8 *world, D
 /* select a compressed-block boundary for two fixed physical RAM banks. */
 DeceptusU32 amigaGraphicsSpriteSplit(const DeceptusU8 *world, DeceptusU32 size, DeceptusU32 available);
 DeceptusU8 amigaGraphicsPalette(const AmigaGraphics *graphics, DeceptusU16 *palette);
+/* the palette entries the thunderstorm lights (tools/storm_sky.py), stored after the palette: at most 32. */
+DeceptusU8 amigaGraphicsStormEntries(const AmigaGraphics *graphics, DeceptusU8 *entries, DeceptusU8 *count);
 DeceptusU8 amigaGraphicsRow(const AmigaGraphics *graphics, DeceptusU32 map, DeceptusU16 columns, DeceptusU16 rows, DeceptusU16 row,
                             DeceptusU16 *cells);
 DeceptusU8 amigaGraphicsTileGroup(const AmigaGraphics *graphics, DeceptusU16 group, DeceptusU8 *destination);

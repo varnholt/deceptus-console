@@ -97,14 +97,16 @@ def variants(data, recipe, background):
     return clips
 
 
-def static_layers(data, recipe, canvas):
-    """Bake selected source image layers at native pixel size before tile conversion."""
+def static_layers(data, recipe, canvas, names=None):
+    """Bake selected source image layers (default: all static ones) at native pixel size before tile conversion."""
     data = Path(data)
     map_path = data / recipe['map']
     root = ET.parse(map_path).getroot()
     crop = recipe['crop_pixels']
     by_name = {layer.get('name'): layer for layer in root.iter('imagelayer')}
     for name in recipe.get('static_image_layers', []):
+        if (names is not None) and (name not in names):
+            continue
         layer = by_name[name]
         image = Image.open(map_path.parent / layer.find('image').get('source')).convert('RGBA')
         x,y = round(float(layer.get('offsetx',0))),round(float(layer.get('offsety',0)))
