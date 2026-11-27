@@ -91,6 +91,8 @@ def sa1_binary_assembly(assembly):
 
     shared = bank_filler(SA1_SHARED_BLOCKS)
     shared[SA1_FASTROM_COPY_BANK] = 65536
+    # snesmod's soundbank owns a whole bank (compile_soundbank).
+    shared[SNES_SOUNDBANK_BANK] = 65536
     for index, size, room in sorted(blobs, key=lambda blob: -blob[1]):
         if room is None and not place(index, size, shared, lambda bank: 0xC0 + bank):
             raise ValueError('SA-1 shared resource blocks exhausted')
@@ -274,6 +276,8 @@ def readonly_export_assembly(assembly, name):
 def exhirom_binary_assembly(assembly):
     """Pack blobs into directly mapped banks and encode their actual CPU banks."""
     used = {bank: 0 for bank in list(range(16, 64)) + list(range(65, 126))}
+    # snesmod's soundbank owns a whole bank (compile_soundbank).
+    used[SNES_SOUNDBANK_BANK] = 65536
     lines = assembly.splitlines()
     for index, line in enumerate(lines):
         if not line.startswith('.section '):
@@ -368,6 +372,7 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
     for key, value in replacements.items():
         header = header.replace(f"@{key}@", value)
     (folder / "hdr.asm").write_text(header)
+    objects_audio = compile_soundbank(folder, data, sdk, assembler) if opening else []
     objects = []
     sources = [ROOT / "src/engine/player/playerwater.c", ROOT / "src/engine/player/playerrope.c", ROOT / "src/engine/mechanisms/grabrope.c", ROOT / "src/engine/mechanisms/moveablebox.c", ROOT / "src/engine/mechanisms/crusher.c", ROOT / "src/engine/mechanisms/floorspikes.c", ROOT / "src/engine/mechanisms/spikeball.c", ROOT / "src/engine/mechanisms/checkpointclock.c", ROOT / "src/game/adventure.c", ROOT / "src/game/thunderstorm.c", ROOT / "src/game/soundcue.c", ROOT / "src/game/mechanismparts.c", ROOT / "src/game/weapons/playersword.c", ROOT / "src/game/player/playeranimation.c", ROOT / "src/game/items/itemheadtorch.c", ROOT / "src/game/appearance.c", ROOT / "src/game/ropelink.c", ROOT / "src/engine/animation.c", ROOT / "src/engine/world.c", ROOT / "src/engine/entities.c", ROOT / "src/engine/events.c", ROOT / "src/engine/mechanisms.c",
                ROOT / "src/engine/logic.c", ROOT / "src/engine/pacing.c", ROOT / "src/engine/arith.c", ROOT / "src/game/enemies.c", ROOT / "src/game/deceptus.c",
@@ -457,6 +462,7 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
             (folder / "exhirom_reserved.asm").write_text("\n".join(reservations) + "\n")
             run([assembler, "-d", "-s", "-x", "-o", "exhirom_reserved.obj", "exhirom_reserved.asm"], folder)
             objects.append("exhirom_reserved.obj")
+    objects += objects_audio
     library = sdk / ("pvsneslib/lib/HiROM_FastROM" if opening else "pvsneslib/lib/LoROM_FastROM")
     objects += [path.as_posix() for path in sorted(library.glob("*.obj"))]
     (folder / "linkfile").write_text("[objects]\n" + "\n".join(objects) + "\n")
@@ -470,6 +476,48 @@ def build(sdk, data, full_game=False, scene="tutorial", rooms=26, reuse_assets=F
         rom_mib=rom_mib if opening else 0.25, mapping=("SA-1" if sa1 else "ExHiROM" if rom_mib == 8 else "HiROM") if opening else "LoROM",
         full_game=False, sha256=hashlib.sha256((folder / "deceptus.sfc").read_bytes()).hexdigest()), indent=2) + "\n")
     print(f"ROM: {folder / 'deceptus.sfc'}")
+
+
+# snesmod (PVSnesLib) plays the music and the sound cues on the SPC700. its soundbank sits in one
+# HiROM bank of the shared blocks the S-CPU reads, and effects play at SNES_EFFECT_RATE.
+SNES_SOUNDBANK_BANK = 40
+SNES_EFFECT_RATE = 8000
+# spcEffect's pitch is in 4 kHz steps.
+SNES_EFFECT_PITCH = SNES_EFFECT_RATE // 4000
+
+
+def compile_soundbank(folder, data, sdk, assembler):
+    """The effects module (one sample per sound cue) and the songs, as snesmod's soundbank object."""
+    import it_writer
+    import music_assets
+    import song_assets
+    import sound_assets
+    numbers, count = sound_assets.cue_numbers()
+    effects = sorted(numbers, key=numbers.get)
+    if [numbers[cue] for cue in effects] != list(range(1, count)):
+        raise SystemExit("snesmod effects are numbered from 0: sound cues must run 1..SOUND_CUE_COUNT-1")
+    samples = [(cue, sound_assets.decode(Path(data) / "sounds" / sound_assets.CUES[cue][0], SNES_EFFECT_RATE,
+                                         sound_assets.CUES[cue][1]), SNES_EFFECT_RATE) for cue in effects]
+    (folder / "effects.it").write_bytes(it_writer.write_it(it_writer.effects_song(samples), "effects"))
+    modules = sorted(set(music_assets.TRACKS.values()))
+    names = ["effects.it"]
+    for module in modules:
+        song = song_assets.parse_xm((music_assets.MODULES / module).read_bytes())
+        name = music_assets.song_name(module) + ".it"
+        (folder / name).write_bytes(it_writer.write_it(song, module))
+        names.append(name)
+    run([sdk / "devkitsnes/tools/smconv", "-s", "-i", "-o", "soundbank", "-b", str(SNES_SOUNDBANK_BANK), "-f", *names], folder)
+    # both cartridges map banks 16-63 at $c0 + bank, which the S-CPU reads directly.
+    assembly = (folder / "soundbank.asm").read_text()
+    bank = f".BANK {SNES_SOUNDBANK_BANK}"
+    (folder / "soundbank.asm").write_text(assembly.replace(bank, ".BASE $C0\n" + bank, 1))
+    run([assembler, "-d", "-s", "-x", "-o", "soundbank.obj", "soundbank.asm"], folder)
+    defines = [f"#define SNES_EFFECT_PITCH {SNES_EFFECT_PITCH}", "#define SNES_EFFECT_COUNT " + str(len(effects))]
+    defines += [f"#define SNES_MODULE_{track.upper()} MOD_{music_assets.song_name(module).upper()}"
+                for track, module in music_assets.TRACKS.items()]
+    header = ["#ifndef SNES_AUDIO_H", "#define SNES_AUDIO_H", '#include "soundbank.h"', *defines, "#endif"]
+    (folder / "snes_audio.h").write_text("\n".join(header) + "\n")
+    return ["soundbank.obj"]
 
 
 if __name__ == "__main__":
