@@ -578,15 +578,6 @@ static void presentStart(DeceptusU8 ticks, DeceptusU8 buffer)
    deceptus_debug[11] = SNES_PHASE_COMMITTING;
 }
 
-/* waits until the coming vblank is SNES_FRAMES_PER_PICTURE frames after the previous start. */
-static void holdPicture(void)
-{
-   while ((DeceptusU16)(snes_vblank_count + 1 - previous_vblank) < SNES_FRAMES_PER_PICTURE)
-   {
-      snesWaitForVblank();
-   }
-}
-
 /* the ticks for the time from the previous start to the coming vblank, which starts the next ones.
  * counted before the wait, which leaves vblank to the transfers; should the vblank arrive before
  * the wait, the following count includes the missed frame. a room load is not made up for. */
@@ -602,7 +593,8 @@ static DeceptusU8 ticksUntilNextVblank(DeceptusU8 room_loaded)
 
 int main(void)
 {
-   DeceptusU8 room_loaded, ticks, buffer, committed, serial;
+   DeceptusU16 commit_vblank;
+   DeceptusU8 room_loaded, ticks, buffer, committed, serial, started;
    snesClearGameRam();
 #ifdef SNES_SA1
    snesSa1MapDefaultBlocks();
@@ -638,8 +630,6 @@ int main(void)
       snesSpritesUploadTiles(buffer);
       deceptus_debug[11] = 14;
       debugWrite(buffer);
-      holdPicture();
-      ticks = ticksUntilNextVblank(room_loaded);
       /* phase 15 tells emulator checks the packet is complete and the pad not read yet. */
       deceptus_debug[11] = 15;
       if (snesSpritesBlank(buffer))
@@ -651,16 +641,34 @@ int main(void)
          setScreenOff();
          screen_blanked = 1;
       }
+      /* a commit that still reads the work area, a blanked screen or a fresh room starts the next
+       * ticks only after the commit; otherwise they start at the first vblank that has read the
+       * pad, during the hold, so a light picture lends its spare frame to the next one. */
+      serial = snesBackgroundSerial(buffer) || screen_blanked || room_loaded;
+      started = 0;
+      commit_vblank = previous_vblank + SNES_FRAMES_PER_PICTURE;
+      while ((DeceptusI16)(commit_vblank - (snes_vblank_count + 1)) > 0)
+      {
+         snesWaitForVblank();
+         if ((serial == 0) && (started == 0))
+         {
+            presentStart(ticksUntilNextVblank(room_loaded), buffer ^ 1);
+            started = 1;
+         }
+      }
+      if (started == 0)
+      {
+         ticks = ticksUntilNextVblank(room_loaded);
+      }
       snesWaitForVblank();
       committed = buffer;
       buffer ^= 1;
       /* the pad as this vblank read it. the SA-1 runs the next ticks and prepares their frame into
-       * the other buffer while this cpu commits this one; a commit that still reads the work area
-       * finishes first. */
-      serial = snesBackgroundSerial(committed);
-      if (serial == 0)
+       * the other buffer while this cpu commits this one. */
+      if ((started == 0) && (serial == 0))
       {
          presentStart(ticks, buffer);
+         started = 1;
       }
       /* every video transfer first, while vblank lasts. when the background leaves too little of it,
          the sprites take the next vblank; their tiles and the oam that refers to them stay together. */
@@ -677,7 +685,7 @@ int main(void)
          snesScreenOn();
          screen_blanked = 0;
       }
-      if (serial)
+      if (started == 0)
       {
          presentStart(ticks, buffer);
       }
