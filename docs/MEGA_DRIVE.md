@@ -86,11 +86,14 @@ Sewers. This covers tile capacity, not frame rate or hardware validation.
 ## Verification and profiling
 
 The opening owns its bounded, direct presentation transfers and skips SGDK's
-unused DMA queue allocation. Its build compiles the SDK startup translation
-unit separately without LTO, so the linker wrapper for `DMA_init` remains
-effective. Allowing startup to inline that call can unexpectedly allocate the
-queue and prevent boot within the 64 KiB RAM budget. The SDK files themselves
-remain unchanged; actual cartridge startup is part of the opening replay.
+unused DMA queue allocation. It also skips SGDK's default font, which the
+interface never uses: `VDP_init` unpacked it through a temporary heap buffer of
+about 3 KB, nearly all the heap the static data leaves, so start-up failed as
+soon as the static data grew by a few dozen bytes. The build compiles the SDK
+translation units that make these calls (`sys.c`, `vdp.c`) separately without
+LTO, so the linker wrappers for `DMA_init` and `VDP_loadFont` remain effective;
+inlined or cloned calls would bypass them. The SDK files themselves remain
+unchanged; actual cartridge startup is part of the opening replay.
 
 `verify_smd_opening.py` compares the same ordinary inputs against desktop C and
 the actual cartridge, including positions, inventory, flags, projectiles and

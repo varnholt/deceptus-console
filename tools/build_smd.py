@@ -113,15 +113,18 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
         sources += [generated / 'room.c', generated / 'smd_assets.c']
     objects = []
     if opening:
-        # Keep SDK startup calls external so LTO cannot inline away DMA_init's
-        # linker wrapper and allocate an unused DMA queue in the 64KiB RAM.
-        target = folder / 'sdk_sys.o'
+        # Keep the SDK start-up calls external so LTO cannot inline away the
+        # linker wrappers of DMA_init (sys.c) and VDP_loadFont (vdp.c), see
+        # src/platform/smd/opening.c: an unused DMA queue and the default
+        # font's unpack buffer would take the heap the 64KiB RAM leaves.
         sdk_flags = [flag for flag in flags
                      if flag != '-flto' and not flag.startswith('-I')]
-        run([compiler, *sdk_flags, '-I' + str(sdk / 'inc'),
-             '-I' + str(sdk / 'res'), '-c', sdk / 'src/sys.c',
-             '-o', target], output)
-        objects.append(target)
+        for name in ('sys', 'vdp'):
+            target = folder / f'sdk_{name}.o'
+            run([compiler, *sdk_flags, '-I' + str(sdk / 'inc'),
+                 '-I' + str(sdk / 'res'), '-c', sdk / f'src/{name}.c',
+                 '-o', target], output)
+            objects.append(target)
     for source in sources:
         target = folder / (source.stem + '.o')
         run([compiler, *flags, '-std=gnu90' if 'platform' in source.parts else '-std=c90', '-Wall', '-Wextra', '-Werror', '-Wno-main',
@@ -134,7 +137,7 @@ def build(sdk, data, output, scene="tutorial", assets_dir=None, reuse_assets=Fal
     elf = output / (stem + '.elf')
     run([compiler, '-m68000', '-B' + str(sdk / 'bin'), '-n', '-T', sdk / 'md.ld', '-nostdlib',
          folder / 'sega.o', *objects, sdk / 'lib/libmd.a', sdk / 'lib/libgcc.a', '-o', elf,
-         '-Wl,--gc-sections,-Map=' + str(output / (stem + '.map')), *(['-Wl,--wrap=DMA_init'] if opening else []), '-flto'], output)
+         '-Wl,--gc-sections,-Map=' + str(output / (stem + '.map')), *(['-Wl,--wrap=DMA_init,--wrap=VDP_loadFont'] if opening else []), '-flto'], output)
     rom = output / (stem + '.bin')
     run([objcopy, '-O', 'binary', elf, rom], output)
     payload = bytearray(rom.read_bytes())
