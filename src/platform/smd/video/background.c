@@ -13,6 +13,21 @@
 /* per-slot state bits: an upload is owed, or the slot sits in the free ring. */
 #define SLOT_PENDING 1
 #define SLOT_QUEUED 2
+/* the window's two edge columns, which a scroll step loads anew. */
+#define EDGE_LEFT 0
+#define EDGE_RIGHT 1
+
+/* a reader parked in one run-length map row: the run holding the last cell read. reading the next
+   or the same column is then one step, where a reader from the row's start walks every run before
+   the column. */
+typedef struct SmdRowCursor
+{
+   const DeceptusU8* run;
+   /* the row read plus one; 0 when the cursor holds no row. */
+   DeceptusU16 row_plus_one;
+   /* the column of the run's first cell. */
+   DeceptusU16 first;
+} SmdRowCursor;
 
 typedef struct SmdBackgroundWork
 {
@@ -20,6 +35,8 @@ typedef struct SmdBackgroundWork
    DeceptusU16 hash_keys[WORLD_HASH], hash_slots[WORLD_HASH];
    DeceptusU16 maps[2][2048], uploads[MAX_UPLOADS], column[2][32];
    DeceptusU16 frame[WORLD_CLIPS], elapsed[WORLD_CLIPS], dirty_rows[2][2];
+   /* per plane and window row (y & 31), a cursor at each edge column. */
+   SmdRowCursor edges[2][32][2];
    DeceptusU16 free_head, free_count, upload_count, flags, tombstones;
    DeceptusI16 left, top;
    DeceptusU8 pending[SMD_WORLD_SLOTS], loaded, reload, dirty_column[2];
@@ -358,6 +375,85 @@ static void loadCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 
    }
 }
 
+/* whether an enabled clip covers the cell, so that cellValue reads it from the clip's frames. */
+static DeceptusU8 cellInClip(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y)
+{
+   const SmdBackgroundAnimation* clip;
+   DeceptusU16 index;
+   for (index = 0; index < stage->animation_count; ++index)
+   {
+      clip = &stage->animations[index];
+      if ((clip->plane == plane) && clipEnabled(clip, source_flags) && (x >= clip->left) && (y >= clip->top) &&
+          (x < clip->left + clip->columns) && (y < clip->top + clip->rows))
+      {
+         return 1;
+      }
+   }
+   return 0;
+}
+
+/* the cell at column of the blob's row, as smdCell finds it, read on from where the cursor stopped. a
+   column left of the cursor's run starts the cursor again from the row's start. */
+static const DeceptusU8* cursorCell(SmdRowCursor* cursor, const SmdRomBlob* blob, DeceptusU16 row, DeceptusU16 column)
+{
+   const DeceptusU8 *run, *end;
+   DeceptusU16 first, count, bytes;
+   DeceptusU8 code;
+   if ((row >= blob->blocks) || (column >= blob->block_bytes / 4) || (blob->unit_bytes != 4))
+   {
+      smd_graphics_error = 1;
+      return 0;
+   }
+   if ((cursor->row_plus_one != row + 1) || (column < cursor->first))
+   {
+      cursor->row_plus_one = row + 1;
+      cursor->run = blob->data + blob->offsets[row];
+      cursor->first = 0;
+   }
+   end = blob->data + blob->offsets[row + 1];
+   run = cursor->run;
+   first = cursor->first;
+   while (run < end)
+   {
+      code = *run;
+      count = (code < 128) ? code + 1 : code - 127;
+      bytes = (code < 128) ? count * 4 : 4;
+      if (run + 1 + bytes > end)
+      {
+         break;
+      }
+      if (column < first + count)
+      {
+         cursor->run = run;
+         cursor->first = first;
+         return run + 1 + ((code < 128) ? (column - first) * 4 : 0);
+      }
+      run += 1 + bytes;
+      first += count;
+   }
+   cursor->row_plus_one = 0;
+   smd_graphics_error = 1;
+   return 0;
+}
+
+/* loadCell for a cell of the window's edge column, through that edge's cursor in the cell's row. */
+static void loadEdgeCell(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU8 edge)
+{
+   const DeceptusU8* cell;
+   if ((x < 0) || (y < 0) || (x >= stage->columns) || (y >= stage->rows) || cellInClip(plane, x, y))
+   {
+      loadCell(plane, x, y, 1);
+      return;
+   }
+   cell = cursorCell(&work.edges[plane][y & 31][edge], plane ? &stage->foreground : &stage->background, y, x);
+   if (!cell)
+   {
+      smd_background_error = 1;
+      return;
+   }
+   storeCell(plane, x, y, 1, ((DeceptusU16)cell[0] << 8) | cell[1], ((DeceptusU16)cell[2] << 8) | cell[3]);
+}
+
 /* an animated clip's next frame usually repeats most of its cells. a cell whose pattern and
    attributes already sit in the map keeps its slot, so it is neither re-hashed nor re-sent. */
 static void refreshCellWith(DeceptusU8 plane, DeceptusI16 x, DeceptusI16 y, DeceptusU16 pattern, DeceptusU16 attributes)
@@ -520,9 +616,9 @@ static void loadRow(DeceptusU8 plane, DeceptusI16 y, DeceptusI16 left, DeceptusI
 {
    SmdCellRun run;
    const DeceptusU8* cell;
-   DeceptusI16 x;
-   if ((y < 0) || (y >= stage->rows) || (left < 0) || (left + WORLD_WIDTH > stage->columns) || rowHasClip(plane, y, left) ||
-       !cellRunStart(&run, plane ? &stage->foreground : &stage->background, y))
+   DeceptusI16 x, inside_left, inside_right;
+   DeceptusU8 clips;
+   if ((y < 0) || (y >= stage->rows) || !cellRunStart(&run, plane ? &stage->foreground : &stage->background, y))
    {
       for (x = left; x < left + WORLD_WIDTH; ++x)
       {
@@ -533,7 +629,12 @@ static void loadRow(DeceptusU8 plane, DeceptusI16 y, DeceptusI16 left, DeceptusI
       }
       return;
    }
-   for (x = 0; x < left; ++x)
+   /* the columns of the window inside the room; cells outside it are empty, which loadCell stores at
+      once. a clip's cells come from its frames through loadCell; the others from the row's runs. */
+   inside_left = (left > 0) ? left : 0;
+   inside_right = (left + WORLD_WIDTH < stage->columns) ? left + WORLD_WIDTH : stage->columns;
+   clips = rowHasClip(plane, y, left);
+   for (x = 0; x < inside_left; ++x)
    {
       if (!cellRunNext(&run))
       {
@@ -543,13 +644,29 @@ static void loadRow(DeceptusU8 plane, DeceptusI16 y, DeceptusI16 left, DeceptusI
    }
    for (x = left; x < left + WORLD_WIDTH; ++x)
    {
+      if ((x < inside_left) || (x >= inside_right))
+      {
+         if (x != skip)
+         {
+            loadCell(plane, x, y, 2);
+         }
+         continue;
+      }
       cell = cellRunNext(&run);
       if (!cell)
       {
          smd_graphics_error = smd_background_error = 1;
          return;
       }
-      if (x != skip)
+      if (x == skip)
+      {
+         continue;
+      }
+      if (clips && cellInClip(plane, x, y))
+      {
+         loadCell(plane, x, y, 2);
+      }
+      else
       {
          storeCell(plane, x, y, 2, ((DeceptusU16)cell[0] << 8) | cell[1], ((DeceptusU16)cell[2] << 8) | cell[3]);
       }
@@ -636,7 +753,7 @@ static void shiftWindow(DeceptusI16 left, DeceptusI16 top)
          added = left > work.left ? left + WORLD_WIDTH - 1 : left;
          for (y = top; y < top + WORLD_HEIGHT; ++y)
          {
-            loadCell((DeceptusU8)plane, added, y, 1);
+            loadEdgeCell((DeceptusU8)plane, added, y, (left > work.left) ? EDGE_RIGHT : EDGE_LEFT);
          }
       }
       if (top != work.top)
