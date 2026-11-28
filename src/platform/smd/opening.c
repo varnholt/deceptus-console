@@ -47,6 +47,16 @@ void __wrap_DMA_init(void)
    DMA_clearQueue();
 }
 
+/* the interface draws its own font. the sdk's default font is unpacked through a temporary heap
+ * buffer of about 3 KB at start-up and again when the plane addresses change; with the little heap
+ * the static data leaves, start-up failed as soon as the static data grew by a few bytes. */
+u16 __wrap_VDP_loadFont(const TileSet* font, TransferMethod method)
+{
+   (void)font;
+   (void)method;
+   return TRUE;
+}
+
 static DeceptusU16 inputRead(void)
 {
    DeceptusU16 pad, buttons;
