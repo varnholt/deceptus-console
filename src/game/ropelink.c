@@ -10,7 +10,15 @@
 static const DeceptusI16 angle_bounds[ROPE_LINK_ANGLES - 1] =
    {-2599, -844, -479, -312, -210, -137, -78, -25, 25, 78, 137, 210, 312, 479, 844, 2599};
 
-DeceptusU8 ropeLinkAngle(DeceptusI16 dx, DeceptusI16 dy)
+/* the pieces span at most ROPE_KNOT_LENGTH pixels, and a rope point rounds by a pixel either way: the
+ * directions of every drawn piece fit this square, whose answers are found once and kept. a search per
+ * piece took a tenth of the 65816's time in the grab rope room. */
+#define CACHED_REACH (ROPE_KNOT_LENGTH + 2)
+
+/* image + 1 per direction, with dy made non-negative as the search makes it; 0 when not found yet. */
+static DeceptusU8 cached_angles[CACHED_REACH + 1][2 * CACHED_REACH + 1];
+
+static DeceptusU8 searchAngle(DeceptusI16 dx, DeceptusI16 dy)
 {
    DeceptusI32 across;
    DeceptusI16 down;
@@ -45,6 +53,24 @@ DeceptusU8 ropeLinkAngle(DeceptusI16 dx, DeceptusI16 dy)
       }
    }
    return low;
+}
+
+DeceptusU8 ropeLinkAngle(DeceptusI16 dx, DeceptusI16 dy)
+{
+   DeceptusU8* cached;
+   DeceptusI16 across, down;
+   if ((dx < -CACHED_REACH) || (dx > CACHED_REACH) || (dy < -CACHED_REACH) || (dy > CACHED_REACH))
+   {
+      return searchAngle(dx, dy);
+   }
+   across = (dy < 0) ? (DeceptusI16)-dx : dx;
+   down = (dy < 0) ? (DeceptusI16)-dy : dy;
+   cached = &cached_angles[down][across + CACHED_REACH];
+   if (*cached == 0)
+   {
+      *cached = (DeceptusU8)(searchAngle(dx, dy) + 1);
+   }
+   return (DeceptusU8)(*cached - 1);
 }
 
 void ropeLinkCell(
