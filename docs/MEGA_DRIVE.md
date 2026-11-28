@@ -297,6 +297,20 @@ SNES's three): every segment costs the rope solve two square roots, a division
 and collision checks per tick. The route replays unchanged with the shorter
 chain; route 50,325 to 48,669 display frames.
 
+A scroll column was still loaded cell by cell, each walking its run-length row
+from the start. Each window row now keeps a cursor at the left and at the right
+edge column (`SmdRowCursor`), so the next column is one step on; a column left of
+the cursor's run starts it again. `loadRow` also reads the rows a clip touches,
+and rows that reach past the room's edge, in one pass, taking only the covered
+cells through the clip lookup. `smdDecodeBlock` copies with plain pointer loops
+and checks bounds once per run; sprite piece uploads after vblank fell by about
+a third. Background tile uploads did not: their cost is the number of new tiles
+a scroll brings in, and uploading them with CPU writes instead of one DMA each
+changed nothing. The background state (resident patterns and both plane maps)
+is identical at every one of the route's 18,244 pictures, and the decoder gives
+the same bytes for all 90,719 blocks of the generated data. Route (with the
+music added since) 53,275 to 51,136 display frames.
+
 ## Retained small prototype
 
 ```powershell

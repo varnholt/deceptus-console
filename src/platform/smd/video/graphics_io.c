@@ -15,11 +15,14 @@ DeceptusU16 smdGraphicsTile(DeceptusU16 logical)
    return logical + 448;
 }
 
+/* runs during vblank for every tile a scroll brings in, so the copies are plain pointer loops (move.b
+   with dbra on the 68000) with the bounds checked once per run. */
 DeceptusU8 smdDecodeBlock(const SmdRomBlob* blob, DeceptusU16 block, DeceptusU8* destination)
 {
-   const DeceptusU8 *source, *end;
-   DeceptusU16 count, bytes, written, unit;
-   DeceptusU8 code;
+   const DeceptusU8 *source, *end, *unit_source;
+   DeceptusU8 *out, *out_end;
+   DeceptusU16 count, bytes, unit, index;
+   DeceptusU8 code, value;
    if (block >= blob->blocks)
    {
       smd_graphics_error = 1;
@@ -27,38 +30,48 @@ DeceptusU8 smdDecodeBlock(const SmdRomBlob* blob, DeceptusU16 block, DeceptusU8*
    }
    source = blob->data + blob->offsets[block];
    end = blob->data + blob->offsets[block + 1];
-   written = 0;
+   out = destination;
+   out_end = destination + blob->block_bytes;
    unit = blob->unit_bytes;
-   while (source < end && written < blob->block_bytes)
+   while ((source < end) && (out < out_end))
    {
       code = *source++;
-      count = code < 128 ? code + 1 : code - 127;
+      count = (code < 128) ? code + 1 : code - 127;
       bytes = count * unit;
-      if (bytes > blob->block_bytes - written || source + (code < 128 ? bytes : unit) > end)
+      if ((bytes > (DeceptusU16)(out_end - out)) || (source + ((code < 128) ? bytes : unit) > end))
       {
          smd_graphics_error = 1;
          return 0;
       }
       if (code < 128)
       {
-         while (bytes--)
+         do
          {
-            destination[written++] = *source++;
-         }
+            *out++ = *source++;
+         } while (--bytes);
+      }
+      else if (unit == 1)
+      {
+         value = *source++;
+         do
+         {
+            *out++ = value;
+         } while (--count);
       }
       else
       {
-         while (count--)
+         unit_source = source;
+         do
          {
-            for (bytes = 0; bytes < unit; ++bytes)
+            for (index = 0; index < unit; ++index)
             {
-               destination[written++] = source[bytes];
+               *out++ = unit_source[index];
             }
-         }
+         } while (--count);
          source += unit;
       }
    }
-   if (written != blob->block_bytes || source != end)
+   if ((out != out_end) || (source != end))
    {
       smd_graphics_error = 1;
       return 0;
