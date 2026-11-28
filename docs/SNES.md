@@ -239,6 +239,24 @@ In the animated Altar view, the same warm sample improves from 31 to 46 ticks
 matched 318-presentation Altar release fixture drops from 12,607 to 9,530 display
 frames. This remains substantially below a playable console frame rate.
 
+### Even picture rhythm
+
+The main loop holds every picture for at least two display frames
+(`SNES_FRAMES_PER_PICTURE`) before it counts the ticks for the next one. Pictures
+that alternated between one and two frames moved the game by one tick, then
+two, which reads as judder even at a high average rate; a steady 30 pictures per
+second (25 on PAL) with two ticks each moves evenly, and the SA-1 prepares half as
+many pictures for the same game time. A picture that still needs longer takes
+three frames and catches up with three ticks, as before.
+
+Checked on the tick-locked SA-1 route, counting display frames between picture
+starts: before, ordinary rooms mixed one-, two- and three-frame pictures (the
+Crossroads 815 / 1,060 / 115); with the hold, all but room loads take two frames
+or more, and the share of pictures over two frames is unchanged in every room.
+Rooms 3, 4, 15, 21 and 23 now stay within two frames for 98% of their pictures
+or more; the Altar, Sewers, the spike-ball room 14, Cannon Fodder, room 22 and the
+Crypt still exceed two frames in 19-59% of theirs.
+
 ### Frame-phase profile and loop changes
 
 A local profiling build latched the PPU vertical counter at every phase write of

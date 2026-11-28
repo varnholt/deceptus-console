@@ -182,6 +182,12 @@ int main(void)
 #ifndef SNES_PACING_MAX_TICKS
 #define SNES_PACING_MAX_TICKS 3
 #endif
+/* every picture stays on screen for at least this many display frames. pictures that alternate
+ * between one and two frames move the game by one tick, then two, which reads as judder; an even
+ * 30 per second (25 on PAL) with two ticks each looks smoother, and the SA-1 prepares half as many
+ * pictures. */
+#define SNES_FRAMES_PER_PICTURE 2
+typedef char pacing_covers_a_held_picture[(SNES_PACING_MAX_TICKS >= SNES_FRAMES_PER_PICTURE) ? 1 : -1];
 static DeceptusPacing pacing;
 volatile DeceptusU16 deceptus_debug[56];
 /* zeroes the game's work RAM globals (game_ram.asm), which the sdk start-up leaves uncleared. */
@@ -572,6 +578,15 @@ static void presentStart(DeceptusU8 ticks, DeceptusU8 buffer)
    deceptus_debug[11] = SNES_PHASE_COMMITTING;
 }
 
+/* waits until the coming vblank is SNES_FRAMES_PER_PICTURE frames after the previous start. */
+static void holdPicture(void)
+{
+   while ((DeceptusU16)(snes_vblank_count + 1 - previous_vblank) < SNES_FRAMES_PER_PICTURE)
+   {
+      snesWaitForVblank();
+   }
+}
+
 /* the ticks for the time from the previous start to the coming vblank, which starts the next ones.
  * counted before the wait, which leaves vblank to the transfers; should the vblank arrive before
  * the wait, the following count includes the missed frame. a room load is not made up for. */
@@ -623,6 +638,7 @@ int main(void)
       snesSpritesUploadTiles(buffer);
       deceptus_debug[11] = 14;
       debugWrite(buffer);
+      holdPicture();
       ticks = ticksUntilNextVblank(room_loaded);
       /* phase 15 tells emulator checks the packet is complete and the pad not read yet. */
       deceptus_debug[11] = 15;
