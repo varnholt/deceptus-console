@@ -22,6 +22,8 @@
 #define BALL_RADIUS 21
 /* links sit at the eighths of the chain; the eighth one lies under the ball. */
 #define LINK_STEPS (SPIKE_BALL_LINKS + 1)
+#define LINK_STEPS_SHIFT 3
+typedef char link_steps_are_a_power_of_two[(LINK_STEPS == (1 << LINK_STEPS_SHIFT)) ? 1 : -1];
 
 /* tan of the angles from straight down halfway between two ball images, in 1/256: image k shows the
  * ball turned 90 - 11.25 k degrees from straight down towards the right. */
@@ -172,6 +174,22 @@ DeceptusU8 spikeBallsTick(DeceptusMechanismSet* set, const DeceptusRect* bounds)
    return touched;
 }
 
+/* position * part / LINK_STEPS, truncated toward zero as c division, in pixels. the parts are drawn
+ * every presentation: a 32-bit multiply and divide per link cost the 65816 a fifth of the spike ball
+ * room's time, where at most seven additions and a shift do. */
+static DeceptusI16 linkOffset(DeceptusI32 position, DeceptusU8 part)
+{
+   DeceptusI32 product;
+   DeceptusU8 step;
+   product = 0;
+   for (step = 0; step < part; ++step)
+   {
+      product += position;
+   }
+   product = (product < 0) ? -((-product) >> LINK_STEPS_SHIFT) : (product >> LINK_STEPS_SHIFT);
+   return (DeceptusI16)(product >> POSITION_SHIFT);
+}
+
 void spikeBallPart(const DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU8 part, DeceptusU8* image, DeceptusI16* x, DeceptusI16* y)
 {
    const SpikeBall* ball;
@@ -200,6 +218,6 @@ void spikeBallPart(const DeceptusMechanismSet* set, DeceptusU16 index, DeceptusU
    {
       *image = SPIKE_BALL_IMAGE_LINK_B;
    }
-   *x = (DeceptusI16)(anchorX(set, index) + ((ball->x * part / LINK_STEPS) >> POSITION_SHIFT) - SPIKE_BALL_LINK_SIZE / 2);
-   *y = (DeceptusI16)(anchorY(set, index) + ((ball->y * part / LINK_STEPS) >> POSITION_SHIFT) - SPIKE_BALL_LINK_SIZE / 2);
+   *x = (DeceptusI16)(anchorX(set, index) + linkOffset(ball->x, part) - SPIKE_BALL_LINK_SIZE / 2);
+   *y = (DeceptusI16)(anchorY(set, index) + linkOffset(ball->y, part) - SPIKE_BALL_LINK_SIZE / 2);
 }
